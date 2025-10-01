@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const cheerio = require('cheerio');
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,46 +10,67 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Debug function to see what's on the ATP page
+// Create a custom axios instance that ignores header size limits
+const axiosCustom = axios.create({
+    httpsAgent: new https.Agent({
+        maxHeaderSize: 16384, // 16KB instead of default 8KB
+        rejectUnauthorized: false
+    }),
+    timeout: 15000,
+    headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+    }
+});
+
+// Alternative: Use node-fetch instead of axios
+const fetch = require('node-fetch');
+
 async function debugATPPage() {
     try {
-        console.log('Fetching ATP website...');
-        const response = await axios.get('https://www.atp.gob.pa/industrias/hoteleros/', {
+        console.log('Fetching ATP website with node-fetch...');
+
+        // Try with node-fetch first (better header handling)
+        const response = await fetch('https://www.atp.gob.pa/industrias/hoteleros/', {
             timeout: 15000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
         });
 
-        const $ = cheerio.load(response.data);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
 
-        // Find ALL links on the page
-        const allLinks = [];
-        $('a').each((i, element) => {
-            const href = $(element).attr('href');
-            const text = $(element).text().trim();
-            if (href) {
-                allLinks.push({
-                    text: text.substring(0, 100), // First 100 chars
-                    href: href,
-                    isPDF: href.includes('.pdf')
-                });
-            }
-        });
+        const html = await response.text();
 
-        // Find PDF links specifically
-        const pdfLinks = allLinks.filter(link => link.isPDF);
+        // Simple regex to find PDF links
+        const pdfLinks = [];
+        const pdfRegex = /href="([^"]*\.pdf)"/gi;
+        let match;
+
+        while ((match = pdfRegex.exec(html)) !== null) {
+            pdfLinks.push(match[1]);
+        }
+
+        // Also look for "Descargar" text near PDF links
+        const descargarLinks = [];
+        const descargarRegex = /Descargar[^>]*href="([^"]*\.pdf)"/gi;
+        while ((match = descargarRegex.exec(html)) !== null) {
+            descargarLinks.push(match[1]);
+        }
 
         return {
             success: true,
-            totalLinks: allLinks.length,
-            pdfLinks: pdfLinks,
-            allLinksSample: allLinks.slice(0, 20), // First 20 links
-            pageTitle: $('title').text(),
-            hasDescargarButton: $('a:contains("Descargar")').length > 0,
-            hasDescargarPDF: $('a:contains("Descargar PDF")').length > 0
+            pdfLinks: [...new Set([...pdfLinks, ...descargarLinks])], // Remove duplicates
+            totalPDFLinks: pdfLinks.length + descargarLinks.length,
+            htmlSample: html.substring(0, 500) // First 500 chars of HTML
         };
     } catch (error) {
+        console.error('Fetch error:', error.message);
         return {
             success: false,
             error: error.message
@@ -64,14 +85,16 @@ async function findPDFUrl() {
         'https://www.atp.gob.pa/wp-content/uploads/2024/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2024.pdf',
         'https://www.atp.gob.pa/wp-content/uploads/2023/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2023.pdf',
         'https://www.atp.gob.pa/wp-content/uploads/2025/08/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf',
-        'https://www.atp.gob.pa/wp-content/uploads/2025/07/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf'
+        'https://www.atp.gob.pa/wp-content/uploads/2025/07/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf',
+        'https://www.atp.gob.pa/wp-content/uploads/2025/06/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf',
+        'https://www.atp.gob.pa/wp-content/uploads/2025/05/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf'
     ];
 
     for (const url of possibleUrls) {
         try {
             console.log(`Testing PDF URL: ${url}`);
-            const response = await axios.head(url, { timeout: 10000 });
-            if (response.status === 200) {
+            const response = await fetch(url, { method: 'HEAD' });
+            if (response.ok) {
                 console.log(`Found working PDF: ${url}`);
                 return url;
             }
@@ -80,6 +103,25 @@ async function findPDFUrl() {
         }
     }
     return null;
+}
+
+// Direct PDF test
+async function testDirectPDF() {
+    const directUrl = 'https://www.atp.gob.pa/wp-content/uploads/2025/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf';
+    try {
+        const response = await fetch(directUrl, { method: 'HEAD' });
+        return {
+            url: directUrl,
+            exists: response.ok,
+            status: response.status
+        };
+    } catch (error) {
+        return {
+            url: directUrl,
+            exists: false,
+            error: error.message
+        };
+    }
 }
 
 // API Routes
@@ -95,10 +137,12 @@ app.get('/api/debug-atp', async (req, res) => {
     try {
         const debugInfo = await debugATPPage();
         const pdfUrl = await findPDFUrl();
+        const directTest = await testDirectPDF();
 
         res.json({
             debugInfo,
             foundPDF: pdfUrl,
+            directPDFTest: directTest,
             manualPDF: 'https://www.atp.gob.pa/wp-content/uploads/2025/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf',
             status: pdfUrl ? 'PDF_FOUND' : 'PDF_NOT_FOUND'
         });
@@ -107,8 +151,8 @@ app.get('/api/debug-atp', async (req, res) => {
     }
 });
 
+// Sample data endpoints (same as before)
 app.get('/api/rentals', (req, res) => {
-    // Sample data for testing
     const sampleRentals = [
         {
             id: 1,
@@ -142,17 +186,6 @@ app.get('/api/rentals', (req, res) => {
             email: "stay@bocasbeach.com",
             description: "Beachfront hotel with Caribbean views in Bocas del Toro",
             google_maps_url: "https://maps.google.com/?q=Bocas+del+Toro,Panama"
-        },
-        {
-            id: 4,
-            name: "Panama City Business Hotel",
-            type: "Hotel",
-            province: "Panamá",
-            district: "Ciudad de Panamá",
-            phone: "+507 234-5678",
-            email: "book@panamabusiness.com",
-            description: "Modern hotel in downtown Panama City for business travelers",
-            google_maps_url: "https://maps.google.com/?q=Panama+City,Panama"
         }
     ];
 
@@ -188,31 +221,10 @@ app.get('/api/types', (req, res) => {
 
 app.get('/api/stats', (req, res) => {
     res.json({
-        total_rentals: 4,
+        total_rentals: 3,
         last_updated: new Date().toISOString(),
         status: "Using sample data - PDF debugging in progress"
     });
-});
-
-// Test direct PDF access
-app.get('/api/test-pdf', async (req, res) => {
-    try {
-        const pdfUrl = 'https://www.atp.gob.pa/wp-content/uploads/2025/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf';
-        const response = await axios.head(pdfUrl);
-
-        res.json({
-            pdfUrl: pdfUrl,
-            exists: response.status === 200,
-            status: 'PDF is accessible'
-        });
-    } catch (error) {
-        res.json({
-            pdfUrl: 'https://www.atp.gob.pa/wp-content/uploads/2025/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf',
-            exists: false,
-            error: error.message,
-            status: 'PDF not accessible'
-        });
-    }
 });
 
 app.listen(PORT, () => {
