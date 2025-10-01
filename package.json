@@ -10,7 +10,6 @@
     "express": "^4.18.2",
     "axios": "^1.6.0",
     "cors": "^2.8.5",
-    "cheerio": "^1.0.0-rc.12",
-    "node-fetch": "^2.6.7"
+    "pdf-parse": "^1.1.1"
   }
 }
