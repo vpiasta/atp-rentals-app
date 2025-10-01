@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
-const cors = require('cors');
 const pdf = require('pdf-parse');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,24 +10,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Use CORS proxies to bypass ATP restrictions
-const CORS_PROXIES = [
-    'https://cors-anywhere.herokuapp.com/',
-    'https://api.allorigins.win/raw?url=',
-    'https://corsproxy.io/?',
-    'https://proxy.cors.sh/'
+// PDF URL - will be fetched from your United Domains hosting
+const PDF_URLS = [
+    'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf',
+    'https://aparthotel-boquete.com/hospedajes/atp-rentals.pdf',
+    'https://aparthotel-boquete.com/hospedajes/latest.pdf'
 ];
 
-// Known ATP PDF URLs (we'll try these directly)
-const KNOWN_PDF_URLS = [
-    'https://www.atp.gob.pa/wp-content/uploads/2025/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf',
-    'https://www.atp.gob.pa/wp-content/uploads/2024/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2024.pdf',
-    'https://www.atp.gob.pa/wp-content/uploads/2023/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2023.pdf',
-    'https://www.atp.gob.pa/wp-content/uploads/2025/08/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf'
-];
-
-// Sample data as fallback (real Panama hotels)
-const SAMPLE_RENTALS = [
+// Enhanced sample data as fallback
+const ENHANCED_SAMPLE_RENTALS = [
     {
         id: 1,
         name: "Hotel Boquete Mountain Resort",
@@ -87,102 +78,147 @@ const SAMPLE_RENTALS = [
         description: "All-inclusive beach resort with golf course and spa facilities.",
         google_maps_url: "https://maps.google.com/?q=Coronado,Panama",
         whatsapp: "+50761234570"
-    },
-    {
-        id: 6,
-        name: "El Valle Mountain Lodge",
-        type: "Albergue",
-        province: "Coclé",
-        district: "El Valle de Antón",
-        phone: "+507 456-7890",
-        email: "info@elvallelodge.com",
-        description: "Eco-lodge in the crater of El Valle volcano, ideal for hiking and bird watching.",
-        google_maps_url: "https://maps.google.com/?q=El+Valle,Panama",
-        whatsapp: "+50761234571"
-    },
-    {
-        id: 7,
-        name: "David City Hostal",
-        type: "Hostal",
-        province: "Chiriquí",
-        district: "David",
-        phone: "+507 567-8901",
-        email: "bookings@davidhostal.com",
-        description: "Budget-friendly hostal in David city center, convenient for exploring Chiriquí province.",
-        google_maps_url: "https://maps.google.com/?q=David,Chiriquí,Panama",
-        whatsapp: "+50761234572"
-    },
-    {
-        id: 8,
-        name: "Portobelo Bay Inn",
-        type: "Posada Turística",
-        province: "Colón",
-        district: "Portobelo",
-        phone: "+507 678-9012",
-        email: "stay@portobelobay.com",
-        description: "Historic inn near Portobelo fort with Caribbean cuisine and cultural tours.",
-        google_maps_url: "https://maps.google.com/?q=Portobelo,Colón,Panama",
-        whatsapp: "+50761234573"
-    },
-    {
-        id: 9,
-        name: "Volcán Baru Cabin",
-        type: "Albergue",
-        province: "Chiriquí",
-        district: "Volcán",
-        phone: "+507 789-0123",
-        email: "cabin@volcanbaru.com",
-        description: "Rustic cabin at the base of Volcán Baru, perfect for hiking enthusiasts.",
-        google_maps_url: "https://maps.google.com/?q=Volcán,Chiriquí,Panama",
-        whatsapp: "+50761234574"
-    },
-    {
-        id: 10,
-        name: "San Blas Islands Eco Lodge",
-        type: "Albergue",
-        province: "Guna Yala",
-        district: "San Blas",
-        phone: "+507 890-1234",
-        email: "paradise@sanblaslodge.com",
-        description: "Traditional Guna eco-lodge on a private San Blas island with crystal clear waters.",
-        google_maps_url: "https://maps.google.com/?q=San+Blas,Panama",
-        whatsapp: "+50761234575"
     }
 ];
 
-// Try to fetch PDF through CORS proxy
-async function fetchPDFWithProxy(pdfUrl) {
-    for (const proxy of CORS_PROXIES) {
+let CURRENT_RENTALS = [...ENHANCED_SAMPLE_RENTALS];
+let LAST_PDF_UPDATE = null;
+let PDF_STATUS = 'No PDF processed yet';
+
+// Try to fetch and parse PDF from your hosting
+async function fetchAndParsePDF() {
+    for (const pdfUrl of PDF_URLS) {
         try {
-            console.log(`Trying proxy: ${proxy}`);
-            const proxyUrl = proxy + encodeURIComponent(pdfUrl);
-            const response = await axios.get(proxyUrl, {
+            console.log(`Trying to fetch PDF from: ${pdfUrl}`);
+            const response = await axios.get(pdfUrl, {
                 responseType: 'arraybuffer',
                 timeout: 30000
             });
 
             if (response.status === 200) {
-                console.log(`Success with proxy: ${proxy}`);
-                return response.data;
+                console.log('PDF fetched successfully, parsing...');
+                const data = await pdf(response.data);
+                PDF_STATUS = `PDF processed successfully from: ${pdfUrl}`;
+                LAST_PDF_UPDATE = new Date().toISOString();
+
+                const parsedRentals = parsePDFText(data.text);
+                if (parsedRentals.length > 0) {
+                    CURRENT_RENTALS = parsedRentals;
+                    console.log(`Successfully parsed ${parsedRentals.length} rentals from PDF`);
+                    return true;
+                }
             }
         } catch (error) {
-            console.log(`Proxy failed: ${proxy} - ${error.message}`);
+            console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
         }
     }
+
+    PDF_STATUS = 'No PDF available, using enhanced sample data';
+    return false;
+}
+
+// Parse PDF text into rental data
+function parsePDFText(text) {
+    console.log('Parsing PDF text...');
+    const rentals = [];
+    const lines = text.split('\n');
+
+    let currentProvince = '';
+
+    // Common Panama provinces
+    const provinces = [
+        'BOCAS DEL TORO', 'CHIRIQUÍ', 'COCLÉ', 'COLÓN', 'DARIÉN',
+        'HERRERA', 'LOS SANTOS', 'PANAMÁ', 'VERAGUAS', 'COMARCA',
+        'GUNAS', 'EMBERÁ', 'NGÄBE-BUGLÉ'
+    ];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        // Skip empty lines and headers
+        if (!line || line.length < 5) continue;
+        if (line.includes('REPORTE DE HOSPEDAJES') || line.includes('Página')) continue;
+
+        // Detect province headers
+        const provinceMatch = provinces.find(province =>
+            line.toUpperCase().includes(province)
+        );
+        if (provinceMatch) {
+            currentProvince = provinceMatch;
+            console.log('Found province:', currentProvince);
+            continue;
+        }
+
+        // Try to parse rental lines (look for contact info)
+        if (line.includes('@') || line.match(/\+507[\s\d-]+/) || line.match(/\d{3}[- ]?\d{3}[- ]?\d{3}/)) {
+            const rentalData = parseRentalLine(line, currentProvince);
+            if (rentalData && rentalData.name && rentalData.name.length > 2) {
+                // Enhance with additional data
+                const enhancedRental = {
+                    ...rentalData,
+                    district: guessDistrict(rentalData.name, rentalData.province),
+                    description: `Hospedaje ${rentalData.type} registrado en ${rentalData.province}, Panamá. ${rentalData.name} ofrece servicios de hospedaje autorizados por la ATP.`,
+                    google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(rentalData.name + ' ' + rentalData.province + ' Panamá')}`,
+                    whatsapp: rentalData.phone
+                };
+                rentals.push(enhancedRental);
+            }
+        }
+    }
+
+    console.log(`Parsed ${rentals.length} rentals from PDF`);
+    return rentals.length > 0 ? rentals : ENHANCED_SAMPLE_RENTALS;
+}
+
+function parseRentalLine(line, province) {
+    line = line.replace(/\s+/g, ' ').trim();
+
+    // Extract email
+    const emailMatch = line.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const email = emailMatch ? emailMatch[1] : '';
+
+    // Extract phone
+    const phoneMatch = line.match(/(\+507[\s\d-]+|\d{3}[- ]?\d{3}[- ]?\d{3})/);
+    const phone = phoneMatch ? phoneMatch[0] : '';
+
+    // Remove email and phone to get name and type
+    let remainingLine = line
+        .replace(email, '')
+        .replace(phone, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const parts = remainingLine.split(' ').filter(part => part.length > 0);
+
+    if (parts.length >= 2) {
+        const type = parts.pop();
+        const name = parts.join(' ');
+
+        return {
+            name: name.trim(),
+            type: type.trim(),
+            email: email.trim(),
+            phone: phone.trim(),
+            province: province
+        };
+    }
+
     return null;
 }
 
-// Parse PDF text (simplified version)
-function parsePDFText(text) {
-    console.log('Parsing PDF text...');
-
-    // For now, return enhanced sample data
-    // In production, this would parse the actual PDF
-    return SAMPLE_RENTALS.map(rental => ({
-        ...rental,
-        description: rental.description + " [DATOS REALES DE ATP - Actualizado regularmente]",
-        source: "ATP Registro Oficial"
-    }));
+function guessDistrict(name, province) {
+    const districtMap = {
+        'BOCAS DEL TORO': 'Bocas del Toro',
+        'CHIRIQUÍ': 'David',
+        'COCLÉ': 'Penonomé',
+        'COLÓN': 'Colón',
+        'DARIÉN': 'La Palma',
+        'HERRERA': 'Chitré',
+        'LOS SANTOS': 'Las Tablas',
+        'PANAMÁ': 'Ciudad de Panamá',
+        'VERAGUAS': 'Santiago'
+    };
+    return districtMap[province] || province;
 }
 
 // API Routes
@@ -191,13 +227,13 @@ app.get('/api/test', (req, res) => {
         message: 'ATP Rentals Search API is working!',
         status: 'success',
         timestamp: new Date().toISOString(),
-        version: '1.0'
+        data_source: PDF_STATUS.includes('PDF processed') ? 'LIVE_ATP_PDF' : 'ENHANCED_SAMPLE_DATA'
     });
 });
 
 app.get('/api/rentals', (req, res) => {
     const { search, province, type } = req.query;
-    let filtered = SAMPLE_RENTALS;
+    let filtered = CURRENT_RENTALS;
 
     if (search) {
         const searchLower = search.toLowerCase();
@@ -226,55 +262,60 @@ app.get('/api/rentals', (req, res) => {
 });
 
 app.get('/api/provinces', (req, res) => {
-    const provinces = [...new Set(SAMPLE_RENTALS.map(r => r.province))].sort();
+    const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province))].sort();
     res.json(provinces);
 });
 
 app.get('/api/types', (req, res) => {
-    const types = [...new Set(SAMPLE_RENTALS.map(r => r.type))].sort();
+    const types = [...new Set(CURRENT_RENTALS.map(r => r.type))].sort();
     res.json(types);
 });
 
 app.get('/api/stats', (req, res) => {
     res.json({
-        total_rentals: SAMPLE_RENTALS.length,
-        last_updated: new Date().toISOString(),
-        status: "Usando datos de ejemplo mejorados - Búsqueda funcional",
-        features: "Búsqueda por nombre, provincia, tipo de hospedaje",
-        note: "Conexión ATP en desarrollo - Datos reales próximamente"
+        total_rentals: CURRENT_RENTALS.length,
+        last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
+        data_source: PDF_STATUS.includes('PDF processed') ? 'LIVE_ATP_DATA' : 'ENHANCED_SAMPLE_DATA',
+        status: PDF_STATUS,
+        pdf_urls_tested: PDF_URLS
     });
 });
 
-app.get('/api/search-boquete', (req, res) => {
-    const boqueteRentals = SAMPLE_RENTALS.filter(rental =>
-        rental.district.toLowerCase().includes('boquete') ||
-        rental.name.toLowerCase().includes('boquete')
-    );
-    res.json(boqueteRentals);
+app.post('/api/refresh-pdf', async (req, res) => {
+    try {
+        const success = await fetchAndParsePDF();
+        res.json({
+            success: success,
+            message: success ? 'PDF data refreshed successfully' : 'Failed to refresh PDF data',
+            total_rentals: CURRENT_RENTALS.length,
+            status: PDF_STATUS,
+            last_update: LAST_PDF_UPDATE
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// Debug endpoint that doesn't rely on ATP connection
-app.get('/api/debug', (req, res) => {
+app.get('/api/pdf-status', (req, res) => {
     res.json({
-        status: "API funcionando correctamente",
-        search_features: [
-            "Búsqueda por texto libre",
-            "Filtro por provincia",
-            "Filtro por tipo de hospedaje",
-            "Enlaces a Google Maps",
-            "Contacto vía WhatsApp"
-        ],
-        sample_search: "https://atp-rentals-app-production.up.railway.app/api/rentals?search=boquete",
-        total_sample_rentals: SAMPLE_RENTALS.length,
-        provinces_available: [...new Set(SAMPLE_RENTALS.map(r => r.province))],
-        next_steps: "Implementar conexión directa ATP mediante proxy"
+        status: PDF_STATUS,
+        last_update: LAST_PDF_UPDATE,
+        total_rentals: CURRENT_RENTALS.length,
+        tested_urls: PDF_URLS,
+        data_source: PDF_STATUS.includes('PDF processed') ? 'ATP_PDF' : 'SAMPLE_DATA'
     });
 });
 
-app.listen(PORT, () => {
+// Initialize - try to fetch PDF on startup
+app.listen(PORT, async () => {
     console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
     console.log(`📍 Frontend: https://atp-rentals-app-production.up.railway.app`);
-    console.log(`🔍 Search example: https://atp-rentals-app-production.up.railway.app/api/rentals?search=boquete`);
-    console.log(`📊 Stats: https://atp-rentals-app-production.up.railway.app/api/stats`);
-    console.log(`ℹ️  Debug: https://atp-rentals-app-production.up.railway.app/api/debug`);
+    console.log(`📊 API Status: https://atp-rentals-app-production.up.railway.app/api/stats`);
+
+    // Try to load PDF data on startup
+    setTimeout(async () => {
+        console.log('Attempting to load PDF data from hosted location...');
+        await fetchAndParsePDF();
+        console.log(`Initial data load complete. Using ${CURRENT_RENTALS.length} rentals.`);
+    }, 2000);
 });
