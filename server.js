@@ -5,8 +5,6 @@ const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const cheerio = require('cheerio');
 const cron = require('node-cron');
-const fs = require('fs');
-const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,7 +14,7 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // Database setup
-const db = new sqlite3.Database('./atp_rentals.db');
+const db = new sqlite3.Database(':memory:'); // Using in-memory DB for Railway
 
 // Initialize database
 db.serialize(() => {
@@ -32,37 +30,49 @@ db.serialize(() => {
         whatsapp TEXT,
         description TEXT,
         google_maps_url TEXT,
-        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS data_sync (
-        id INTEGER PRIMARY KEY,
-        last_pdf_url TEXT,
-        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-        file_hash TEXT
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 });
 
 // Utility function to extract current PDF URL from ATP website
 async function getCurrentPDFUrl() {
     try {
-        const response = await axios.get('https://www.atp.gob.pa/industrias/hoteleros/');
+        console.log('Fetching ATP website for PDF link...');
+        const response = await axios.get('https://www.atp.gob.pa/industrias/hoteleros/', {
+            timeout: 10000
+        });
         const $ = cheerio.load(response.data);
 
-        // Find the PDF download button - this selector might need adjustment
-        const pdfLink = $('a[href*=".pdf"]').filter(function() {
-            return $(this).text().toLowerCase().includes('descargar');
-        }).first().attr('href');
+        // Look for PDF download links
+        const pdfLinks = [];
+        $('a[href*=".pdf"]').each((i, element) => {
+            const href = $(element).attr('href');
+            const text = $(element).text().toLowerCase();
+            if (text.includes('descargar') || text.includes('hospedaje') || text.includes('reporte')) {
+                pdfLinks.push(href);
+            }
+        });
 
-        if (!pdfLink) {
-            throw new Error('PDF link not found on ATP website');
+        let pdfUrl = pdfLinks[0];
+
+        if (!pdfUrl) {
+            // Fallback: look for any PDF link
+            pdfUrl = $('a[href*=".pdf"]').first().attr('href');
+        }
+
+        if (!pdfUrl) {
+            throw new Error('No PDF link found on ATP website');
         }
 
         // Handle relative URLs
-        return pdfLink.startsWith('http') ? pdfLink : `https://www.atp.gob.pa${pdfLink}`;
+        if (!pdfUrl.startsWith('http')) {
+            pdfUrl = `https://www.atp.gob.pa${pdfUrl.startsWith('/') ? '' : '/'}${pdfUrl}`;
+        }
+
+        console.log('Found PDF URL:', pdfUrl);
+        return pdfUrl;
     } catch (error) {
-        console.error('Error fetching PDF URL:', error);
+        console.error('Error fetching PDF URL:', error.message);
         return null;
     }
 }
@@ -72,106 +82,115 @@ async function downloadAndParsePDF(pdfUrl) {
     try {
         console.log('Downloading PDF from:', pdfUrl);
         const response = await axios.get(pdfUrl, {
-            responseType: 'arraybuffer'
+            responseType: 'arraybuffer',
+            timeout: 30000
         });
 
+        console.log('PDF downloaded, parsing...');
         const data = await pdf(response.data);
+        console.log('PDF parsed successfully');
         return data.text;
     } catch (error) {
-        console.error('Error downloading or parsing PDF:', error);
+        console.error('Error downloading or parsing PDF:', error.message);
         return null;
     }
 }
 
 // Parse PDF text into structured data
 function parsePDFText(text) {
+    console.log('Parsing PDF text...');
     const rentals = [];
     const lines = text.split('\n');
 
     let currentProvince = '';
-    let currentRental = {};
+
+    // Common Panama provinces for detection
+    const provinces = [
+        'BOCAS DEL TORO', 'CHIRIQUÍ', 'COCLÉ', 'COLÓN', 'DARIÉN',
+        'HERRERA', 'LOS SANTOS', 'PANAMÁ', 'VERAGUAS', 'COMARCA',
+        'GUNAS', 'EMBERÁ', 'NGÄBE-BUGLÉ'
+    ];
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
 
-        // Skip empty lines and headers
-        if (!line || line.includes('REPORTE DE HOSPEDAJES') || line.includes('Página')) {
+        // Skip empty lines and obvious headers
+        if (!line || line.length < 5) continue;
+        if (line.includes('REPORTE DE HOSPEDAJES') || line.includes('Página')) continue;
+
+        // Detect province headers
+        const provinceMatch = provinces.find(province =>
+            line.toUpperCase().includes(province)
+        );
+        if (provinceMatch) {
+            currentProvince = provinceMatch;
+            console.log('Found province:', currentProvince);
             continue;
         }
 
-        // Detect province headers (usually in uppercase or have specific patterns)
-        if (line.match(/^(BOCAS DEL TORO|CHIRIQUÍ|COCLÉ|COLÓN|DARIÉN|HERRERA|LOS SANTOS|PANAMÁ|VERAGUAS|COMARCA|GUNAS|EMBERÁ)/i)) {
-            currentProvince = line.trim();
-            continue;
-        }
-
-        // Try to parse rental lines - this will need adjustment based on actual PDF format
-        if (line.length > 10 && !line.match(/^\d/)) { // Basic filter for rental lines
+        // Try to parse rental lines - look for lines with contact info
+        if (line.includes('@') || line.match(/\+507[\s\d-]+/) || line.match(/\d{3}[- ]?\d{3}[- ]?\d{3}/)) {
             const rentalData = parseRentalLine(line, currentProvince);
-            if (rentalData) {
+            if (rentalData && rentalData.name && rentalData.name.length > 2) {
                 rentals.push(rentalData);
             }
         }
     }
 
+    console.log(`Parsed ${rentals.length} rentals from PDF`);
     return rentals;
 }
 
-// Parse individual rental line - THIS IS THE KEY FUNCTION THAT NEEDS ADJUSTMENT
+// Parse individual rental line
 function parseRentalLine(line, province) {
-    // This regex needs to be adjusted based on the actual PDF format
-    // Example format: "Hotel Name | Hotel Type | email@example.com | +507 123-4567"
-    const patterns = [
-        // Try different patterns based on observed data
-        /^([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)$/,
-        /^([^-]+)-([^-]+)-([^-]+)-(.+)$/,
-        /^(.+?)\s+(\w+)\s+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s+([+\d\s-]+)$/
-    ];
+    // Remove extra spaces
+    line = line.replace(/\s+/g, ' ').trim();
 
-    for (const pattern of patterns) {
-        const match = line.match(pattern);
-        if (match) {
-            return {
-                name: match[1].trim(),
-                type: match[2].trim(),
-                email: match[3].trim(),
-                phone: match[4].trim(),
-                province: province
-            };
-        }
-    }
+    // Try to extract email
+    const emailMatch = line.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const email = emailMatch ? emailMatch[1] : '';
 
-    // Fallback: simple split and guess
-    const parts = line.split(/\s{2,}/); // Split by multiple spaces
-    if (parts.length >= 4) {
+    // Try to extract phone (Panama format)
+    const phoneMatch = line.match(/(\+507[\s\d-]+|\d{3}[- ]?\d{3}[- ]?\d{3})/);
+    const phone = phoneMatch ? phoneMatch[0] : '';
+
+    // Remove email and phone from line to get name and type
+    let remainingLine = line
+        .replace(email, '')
+        .replace(phone, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Try to split remaining text into name and type
+    const parts = remainingLine.split(' ').filter(part => part.length > 0);
+
+    if (parts.length >= 2) {
+        // Assume last word is type, rest is name
+        const type = parts.pop();
+        const name = parts.join(' ');
+
         return {
-            name: parts[0],
-            type: parts[1],
-            email: parts[2],
-            phone: parts[3],
+            name: name.trim(),
+            type: type.trim(),
+            email: email.trim(),
+            phone: phone.trim(),
             province: province
         };
     }
 
-    console.log('Could not parse line:', line);
     return null;
 }
 
-// Enhance rental data with search engine information
+// Enhance rental data
 async function enhanceRentalData(rental) {
     try {
-        // Search for additional information
-        const searchTerms = `${rental.name} ${rental.province} Panamá turismo`;
-
-        // Note: For production, you'd use a proper search API
-        // This is a simplified version
         const enhancedData = {
             ...rental,
             description: `Hospedaje ${rental.type} ubicado en ${rental.province}, Panamá. ${rental.name} ofrece servicios de hospedaje registrado ante la ATP.`,
             district: await guessDistrict(rental.name, rental.province),
-            address: await guessAddress(rental.name, rental.province),
-            whatsapp: rental.phone, // Assume same as phone for now
-            google_maps_url: await generateGoogleMapsUrl(rental.name, rental.province)
+            address: `Ubicado en ${rental.province}, Panamá`,
+            whatsapp: rental.phone,
+            google_maps_url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name + ' ' + rental.province + ' Panamá')}`
         };
 
         return enhancedData;
@@ -181,11 +200,8 @@ async function enhanceRentalData(rental) {
     }
 }
 
-// Helper functions for data enhancement
 async function guessDistrict(name, province) {
-    // Simple district guessing - in production, use geocoding API
     const districtMap = {
-        'PANAMÁ': 'Ciudad de Panamá',
         'BOCAS DEL TORO': 'Bocas del Toro',
         'CHIRIQUÍ': 'David',
         'COCLÉ': 'Penonomé',
@@ -193,36 +209,14 @@ async function guessDistrict(name, province) {
         'DARIÉN': 'La Palma',
         'HERRERA': 'Chitré',
         'LOS SANTOS': 'Las Tablas',
+        'PANAMÁ': 'Ciudad de Panamá',
         'VERAGUAS': 'Santiago'
     };
-    return districtMap[province.toUpperCase()] || province;
-}
-
-async function guessAddress(name, province) {
-    return `Dirección en ${province}, Panamá`;
-}
-
-async function generateGoogleMapsUrl(name, province) {
-    const query = encodeURIComponent(`${name} ${province} Panamá`);
-    return `https://www.google.com/maps/search/?api=1&query=${query}`;
-}
-
-// Check if PDF has changed
-async function hasPDFChanged(currentPdfUrl) {
-    return new Promise((resolve) => {
-        db.get('SELECT last_pdf_url, file_hash FROM data_sync WHERE id = 1', (err, row) => {
-            if (err || !row) {
-                resolve(true); // No previous data, needs update
-            } else {
-                // Simple check - compare URLs
-                resolve(row.last_pdf_url !== currentPdfUrl);
-            }
-        });
-    });
+    return districtMap[province] || province;
 }
 
 // Update database with new rentals
-async function updateRentalsDatabase(rentals, pdfUrl) {
+async function updateRentalsDatabase(rentals) {
     return new Promise((resolve, reject) => {
         db.run('DELETE FROM rentals', async (err) => {
             if (err) {
@@ -263,15 +257,11 @@ async function updateRentalsDatabase(rentals, pdfUrl) {
                 }
             }
 
-            // Update sync info
-            db.run('INSERT OR REPLACE INTO data_sync (id, last_pdf_url, last_updated) VALUES (1, ?, CURRENT_TIMESTAMP)',
-                [pdfUrl], (err) => {
-                    if (err) {
-                        console.error('Error updating sync info:', err);
-                    }
-                    console.log(`Updated ${inserted} out of ${total} rentals`);
-                    resolve(inserted);
-                });
+            // Wait a bit for all inserts to complete
+            setTimeout(() => {
+                console.log(`Updated ${inserted} out of ${total} rentals`);
+                resolve(inserted);
+            }, 1000);
         });
     });
 }
@@ -283,13 +273,7 @@ async function syncATPRentalsData() {
 
         const pdfUrl = await getCurrentPDFUrl();
         if (!pdfUrl) {
-            throw new Error('Could not get PDF URL');
-        }
-
-        const hasChanged = await hasPDFChanged(pdfUrl);
-        if (!hasChanged) {
-            console.log('PDF has not changed, skipping update');
-            return { updated: false, message: 'Data is up to date' };
+            throw new Error('Could not get PDF URL from ATP website');
         }
 
         const pdfText = await downloadAndParsePDF(pdfUrl);
@@ -302,13 +286,13 @@ async function syncATPRentalsData() {
             throw new Error('No rentals found in PDF');
         }
 
-        const insertedCount = await updateRentalsDatabase(rentals, pdfUrl);
+        const insertedCount = await updateRentalsDatabase(rentals);
 
         console.log(`Data sync completed: ${insertedCount} rentals processed`);
-        return { updated: true, count: insertedCount };
+        return { updated: true, count: insertedCount, pdfUrl };
 
     } catch (error) {
-        console.error('Data sync error:', error);
+        console.error('Data sync error:', error.message);
         return { updated: false, error: error.message };
     }
 }
@@ -321,9 +305,9 @@ app.get('/api/rentals', (req, res) => {
     const params = [];
 
     if (search) {
-        query += ' AND (name LIKE ? OR description LIKE ? OR province LIKE ?)';
+        query += ' AND (name LIKE ? OR description LIKE ? OR province LIKE ? OR district LIKE ?)';
         const searchTerm = `%${search}%`;
-        params.push(searchTerm, searchTerm, searchTerm);
+        params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
     if (province) {
@@ -374,33 +358,53 @@ app.get('/api/stats', (req, res) => {
             return;
         }
 
-        db.get('SELECT last_updated FROM data_sync WHERE id = 1', (err, syncRow) => {
-            if (err) {
-                res.status(500).json({ error: err.message });
-                return;
-            }
-
-            res.json({
-                total_rentals: countRow.total,
-                last_updated: syncRow ? syncRow.last_updated : 'Never'
-            });
+        res.json({
+            total_rentals: countRow.total,
+            last_updated: new Date().toISOString()
         });
     });
 });
 
-// Schedule automatic data sync (daily at 2 AM)
-cron.schedule('0 2 * * *', () => {
+app.post('/api/sync', async (req, res) => {
+    try {
+        const result = await syncATPRentalsData();
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/debug-pdf', async (req, res) => {
+    try {
+        const pdfUrl = await getCurrentPDFUrl();
+        const pdfText = await downloadAndParsePDF(pdfUrl);
+
+        res.json({
+            pdfUrl,
+            textSample: pdfText ? pdfText.substring(0, 1000) : 'No text extracted',
+            success: !!pdfText
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Schedule automatic data sync (every 6 hours)
+cron.schedule('0 */6 * * *', () => {
     console.log('Running scheduled data sync...');
     syncATPRentalsData();
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server and initial sync
+app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
-    console.log(`Open http://localhost:${PORT} in your browser`);
+    console.log(`Frontend: https://atp-rentals-app-production.up.railway.app`);
+    console.log(`API: https://atp-rentals-app-production.up.railway.app/api`);
 
-    // Initial data sync on startup
-    setTimeout(() => {
-        syncATPRentalsData();
-    }, 2000);
+    // Initial data sync
+    setTimeout(async () => {
+        console.log('Starting initial data sync...');
+        const result = await syncATPRentalsData();
+        console.log('Initial sync result:', result);
+    }, 3000);
 });
