@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATP Hospedajes Turísticos - Panamá</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f8f9fa; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        header { background: linear-gradient(135deg, #005ca9, #00a859); color: white; padding: 2rem 0; text-align: center; margin-bottom: 2rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+        .subtitle { font-size: 1.1rem; opacity: 0.9; }
+        .search-section { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+        .search-box { display: flex; gap: 10px; margin-bottom: 1rem; }
+        #searchInput { flex: 1; padding: 12px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 16px; transition: border-color 0.3s; }
+        #searchInput:focus { outline: none; border-color: #005ca9; }
+        #searchButton { padding: 12px 24px; background: #005ca9; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: background 0.3s; }
+        #searchButton:hover { background: #004885; }
+        .filters { display: flex; gap: 15px; flex-wrap: wrap; }
+        .filter-group { flex: 1; min-width: 200px; }
+        .filter-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #555; }
+        .filter-group select { width: 100%; padding: 10px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 14px; }
+        .results-section { display: grid; gap: 20px; }
+        .result-card { background: white; border-radius: 10px; padding: 1.5rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); transition: transform 0.3s, box-shadow 0.3s; }
+        .result-card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .result-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem; }
+        .result-title { font-size: 1.3rem; color: #005ca9; margin-bottom: 0.5rem; }
+        .result-category { background: #00a859; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+        .result-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .detail-item { display: flex; align-items: center; gap: 8px; }
+        .detail-item i { color: #005ca9; width: 20px; }
+        .contact-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .contact-button { padding: 8px 16px; border: 2px solid #005ca9; border-radius: 6px; text-decoration: none; color: #005ca9; font-weight: 600; transition: all 0.3s; display: inline-flex; align-items: center; gap: 5px; }
+        .contact-button:hover { background: #005ca9; color: white; }
+        .whatsapp-button { border-color: #25D366; color: #25D366; }
+        .whatsapp-button:hover { background: #25D366; color: white; }
+        .no-results { text-align: center; padding: 3rem; color: #666; }
+        .loading { text-align: center; padding: 2rem; color: #005ca9; }
+        footer { text-align: center; margin-top: 3rem; padding: 2rem 0; color: #666; border-top: 1px solid #e1e5e9; }
+        .stats { background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; text-align: center; }
+        @media (max-width: 768px) { .search-box { flex-direction: column; } .filters { flex-direction: column; } .result-details { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Hospedajes Turísticos Registrados</h1>
+            <p class="subtitle">Autoridad de Turismo de Panamá (ATP) - Datos en Tiempo Real</p>
+        </header>
+
+        <div class="stats" id="statsPanel">
+            <div class="loading">Cargando estadísticas...</div>
+        </div>
+
+        <section class="search-section">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Buscar por nombre, ubicación, tipo de hospedaje...">
+                <button id="searchButton">Buscar</button>
+            </div>
+            <div class="filters">
+                <div class="filter-group">
+                    <label for="provinceFilter">Provincia</label>
+                    <select id="provinceFilter">
+                        <option value="">Todas las provincias</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="typeFilter">Tipo de Hospedaje</label>
+                    <select id="typeFilter">
+                        <option value="">Todos los tipos</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <section class="results-section" id="resultsContainer">
+            <div class="no-results">
+                <p>Ingresa un término de búsqueda para encontrar hospedajes turísticos registrados.</p>
+            </div>
+        </section>
+
+        <footer>
+            <p>Datos proporcionados por la Autoridad de Turismo de Panamá (ATP)</p>
+            <p>Actualizado por última vez: <span id="lastUpdate">--</span></p>
+        </footer>
+    </div>
+
+    <script>
+        // DOM elements
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        const provinceFilter = document.getElementById('provinceFilter');
+        const typeFilter = document.getElementById('typeFilter');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const statsPanel = document.getElementById('statsPanel');
+        const lastUpdateSpan = document.getElementById('lastUpdate');
+
+        // Load initial data
+        async function loadInitialData() {
+            await loadStats();
+            await loadFilters();
+            await performSearch();
+        }
+
+        // Load statistics
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const stats = await response.json();
+
+                statsPanel.innerHTML = `
+                    <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 1rem;">
+                        <div><strong>Total de Hospedajes:</strong> ${stats.total_rentals}</div>
+                        <div><strong>Última Actualización:</strong> ${new Date(stats.last_updated).toLocaleString()}</div>
+                    </div>
+                `;
+                lastUpdateSpan.textContent = new Date(stats.last_updated).toLocaleString();
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                statsPanel.innerHTML = '<div style="color: #666;">Error cargando estadísticas</div>';
+            }
+        }
+
+        // Load filter options
+        async function loadFilters() {
+            try {
+                const [provincesResponse, typesResponse] = await Promise.all([
+                    fetch('/api/provinces'),
+                    fetch('/api/types')
+                ]);
+
+                const provinces = await provincesResponse.json();
+                const types = await typesResponse.json();
+
+                // Populate province filter
+                provinces.forEach(province => {
+                    const option = document.createElement('option');
+                    option.value = province;
+                    option.textContent = province;
+                    provinceFilter.appendChild(option);
+                });
+
+                // Populate type filter
+                types.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = type;
+                    typeFilter.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading filters:', error);
+            }
+        }
+
+        // Search function
+        async function performSearch() {
+            const searchTerm = searchInput.value;
+            const selectedProvince = provinceFilter.value;
+            const selectedType = typeFilter.value;
+
+            // Build query parameters
+            const params = new URLSearchParams();
+            if (searchTerm) params.append('search', searchTerm);
+            if (selectedProvince) params.append('province', selectedProvince);
+            if (selectedType) params.append('type', selectedType);
+
+            try {
+                resultsContainer.innerHTML = '<div class="loading">Buscando hospedajes...</div>';
+
+                const response = await fetch(`/api/rentals?${params}`);
+                const rentals = await response.json();
+
+                displayResults(rentals);
+            } catch (error) {
+                console.error('Error searching:', error);
+                resultsContainer.innerHTML = `
+                    <div class="no-results">
+                        <p>Error al buscar hospedajes. Intenta nuevamente.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Display results
+        function displayResults(rentals) {
+            resultsContainer.innerHTML = '';
+
+            if (rentals.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="no-results">
+                        <p>No se encontraron hospedajes que coincidan con tu búsqueda.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            rentals.forEach(rental => {
+                const resultCard = document.createElement('div');
+                resultCard.className = 'result-card';
+
+                const whatsappUrl = rental.whatsapp ? `https://wa.me/${rental.whatsapp.replace(/\D/g, '')}` : '#';
+                const phoneUrl = rental.phone ? `tel:${rental.phone}` : '#';
+                const emailUrl = rental.email ? `mailto:${rental.email}` : '#';
+
+                resultCard.innerHTML = `
+                    <div class="result-header">
+                        <div style="flex: 1;">
+                            <h3 class="result-title">${rental.name}</h3>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                ${rental.type ? `<span class="result-category">${rental.type}</span>` : ''}
+                                ${rental.province ? `<span class="result-category" style="background: #005ca9;">${rental.province}</span>` : ''}
+                                ${rental.district ? `<span class="result-category" style="background: #6c757d;">${rental.district}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="result-details">
+                        ${rental.district || rental.address ? `
+                        <div class="detail-item">
+                            <i>📍</i>
+                            <div>
+                                <strong>Ubicación:</strong> ${rental.district || ''}<br>
+                                <small>${rental.address || ''}</small>
+                            </div>
+                        </div>` : ''}
+
+                        ${rental.phone || rental.email ? `
+                        <div class="detail-item">
+                            <i>📞</i>
+                            <div>
+                                ${rental.phone ? `<strong>Teléfono:</strong> ${rental.phone}<br>` : ''}
+                                ${rental.email ? `<strong>Email:</strong> ${rental.email}` : ''}
+                            </div>
+                        </div>` : ''}
+                    </div>
+
+                    ${rental.description ? `<p style="margin-bottom: 1rem; color: #555;">${rental.description}</p>` : ''}
+
+                    <div class="contact-buttons">
+                        ${rental.google_maps_url ? `
+                        <a href="${rental.google_maps_url}" target="_blank" class="contact-button">
+                            📍 Ver en Google Maps
+                        </a>` : ''}
+
+                        ${rental.whatsapp ? `
+                        <a href="${whatsappUrl}" target="_blank" class="contact-button whatsapp-button">
+                            💬 WhatsApp
+                        </a>` : ''}
+
+                        ${rental.phone ? `
+                        <a href="${phoneUrl}" class="contact-button">
+                            📞 Llamar
+                        </a>` : ''}
+
+                        ${rental.email ? `
+                        <a href="${emailUrl}" class="contact-button">
+                            ✉️ Email
+                        </a>` : ''}
+                    </div>
+                `;
+                resultsContainer.appendChild(resultCard);
+            });
+        }
+
+        // Event listeners
+        searchButton.addEventListener('click', performSearch);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+
+        provinceFilter.addEventListener('change', performSearch);
+        typeFilter.addEventListener('change', performSearch);
+
+        // Initialize the app
+        loadInitialData();
+    </script>
+</body>
+</html>
