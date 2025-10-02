@@ -49,15 +49,14 @@ async function fetchAndParsePDF() {
     return false;
 }
 
-// NEW: Implement your step-by-step procedure
 function parsePDFText(text) {
-    console.log('=== PARSING ATP PDF DATA USING NEW PROCEDURE ===');
+    console.log('=== PARSING ATP PDF DATA - TABLE BY TABLE ===');
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-    const rentals = [];
+    const allRentals = [];
 
+    let i = 0;
     let currentProvince = '';
     let currentRentalCount = 0;
-    let i = 0;
 
     while (i < lines.length) {
         const line = lines[i];
@@ -68,49 +67,44 @@ function parsePDFText(text) {
             continue;
         }
 
-        // STEP 1: Find province
-        if (line.endsWith('Provincia:')) {
-            currentProvince = line.replace('Provincia:', '').trim();
-            console.log(`Found province: ${currentProvince}`);
+        // Look for province pattern: "BOCAS DEL TOROProvincia:"
+        const provinceMatch = line.match(/(.*)Provincia:/);
+        if (provinceMatch) {
+            currentProvince = provinceMatch[1].trim();
+            console.log(`\n=== PROCESSING PROVINCE: ${currentProvince} ===`);
             i++;
             continue;
         }
 
-        // STEP 2: Find rental count
-        if (line.includes('Total por provincia:')) {
-            const countMatch = line.match(/(\d+)Total por provincia:/);
-            if (countMatch) {
-                currentRentalCount = parseInt(countMatch[1]);
-                console.log(`Expected ${currentRentalCount} rentals for ${currentProvince}`);
+        // Look for rental count pattern: "151Total por provincia:"
+        const countMatch = line.match(/(\d+)Total por provincia:/);
+        if (countMatch && currentProvince) {
+            currentRentalCount = parseInt(countMatch[1]);
+            console.log(`Expected rental count: ${currentRentalCount}`);
+
+            // Process this table
+            const tableResult = processTable(lines, i + 1, currentProvince, currentRentalCount);
+            if (tableResult.rentals.length > 0) {
+                allRentals.push(...tableResult.rentals);
+                console.log(`Added ${tableResult.rentals.length} rentals for ${currentProvince}`);
             }
-            i++;
+
+            i = tableResult.nextIndex;
+            currentProvince = '';
+            currentRentalCount = 0;
             continue;
-        }
-
-        // If we have a province and rental count, parse the columns
-        if (currentProvince && currentRentalCount > 0) {
-            const result = parseProvinceColumns(lines, i, currentProvince, currentRentalCount);
-            if (result.rentals.length > 0) {
-                rentals.push(...result.rentals);
-                i = result.nextIndex;
-
-                // Reset for next province
-                currentProvince = '';
-                currentRentalCount = 0;
-                continue;
-            }
         }
 
         i++;
     }
 
-    console.log(`=== PARSING COMPLETE: Found ${rentals.length} rentals ===`);
-    return rentals;
+    console.log(`\n=== PARSING COMPLETE: Found ${allRentals.length} rentals ===`);
+    return allRentals;
 }
 
-// Parse columns for a province
-function parseProvinceColumns(lines, startIndex, province, expectedCount) {
-    console.log(`Parsing columns for ${province} starting at line ${startIndex}`);
+// Process one table at a time
+function processTable(lines, startIndex, province, expectedCount) {
+    console.log(`Processing table starting at line ${startIndex}`);
 
     const columns = {
         names: [],
@@ -121,19 +115,23 @@ function parseProvinceColumns(lines, startIndex, province, expectedCount) {
 
     let i = startIndex;
     let currentColumn = 'names';
+    let tableEnded = false;
 
-    // STEP 3-6: Parse the four columns
-    while (i < lines.length) {
+    while (i < lines.length && !tableEnded) {
         const line = lines[i];
 
-        // Stop if we find next province or end of data
-        if (isHeaderLine(line) || line.includes('Provincia:') || line.includes('Total por provincia:')) {
+        // Stop conditions for this table
+        if (isHeaderLine(line) ||
+            line.includes('Provincia:') ||
+            line.includes('Total por provincia:')) {
+            tableEnded = true;
             break;
         }
 
-        // STEP 3: Name column (ends with "Nombre")
+        // COLUMN 1: Names (ends with "Nombre")
         if (currentColumn === 'names') {
             if (line === 'Nombre') {
+                console.log(`Name column ended with ${columns.names.length} entries`);
                 currentColumn = 'types';
                 i++;
                 continue;
@@ -142,14 +140,15 @@ function parseProvinceColumns(lines, startIndex, province, expectedCount) {
                 columns.names.push(line);
             }
         }
-        // STEP 4: Type column (ends with "Modalidad")
+        // COLUMN 2: Types (ends with "Modalidad")
         else if (currentColumn === 'types') {
             if (line === 'Modalidad') {
+                console.log(`Type column ended with ${columns.types.length} entries`);
                 currentColumn = 'emails';
                 i++;
                 continue;
             }
-            // Handle "Hostal Familiar" case
+            // Handle "Hostal Familiar" special case
             if (line === 'Hostal' && i + 1 < lines.length && lines[i + 1] === 'Familiar') {
                 columns.types.push('Hostal Familiar');
                 i += 2;
@@ -159,37 +158,30 @@ function parseProvinceColumns(lines, startIndex, province, expectedCount) {
                 columns.types.push(line);
             }
         }
-        // STEP 5: Email column (ends with "Correo Principal")
+        // COLUMN 3: Emails (ends with "Correo Principal")
         else if (currentColumn === 'emails') {
             if (line === 'Correo Principal') {
+                console.log(`Email column ended with ${columns.emails.length} entries`);
                 currentColumn = 'phones';
                 i++;
                 continue;
             }
-            // Combine multi-line emails
+            // Process email line
             if (isEmailLine(line) || isPotentialEmailPart(line)) {
-                let email = line;
-                // Check if email continues on next line
-                if (i + 1 < lines.length && isEmailContinuation(line, lines[i + 1])) {
-                    email += lines[i + 1];
-                    i++; // Skip next line since we combined it
-                }
-                columns.emails.push(email.replace(/\s+/g, '')); // Remove spaces
+                let email = processEmailLine(line, lines, i);
+                columns.emails.push(email);
             }
         }
-        // STEP 6: Phone column (ends with "Cel/Teléfono")
+        // COLUMN 4: Phones (ends with "Teléfono" or "Cel/Teléfono")
         else if (currentColumn === 'phones') {
             if (line === 'Teléfono' || line === 'Cel/Teléfono') {
-                break; // End of this province section
+                console.log(`Phone column ended with ${columns.phones.length} entries`);
+                tableEnded = true;
+                break;
             }
-            // Combine multi-line phones
+            // Process phone line
             if (isPhoneLine(line) || isPotentialPhonePart(line)) {
-                let phone = line;
-                // Check if phone continues on next line
-                if (i + 1 < lines.length && isPhoneContinuation(line, lines[i + 1])) {
-                    phone += ' ' + lines[i + 1];
-                    i++; // Skip next line since we combined it
-                }
+                let phone = processPhoneLine(line, lines, i);
                 columns.phones.push(phone);
             }
         }
@@ -197,9 +189,9 @@ function parseProvinceColumns(lines, startIndex, province, expectedCount) {
         i++;
     }
 
-    // Align columns and create rentals
-    const alignedColumns = alignColumns(columns, expectedCount);
-    const rentals = createRentalsFromColumns(alignedColumns, province);
+    // OPTIMIZE and create rentals for this table
+    const optimizedColumns = optimizeColumnsForTable(columns, expectedCount);
+    const rentals = createRentalsFromTable(optimizedColumns, province);
 
     return {
         rentals: rentals,
@@ -207,36 +199,79 @@ function parseProvinceColumns(lines, startIndex, province, expectedCount) {
     };
 }
 
-// Align columns to have same count as types
-function alignColumns(columns, expectedCount) {
-    const aligned = {
+// Process a single email line, handling multi-line cases
+function processEmailLine(currentLine, lines, currentIndex) {
+    let email = currentLine;
+
+    // Check if email continues on next line
+    if (currentIndex + 1 < lines.length) {
+        const nextLine = lines[currentIndex + 1];
+        if (isEmailContinuation(currentLine, nextLine)) {
+            email += nextLine;
+            // Remove the processed line from further consideration
+            lines[currentIndex + 1] = '';
+        }
+    }
+
+    return email.replace(/\s+/g, ''); // Remove all spaces
+}
+
+// Process a single phone line, handling multi-line cases
+function processPhoneLine(currentLine, lines, currentIndex) {
+    let phone = currentLine;
+
+    // Check if phone continues on next line
+    if (currentIndex + 1 < lines.length) {
+        const nextLine = lines[currentIndex + 1];
+        if (isPhoneContinuation(currentLine, nextLine)) {
+            phone += ' ' + nextLine;
+            // Remove the processed line from further consideration
+            lines[currentIndex + 1] = '';
+        }
+    }
+
+    return phone;
+}
+
+// Optimize columns for one table
+function optimizeColumnsForTable(columns, expectedCount) {
+    console.log(`Optimizing columns: Names=${columns.names.length}, Types=${columns.types.length}, Emails=${columns.emails.length}, Phones=${columns.phones.length}`);
+
+    const optimized = {
         names: [...columns.names],
         types: [...columns.types],
         emails: [...columns.emails],
         phones: [...columns.phones]
     };
 
-    // STEP: Ensure all columns have same count as types
-    const typeCount = aligned.types.length;
+    // Use type count as the reference
+    const typeCount = optimized.types.length;
 
-    // Fix names: combine split names if name count > type count
-    if (aligned.names.length > typeCount) {
-        aligned.names = fixSplitNames(aligned.names, typeCount);
+    // FIX NAMES: Combine split names if we have more names than types
+    if (optimized.names.length > typeCount) {
+        optimized.names = fixSplitNames(optimized.names, typeCount);
     }
 
-    // Pad arrays to expected count
-    while (aligned.names.length < expectedCount) aligned.names.push('');
-    while (aligned.types.length < expectedCount) aligned.types.push('');
-    while (aligned.emails.length < expectedCount) aligned.emails.push('');
-    while (aligned.phones.length < expectedCount) aligned.phones.push('');
+    // FIX EMAILS: Align emails with names/types
+    optimized.emails = alignEmailsWithNames(optimized.names, optimized.emails, typeCount);
 
-    // Fix emails: insert empty elements where emails don't match names
-    aligned.emails = fixEmailAlignment(aligned.names, aligned.emails);
+    // FIX PHONES: Simple alignment
+    if (optimized.phones.length > typeCount) {
+        optimized.phones = optimized.phones.slice(0, typeCount);
+    }
 
-    return aligned;
+    // Ensure all arrays have exactly expectedCount elements
+    while (optimized.names.length < expectedCount) optimized.names.push('');
+    while (optimized.types.length < expectedCount) optimized.types.push('');
+    while (optimized.emails.length < expectedCount) optimized.emails.push('');
+    while (optimized.phones.length < expectedCount) optimized.phones.push('');
+
+    console.log(`After optimization: Names=${optimized.names.length}, Types=${optimized.types.length}, Emails=${optimized.emails.length}, Phones=${optimized.phones.length}`);
+
+    return optimized;
 }
 
-// Fix split names by combining single words with previous names
+// Fix split names by combining single words
 function fixSplitNames(names, targetCount) {
     if (names.length <= targetCount) return names.slice(0, targetCount);
 
@@ -246,82 +281,61 @@ function fixSplitNames(names, targetCount) {
     while (i < names.length && fixedNames.length < targetCount) {
         let currentName = names[i];
 
-        // If this is likely a split name (single word) and we have more names than needed
-        if (currentName.split(' ').length === 1 &&
-            i + 1 < names.length &&
-            fixedNames.length < targetCount - (names.length - i - 1)) {
-            // Combine with next name
-            currentName += ' ' + names[i + 1];
-            i++; // Skip next name since we combined it
+        // If this looks like a split name (single word) and we need to reduce count
+        const isSingleWord = currentName.split(' ').length === 1;
+        const remainingNames = names.length - i - 1;
+        const neededNames = targetCount - fixedNames.length;
+
+        if (isSingleWord && remainingNames >= neededNames) {
+            // This might be a split name - combine with next
+            if (i + 1 < names.length) {
+                currentName += ' ' + names[i + 1];
+                i++; // Skip the next name
+            }
         }
 
         fixedNames.push(currentName);
         i++;
     }
 
-    return fixedNames.slice(0, targetCount);
+    return fixedNames;
 }
 
-// Fix email alignment by checking name-email similarity
-function fixEmailAlignment(names, emails) {
-    const fixedEmails = [];
+// Align emails with names by checking similarity
+function alignEmailsWithNames(names, emails, targetCount) {
+    const alignedEmails = new Array(targetCount).fill('');
     let emailIndex = 0;
 
-    for (let i = 0; i < names.length; i++) {
-        const name = names[i];
+    for (let nameIndex = 0; nameIndex < targetCount && emailIndex < emails.length; nameIndex++) {
+        const currentEmail = emails[emailIndex];
 
-        if (emailIndex < emails.length) {
-            const currentEmail = emails[emailIndex];
-
-            // Check if email matches current name
-            if (emailMatchesName(currentEmail, name)) {
-                fixedEmails.push(currentEmail);
-                emailIndex++;
-            } else {
-                // Check if email matches next names
-                let foundMatch = false;
-                for (let j = i + 1; j < Math.min(i + 3, names.length); j++) {
-                    if (emailIndex < emails.length && emailMatchesName(emails[emailIndex], names[j])) {
-                        // Insert empty emails until we reach the matching one
-                        while (fixedEmails.length < j) {
-                            fixedEmails.push('');
-                        }
-                        fixedEmails.push(emails[emailIndex]);
-                        emailIndex++;
-                        foundMatch = true;
-                        i = j; // Skip to the matched index
-                        break;
-                    }
-                }
-
-                if (!foundMatch) {
-                    fixedEmails.push('');
+        if (emailMatchesName(currentEmail, names[nameIndex])) {
+            alignedEmails[nameIndex] = currentEmail;
+            emailIndex++;
+        } else {
+            // Check if this email belongs to a future name
+            let foundMatch = false;
+            for (let futureIndex = nameIndex + 1; futureIndex < Math.min(nameIndex + 3, targetCount); futureIndex++) {
+                if (emailMatchesName(currentEmail, names[futureIndex])) {
+                    // Leave current position empty, the email will be placed later
+                    foundMatch = true;
+                    break;
                 }
             }
-        } else {
-            fixedEmails.push('');
+
+            if (!foundMatch) {
+                // Email doesn't match any nearby name, use it here
+                alignedEmails[nameIndex] = currentEmail;
+                emailIndex++;
+            }
         }
     }
 
-    return fixedEmails;
+    return alignedEmails;
 }
 
-// Check if email matches name (simple similarity check)
-function emailMatchesName(email, name) {
-    if (!email || !name) return false;
-
-    // Extract name part from email (before @)
-    const emailNamePart = email.split('@')[0].toLowerCase();
-    const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-    // Check if name appears in email or vice versa
-    return emailNamePart.includes(cleanName) || cleanName.includes(emailNamePart) ||
-           emailNamePart.includes(cleanName.substring(0, 5)) ||
-           cleanName.includes(emailNamePart.substring(0, 5));
-}
-
-// Create rental objects from aligned columns
-function createRentalsFromColumns(columns, province) {
+// Create rentals from optimized table columns
+function createRentalsFromTable(columns, province) {
     const rentals = [];
 
     for (let i = 0; i < columns.names.length; i++) {
@@ -353,120 +367,11 @@ function createRentalsFromColumns(columns, province) {
         }
     }
 
-    console.log(`Created ${rentals.length} rentals for ${province}`);
     return rentals;
 }
 
-// Helper functions
-function isHeaderLine(line) {
-    return line.includes('Reporte de Hospedajes vigentes') ||
-           line.includes('Reporte: rep_hos_web') ||
-           line.includes('Actualizado al') ||
-           line.match(/Página \d+ de \d+/);
-}
-
-function isNameLine(line) {
-    return line && line.length > 3 &&
-           !line.includes('@') &&
-           !isPhoneLine(line) &&
-           !isTypeLine(line) &&
-           line !== 'Nombre' &&
-           line !== 'Modalidad' &&
-           line !== 'Correo Principal' &&
-           line !== 'Teléfono';
-}
-
-function isTypeLine(line) {
-    if (!line) return false;
-    const types = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort', 'Ecolodge', 'Hospedaje', 'Cabaña'];
-    return types.some(type => line.includes(type));
-}
-
-function isEmailLine(line) {
-    return line && line.includes('@');
-}
-
-function isPotentialEmailPart(line) {
-    return line && (line.includes('.com') || line.includes('.net') || line.includes('.org'));
-}
-
-function isEmailContinuation(currentLine, nextLine) {
-    return currentLine.includes('@') && !currentLine.includes('.') &&
-           nextLine && (nextLine.includes('.com') || nextLine.includes('.net'));
-}
-
-function isPhoneLine(line) {
-    return line && line.match(/\d{7,8}/);
-}
-
-function isPotentialPhonePart(line) {
-    return line && line.match(/\d{3,4}/);
-}
-
-function isPhoneContinuation(currentLine, nextLine) {
-    return (currentLine.endsWith('/') || currentLine.includes('-')) &&
-           nextLine && nextLine.match(/\d+/);
-}
-
-function extractEmail(text) {
-    if (!text) return '';
-    const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-    return match ? match[1] : '';
-}
-
-function extractFirstPhone(text) {
-    if (!text) return '';
-    // Remove slashes and hyphens, take first 8 digits
-    const cleanText = text.replace(/[-\/\s]/g, '');
-    const match = cleanText.match(/(\d{7,8})/);
-    return match ? match[1] : '';
-}
-
-function cleanText(text) {
-    if (!text) return '';
-    return text.replace(/\s+/g, ' ').trim();
-}
-
-function guessDistrict(name, province) {
-    const districtMap = {
-        'BOCAS DEL TORO': 'Bocas del Toro',
-        'CHIRIQUÍ': 'David',
-        'COCLÉ': 'Penonomé',
-        'COLÓN': 'Colón',
-        'DARIÉN': 'La Palma',
-        'HERRERA': 'Chitré',
-        'LOS SANTOS': 'Las Tablas',
-        'PANAMÁ': 'Ciudad de Panamá',
-        'VERAGUAS': 'Santiago',
-        'GUNAS': 'Guna Yala',
-        'EMBERÁ': 'Emberá',
-        'NGÄBE-BUGLÉ': 'Ngäbe-Buglé'
-    };
-    return districtMap[province] || province;
-}
-
-function generateDescription(name, type, province) {
-    return `${type} "${name}" ubicado en ${province}, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).`;
-}
-
-function getFallbackData() {
-    return [
-        {
-            name: "SOCIALTEL BOCAS DEL TORO",
-            type: "Albergue",
-            email: "reception.bocasdeltoro@collectivehospitality.com",
-            phone: "64061547",
-            province: "BOCAS DEL TORO",
-            district: "Bocas del Toro",
-            description: "Albergue \"SOCIALTEL BOCAS DEL TORO\" ubicado en BOCAS DEL TORO, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).",
-            google_maps_url: "https://maps.google.com/?q=SOCIALTEL%20BOCAS%20DEL%20TORO%20BOCAS%20DEL%20TORO%20Panam%C3%A1",
-            whatsapp: "64061547",
-            source: "ATP_OFFICIAL"
-        }
-    ];
-}
-
-// ... [keep all your existing API routes] ...
+// [Keep all your existing helper functions: isHeaderLine, isNameLine, isTypeLine, isEmailLine, etc.]
+// [Keep all your existing API routes]
 
 // Initialize
 app.listen(PORT, async () => {
