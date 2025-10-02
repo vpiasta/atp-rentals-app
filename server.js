@@ -49,7 +49,7 @@ async function fetchAndParsePDF() {
     return false;
 }
 
-// NEW PARSER USING YOUR OBSERVATIONS
+// SIMPLIFIED PARSER - builds on what was working
 function parsePDFText(text) {
     console.log('=== PARSING ATP PDF DATA ===');
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
@@ -63,56 +63,57 @@ function parsePDFText(text) {
     const rentals = [];
     let currentProvince = '';
     let currentSection = [];
-    let inDataSection = false;
+    let inProvinceSection = false;
 
-    // First pass: group by provinces using your observation #1
+    // Group lines by province sections
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
         // Skip headers
         if (isHeaderLine(line)) continue;
 
-        // Detect province using your observation #1: "BOCAS DEL TOROProvincia:"
-        const provinceMatch = provinces.find(p => {
-            // Look for pattern: "PROVINCE NAMEProvincia:"
-            return line.includes(p + 'Provincia:') ||
-                   (line.includes(p) && lines[i + 1] && lines[i + 1].includes('Provincia:'));
+        // Detect province headers - using your observation #1
+        const provinceMatch = provinces.find(province => {
+            // Look for "BOCAS DEL TOROProvincia:" pattern
+            if (line.includes(province + 'Provincia:')) return true;
+            if (line.includes(province) && i + 1 < lines.length && lines[i + 1].includes('Provincia:')) return true;
+            return line.toUpperCase().includes(province);
         });
 
         if (provinceMatch) {
-            // Process previous section
+            // Save previous section
             if (currentSection.length > 0 && currentProvince) {
-                const provinceRentals = parseProvinceSection(currentSection, currentProvince);
+                const provinceRentals = parseProvinceSectionImproved(currentSection, currentProvince);
                 rentals.push(...provinceRentals);
             }
 
             // Start new section
             currentProvince = provinceMatch;
             currentSection = [];
-            inDataSection = true;
+            inProvinceSection = true;
             continue;
         }
 
-        // Detect end of section using your observation #1: "151Total por provincia:"
-        if (inDataSection && line.includes('Total por provincia:')) {
+        // Detect end of province section - using your observation #1
+        if (inProvinceSection && line.includes('Total por provincia:')) {
             if (currentSection.length > 0 && currentProvince) {
-                const provinceRentals = parseProvinceSection(currentSection, currentProvince);
+                const provinceRentals = parseProvinceSectionImproved(currentSection, currentProvince);
                 rentals.push(...provinceRentals);
             }
             currentSection = [];
-            inDataSection = false;
+            inProvinceSection = false;
             continue;
         }
 
         // Add to current section
-        if (inDataSection && line.length > 2) {
+        if (inProvinceSection && line.length > 2) {
             currentSection.push(line);
         }
     }
 
     // Process last section
     if (currentSection.length > 0 && currentProvince) {
-        const provinceRentals = parseProvinceSection(currentSection, currentProvince);
+        const provinceRentals = parseProvinceSectionImproved(currentSection, currentProvince);
         rentals.push(...provinceRentals);
     }
 
@@ -120,210 +121,132 @@ function parsePDFText(text) {
     return rentals;
 }
 
-// NEW: Parse province section using your observations
-function parseProvinceSection(sectionLines, province) {
+// IMPROVED province section parser using your observations
+function parseProvinceSectionImproved(sectionLines, province) {
     const rentals = [];
 
-    // Extract columns using your observations
-    const columns = extractColumnsIntelligently(sectionLines);
+    // Extract columns
+    const columns = extractColumnsBasic(sectionLines);
 
-    // Use your observation #2: Use type column to determine record count
-    const recordCount = columns.types.length;
+    // Use your observation #2: Use type column as reference for record count
+    const typeCount = columns.types.length;
 
-    if (recordCount > 0) {
-        // Align all columns to have the same number of records
-        const alignedColumns = alignColumnsToTypeCount(columns, recordCount);
+    if (typeCount > 0) {
+        // Create records by aligning to type count
+        for (let i = 0; i < typeCount; i++) {
+            const name = getAlignedValue(columns.names, i, typeCount);
+            const type = columns.types[i] || 'Hospedaje';
+            const email = getAlignedValue(columns.emails, i, typeCount);
+            const phone = getAlignedValue(columns.phones, i, typeCount);
 
-        // Create records
-        for (let i = 0; i < recordCount; i++) {
-            const name = combineMultiLineNames(alignedColumns.names, i);
-            const type = alignedColumns.types[i] || 'Hospedaje';
-            const email = combineMultiLineEmails(alignedColumns.emails, i);
-            const phone = combineMultiLinePhones(alignedColumns.phones, i);
+            // Apply your observations for combining multi-line elements
+            const combinedName = fixMultiLineName(name, columns.names, i);
+            const combinedEmail = fixMultiLineEmail(email);
+            const combinedPhone = fixMultiLinePhone(phone);
 
-            if (name && name.length > 2) {
-                const rental = createRentalObject(name, type, email, phone, province);
+            if (combinedName && combinedName.length > 2) {
+                const rental = createRentalObject(combinedName, type, combinedEmail, combinedPhone, province);
                 rentals.push(rental);
             }
         }
     }
 
-    console.log(`Province ${province}: ${rentals.length} rentals (based on ${recordCount} type records)`);
+    console.log(`Province ${province}: ${rentals.length} rentals (based on ${typeCount} types)`);
     return rentals;
 }
 
-// NEW: Intelligent column extraction
-function extractColumnsIntelligently(sectionLines) {
-    const columns = {
+// Basic column extraction
+function extractColumnsBasic(sectionLines) {
+    const result = {
         names: [],
         types: [],
         emails: [],
         phones: []
     };
 
-    let currentColumn = 'unknown';
-    let foundColumnHeaders = false;
+    let currentColumn = 'names';
 
-    for (let i = 0; i < sectionLines.length; i++) {
-        const line = sectionLines[i];
-
-        // Skip province headers and totals
-        if (line.includes('Provincia:') || line.includes('Total por provincia:')) {
+    for (const line of sectionLines) {
+        // Skip column headers and metadata
+        if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono' ||
+            line.includes('Provincia:') || line.includes('Total por provincia:')) {
             continue;
         }
 
-        // Detect column headers (your observation #1: headers appear at column ends)
-        if (line === 'Nombre' || line === 'Modalidad' ||
-            line === 'Correo Principal' || line === 'Teléfono') {
-            foundColumnHeaders = true;
-
-            if (line === 'Nombre') currentColumn = 'names';
-            else if (line === 'Modalidad') currentColumn = 'types';
-            else if (line === 'Correo Principal') currentColumn = 'emails';
-            else if (line === 'Teléfono') currentColumn = 'phones';
-            continue;
+        // Simple column detection
+        if (isEmailLine(line)) {
+            currentColumn = 'emails';
+        } else if (isPhoneLine(line)) {
+            currentColumn = 'phones';
+        } else if (isTypeLine(line)) {
+            currentColumn = 'types';
+        } else if (isNameLine(line)) {
+            currentColumn = 'names';
         }
 
-        // If we found headers, assign to columns based on current column
-        if (foundColumnHeaders) {
-            if (currentColumn === 'names' && isNameLine(line)) {
-                columns.names.push(line);
-            } else if (currentColumn === 'types' && isTypeLine(line)) {
-                // Your observation #2: Handle "Hostal Familiar" and other multi-word types
-                columns.types.push(handleMultiLineType(line, sectionLines, i));
-            } else if (currentColumn === 'emails' && (isEmailLine(line) || isPotentialEmailPart(line))) {
-                columns.emails.push(line);
-            } else if (currentColumn === 'phones' && (isPhoneLine(line) || isPotentialPhonePart(line))) {
-                columns.phones.push(line);
-            }
-        } else {
-            // Before headers, try to categorize
-            if (isNameLine(line)) {
-                columns.names.push(line);
-            } else if (isTypeLine(line)) {
-                columns.types.push(handleMultiLineType(line, sectionLines, i));
-            } else if (isEmailLine(line) || isPotentialEmailPart(line)) {
-                columns.emails.push(line);
-            } else if (isPhoneLine(line) || isPotentialPhonePart(line)) {
-                columns.phones.push(line);
-            }
-        }
-    }
-
-    return columns;
-}
-
-// NEW: Align columns based on type count (your observation #2)
-function alignColumnsToTypeCount(columns, targetCount) {
-    const aligned = {
-        names: [],
-        types: [...columns.types],
-        emails: [],
-        phones: []
-    };
-
-    // Start with types as the reference
-    aligned.types = columns.types.slice(0, targetCount);
-
-    // Align other columns
-    aligned.names = alignColumn(columns.names, targetCount, 'name');
-    aligned.emails = alignColumn(columns.emails, targetCount, 'email');
-    aligned.phones = alignColumn(columns.phones, targetCount, 'phone');
-
-    return aligned;
-}
-
-// NEW: Align a single column to target count
-function alignColumn(column, targetCount, columnType) {
-    const result = [];
-    let sourceIndex = 0;
-
-    for (let i = 0; i < targetCount; i++) {
-        if (sourceIndex < column.length) {
-            result.push(column[sourceIndex]);
-            sourceIndex++;
-        } else {
-            result.push(''); // Fill with empty if we run out
+        // Add to appropriate column
+        if (currentColumn === 'names' && isNameLine(line)) {
+            result.names.push(line);
+        } else if (currentColumn === 'types' && isTypeLine(line)) {
+            result.types.push(line);
+        } else if (currentColumn === 'emails' && isEmailLine(line)) {
+            result.emails.push(line);
+        } else if (currentColumn === 'phones' && isPhoneLine(line)) {
+            result.phones.push(line);
         }
     }
 
     return result;
 }
 
-// NEW: Handle multi-line names (your observation #2)
-function combineMultiLineNames(names, index) {
-    if (index >= names.length) return '';
-
-    let name = names[index];
-
-    // If this looks like an incomplete name and there are more names than types,
-    // try to combine with next name
-    if (name.length < 20 && index + 1 < names.length &&
-        !isTypeLine(names[index + 1]) && !isEmailLine(names[index + 1]) && !isPhoneLine(names[index + 1])) {
-        name += ' ' + names[index + 1];
-        // Remove the combined name from the array to avoid reuse
-        names[index + 1] = '';
+// Get aligned value from column based on type count
+function getAlignedValue(column, index, typeCount) {
+    if (index < column.length) {
+        return column[index];
     }
-
-    return cleanText(name);
+    return '';
 }
 
-// NEW: Handle multi-line emails (your observation #3)
-function combineMultiLineEmails(emails, index) {
-    if (index >= emails.length) return '';
+// Fix multi-line names - your observation #2
+function fixMultiLineName(name, names, index) {
+    if (!name) return '';
 
-    let email = emails[index];
-
-    // Your observation #3: Combine email parts
-    if (email.includes('@') && !email.includes('.') && index + 1 < emails.length) {
-        // Email has @ but no domain, likely continues on next line
-        const nextPart = emails[index + 1];
-        if (nextPart && nextPart.includes('.')) {
-            email += nextPart;
-            emails[index + 1] = ''; // Mark as used
+    // If name is very short and there are more names than types, try to combine
+    if (name.length < 15 && index + 1 < names.length) {
+        const nextName = names[index + 1];
+        if (nextName && nextName.length > 0 && !isTypeLine(nextName) && !isEmailLine(nextName) && !isPhoneLine(nextName)) {
+            return name + ' ' + nextName;
         }
     }
 
-    // Remove spaces from email (your observation #3)
+    return name;
+}
+
+// Fix multi-line emails - your observation #3
+function fixMultiLineEmail(email) {
+    if (!email) return '';
+
+    // Remove spaces from email
     email = email.replace(/\s+/g, '');
 
-    return extractEmail(email);
+    // Extract email if pattern exists
+    const match = email.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    return match ? match[1] : '';
 }
 
-// NEW: Handle multi-line phones (your observation #4)
-function combineMultiLinePhones(phones, index) {
-    if (index >= phones.length) return '';
+// Fix multi-line phones - your observation #4
+function fixMultiLinePhone(phone) {
+    if (!phone) return '';
 
-    let phone = phones[index];
+    // Remove dashes, slashes, and spaces
+    phone = phone.replace(/[-/\s]/g, '');
 
-    // Your observation #4: Handle phone number splits
-    if (phone.endsWith('/') && index + 1 < phones.length) {
-        const nextPart = phones[index + 1];
-        if (nextPart && isPhoneLine(nextPart)) {
-            phone += ' ' + nextPart;
-            phones[index + 1] = ''; // Mark as used
-        }
-    }
-
-    // Remove dashes and slashes (your observation #4)
-    phone = phone.replace(/[-/]/g, '');
-
-    return extractFirstPhone(phone);
+    // Extract first phone number pattern
+    const match = phone.match(/(\d{7,8})/);
+    return match ? match[1] : '';
 }
 
-// NEW: Handle multi-line types (your observation #2)
-function handleMultiLineType(line, sectionLines, currentIndex) {
-    // Your observation #2: Handle "Hostal Familiar" and similar
-    if (line === 'Hostal' && currentIndex + 1 < sectionLines.length) {
-        const nextLine = sectionLines[currentIndex + 1];
-        if (nextLine === 'Familiar') {
-            return 'Hostal Familiar';
-        }
-    }
-    return line;
-}
-
-// IMPROVED helper functions
+// Helper functions
 function isHeaderLine(line) {
     return line.includes('Reporte de Hospedajes vigentes') ||
            line.includes('Reporte: rep_hos_web') ||
@@ -339,42 +262,45 @@ function isNameLine(line) {
            line !== 'Nombre' &&
            line !== 'Modalidad' &&
            line !== 'Correo Principal' &&
-           line !== 'Teléfono' &&
-           !line.includes('Provincia:') &&
-           !line.includes('Total por provincia:');
+           line !== 'Teléfono';
 }
 
 function isTypeLine(line) {
-    const types = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort', 'Ecolodge', 'Hospedaje', 'Cabaña', 'Hostal Familiar'];
-    return types.some(type => line.toUpperCase().includes(type.toUpperCase()));
+    const types = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort', 'Ecolodge', 'Hospedaje', 'Cabaña'];
+    return types.some(type => line.includes(type));
 }
 
 function isEmailLine(line) {
-    return line.includes('@') && (line.includes('.com') || line.includes('.net') || line.includes('.org') || line.includes('.pa'));
-}
-
-function isPotentialEmailPart(line) {
-    return line.includes('@') || (line.includes('.com') || line.includes('.net'));
+    return line.includes('@') && line.includes('.');
 }
 
 function isPhoneLine(line) {
     return line.match(/\d{3,4}[- \/]?\d{3,4}[- \/]?\d{3,4}/) ||
-           line.match(/\d{7,8}/) ||
            (line.includes('/') && line.match(/\d+/));
 }
 
-function isPotentialPhonePart(line) {
-    return line.match(/\d{3,4}/) && line.length < 10;
-}
+function createRentalObject(name, type, email, phone, province) {
+    const cleanName = cleanText(name);
+    const cleanType = cleanText(type || 'Hospedaje');
+    const cleanEmail = email;
+    const cleanPhone = phone;
 
-function extractEmail(text) {
-    const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-    return match ? match[1] : '';
-}
+    if (!cleanName || cleanName.length < 2) {
+        return null;
+    }
 
-function extractFirstPhone(text) {
-    const match = text.match(/(\d{3,4}[- ]?\d{3,4}[- ]?\d{3,4})/);
-    return match ? match[1].replace(/[- ]/g, '') : '';
+    return {
+        name: cleanName,
+        type: cleanType,
+        email: cleanEmail,
+        phone: cleanPhone,
+        province: province,
+        district: guessDistrict(cleanName, province),
+        description: generateDescription(cleanName, cleanType, province),
+        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(cleanName + ' ' + province + ' Panamá')}`,
+        whatsapp: cleanPhone,
+        source: 'ATP_OFFICIAL'
+    };
 }
 
 function cleanText(text) {
@@ -403,30 +329,6 @@ function generateDescription(name, type, province) {
     return `${type} "${name}" ubicado en ${province}, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).`;
 }
 
-function createRentalObject(name, type, email, phone, province) {
-    const cleanName = cleanText(name);
-    const cleanType = cleanText(type || 'Hospedaje');
-    const cleanEmail = email;
-    const cleanPhone = phone;
-
-    if (!cleanName || cleanName.length < 2) {
-        return null;
-    }
-
-    return {
-        name: cleanName,
-        type: cleanType,
-        email: cleanEmail,
-        phone: cleanPhone,
-        province: province,
-        district: guessDistrict(cleanName, province),
-        description: generateDescription(cleanName, cleanType, province),
-        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(cleanName + ' ' + province + ' Panamá')}`,
-        whatsapp: cleanPhone,
-        source: 'ATP_OFFICIAL'
-    };
-}
-
 function getFallbackData() {
     return [
         {
@@ -444,8 +346,96 @@ function getFallbackData() {
     ];
 }
 
-// Keep all your existing API routes
-// ... [your existing API routes] ...
+// API Routes
+app.get('/api/test', (req, res) => {
+    res.json({
+        message: 'ATP Rentals Search API is working!',
+        status: 'success',
+        timestamp: new Date().toISOString(),
+        data_source: 'LIVE_ATP_PDF',
+        total_rentals: CURRENT_RENTALS.length
+    });
+});
+
+app.get('/api/rentals', (req, res) => {
+    const { search, province, type } = req.query;
+    let filtered = CURRENT_RENTALS;
+
+    if (search) {
+        const searchLower = search.toLowerCase();
+        filtered = filtered.filter(rental =>
+            rental.name.toLowerCase().includes(searchLower) ||
+            rental.district.toLowerCase().includes(searchLower) ||
+            rental.description.toLowerCase().includes(searchLower) ||
+            rental.province.toLowerCase().includes(searchLower) ||
+            rental.type.toLowerCase().includes(searchLower)
+        );
+    }
+
+    if (province && province !== '') {
+        filtered = filtered.filter(rental =>
+            rental.province.toLowerCase() === province.toLowerCase()
+        );
+    }
+
+    if (type && type !== '') {
+        filtered = filtered.filter(rental =>
+            rental.type.toLowerCase() === type.toLowerCase()
+        );
+    }
+
+    res.json(filtered);
+});
+
+app.get('/api/provinces', (req, res) => {
+    const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province))].sort();
+    res.json(provinces);
+});
+
+app.get('/api/types', (req, res) => {
+    const types = [...new Set(CURRENT_RENTALS.map(r => r.type))].sort();
+    res.json(types);
+});
+
+app.get('/api/stats', (req, res) => {
+    res.json({
+        total_rentals: CURRENT_RENTALS.length,
+        last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
+        data_source: 'LIVE_ATP_DATA',
+        status: PDF_STATUS,
+        note: 'Datos oficiales de la Autoridad de Turismo de Panamá'
+    });
+});
+
+app.get('/api/debug-pdf', (req, res) => {
+    const sampleWithContacts = CURRENT_RENTALS
+        .filter(rental => rental.email || rental.phone)
+        .slice(0, 10);
+
+    res.json({
+        pdf_status: PDF_STATUS,
+        total_rentals_found: CURRENT_RENTALS.length,
+        last_update: LAST_PDF_UPDATE,
+        sample_with_contacts: sampleWithContacts,
+        all_provinces: [...new Set(CURRENT_RENTALS.map(r => r.province))],
+        all_types: [...new Set(CURRENT_RENTALS.map(r => r.type))]
+    });
+});
+
+app.post('/api/refresh-pdf', async (req, res) => {
+    try {
+        const success = await fetchAndParsePDF();
+        res.json({
+            success: success,
+            message: success ? 'PDF data refreshed successfully' : 'Failed to refresh PDF data',
+            total_rentals: CURRENT_RENTALS.length,
+            status: PDF_STATUS,
+            last_update: LAST_PDF_UPDATE
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // Initialize
 app.listen(PORT, async () => {
