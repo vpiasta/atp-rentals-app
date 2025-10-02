@@ -329,6 +329,10 @@ app.get('/debug-pdf-text', async (req, res) => {
         body { font-family: monospace; margin: 20px; }
         .line { margin: 2px 0; }
         .line-number { color: #666; display: inline-block; width: 60px; }
+        .highlight-email { background-color: #e8f4fd; }
+        .highlight-phone { background-color: #ffebee; }
+        .highlight-type { background-color: #fff9e6; }
+        .highlight-name { background-color: #e8f5e8; }
     </style>
 </head>
 <body>
@@ -338,7 +342,19 @@ app.get('/debug-pdf-text', async (req, res) => {
 
         lines.forEach((line, index) => {
             if (line.trim()) {
-                html += `<div class="line"><span class="line-number">${index}</span> ${escapeHtml(line)}</div>`;
+                let className = '';
+                if (line.includes('@') && (line.includes('.com') || line.includes('.net'))) {
+                    className = 'highlight-email';
+                } else if (line.match(/\d{3,4}[- ]?\d{3,4}[- ]?\d{3,4}/) || line.match(/\d{7,8}/)) {
+                    className = 'highlight-phone';
+                } else if (line.match(/(Albergue|Aparta-Hotel|Bungalow|Hostal|Hotel|Posada|Resort|Ecolodge|Hospedaje|Cabaña)/i)) {
+                    className = 'highlight-type';
+                } else if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono') {
+                    className = 'highlight-name';
+                }
+
+                const escapedLine = escapeHtml(line);
+                html += `<div class="line ${className}"><span class="line-number">${index}</span> ${escapedLine}</div>`;
             }
         });
 
@@ -355,10 +371,14 @@ app.get('/debug-pdf-text', async (req, res) => {
     }
 });
 
+// FIXED: Proper HTML escaping for Node.js
 function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 // Keep all your existing API routes
