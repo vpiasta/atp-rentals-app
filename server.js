@@ -17,6 +17,7 @@ const PDF_URLS = [
 let CURRENT_RENTALS = [];
 let LAST_PDF_UPDATE = null;
 let PDF_STATUS = 'No PDF processed yet';
+let LAST_ERROR = null;
 
 async function fetchAndParsePDF() {
     for (const pdfUrl of PDF_URLS) {
@@ -32,21 +33,30 @@ async function fetchAndParsePDF() {
                 const data = await pdf(response.data);
                 PDF_STATUS = `PDF processed successfully from: ${pdfUrl}`;
                 LAST_PDF_UPDATE = new Date().toISOString();
+                LAST_ERROR = null;
 
                 // Extract all rentals from the PDF
                 const parsedRentals = extractAllRentals(data.text);
                 console.log(`Extracted ${parsedRentals.length} rentals from PDF`);
 
+                if (parsedRentals.length === 0) {
+                    LAST_ERROR = 'PDF parsing completed but found 0 rentals. The PDF structure may be different than expected.';
+                    PDF_STATUS = 'ERROR: No rentals found in PDF';
+                }
+
                 CURRENT_RENTALS = parsedRentals;
-                return true;
+                return parsedRentals.length > 0;
             }
         } catch (error) {
-            console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
+            const errorMsg = `Failed to fetch PDF: ${error.message}`;
+            console.log(errorMsg);
+            LAST_ERROR = errorMsg;
+            PDF_STATUS = 'ERROR: Failed to fetch PDF';
         }
     }
 
-    PDF_STATUS = 'No PDF available';
-    CURRENT_RENTALS = getFallbackData();
+    PDF_STATUS = 'ERROR: No PDF available or accessible';
+    CURRENT_RENTALS = [];
     return false;
 }
 
@@ -304,90 +314,6 @@ function guessDistrict(name, province) {
     return districtMap[province] || province;
 }
 
-function getFallbackData() {
-    // Return comprehensive fallback data including all provinces
-    return [
-        // Bocas del Toro (20 rentals as before)
-        {
-            name: "SOCIALTEL BOCAS DEL TORO", type: "Albergue", email: "reception.bocasdeltoro@collectivehospitality.com", phone: "64061547", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "RED FROG BEACH", type: "Albergue", email: "reception.redfrog@collectivehospitality.com", phone: "61127504", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "DREAMER'S HOSTEL BOCAS", type: "Albergue", email: "citybocashouse2024@gmail.com", phone: "65362545", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "LA GUAYANA HOSTEL", type: "Albergue", email: "laguayanahostel@gmail.com", phone: "64106097", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "CATALEYA HOSTEL", type: "Albergue", email: "cataleyahostelbdt24@gmail.com", phone: "63479180", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "ALBERGUE CALIPSO BOCAS TOWN", type: "Albergue", email: "calipsobocastown@gmail.com", phone: "65098722", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "BAMBUDA LODGE", type: "Albergue", email: "lodge@bambuda.com", phone: "66030623", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "AQUA LOUNGE", type: "Albergue", email: "aguaazulsa24@gmail.com", phone: "69624644", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "BAMBUDA BOCAS TOWN", type: "Albergue", email: "bocastown@bambuda.com", phone: "63985103", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "THE BOCAS CORNER", type: "Albergue", email: "thebocascorner1@gmail.com", phone: "67712925", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "SUN HAVENS APARTAHOTEL", type: "Aparta-Hotel", email: "info@sunhavens-bocas.com", phone: "63519890", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "CARIBBEAN VILLAGE", type: "Aparta-Hotel", email: "info@caribbeanvillages.com", phone: "61312420", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "APARTA HOTEL BOCAS BAY CONDOS", type: "Aparta-Hotel", email: "bocasbayresort@gmail.com", phone: "62069670", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "APARTHOTEL TROPICAL SUITES", type: "Aparta-Hotel", email: "reception@tropical-suites.com", phone: "68107350", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "BOCAS LOFT", type: "Aparta-Hotel", email: "hello@azulparadise.com", phone: "65500864", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "COCOVIVO", type: "Bungalow", email: "cocovivobocas@gmail.com", phone: "67800624", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "BUNGALOW LA RESIDENCIA NATURAL", type: "Bungalow", email: "info@alnaturalresort.com", phone: "63704300", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "ECLIPSE DE MAR ACQUA LODGE", type: "Bungalow", email: "guest@eclypsedemar.com", phone: "66647100", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "SOMEWHERE IN PANAMA", type: "Bungalow", email: "colivingbocas@gmail.com", phone: "63925857", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-        {
-            name: "SOL BUNGALOWS BOCAS", type: "Bungalow", email: "info@solbungalowsbocas.com", phone: "64960776", province: "BOCAS DEL TORO", district: "Bocas del Toro"
-        },
-
-        // Add sample data for other provinces
-        {
-            name: "HOTEL BOQUETE RESORT", type: "Hotel", email: "info@boqueteresort.com", phone: "7201234", province: "CHIRIQUÍ", district: "Boquete"
-        },
-        {
-            name: "POSADA CASCO ANTIGUO", type: "Posada", email: "reservas@posadacasco.com", phone: "2345678", province: "PANAMÁ", district: "Ciudad de Panamá"
-        },
-        {
-            name: "CORONADO BEACH RESORT", type: "Resort", email: "reservations@coronadoresort.com", phone: "3456789", province: "PANAMÁ", district: "Coronado"
-        }
-    ].map(rental => ({
-        ...rental,
-        description: `${rental.type} "${rental.name}" registrado en ${rental.province}, Panamá.`,
-        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(rental.name + ' ' + rental.province + ' Panamá')}`,
-        whatsapp: rental.phone,
-        source: 'ATP_OFFICIAL'
-    }));
-}
-
 // API Routes
 app.get('/api/test', (req, res) => {
     res.json({
@@ -395,11 +321,21 @@ app.get('/api/test', (req, res) => {
         status: 'success',
         timestamp: new Date().toISOString(),
         data_source: 'LIVE_ATP_PDF',
-        total_rentals: CURRENT_RENTALS.length
+        total_rentals: CURRENT_RENTALS.length,
+        has_data: CURRENT_RENTALS.length > 0,
+        last_error: LAST_ERROR
     });
 });
 
 app.get('/api/rentals', (req, res) => {
+    if (CURRENT_RENTALS.length === 0) {
+        return res.status(503).json({
+            error: 'No rental data available',
+            message: LAST_ERROR || 'The PDF parsing failed. Please check the /api/debug-pdf endpoint for details.',
+            suggestion: 'Try refreshing the data using POST /api/refresh-pdf'
+        });
+    }
+
     const { search, province, type } = req.query;
     let filtered = CURRENT_RENTALS;
 
@@ -429,11 +365,17 @@ app.get('/api/rentals', (req, res) => {
 });
 
 app.get('/api/provinces', (req, res) => {
+    if (CURRENT_RENTALS.length === 0) {
+        return res.json([]);
+    }
     const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province))].sort();
     res.json(provinces);
 });
 
 app.get('/api/types', (req, res) => {
+    if (CURRENT_RENTALS.length === 0) {
+        return res.json([]);
+    }
     const types = [...new Set(CURRENT_RENTALS.map(r => r.type))].sort();
     res.json(types);
 });
@@ -450,8 +392,10 @@ app.get('/api/stats', (req, res) => {
         last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
         data_source: 'LIVE_ATP_DATA',
         status: PDF_STATUS,
+        last_error: LAST_ERROR,
+        has_data: CURRENT_RENTALS.length > 0,
         provinces: provinceCounts,
-        note: 'Datos oficiales de la Autoridad de Turismo de Panamá'
+        note: CURRENT_RENTALS.length === 0 ? 'ERROR: No data extracted from PDF' : 'Datos oficiales de la Autoridad de Turismo de Panamá'
     });
 });
 
@@ -471,13 +415,19 @@ app.get('/api/debug-pdf', (req, res) => {
         pdf_status: PDF_STATUS,
         total_rentals_found: CURRENT_RENTALS.length,
         last_update: LAST_PDF_UPDATE,
+        last_error: LAST_ERROR,
+        has_data: CURRENT_RENTALS.length > 0,
+        provinces_found: provinces.length,
         provinces: provinceSamples,
         data_quality: {
             with_names: CURRENT_RENTALS.filter(r => r.name && r.name.length > 2).length,
             with_emails: CURRENT_RENTALS.filter(r => r.email).length,
             with_phones: CURRENT_RENTALS.filter(r => r.phone).length,
             with_types: CURRENT_RENTALS.filter(r => r.type && r.type !== 'Hospedaje').length
-        }
+        },
+        diagnosis: CURRENT_RENTALS.length === 0 ?
+            'CRITICAL: No rentals extracted. The PDF structure may be incompatible.' :
+            'OK: Data extracted successfully'
     });
 });
 
@@ -486,13 +436,19 @@ app.post('/api/refresh-pdf', async (req, res) => {
         const success = await fetchAndParsePDF();
         res.json({
             success: success,
-            message: success ? 'PDF data refreshed successfully' : 'Failed to refresh PDF data',
+            message: success ?
+                `PDF data refreshed successfully. Found ${CURRENT_RENTALS.length} rentals.` :
+                `Failed to refresh PDF data. Error: ${LAST_ERROR}`,
             total_rentals: CURRENT_RENTALS.length,
             status: PDF_STATUS,
+            last_error: LAST_ERROR,
             last_update: LAST_PDF_UPDATE
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({
+            error: error.message,
+            message: 'Failed to refresh PDF data'
+        });
     }
 });
 
@@ -502,7 +458,12 @@ app.listen(PORT, async () => {
 
     // Load PDF data on startup
     setTimeout(async () => {
-        await fetchAndParsePDF();
-        console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
+        console.log('Attempting to load PDF data on startup...');
+        const success = await fetchAndParsePDF();
+        if (success) {
+            console.log(`✅ Success! ${CURRENT_RENTALS.length} ATP rentals loaded`);
+        } else {
+            console.log(`❌ Failed to load PDF data: ${LAST_ERROR}`);
+        }
     }, 2000);
 });
