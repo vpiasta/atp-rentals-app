@@ -10,7 +10,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// PDF URL - will be fetched from your United Domains hosting
+// PDF URL
 const PDF_URLS = [
     'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf'
 ];
@@ -19,18 +19,17 @@ let CURRENT_RENTALS = [];
 let LAST_PDF_UPDATE = null;
 let PDF_STATUS = 'No PDF processed yet';
 
-// Try to fetch and parse PDF from your hosting
 async function fetchAndParsePDF() {
     for (const pdfUrl of PDF_URLS) {
         try {
-            console.log(`Trying to fetch PDF from: ${pdfUrl}`);
+            console.log(`Fetching PDF from: ${pdfUrl}`);
             const response = await axios.get(pdfUrl, {
                 responseType: 'arraybuffer',
                 timeout: 30000
             });
 
             if (response.status === 200) {
-                console.log('PDF fetched successfully, parsing...');
+                console.log('PDF fetched, parsing...');
                 const data = await pdf(response.data);
                 PDF_STATUS = `PDF processed successfully from: ${pdfUrl}`;
                 LAST_PDF_UPDATE = new Date().toISOString();
@@ -51,15 +50,11 @@ async function fetchAndParsePDF() {
     return false;
 }
 
-// FINAL IMPROVED PARSER - Properly aligns columnar data
+// NEW: Advanced parser that understands the table structure
 function parsePDFText(text) {
-    console.log('=== PARSING ATP PDF DATA ===');
+    console.log('=== ADVANCED PDF PARSING ===');
     const rentals = [];
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-
-    let currentProvince = '';
-    let currentSection = [];
-    let inProvinceSection = false;
 
     const provinces = [
         'BOCAS DEL TORO', 'CHIRIQUÍ', 'COCLÉ', 'COLÓN', 'DARIÉN',
@@ -67,9 +62,11 @@ function parsePDFText(text) {
         'GUNAS', 'EMBERÁ', 'NGÄBE-BUGLÉ'
     ];
 
-    // Group lines by province sections
-    const provinceSections = [];
+    let currentProvince = '';
+    let inDataSection = false;
+    let dataLines = [];
 
+    // First, identify and extract data sections for each province
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
@@ -81,49 +78,38 @@ function parsePDFText(text) {
             continue;
         }
 
-        // Detect province headers
-        const provinceMatch = provinces.find(province =>
-            line.toUpperCase().includes(province)
-        );
-
-        if (provinceMatch) {
-            // Save previous section
-            if (currentSection.length > 0 && currentProvince) {
-                provinceSections.push({
-                    province: currentProvince,
-                    lines: [...currentSection]
-                });
+        // Detect province start
+        const provinceMatch = provinces.find(p => line.toUpperCase().includes(p));
+        if (provinceMatch && line.includes('Provincia:')) {
+            // Process previous province data if exists
+            if (currentProvince && dataLines.length > 0) {
+                const provinceRentals = parseProvinceData(dataLines, currentProvince);
+                rentals.push(...provinceRentals);
             }
 
-            // Start new section
+            // Start new province
             currentProvince = provinceMatch;
-            currentSection = [];
-            inProvinceSection = true;
+            dataLines = [];
+            inDataSection = true;
+            console.log(`Processing province: ${currentProvince}`);
             continue;
         }
 
-        // Detect end of province section
-        if (line.includes('Total por provincia:') && inProvinceSection) {
-            if (currentSection.length > 0 && currentProvince) {
-                provinceSections.push({
-                    province: currentProvince,
-                    lines: [...currentSection]
-                });
-            }
-            currentSection = [];
-            inProvinceSection = false;
+        // Detect end of province data (when we see the total count)
+        if (inDataSection && line.includes('Total por provincia:')) {
+            inDataSection = false;
             continue;
         }
 
-        // Add to current section
-        if (inProvinceSection && line.length > 2) {
-            currentSection.push(line);
+        // Collect data lines for current province
+        if (inDataSection && line.length > 2) {
+            dataLines.push(line);
         }
     }
 
-    // Parse each province section with improved column alignment
-    for (const section of provinceSections) {
-        const provinceRentals = parseProvinceWithColumns(section.lines, section.province);
+    // Process the last province
+    if (currentProvince && dataLines.length > 0) {
+        const provinceRentals = parseProvinceData(dataLines, currentProvince);
         rentals.push(...provinceRentals);
     }
 
@@ -131,133 +117,172 @@ function parsePDFText(text) {
     return rentals;
 }
 
-// NEW: Parse province data with proper column alignment
-function parseProvinceWithColumns(lines, province) {
+// Parse data for a single province
+function parseProvinceData(lines, province) {
     const rentals = [];
 
-    // The data is in columns: Names, Types, Emails, Phones
-    // We need to group them properly
+    // The data is organized in blocks of 4 lines per rental:
+    // Line 1: Name
+    // Line 2: Type (Modalidad)
+    // Line 3: Email
+    // Line 4: Phone
 
-    const columnGroups = groupIntoColumns(lines);
+    let currentBlock = [];
+    const rentalBlocks = [];
 
-    if (columnGroups.names.length > 0) {
-        // Create rentals by aligning the columns
-        for (let i = 0; i < columnGroups.names.length; i++) {
-            const name = columnGroups.names[i] || '';
-            const type = columnGroups.types[i] || 'Hospedaje';
-            const email = columnGroups.emails[i] || '';
-            const phone = columnGroups.phones[i] || '';
-
-            if (name && name.length > 2) {
-                const cleanName = cleanText(name);
-                const cleanType = cleanText(type);
-                const cleanEmail = extractEmail(email);
-                const cleanPhone = extractFirstPhone(phone);
-
-                const rental = {
-                    name: cleanName,
-                    type: cleanType,
-                    email: cleanEmail,
-                    phone: cleanPhone,
-                    province: province,
-                    district: guessDistrict(cleanName, province),
-                    description: generateDescription(cleanName, cleanType, province),
-                    google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(cleanName + ' ' + province + ' Panamá')}`,
-                    whatsapp: cleanPhone,
-                    source: 'ATP_OFFICIAL'
-                };
-
-                rentals.push(rental);
-            }
-        }
-    }
-
-    console.log(`Province ${province}: ${rentals.length} rentals`);
-    return rentals;
-}
-
-// Group lines into the four columns
-function groupIntoColumns(lines) {
-    const result = {
-        names: [],
-        types: [],
-        emails: [],
-        phones: []
-    };
-
-    let currentColumn = 'names';
-
+    // Group lines into blocks of 4
     for (const line of lines) {
         // Skip column headers
         if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono') {
             continue;
         }
 
-        // Detect column changes based on content patterns
-        if (isEmailLine(line)) {
-            currentColumn = 'emails';
-        } else if (isPhoneLine(line)) {
-            currentColumn = 'phones';
-        } else if (isTypeLine(line)) {
-            currentColumn = 'types';
-        } else if (isNameLine(line)) {
-            currentColumn = 'names';
-        }
+        currentBlock.push(line);
 
-        // Add to appropriate column
-        if (currentColumn === 'names' && isNameLine(line)) {
-            result.names.push(line);
-        } else if (currentColumn === 'types' && isTypeLine(line)) {
-            result.types.push(line);
-        } else if (currentColumn === 'emails' && isEmailLine(line)) {
-            result.emails.push(line);
-        } else if (currentColumn === 'phones' && isPhoneLine(line)) {
-            result.phones.push(line);
+        // When we have 4 lines, we have a complete rental block
+        if (currentBlock.length === 4) {
+            rentalBlocks.push([...currentBlock]);
+            currentBlock = [];
         }
     }
 
-    return result;
+    // Process each rental block
+    for (const block of rentalBlocks) {
+        if (block.length === 4) {
+            const [nameLine, typeLine, emailLine, phoneLine] = block;
+
+            const rental = createRentalFromBlock(nameLine, typeLine, emailLine, phoneLine, province);
+            if (rental && rental.name && rental.name.length > 2) {
+                rentals.push(rental);
+            }
+        }
+    }
+
+    // If block parsing didn't work well, try alternative parsing
+    if (rentals.length === 0) {
+        console.log(`Trying alternative parsing for ${province}`);
+        const altRentals = parseAlternative(lines, province);
+        rentals.push(...altRentals);
+    }
+
+    console.log(`Province ${province}: ${rentals.length} rentals`);
+    return rentals;
+}
+
+// Create rental from a 4-line block
+function createRentalFromBlock(nameLine, typeLine, emailLine, phoneLine, province) {
+    const name = cleanName(nameLine);
+    const type = cleanType(typeLine);
+    const email = extractCompleteEmail(emailLine);
+    const phone = extractBestPhone(phoneLine);
+
+    if (!name || name.length < 2) {
+        return null;
+    }
+
+    return {
+        name: name,
+        type: type,
+        email: email,
+        phone: phone,
+        province: province,
+        district: guessDistrict(name, province),
+        description: `Hospedaje ${type} "${name}" registrado en ${province}, Panamá.`,
+        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(name + ' ' + province + ' Panamá')}`,
+        whatsapp: phone,
+        source: 'ATP_OFFICIAL'
+    };
+}
+
+// Alternative parsing method for difficult cases
+function parseAlternative(lines, province) {
+    const rentals = [];
+    const rentalTypes = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort'];
+
+    let currentRental = {};
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Skip headers
+        if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono') {
+            continue;
+        }
+
+        // If line looks like a name (starts with capital, no @, no numbers)
+        if (isLikelyName(line) && !currentRental.name) {
+            currentRental.name = cleanName(line);
+        }
+        // If line is a known rental type
+        else if (rentalTypes.some(type => line.includes(type)) && !currentRental.type) {
+            currentRental.type = line;
+        }
+        // If line contains email
+        else if (line.includes('@') && !currentRental.email) {
+            currentRental.email = extractCompleteEmail(line);
+        }
+        // If line contains phone numbers
+        else if (hasPhoneNumbers(line) && !currentRental.phone) {
+            currentRental.phone = extractBestPhone(line);
+        }
+
+        // If we have a complete rental, save it
+        if (currentRental.name && (currentRental.type || currentRental.email || currentRental.phone)) {
+            const rental = {
+                name: currentRental.name,
+                type: currentRental.type || 'Hospedaje',
+                email: currentRental.email || '',
+                phone: currentRental.phone || '',
+                province: province,
+                district: guessDistrict(currentRental.name, province),
+                description: `Hospedaje registrado en ${province}, Panamá.`,
+                google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(currentRental.name + ' ' + province + ' Panamá')}`,
+                whatsapp: currentRental.phone || '',
+                source: 'ATP_OFFICIAL'
+            };
+            rentals.push(rental);
+            currentRental = {};
+        }
+    }
+
+    return rentals;
 }
 
 // Helper functions
-function isEmailLine(line) {
-    return line.includes('@') && line.includes('.');
-}
-
-function isPhoneLine(line) {
-    return line.match(/\d{3,4}[- \/]?\d{3,4}[- \/]?\d{3,4}/) ||
-           (line.includes('/') && line.match(/\d+/));
-}
-
-function isTypeLine(line) {
-    const types = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort', 'Ecolodge'];
-    return types.some(type => line.includes(type));
-}
-
-function isNameLine(line) {
-    return line.length > 3 &&
-           !line.includes('@') &&
-           !isPhoneLine(line) &&
-           !isTypeLine(line) &&
-           line !== 'Nombre' &&
-           line !== 'Modalidad' &&
-           line !== 'Correo Principal' &&
-           line !== 'Teléfono';
-}
-
-function extractEmail(text) {
-    const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-    return match ? match[1] : '';
-}
-
-function extractFirstPhone(text) {
-    // Extract the first phone number pattern
-    const match = text.match(/(\d{3,4}[- ]?\d{3,4}[- ]?\d{3,4})/);
-    return match ? match[1] : '';
-}
-
-function cleanText(text) {
+function cleanName(text) {
     return text.replace(/\s+/g, ' ').trim();
+}
+
+function cleanType(text) {
+    const types = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort'];
+    const foundType = types.find(type => text.includes(type));
+    return foundType || text || 'Hospedaje';
+}
+
+function extractCompleteEmail(text) {
+    // Handle email addresses that might be split across lines
+    const emailMatch = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    return emailMatch ? emailMatch[1] : '';
+}
+
+function extractBestPhone(text) {
+    // Extract the first complete phone number
+    const phoneMatch = text.match(/(\d{3,4}[- ]?\d{3,4}[- ]?\d{3,4})/);
+    return phoneMatch ? phoneMatch[1] : '';
+}
+
+function isLikelyName(text) {
+    return text.length > 3 &&
+           !text.includes('@') &&
+           !hasPhoneNumbers(text) &&
+           text !== 'Nombre' &&
+           text !== 'Modalidad' &&
+           text !== 'Correo Principal' &&
+           text !== 'Teléfono';
+}
+
+function hasPhoneNumbers(text) {
+    return /\d{3,4}[- ]?\d{3,4}[- ]?\d{3,4}/.test(text) || text.includes('/');
 }
 
 function guessDistrict(name, province) {
@@ -278,11 +303,7 @@ function guessDistrict(name, province) {
     return districtMap[province] || province;
 }
 
-function generateDescription(name, type, province) {
-    return `${type} "${name}" ubicado en ${province}, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).`;
-}
-
-// API Routes (same as before)
+// API Routes
 app.get('/api/test', (req, res) => {
     res.json({
         message: 'ATP Rentals Search API is working!',
@@ -302,7 +323,6 @@ app.get('/api/rentals', (req, res) => {
         filtered = filtered.filter(rental =>
             rental.name.toLowerCase().includes(searchLower) ||
             rental.district.toLowerCase().includes(searchLower) ||
-            rental.description.toLowerCase().includes(searchLower) ||
             rental.province.toLowerCase().includes(searchLower) ||
             rental.type.toLowerCase().includes(searchLower)
         );
@@ -343,18 +363,28 @@ app.get('/api/stats', (req, res) => {
     });
 });
 
+// Enhanced debug endpoint
 app.get('/api/debug-pdf', (req, res) => {
-    const sampleWithContacts = CURRENT_RENTALS
-        .filter(rental => rental.email || rental.phone)
-        .slice(0, 10);
+    // Get first 20 rentals from Bocas del Toro to verify data quality
+    const bocasRentals = CURRENT_RENTALS
+        .filter(rental => rental.province === 'BOCAS DEL TORO')
+        .slice(0, 20);
+
+    const sampleRentals = CURRENT_RENTALS.slice(0, 10);
 
     res.json({
         pdf_status: PDF_STATUS,
         total_rentals_found: CURRENT_RENTALS.length,
         last_update: LAST_PDF_UPDATE,
-        sample_with_contacts: sampleWithContacts,
-        all_provinces: [...new Set(CURRENT_RENTALS.map(r => r.province))],
-        all_types: [...new Set(CURRENT_RENTALS.map(r => r.type))]
+        bocas_del_toro_sample: bocasRentals,
+        general_sample: sampleRentals,
+        provinces_count: [...new Set(CURRENT_RENTALS.map(r => r.province))].length,
+        data_quality: {
+            with_names: CURRENT_RENTALS.filter(r => r.name && r.name.length > 2).length,
+            with_emails: CURRENT_RENTALS.filter(r => r.email).length,
+            with_phones: CURRENT_RENTALS.filter(r => r.phone).length,
+            with_types: CURRENT_RENTALS.filter(r => r.type && r.type !== 'Hospedaje').length
+        }
     });
 });
 
@@ -376,8 +406,6 @@ app.post('/api/refresh-pdf', async (req, res) => {
 // Initialize
 app.listen(PORT, async () => {
     console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
-    console.log(`📍 Frontend: https://atp-rentals-app-production.up.railway.app`);
-    console.log(`📊 Live Data: ${CURRENT_RENTALS.length} rentals from ATP PDF`);
 
     // Load PDF data on startup
     setTimeout(async () => {
