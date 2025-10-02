@@ -18,472 +18,275 @@ let CURRENT_RENTALS = [];
 let LAST_PDF_UPDATE = null;
 let PDF_STATUS = 'No PDF processed yet';
 
-async function fetchAndParsePDF() {
-    for (const pdfUrl of PDF_URLS) {
-        try {
-            console.log(`Fetching PDF from: ${pdfUrl}`);
-            const response = await axios.get(pdfUrl, {
-                responseType: 'arraybuffer',
-                timeout: 30000
-            });
+// ... [keep all your existing functions for the main app] ...
 
-            if (response.status === 200) {
-                console.log('PDF fetched, parsing...');
-                const data = await pdf(response.data);
-                PDF_STATUS = `PDF processed successfully from: ${pdfUrl}`;
-                LAST_PDF_UPDATE = new Date().toISOString();
+// NEW: Debug endpoint to show raw PDF text in HTML
+app.get('/debug-pdf-text', async (req, res) => {
+    try {
+        let pdfText = '';
+        let rawLines = [];
 
-                const parsedRentals = parsePDFText(data.text);
-                console.log(`Parsed ${parsedRentals.length} rentals from PDF`);
+        // Fetch PDF
+        for (const pdfUrl of PDF_URLS) {
+            try {
+                const response = await axios.get(pdfUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 30000
+                });
 
-                CURRENT_RENTALS = parsedRentals;
-                return true;
+                if (response.status === 200) {
+                    const data = await pdf(response.data);
+                    pdfText = data.text;
+                    rawLines = data.text.split('\n').map(line => line.trim());
+                    break;
+                }
+            } catch (error) {
+                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
             }
-        } catch (error) {
-            console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
         }
+
+        if (!pdfText) {
+            return res.status(500).send('Could not fetch PDF');
+        }
+
+        // Create HTML page with the raw text
+        const html = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - PDF Raw Text</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }
+        .stats {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196F3;
+        }
+        .line-number {
+            color: #666;
+            display: inline-block;
+            width: 60px;
+            text-align: right;
+            margin-right: 10px;
+            user-select: none;
+        }
+        .line-content {
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .province-header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 5px 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .column-name { color: #2196F3; font-weight: bold; }
+        .column-type { color: #FF9800; font-weight: bold; }
+        .column-email { color: #9C27B0; font-weight: bold; }
+        .column-phone { color: #F44336; font-weight: bold; }
+        .section-divider {
+            border-top: 2px dashed #ccc;
+            margin: 20px 0;
+            padding-top: 10px;
+        }
+        .highlight {
+            background-color: #fff9c4;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 PDF Raw Text Debug View</h1>
+
+        <div class="stats">
+            <strong>Total lines:</strong> ${rawLines.length} |
+            <strong>PDF Status:</strong> ${PDF_STATUS} |
+            <strong>Last Update:</strong> ${LAST_PDF_UPDATE || 'Never'}
+        </div>
+
+        <div class="controls">
+            <button onclick="toggleLineNumbers()">Toggle Line Numbers</button>
+            <button onclick="toggleHighlighting()">Toggle Highlighting</button>
+            <button onclick="scrollToSection('BOCAS DEL TORO')">Jump to Bocas del Toro</button>
+            <button onclick="scrollToSection('CHIRIQUÍ')">Jump to Chiriquí</button>
+            <button onclick="scrollToSection('PANAMÁ')">Jump to Panamá</button>
+        </div>
+
+        <div id="content">
+            ${generateFormattedContent(rawLines)}
+        </div>
+    </div>
+
+    <script>
+        function toggleLineNumbers() {
+            const lineNumbers = document.querySelectorAll('.line-number');
+            lineNumbers.forEach(el => {
+                el.style.display = el.style.display === 'none' ? 'inline-block' : 'none';
+            });
+        }
+
+        function toggleHighlighting() {
+            const content = document.getElementById('content');
+            content.classList.toggle('no-highlight');
+        }
+
+        function scrollToSection(province) {
+            const headers = document.querySelectorAll('.province-header');
+            for (let header of headers) {
+                if (header.textContent.includes(province)) {
+                    header.scrollIntoView({ behavior: 'smooth' });
+                    break;
+                }
+            }
+        }
+
+        // Auto-highlight based on content type
+        function highlightLine(line) {
+            if (line.includes('@') && (line.includes('.com') || line.includes('.net'))) {
+                return '<span class="column-email">' + line + '</span>';
+            }
+            if (line.match(/\\d{3,4}[- ]?\\d{3,4}[- ]?\\d{3,4}/) || line.match(/\\d{7,8}/)) {
+                return '<span class="column-phone">' + line + '</span>';
+            }
+            if (line.match(/(Albergue|Aparta-Hotel|Bungalow|Hostal|Hotel|Posada|Resort|Ecolodge|Hospedaje|Cabaña)/i)) {
+                return '<span class="column-type">' + line + '</span>';
+            }
+            if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono') {
+                return '<span class="column-name">' + line + '</span>';
+            }
+            return line;
+        }
+
+        // Apply highlighting on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const lines = document.querySelectorAll('.line-content');
+            lines.forEach(lineEl => {
+                const original = lineEl.innerHTML;
+                lineEl.innerHTML = highlightLine(original);
+            });
+        });
+    </script>
+</body>
+</html>
+        `;
+
+        res.send(html);
+
+    } catch (error) {
+        console.error('Error in debug endpoint:', error);
+        res.status(500).send('Error generating debug view: ' + error.message);
     }
+});
 
-    PDF_STATUS = 'No PDF available';
-    CURRENT_RENTALS = getFallbackData();
-    return false;
-}
+// Helper function to generate formatted content
+function generateFormattedContent(rawLines) {
+    let html = '';
+    const provinces = ['BOCAS DEL TORO', 'CHIRIQUÍ', 'COCLÉ', 'COLÓN', 'DARIÉN', 'HERRERA', 'LOS SANTOS', 'PANAMÁ', 'VERAGUAS'];
 
-// COMPLETELY NEW APPROACH: State machine that tracks column positions
-function parsePDFText(text) {
-    console.log('=== PARSING ATP PDF DATA ===');
-    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-
-    const provinces = [
-        'BOCAS DEL TORO', 'CHIRIQUÍ', 'COCLÉ', 'COLÓN', 'DARIÉN',
-        'HERRERA', 'LOS SANTOS', 'PANAMÁ', 'VERAGUAS', 'COMARCA',
-        'GUNAS', 'EMBERÁ', 'NGÄBE-BUGLÉ', 'PANAMÁ OESTE'
-    ];
-
-    const rentals = [];
+    let inProvinceSection = false;
     let currentProvince = '';
-    let currentSection = [];
-    let inDataSection = false;
+    let lineCount = 0;
 
-    // First pass: group by provinces
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+    for (let i = 0; i < rawLines.length; i++) {
+        const line = rawLines[i];
+        if (!line) continue;
 
-        // Skip headers
-        if (isHeaderLine(line)) continue;
-
-        // Detect province
+        // Check for province headers
         const provinceMatch = provinces.find(p => line.toUpperCase().includes(p.toUpperCase()));
         if (provinceMatch) {
-            // Process previous section
-            if (currentSection.length > 0 && currentProvince) {
-                const provinceRentals = parseProvinceSectionAdvanced(currentSection, currentProvince);
-                rentals.push(...provinceRentals);
+            if (currentProvince) {
+                html += `<div class="section-divider"></div>`;
             }
-
-            // Start new section
             currentProvince = provinceMatch;
-            currentSection = [];
-            inDataSection = true;
-            continue;
+            html += `<div class="province-header" id="province-${currentProvince.replace(/\s+/g, '-')}">`;
+            html += `📍 ${currentProvince} (starts at line ${i})`;
+            html += `</div>`;
+            inProvinceSection = true;
         }
 
-        // Detect end of section
-        if (inDataSection && (line.includes('Total por provincia:') || line.includes('Total Provincial:'))) {
-            if (currentSection.length > 0 && currentProvince) {
-                const provinceRentals = parseProvinceSectionAdvanced(currentSection, currentProvince);
-                rentals.push(...provinceRentals);
-            }
-            currentSection = [];
-            inDataSection = false;
-            continue;
+        // Check for end of province section
+        if (inProvinceSection && (line.includes('Total por provincia:') || line.includes('Total Provincial:'))) {
+            html += `<div style="background: #ffebee; padding: 5px; margin: 5px 0; border-left: 4px solid #f44336;">`;
+            html += `<strong>END OF ${currentProvince} SECTION</strong>`;
+            html += `</div>`;
+            inProvinceSection = false;
+            currentProvince = '';
         }
 
-        // Add to current section
-        if (inDataSection && line.length > 2) {
-            currentSection.push(line);
-        }
-    }
+        // Format the line
+        html += `<div class="line">`;
+        html += `<span class="line-number">${i}</span>`;
+        html += `<span class="line-content">${escapeHtml(line)}</span>`;
+        html += `</div>`;
 
-    // Process last section
-    if (currentSection.length > 0 && currentProvince) {
-        const provinceRentals = parseProvinceSectionAdvanced(currentSection, currentProvince);
-        rentals.push(...provinceRentals);
-    }
+        lineCount++;
 
-    console.log(`=== PARSING COMPLETE: Found ${rentals.length} rentals ===`);
-    return rentals;
-}
-
-// NEW: Advanced province parsing using state machine
-function parseProvinceSectionAdvanced(sectionLines, province) {
-    const rentals = [];
-
-    // Find the column structure
-    const columnStructure = analyzeColumnStructure(sectionLines);
-
-    if (columnStructure.hasColumns) {
-        // Use column-based parsing
-        const columnRentals = parseUsingColumns(sectionLines, columnStructure, province);
-        rentals.push(...columnRentals);
-    } else {
-        // Fallback to line grouping
-        const groupedRentals = parseUsingLineGrouping(sectionLines, province);
-        rentals.push(...groupedRentals);
-    }
-
-    console.log(`Province ${province}: ${rentals.length} rentals`);
-    return rentals;
-}
-
-// NEW: Analyze the column structure of the section
-function analyzeColumnStructure(sectionLines) {
-    const analysis = {
-        hasColumns: false,
-        nameColumn: [],
-        typeColumn: [],
-        emailColumn: [],
-        phoneColumn: [],
-        columnStarts: { names: -1, types: -1, emails: -1, phones: -1 }
-    };
-
-    // Look for column headers to identify column starts
-    for (let i = 0; i < sectionLines.length; i++) {
-        const line = sectionLines[i];
-
-        if (line === 'Nombre' && analysis.columnStarts.names === -1) {
-            analysis.columnStarts.names = i;
-        } else if (line === 'Modalidad' && analysis.columnStarts.types === -1) {
-            analysis.columnStarts.types = i;
-        } else if (line === 'Correo Principal' && analysis.columnStarts.emails === -1) {
-            analysis.columnStarts.emails = i;
-        } else if (line === 'Teléfono' && analysis.columnStarts.phones === -1) {
-            analysis.columnStarts.phones = i;
+        // Add visual separators for column headers
+        if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono') {
+            html += `<div style="border-bottom: 1px solid #ddd; margin: 5px 0;"></div>`;
         }
     }
 
-    // If we found column headers, extract the columns
-    if (analysis.columnStarts.names !== -1) {
-        analysis.hasColumns = true;
-
-        // Extract each column
-        analysis.nameColumn = extractColumn(sectionLines, analysis.columnStarts.names + 1, 'name');
-        analysis.typeColumn = extractColumn(sectionLines, analysis.columnStarts.types + 1, 'type');
-        analysis.emailColumn = extractColumn(sectionLines, analysis.columnStarts.emails + 1, 'email');
-        analysis.phoneColumn = extractColumn(sectionLines, analysis.columnStarts.phones + 1, 'phone');
-    }
-
-    return analysis;
+    return html;
 }
 
-// NEW: Extract a single column
-function extractColumn(sectionLines, startIndex, columnType) {
-    const columnData = [];
-    let i = startIndex;
-
-    while (i < sectionLines.length) {
-        const line = sectionLines[i];
-
-        // Stop if we hit the next column header or end of data
-        if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono' ||
-            line.includes('Total por provincia:') || line.includes('Provincia:')) {
-            break;
-        }
-
-        // Add valid data based on column type
-        if (columnType === 'name' && isNameLine(line)) {
-            columnData.push(line);
-        } else if (columnType === 'type' && isTypeLine(line)) {
-            columnData.push(line);
-        } else if (columnType === 'email' && isEmailLine(line)) {
-            columnData.push(line);
-        } else if (columnType === 'phone' && isPhoneLine(line)) {
-            columnData.push(line);
-        } else if (line.length > 0) {
-            // For ambiguous lines, try to categorize
-            if (columnType === 'name' && !isEmailLine(line) && !isPhoneLine(line) && !isTypeLine(line)) {
-                columnData.push(line);
-            }
-        }
-
-        i++;
-    }
-
-    return columnData;
+// Helper to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
-// NEW: Parse using the identified columns
-function parseUsingColumns(sectionLines, columnStructure, province) {
-    const rentals = [];
-
-    const names = columnStructure.nameColumn;
-    const types = columnStructure.typeColumn;
-    const emails = columnStructure.emailColumn;
-    const phones = columnStructure.phoneColumn;
-
-    // Align the columns - they should have the same number of records
-    const maxRecords = Math.max(names.length, types.length, emails.length, phones.length);
-
-    for (let i = 0; i < maxRecords; i++) {
-        const name = names[i] || '';
-        const type = types[i] || '';
-        const email = emails[i] || '';
-        const phone = phones[i] || '';
-
-        // Only create record if we have a valid name
-        if (name && name.length > 2) {
-            const rental = createRentalObject(name, type, email, phone, province);
-            if (rental) {
-                rentals.push(rental);
-            }
-        }
-    }
-
-    return rentals;
-}
-
-// NEW: Fallback parsing using line grouping
-function parseUsingLineGrouping(sectionLines, province) {
-    const rentals = [];
-    const recordGroups = [];
-
-    // Group lines into potential records
-    let currentGroup = [];
-    let inRecord = false;
-
-    for (const line of sectionLines) {
-        // Skip headers and metadata
-        if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono' ||
-            line.includes('Provincia:') || line.includes('Total por provincia:')) {
-            continue;
-        }
-
-        // If we find a clear name line, start a new group
-        if (isClearNameLine(line)) {
-            if (currentGroup.length >= 3) {
-                recordGroups.push([...currentGroup]);
-            }
-            currentGroup = [line];
-            inRecord = true;
-        } else if (inRecord && currentGroup.length < 6) {
-            // Add to current group if we're in a record
-            currentGroup.push(line);
-        }
-    }
-
-    // Don't forget the last group
-    if (currentGroup.length >= 3) {
-        recordGroups.push(currentGroup);
-    }
-
-    // Parse each group
-    for (const group of recordGroups) {
-        const rental = parseRecordGroup(group, province);
-        if (rental) {
-            rentals.push(rental);
-        }
-    }
-
-    return rentals;
-}
-
-// NEW: Parse a group of lines as a single record
-function parseRecordGroup(groupLines, province) {
-    let name = '', type = '', email = '', phone = '';
-
-    // Assign lines based on content
-    for (const line of groupLines) {
-        if (!name && isClearNameLine(line)) {
-            name = line;
-        } else if (!type && isTypeLine(line)) {
-            type = line;
-        } else if (!email && isEmailLine(line)) {
-            email = line;
-        } else if (!phone && isPhoneLine(line)) {
-            phone = line;
-        }
-    }
-
-    // If we have a name but no type, try to find one
-    if (name && !type) {
-        for (const line of groupLines) {
-            if (line !== name && line !== email && line !== phone && isPossibleType(line)) {
-                type = line;
-                break;
-            }
-        }
-    }
-
-    if (name && name.length > 2) {
-        return createRentalObject(name, type, email, phone, province);
-    }
-
-    return null;
-}
-
-// NEW: More strict name detection
-function isClearNameLine(line) {
-    return line.length > 3 &&
-           !line.includes('@') &&
-           !isPhoneLine(line) &&
-           !isTypeLine(line) &&
-           line !== 'Nombre' &&
-           line !== 'Modalidad' &&
-           line !== 'Correo Principal' &&
-           line !== 'Teléfono' &&
-           !line.match(/^-+$/) &&
-           !line.includes('Provincia:') &&
-           !line.includes('Total por provincia:') &&
-           !line.match(/^\d/) &&
-           // Names typically don't contain slashes or special patterns
-           !line.includes('/') &&
-           !line.match(/^\d/) &&
-           // Real names are usually proper case or all caps, not lowercase
-           (line === line.toUpperCase() || /[A-Z]/.test(line.charAt(0)));
-}
-
-function isPossibleType(line) {
-    return isTypeLine(line) ||
-           line.length < 20 &&
-           !line.includes('@') &&
-           !isPhoneLine(line) &&
-           !isClearNameLine(line);
-}
-
-// Keep the existing helper functions but use the improved ones
-function isHeaderLine(line) {
-    return line.includes('Reporte de Hospedajes vigentes') ||
-           line.includes('Reporte: rep_hos_web') ||
-           line.includes('Actualizado al') ||
-           line.match(/Página \d+ de \d+/);
-}
-
-function isNameLine(line) {
-    return isClearNameLine(line);
-}
-
-function isTypeLine(line) {
-    const types = [
-        'Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel',
-        'Posada', 'Resort', 'Ecolodge', 'Hospedaje', 'Cabaña',
-        'Glamping', 'Camping', 'Residencial', 'Pensión'
-    ];
-    return types.some(type => line.toUpperCase().includes(type.toUpperCase()));
-}
-
-function isEmailLine(line) {
-    return line.includes('@') &&
-           (line.includes('.com') || line.includes('.net') || line.includes('.org') ||
-            line.includes('.edu') || line.includes('.gob') || line.includes('.pa'));
-}
-
-function isPhoneLine(line) {
-    const cleanLine = line.replace(/\s+/g, '').replace(/\//g, '');
-    const phonePatterns = [
-        /^\d{7,8}$/,
-        /^\d{3,4}[-]?\d{3,4}$/,
-        /^\d{4}[-]?\d{4}$/
-    ];
-    return phonePatterns.some(pattern => pattern.test(cleanLine));
-}
-
-function extractEmail(text) {
-    if (!text) return '';
-    const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-    return match ? match[1] : '';
-}
-
-function extractFirstPhone(text) {
-    if (!text) return '';
-    const patterns = [
-        /(\d{4}[- ]?\d{4})/,
-        /(\d{3}[- ]?\d{4})/,
-        /(\d{7,8})/
-    ];
-    for (const pattern of patterns) {
-        const match = text.match(pattern);
-        if (match) {
-            return match[1].replace(/[- ]/g, '');
-        }
-    }
-    return '';
-}
-
-function createRentalObject(name, type, email, phone, province) {
-    const cleanName = cleanText(name);
-    const cleanType = cleanText(type || 'Hospedaje');
-    const cleanEmail = extractEmail(email);
-    const cleanPhone = extractFirstPhone(phone);
-
-    if (!cleanName || cleanName.length < 2) {
-        return null;
-    }
-
-    return {
-        name: cleanName,
-        type: cleanType,
-        email: cleanEmail,
-        phone: cleanPhone,
-        province: province,
-        district: guessDistrict(cleanName, province),
-        description: generateDescription(cleanName, cleanType, province),
-        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(cleanName + ' ' + province + ' Panamá')}`,
-        whatsapp: cleanPhone,
-        source: 'ATP_OFFICIAL'
-    };
-}
-
-function cleanText(text) {
-    if (!text) return '';
-    return text.replace(/\s+/g, ' ').trim();
-}
-
-function guessDistrict(name, province) {
-    const districtMap = {
-        'BOCAS DEL TORO': 'Bocas del Toro',
-        'CHIRIQUÍ': 'David',
-        'COCLÉ': 'Penonomé',
-        'COLÓN': 'Colón',
-        'DARIÉN': 'La Palma',
-        'HERRERA': 'Chitré',
-        'LOS SANTOS': 'Las Tablas',
-        'PANAMÁ': 'Ciudad de Panamá',
-        'VERAGUAS': 'Santiago',
-        'GUNAS': 'Guna Yala',
-        'EMBERÁ': 'Emberá',
-        'NGÄBE-BUGLÉ': 'Ngäbe-Buglé',
-        'PANAMÁ OESTE': 'Arraiján'
-    };
-    return districtMap[province] || province;
-}
-
-function generateDescription(name, type, province) {
-    return `${type} "${name}" ubicado en ${province}, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).`;
-}
-
-function getFallbackData() {
-    return [
-        {
-            name: "SOCIALTEL BOCAS DEL TORO",
-            type: "Albergue",
-            email: "reception.bocasdeltoro@collectivehospitality.com",
-            phone: "64061547",
-            province: "BOCAS DEL TORO",
-            district: "Bocas del Toro",
-            description: "Albergue \"SOCIALTEL BOCAS DEL TORO\" ubicado en BOCAS DEL TORO, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).",
-            google_maps_url: "https://maps.google.com/?q=SOCIALTEL%20BOCAS%20DEL%20TORO%20BOCAS%20DEL%20TORO%20Panam%C3%A1",
-            whatsapp: "64061547",
-            source: "ATP_OFFICIAL"
-        }
-    ];
-}
-
-// Keep all your existing API routes (they remain the same)
-// ... [all API routes] ...
+// ... [keep all your existing API routes and initialization] ...
 
 // Initialize
 app.listen(PORT, async () => {
     console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
+    console.log(`📍 Debug URL: http://localhost:${PORT}/debug-pdf-text`);
 
     // Load PDF data on startup
     setTimeout(async () => {
