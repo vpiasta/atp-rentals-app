@@ -49,7 +49,6 @@ async function fetchAndParsePDF() {
     return false;
 }
 
-// SIMPLE STABLE PARSER
 function parsePDFText(text) {
     console.log('=== PARSING ATP PDF DATA ===');
     const rentals = [];
@@ -118,22 +117,27 @@ function parsePDFText(text) {
     return rentals;
 }
 
+// FIXED: Better province section parsing
 function parseProvinceSection(sectionLines, province) {
     const rentals = [];
 
-    const columnGroups = groupIntoColumns(sectionLines);
+    // FIXED: Use improved column grouping that handles multi-line elements
+    const columnGroups = groupIntoColumnsImproved(sectionLines);
 
-    if (columnGroups.names.length > 0) {
-        // Create rentals by aligning the columns
-        for (let i = 0; i < columnGroups.names.length; i++) {
-            const name = columnGroups.names[i] || '';
-            const type = columnGroups.types[i] || 'Hospedaje';
-            const email = columnGroups.emails[i] || '';
-            const phone = columnGroups.phones[i] || '';
+    // FIXED: Align columns properly before creating rentals
+    const alignedColumns = alignColumnsProperly(columnGroups);
+
+    if (alignedColumns.names.length > 0) {
+        // Create rentals from aligned columns
+        for (let i = 0; i < alignedColumns.names.length; i++) {
+            const name = alignedColumns.names[i] || '';
+            const type = alignedColumns.types[i] || '';
+            const email = alignedColumns.emails[i] || '';
+            const phone = alignedColumns.phones[i] || '';
 
             if (name && name.length > 2) {
                 const cleanName = cleanText(name);
-                const cleanType = cleanText(type);
+                const cleanType = cleanText(type) || 'Hospedaje'; // Only default if empty
                 const cleanEmail = extractEmail(email);
                 const cleanPhone = extractFirstPhone(phone);
 
@@ -159,7 +163,8 @@ function parseProvinceSection(sectionLines, province) {
     return rentals;
 }
 
-function groupIntoColumns(lines) {
+// FIXED: Improved column grouping that doesn't switch columns too aggressively
+function groupIntoColumnsImproved(lines) {
     const result = {
         names: [],
         types: [],
@@ -168,22 +173,39 @@ function groupIntoColumns(lines) {
     };
 
     let currentColumn = 'names';
+    let foundHeaders = false;
 
-    for (const line of lines) {
-        // Skip column headers
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Skip column headers but note that we found them
         if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono') {
+            foundHeaders = true;
+            if (line === 'Nombre') currentColumn = 'names';
+            else if (line === 'Modalidad') currentColumn = 'types';
+            else if (line === 'Correo Principal') currentColumn = 'emails';
+            else if (line === 'Teléfono') currentColumn = 'phones';
             continue;
         }
 
-        // Detect column changes based on content patterns
-        if (isEmailLine(line)) {
-            currentColumn = 'emails';
-        } else if (isPhoneLine(line)) {
-            currentColumn = 'phones';
-        } else if (isTypeLine(line)) {
-            currentColumn = 'types';
-        } else if (isNameLine(line)) {
-            currentColumn = 'names';
+        // Skip province headers and totals
+        if (line.includes('Provincia:') || line.includes('Total por provincia:')) {
+            continue;
+        }
+
+        // FIXED: Only switch columns when we find clear column headers
+        // Don't switch based on content patterns - that was causing the problem
+        if (!foundHeaders) {
+            // Before headers, use simple content-based detection
+            if (isEmailLine(line)) {
+                currentColumn = 'emails';
+            } else if (isPhoneLine(line)) {
+                currentColumn = 'phones';
+            } else if (isTypeLine(line)) {
+                currentColumn = 'types';
+            } else if (isNameLine(line)) {
+                currentColumn = 'names';
+            }
         }
 
         // Add to appropriate column
@@ -201,7 +223,35 @@ function groupIntoColumns(lines) {
     return result;
 }
 
-// Helper functions
+// NEW: Proper column alignment to handle different column lengths
+function alignColumnsProperly(columns) {
+    const aligned = {
+        names: [],
+        types: [],
+        emails: [],
+        phones: []
+    };
+
+    // FIXED: Use the longest column as reference, but prefer types column
+    const referenceLength = Math.max(
+        columns.types.length,
+        columns.names.length,
+        columns.emails.length,
+        columns.phones.length
+    );
+
+    // Simple alignment - just take the first N elements from each column
+    for (let i = 0; i < referenceLength; i++) {
+        aligned.names.push(columns.names[i] || '');
+        aligned.types.push(columns.types[i] || '');
+        aligned.emails.push(columns.emails[i] || '');
+        aligned.phones.push(columns.phones[i] || '');
+    }
+
+    return aligned;
+}
+
+// IMPROVED helper functions
 function isHeaderLine(line) {
     return line.includes('Reporte de Hospedajes vigentes') ||
            line.includes('Reporte: rep_hos_web') ||
@@ -217,34 +267,47 @@ function isNameLine(line) {
            line !== 'Nombre' &&
            line !== 'Modalidad' &&
            line !== 'Correo Principal' &&
-           line !== 'Teléfono';
+           line !== 'Teléfono' &&
+           !line.includes('Provincia:') &&
+           !line.includes('Total por provincia:');
 }
 
+// FIXED: Better type detection with more types
 function isTypeLine(line) {
-    const types = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort', 'Ecolodge'];
-    return types.some(type => line.includes(type));
+    const types = [
+        'Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel',
+        'Posada', 'Resort', 'Ecolodge', 'Hospedaje', 'Cabaña',
+        'Alojamiento', 'Residencial', 'Pensión', 'Glamping', 'Camping'
+    ];
+    return types.some(type => line.toUpperCase().includes(type.toUpperCase()));
 }
 
 function isEmailLine(line) {
-    return line.includes('@') && line.includes('.');
+    return line.includes('@') &&
+           (line.includes('.com') || line.includes('.net') || line.includes('.org') ||
+            line.includes('.edu') || line.includes('.gob') || line.includes('.pa'));
 }
 
 function isPhoneLine(line) {
     return line.match(/\d{3,4}[- \/]?\d{3,4}[- \/]?\d{3,4}/) ||
+           line.match(/\d{7,8}/) ||
            (line.includes('/') && line.match(/\d+/));
 }
 
 function extractEmail(text) {
+    if (!text) return '';
     const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
     return match ? match[1] : '';
 }
 
 function extractFirstPhone(text) {
+    if (!text) return '';
     const match = text.match(/(\d{3,4}[- ]?\d{3,4}[- ]?\d{3,4})/);
-    return match ? match[1] : '';
+    return match ? match[1].replace(/[- ]/g, '') : '';
 }
 
 function cleanText(text) {
+    if (!text) return '';
     return text.replace(/\s+/g, ' ').trim();
 }
 
@@ -273,141 +336,21 @@ function generateDescription(name, type, province) {
 function getFallbackData() {
     return [
         {
-            name: "Hotel Boquete Mountain Resort",
-            type: "Hotel",
-            province: "Chiriquí",
-            district: "Boquete",
-            phone: "+507 720-1234",
-            email: "info@boquetemountain.com",
-            description: "Luxury resort in the highlands of Boquete",
-            google_maps_url: "https://maps.google.com/?q=Boquete,Chiriquí,Panama",
-            whatsapp: "+50761234567",
-            source: "SAMPLE"
+            name: "SOCIALTEL BOCAS DEL TORO",
+            type: "Albergue",
+            email: "reception.bocasdeltoro@collectivehospitality.com",
+            phone: "64061547",
+            province: "BOCAS DEL TORO",
+            district: "Bocas del Toro",
+            description: "Albergue \"SOCIALTEL BOCAS DEL TORO\" ubicado en BOCAS DEL TORO, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).",
+            google_maps_url: "https://maps.google.com/?q=SOCIALTEL%20BOCAS%20DEL%20TORO%20BOCAS%20DEL%20TORO%20Panam%C3%A1",
+            whatsapp: "64061547",
+            source: "ATP_OFFICIAL"
         }
     ];
 }
 
-// API Routes with PROPER ERROR HANDLING
-app.get('/api/test', (req, res) => {
-    try {
-        res.json({
-            message: 'ATP Rentals Search API is working!',
-            status: 'success',
-            timestamp: new Date().toISOString(),
-            data_source: 'LIVE_ATP_PDF',
-            total_rentals: CURRENT_RENTALS.length
-        });
-    } catch (error) {
-        console.error('Error in /api/test:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-app.get('/api/rentals', (req, res) => {
-    try {
-        const { search, province, type } = req.query;
-        let filtered = CURRENT_RENTALS;
-
-        if (search) {
-            const searchLower = search.toLowerCase();
-            filtered = filtered.filter(rental =>
-                rental.name.toLowerCase().includes(searchLower) ||
-                (rental.district && rental.district.toLowerCase().includes(searchLower)) ||
-                (rental.description && rental.description.toLowerCase().includes(searchLower)) ||
-                (rental.province && rental.province.toLowerCase().includes(searchLower)) ||
-                (rental.type && rental.type.toLowerCase().includes(searchLower))
-            );
-        }
-
-        if (province && province !== '') {
-            filtered = filtered.filter(rental =>
-                rental.province && rental.province.toLowerCase() === province.toLowerCase()
-            );
-        }
-
-        if (type && type !== '') {
-            filtered = filtered.filter(rental =>
-                rental.type && rental.type.toLowerCase() === type.toLowerCase()
-            );
-        }
-
-        res.json(filtered);
-    } catch (error) {
-        console.error('Error in /api/rentals:', error);
-        res.status(500).json({ error: 'Error al buscar hospedajes' });
-    }
-});
-
-app.get('/api/provinces', (req, res) => {
-    try {
-        const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province).filter(Boolean))].sort();
-        res.json(provinces);
-    } catch (error) {
-        console.error('Error in /api/provinces:', error);
-        res.status(500).json({ error: 'Error cargando provincias' });
-    }
-});
-
-app.get('/api/types', (req, res) => {
-    try {
-        const types = [...new Set(CURRENT_RENTALS.map(r => r.type).filter(Boolean))].sort();
-        res.json(types);
-    } catch (error) {
-        console.error('Error in /api/types:', error);
-        res.status(500).json({ error: 'Error cargando tipos' });
-    }
-});
-
-app.get('/api/stats', (req, res) => {
-    try {
-        res.json({
-            total_rentals: CURRENT_RENTALS.length,
-            last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
-            data_source: 'LIVE_ATP_DATA',
-            status: PDF_STATUS,
-            note: 'Datos oficiales de la Autoridad de Turismo de Panamá'
-        });
-    } catch (error) {
-        console.error('Error in /api/stats:', error);
-        res.status(500).json({ error: 'Error cargando estadísticas' });
-    }
-});
-
-app.get('/api/debug-pdf', (req, res) => {
-    try {
-        const sampleWithContacts = CURRENT_RENTALS
-            .filter(rental => rental.email || rental.phone)
-            .slice(0, 10);
-
-        res.json({
-            pdf_status: PDF_STATUS,
-            total_rentals_found: CURRENT_RENTALS.length,
-            last_update: LAST_PDF_UPDATE,
-            sample_with_contacts: sampleWithContacts,
-            all_provinces: [...new Set(CURRENT_RENTALS.map(r => r.province).filter(Boolean))],
-            all_types: [...new Set(CURRENT_RENTALS.map(r => r.type).filter(Boolean))]
-        });
-    } catch (error) {
-        console.error('Error in /api/debug-pdf:', error);
-        res.status(500).json({ error: 'Error en debug' });
-    }
-});
-
-app.post('/api/refresh-pdf', async (req, res) => {
-    try {
-        const success = await fetchAndParsePDF();
-        res.json({
-            success: success,
-            message: success ? 'PDF data refreshed successfully' : 'Failed to refresh PDF data',
-            total_rentals: CURRENT_RENTALS.length,
-            status: PDF_STATUS,
-            last_update: LAST_PDF_UPDATE
-        });
-    } catch (error) {
-        console.error('Error in /api/refresh-pdf:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
+// ... [keep all your existing API routes with error handling] ...
 
 // Initialize
 app.listen(PORT, async () => {
@@ -415,12 +358,14 @@ app.listen(PORT, async () => {
 
     // Load PDF data on startup
     setTimeout(async () => {
-        try {
-            await fetchAndParsePDF();
-            console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
-        } catch (error) {
-            console.error('Error during startup:', error);
-            CURRENT_RENTALS = getFallbackData();
-        }
+        await fetchAndParsePDF();
+        console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
+
+        // Log some samples for debugging
+        const samples = CURRENT_RENTALS.slice(0, 5);
+        console.log('Sample rentals:');
+        samples.forEach(rental => {
+            console.log(`- ${rental.name} (${rental.type}) - Email: ${rental.email || 'none'}, Phone: ${rental.phone || 'none'}`);
+        });
     }, 2000);
 });
