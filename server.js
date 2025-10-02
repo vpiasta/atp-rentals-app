@@ -49,7 +49,7 @@ async function fetchAndParsePDF() {
     return false;
 }
 
-// Content-based parser that handles multi-line elements
+// NEW: Column-based parser that uses the actual PDF structure
 function parsePDFText(text) {
     console.log('=== PARSING ATP PDF DATA ===');
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
@@ -62,10 +62,8 @@ function parsePDFText(text) {
 
     const rentals = [];
     let currentProvince = '';
-    let currentSection = [];
-    let inDataSection = false;
 
-    // First pass: group by provinces
+    // Process each province section separately
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
@@ -75,192 +73,200 @@ function parsePDFText(text) {
         // Detect province
         const provinceMatch = provinces.find(p => line.toUpperCase().includes(p.toUpperCase()));
         if (provinceMatch) {
-            // Process previous section
-            if (currentSection.length > 0 && currentProvince) {
-                const provinceRentals = parseProvinceSection(currentSection, currentProvince);
-                rentals.push(...provinceRentals);
-            }
-
-            // Start new section
             currentProvince = provinceMatch;
-            currentSection = [];
-            inDataSection = true;
-            continue;
-        }
 
-        // Detect end of section
-        if (inDataSection && (line.includes('Total por provincia:') || line.includes('Total Provincial:'))) {
-            if (currentSection.length > 0 && currentProvince) {
-                const provinceRentals = parseProvinceSection(currentSection, currentProvince);
-                rentals.push(...provinceRentals);
-            }
-            currentSection = [];
-            inDataSection = false;
-            continue;
-        }
+            // Find the end of this province section
+            const sectionEnd = findSectionEnd(lines, i);
+            const sectionLines = lines.slice(i, sectionEnd);
 
-        // Add to current section
-        if (inDataSection && line.length > 2) {
-            currentSection.push(line);
-        }
-    }
+            // Parse this province section
+            const provinceRentals = parseProvinceColumns(sectionLines, currentProvince);
+            rentals.push(...provinceRentals);
 
-    // Process last section
-    if (currentSection.length > 0 && currentProvince) {
-        const provinceRentals = parseProvinceSection(currentSection, currentProvince);
-        rentals.push(...provinceRentals);
+            // Skip to end of section
+            i = sectionEnd - 1;
+        }
     }
 
     console.log(`=== PARSING COMPLETE: Found ${rentals.length} rentals ===`);
     return rentals;
 }
 
-// Parse province section using content-based element identification
-function parseProvinceSection(sectionLines, province) {
+// NEW: Parse province by extracting the four vertical columns
+function parseProvinceColumns(sectionLines, province) {
     const rentals = [];
 
-    // Reconstruct records by identifying elements based on content
-    const records = reconstructRecords(sectionLines);
+    // Extract the four columns
+    const columns = extractVerticalColumns(sectionLines);
 
-    // Create rental objects from reconstructed records
-    for (const record of records) {
-        if (record.name && record.name.length > 2) {
-            const rental = createRentalObject(record.name, record.type, record.email, record.phone, province);
-            if (rental) {
-                rentals.push(rental);
+    // Combine columns into records
+    if (columns.names.length > 0) {
+        const maxRecords = Math.max(
+            columns.names.length,
+            columns.types.length,
+            columns.emails.length,
+            columns.phones.length
+        );
+
+        for (let i = 0; i < maxRecords; i++) {
+            const name = columns.names[i] || '';
+            const type = columns.types[i] || '';
+            const email = columns.emails[i] || '';
+            const phone = columns.phones[i] || '';
+
+            // Only create record if we have a valid name
+            if (name && name.length > 2 && !isEmailLine(name) && !isPhoneLine(name)) {
+                const rental = createRentalObject(name, type, email, phone, province);
+                if (rental) {
+                    rentals.push(rental);
+                }
             }
         }
     }
 
-    console.log(`Province ${province}: ${rentals.length} rentals`);
+    console.log(`Province ${province}: ${rentals.length} rentals (Names: ${columns.names.length}, Types: ${columns.types.length}, Emails: ${columns.emails.length}, Phones: ${columns.phones.length})`);
     return rentals;
 }
 
-// Reconstruct records by identifying elements based on content characteristics
-function reconstructRecords(sectionLines) {
-    const records = [];
-    let currentRecord = { name: '', type: '', email: '', phone: '' };
-    let pendingLines = [];
+// NEW: Extract vertical columns by finding column boundaries
+function extractVerticalColumns(sectionLines) {
+    const columns = {
+        names: [],
+        types: [],
+        emails: [],
+        phones: []
+    };
 
-    // Process all lines to reconstruct records
+    // Find the starting index for each column
+    const columnStarts = findColumnStarts(sectionLines);
+
+    // Extract data for each column
+    if (columnStarts.names !== -1) {
+        columns.names = extractColumnData(sectionLines, columnStarts.names, 'name');
+    }
+    if (columnStarts.types !== -1) {
+        columns.types = extractColumnData(sectionLines, columnStarts.types, 'type');
+    }
+    if (columnStarts.emails !== -1) {
+        columns.emails = extractColumnData(sectionLines, columnStarts.emails, 'email');
+    }
+    if (columnStarts.phones !== -1) {
+        columns.phones = extractColumnData(sectionLines, columnStarts.phones, 'phone');
+    }
+
+    return columns;
+}
+
+// NEW: Find where each column starts
+function findColumnStarts(sectionLines) {
+    const starts = { names: -1, types: -1, emails: -1, phones: -1 };
+
     for (let i = 0; i < sectionLines.length; i++) {
         const line = sectionLines[i];
 
         // Skip headers and metadata
-        if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono' ||
-            line.includes('Provincia:') || line.includes('Total por provincia:')) {
+        if (line.includes('Provincia:') || line.includes('Total por provincia:')) {
             continue;
         }
 
-        // Check what type of element this line is
-        const elementType = identifyElementType(line);
-
-        // If we find a new name and we already have a record, save it
-        if (elementType === 'name' && currentRecord.name && !isContinuationLine(line, pendingLines)) {
-            if (currentRecord.name.length > 2) {
-                records.push({ ...currentRecord });
-            }
-            currentRecord = { name: '', type: '', email: '', phone: '' };
-            pendingLines = [];
+        // Look for column headers
+        if (line === 'Nombre' || (starts.names === -1 && isNameLine(line))) {
+            starts.names = i;
+        } else if (line === 'Modalidad' || (starts.types === -1 && isTypeLine(line))) {
+            starts.types = i;
+        } else if (line === 'Correo Principal' || (starts.emails === -1 && isEmailLine(line))) {
+            starts.emails = i;
+        } else if (line === 'Teléfono' || (starts.phones === -1 && isPhoneLine(line))) {
+            starts.phones = i;
         }
 
-        // Handle multi-line elements
-        if (isContinuationLine(line, pendingLines)) {
-            // This is a continuation of the previous element
-            const lastElement = getLastElementType(currentRecord, pendingLines);
-            if (lastElement === 'name') {
-                currentRecord.name += ' ' + line;
-            } else if (lastElement === 'email') {
-                // Email continuations should be concatenated without space
-                currentRecord.email = (currentRecord.email + line).replace(/\s+/g, '');
-            } else if (lastElement === 'phone') {
-                currentRecord.phone += ' ' + line;
-            } else if (lastElement === 'type') {
-                currentRecord.type += ' ' + line;
-            }
-            pendingLines.push(line);
-        } else {
-            // New element
-            if (elementType === 'name') {
-                currentRecord.name = line;
-            } else if (elementType === 'type') {
-                currentRecord.type = line;
-            } else if (elementType === 'email') {
-                currentRecord.email = line;
-            } else if (elementType === 'phone') {
-                currentRecord.phone = line;
-            }
-            pendingLines = [line];
+        // If we found all columns, break early
+        if (starts.names !== -1 && starts.types !== -1 && starts.emails !== -1 && starts.phones !== -1) {
+            break;
         }
     }
 
-    // Don't forget the last record
-    if (currentRecord.name && currentRecord.name.length > 2) {
-        records.push(currentRecord);
-    }
-
-    return records;
+    return starts;
 }
 
-// Identify element type based on content characteristics
-function identifyElementType(line) {
-    // Check for email first (most specific)
-    if (isEmailLine(line)) {
-        return 'email';
+// NEW: Extract data from a specific column
+function extractColumnData(sectionLines, startIndex, columnType) {
+    const data = [];
+    let i = startIndex;
+    let count = 0;
+
+    while (i < sectionLines.length && count < 200) { // Safety limit
+        const line = sectionLines[i];
+
+        // Skip headers and metadata
+        if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono' ||
+            line.includes('Provincia:') || line.includes('Total por provincia:') ||
+            isHeaderLine(line)) {
+            i++;
+            continue;
+        }
+
+        // Check if we've moved to the next column
+        if (isNextColumn(line, columnType)) {
+            break;
+        }
+
+        // Add valid data based on column type
+        if (columnType === 'name' && isNameLine(line)) {
+            data.push(line);
+            count++;
+        } else if (columnType === 'type' && isTypeLine(line)) {
+            data.push(line);
+            count++;
+        } else if (columnType === 'email' && isEmailLine(line)) {
+            data.push(line);
+            count++;
+        } else if (columnType === 'phone' && isPhoneLine(line)) {
+            data.push(line);
+            count++;
+        }
+
+        i++;
     }
 
-    // Check for phone (very specific pattern)
-    if (isPhoneLine(line)) {
-        return 'phone';
-    }
-
-    // Check for type (limited set of known values)
-    if (isTypeLine(line)) {
-        return 'type';
-    }
-
-    // Check for name (text that's not email, phone, or type)
-    if (isNameLine(line)) {
-        return 'name';
-    }
-
-    // Default to name for unrecognized text
-    return 'name';
+    return data;
 }
 
-// Check if a line is a continuation of the previous element
-function isContinuationLine(line, pendingLines) {
-    if (pendingLines.length === 0) return false;
-
-    const lastLine = pendingLines[pendingLines.length - 1];
-
-    // If last line was clearly an incomplete element, this is likely a continuation
-    if (isEmailLine(lastLine) && !lastLine.includes('.com') && !lastLine.includes('.net') && !lastLine.includes('.org')) {
+// NEW: Check if we've moved to the next column
+function isNextColumn(line, currentColumn) {
+    if (currentColumn === 'name' && (isTypeLine(line) || isEmailLine(line) || isPhoneLine(line))) {
         return true;
     }
-
-    // If last line was a name and this line doesn't look like a new element type
-    if (isNameLine(lastLine) && !isTypeLine(line) && !isEmailLine(line) && !isPhoneLine(line)) {
+    if (currentColumn === 'type' && (isEmailLine(line) || isPhoneLine(line))) {
         return true;
     }
-
-    // If last line was a phone number with slash, this might be continuation
-    if (isPhoneLine(lastLine) && lastLine.includes('/') && !lastLine.match(/\d{8}/)) {
+    if (currentColumn === 'email' && isPhoneLine(line)) {
         return true;
     }
-
     return false;
 }
 
-// Get the type of the last element being processed
-function getLastElementType(currentRecord, pendingLines) {
-    if (pendingLines.length === 0) return '';
+// NEW: Find the end of a province section
+function findSectionEnd(lines, startIndex) {
+    for (let i = startIndex + 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes('Total por provincia:') ||
+            line.includes('Total Provincial:') ||
+            line.match(/Página \d+ de \d+/)) {
+            return i;
+        }
 
-    const lastLine = pendingLines[pendingLines.length - 1];
-    return identifyElementType(lastLine);
+        // Also stop if we find the next province
+        const provinces = ['BOCAS DEL TORO', 'CHIRIQUÍ', 'COCLÉ', 'COLÓN', 'DARIÉN', 'HERRERA', 'LOS SANTOS', 'PANAMÁ', 'VERAGUAS'];
+        const nextProvince = provinces.find(p => line.toUpperCase().includes(p.toUpperCase()));
+        if (nextProvince && i > startIndex + 10) {
+            return i;
+        }
+    }
+    return lines.length;
 }
 
-// Helper functions
+// IMPROVED: Better helper functions
 function isHeaderLine(line) {
     return line.includes('Reporte de Hospedajes vigentes') ||
            line.includes('Reporte: rep_hos_web') ||
@@ -269,9 +275,8 @@ function isHeaderLine(line) {
 }
 
 function isNameLine(line) {
-    // Name is text that doesn't match other patterns
     return line.length > 2 &&
-           !isEmailLine(line) &&
+           !line.includes('@') &&
            !isPhoneLine(line) &&
            !isTypeLine(line) &&
            line !== 'Nombre' &&
@@ -281,45 +286,32 @@ function isNameLine(line) {
            !line.match(/^-+$/) &&
            !line.includes('Provincia:') &&
            !line.includes('Total por provincia:') &&
-           // Names typically don't start with numbers or special characters
-           !line.match(/^\d/) &&
-           !line.match(/^[\/\-]/);
+           !line.match(/^\d/);
 }
 
 function isTypeLine(line) {
     const types = [
         'Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel',
         'Posada', 'Resort', 'Ecolodge', 'Hospedaje', 'Cabaña',
-        'Glamping', 'Camping', 'Residencial', 'Pensión', 'Alojamiento'
+        'Glamping', 'Camping', 'Residencial', 'Pensión'
     ];
-    return types.some(type =>
-        line.toUpperCase() === type.toUpperCase() ||
-        line.toUpperCase().includes(type.toUpperCase())
-    );
+    return types.some(type => line.toUpperCase().includes(type.toUpperCase()));
 }
 
 function isEmailLine(line) {
-    // More robust email detection
     return line.includes('@') &&
            (line.includes('.com') || line.includes('.net') || line.includes('.org') ||
-            line.includes('.edu') || line.includes('.gob') || line.includes('.pa') ||
-            line.includes('.io') || line.includes('.co'));
+            line.includes('.edu') || line.includes('.gob') || line.includes('.pa'));
 }
 
 function isPhoneLine(line) {
-    // Clean the line for phone detection
+    // More specific phone patterns for Panama
     const cleanLine = line.replace(/\s+/g, '').replace(/\//g, '');
 
-    // Panama phone number patterns:
-    // - 8-digit numbers (mobile: 6xxx-xxxx, 7xxx-xxxx)
-    // - 7-digit numbers (landlines)
-    // - Numbers with separators: 123-4567, 1234-5678, 123-45-67
     const phonePatterns = [
         /^\d{7,8}$/, // 7 or 8 digit numbers
         /^\d{3,4}[-]?\d{3,4}$/, // 123-4567 or 1234-5678
-        /^\d{3}[-]?\d{2}[-]?\d{2}$/, // 123-45-67
-        /^\d{4}[-]?\d{4}$/, // 1234-5678 (most common mobile format)
-        /^\d{3}[-]?\d{4}$/ // 123-4567 (landline format)
+        /^\d{4}[-]?\d{4}$/ // 1234-5678 (mobile format)
     ];
 
     return phonePatterns.some(pattern => pattern.test(cleanLine));
@@ -327,7 +319,6 @@ function isPhoneLine(line) {
 
 function extractEmail(text) {
     if (!text) return '';
-    // Extract complete email address
     const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
     return match ? match[1] : '';
 }
@@ -335,38 +326,44 @@ function extractEmail(text) {
 function extractFirstPhone(text) {
     if (!text) return '';
 
-    // Clean the text
-    const cleanText = text.replace(/\s+/g, ' ').trim();
-
-    // Extract the first complete phone number pattern
     const patterns = [
-        /(\d{4}[- ]?\d{4})/, // 1234-5678 (mobile)
-        /(\d{3}[- ]?\d{4})/, // 123-4567 (landline)
-        /(\d{7,8})/, // 1234567 or 12345678
-        /(\d{3}[- ]?\d{2}[- ]?\d{2})/ // 123-45-67
+        /(\d{4}[- ]?\d{4})/, // 1234-5678
+        /(\d{3}[- ]?\d{4})/, // 123-4567
+        /(\d{7,8})/ // 1234567 or 12345678
     ];
 
     for (const pattern of patterns) {
-        const match = cleanText.match(pattern);
+        const match = text.match(pattern);
         if (match) {
-            // Clean the phone number: remove spaces and dashes
-            let phone = match[1].replace(/[- ]/g, '');
-
-            // Ensure we have a complete number
-            if (phone.length >= 7) {
-                return phone;
-            }
+            return match[1].replace(/[- ]/g, '');
         }
     }
 
     return '';
 }
 
-function isWhatsAppNumber(phone) {
-    if (!phone) return false;
-    const cleanPhone = phone.replace(/[- ]/g, '');
-    // WhatsApp numbers in Panama are typically 8-digit mobile numbers starting with 6 or 7
-    return cleanPhone.length === 8 && (cleanPhone.startsWith('6') || cleanPhone.startsWith('7'));
+function createRentalObject(name, type, email, phone, province) {
+    const cleanName = cleanText(name);
+    const cleanType = cleanText(type || 'Hospedaje');
+    const cleanEmail = extractEmail(email);
+    const cleanPhone = extractFirstPhone(phone);
+
+    if (!cleanName || cleanName.length < 2) {
+        return null;
+    }
+
+    return {
+        name: cleanName,
+        type: cleanType,
+        email: cleanEmail,
+        phone: cleanPhone,
+        province: province,
+        district: guessDistrict(cleanName, province),
+        description: generateDescription(cleanName, cleanType, province),
+        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(cleanName + ' ' + province + ' Panamá')}`,
+        whatsapp: cleanPhone,
+        source: 'ATP_OFFICIAL'
+    };
 }
 
 function cleanText(text) {
@@ -395,38 +392,6 @@ function guessDistrict(name, province) {
 
 function generateDescription(name, type, province) {
     return `${type} "${name}" ubicado en ${province}, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).`;
-}
-
-function createRentalObject(name, type, email, phone, province) {
-    // Clean and validate data
-    const cleanName = cleanText(name);
-    const cleanType = cleanText(type || 'Hospedaje');
-    const cleanEmail = extractEmail(email);
-    const cleanPhone = extractFirstPhone(phone);
-
-    // Final validation - ensure name is not actually an email or phone
-    if (cleanEmail && cleanName.includes('@')) {
-        return null;
-    }
-    if (cleanPhone && isPhoneLine(cleanName)) {
-        return null;
-    }
-    if (!cleanName || cleanName.length < 2) {
-        return null;
-    }
-
-    return {
-        name: cleanName,
-        type: cleanType,
-        email: cleanEmail,
-        phone: cleanPhone,
-        province: province,
-        district: guessDistrict(cleanName, province),
-        description: generateDescription(cleanName, cleanType, province),
-        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(cleanName + ' ' + province + ' Panamá')}`,
-        whatsapp: isWhatsAppNumber(cleanPhone) ? cleanPhone : '',
-        source: 'ATP_OFFICIAL'
-    };
 }
 
 function getFallbackData() {
@@ -458,7 +423,7 @@ function getFallbackData() {
     ];
 }
 
-// API Routes - MAKE SURE ALL ROUTES ARE DEFINED
+// Keep all your existing API routes (they remain the same)
 app.get('/api/test', (req, res) => {
     res.json({
         message: 'ATP Rentals Search API is working!',
@@ -575,62 +540,13 @@ app.post('/api/refresh-pdf', async (req, res) => {
     }
 });
 
-// Debug endpoint to check structure
-app.get('/api/debug-structure', async (req, res) => {
-    try {
-        let pdfText = '';
-
-        // Fetch PDF
-        for (const pdfUrl of PDF_URLS) {
-            try {
-                const response = await axios.get(pdfUrl, {
-                    responseType: 'arraybuffer',
-                    timeout: 30000
-                });
-
-                if (response.status === 200) {
-                    const data = await pdf(response.data);
-                    pdfText = data.text;
-                    break;
-                }
-            } catch (error) {
-                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
-            }
-        }
-
-        if (!pdfText) {
-            return res.status(500).json({ error: 'Could not fetch PDF' });
-        }
-
-        const parsedRentals = parsePDFText(pdfText);
-        const bocasRentals = parsedRentals.filter(r => r.province === 'BOCAS DEL TORO');
-
-        res.json({
-            total_rentals: parsedRentals.length,
-            bocas_del_toro_count: bocasRentals.length,
-            bocas_sample: bocasRentals.slice(0, 5),
-            sample_with_contacts: parsedRentals.filter(r => r.email || r.phone).slice(0, 3)
-        });
-
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
 // Initialize
 app.listen(PORT, async () => {
     console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
-    console.log(`📍 Frontend should be accessible`);
 
     // Load PDF data on startup
     setTimeout(async () => {
         await fetchAndParsePDF();
         console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
-
-        // Log available provinces and types for debugging
-        const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province))];
-        const types = [...new Set(CURRENT_RENTALS.map(r => r.type))];
-        console.log(`📊 Available provinces: ${provinces.join(', ')}`);
-        console.log(`🏨 Available types: ${types.join(', ')}`);
     }, 2000);
 });
