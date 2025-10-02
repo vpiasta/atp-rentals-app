@@ -21,24 +21,28 @@ let PDF_STATUS = 'No PDF processed yet';
 async function fetchAndParsePDF() {
     for (const pdfUrl of PDF_URLS) {
         try {
+            console.log(`Fetching PDF from: ${pdfUrl}`);
             const response = await axios.get(pdfUrl, {
                 responseType: 'arraybuffer',
                 timeout: 30000
             });
 
             if (response.status === 200) {
+                console.log('PDF fetched, parsing...');
                 const data = await pdf(response.data);
                 PDF_STATUS = `PDF processed successfully from: ${pdfUrl}`;
                 LAST_PDF_UPDATE = new Date().toISOString();
 
-                // Use the working extraction that found 930 rentals
-                const parsedRentals = extractAllRentals(data.text);
+                console.log('PDF text sample:', data.text.substring(0, 500));
+
+                const parsedRentals = parsePDFTextDirect(data.text);
+                console.log(`Parsed ${parsedRentals.length} rentals from PDF`);
 
                 CURRENT_RENTALS = parsedRentals;
                 return true;
             }
         } catch (error) {
-            PDF_STATUS = `Failed to fetch PDF: ${error.message}`;
+            console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
         }
     }
 
@@ -47,8 +51,9 @@ async function fetchAndParsePDF() {
     return false;
 }
 
-// WORKING EXTRACTION - Based on what successfully found 930 rentals
-function extractAllRentals(text) {
+// SIMPLE DIRECT PARSER - Focus on extracting what we can see
+function parsePDFTextDirect(text) {
+    console.log('=== SIMPLE DIRECT PARSING ===');
     const rentals = [];
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
@@ -59,8 +64,9 @@ function extractAllRentals(text) {
     ];
 
     let currentProvince = '';
+    let collectingData = false;
+    let currentRentals = [];
 
-    // Simple extraction: look for rental names and associate with current province
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
@@ -72,23 +78,58 @@ function extractAllRentals(text) {
             continue;
         }
 
-        // Detect province
+        // Detect province start
         const provinceMatch = provinces.find(p => line.includes(p));
         if (provinceMatch && line.includes('Provincia:')) {
             currentProvince = provinceMatch;
+            collectingData = true;
+            console.log(`Found province: ${currentProvince}`);
             continue;
         }
 
-        // Skip province totals
-        if (line.includes('Total por provincia:')) {
+        // Detect end of province data
+        if (collectingData && line.includes('Total por provincia:')) {
+            // Process collected data for this province
+            const provinceRentals = processProvinceData(currentRentals, currentProvince);
+            rentals.push(...provinceRentals);
+
+            currentRentals = [];
+            collectingData = false;
             continue;
         }
 
-        // Extract rental if we have a name-like line and a current province
-        if (currentProvince && isRentalName(line)) {
-            const rental = extractRentalData(lines, i, currentProvince);
+        // Collect data lines
+        if (collectingData && line.length > 2) {
+            currentRentals.push(line);
+        }
+    }
+
+    console.log(`=== PARSING COMPLETE: Found ${rentals.length} rentals ===`);
+    return rentals;
+}
+
+// Process data for a single province
+function processProvinceData(lines, province) {
+    const rentals = [];
+
+    // Look for patterns in the data
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Skip column headers
+        if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono') {
+            continue;
+        }
+
+        // If this looks like a rental name (not email, not phone, not type)
+        if (isRentalName(line)) {
+            const rental = extractRentalData(lines, i, province);
             if (rental) {
                 rentals.push(rental);
+                // Skip ahead if we found additional data
+                if (rental.email || rental.phone) {
+                    i += 2; // Skip email and phone lines
+                }
             }
         }
     }
@@ -96,41 +137,31 @@ function extractAllRentals(text) {
     return rentals;
 }
 
-function isRentalName(line) {
-    return line.length > 5 &&
-           !line.includes('@') &&
-           !line.match(/\d{3,4}[- ]?\d{3,4}/) &&
-           !line.includes('Provincia:') &&
-           !line.includes('Total por provincia:') &&
-           !line.includes('Nombre') &&
-           !line.includes('Modalidad') &&
-           !line.includes('Correo Principal') &&
-           !line.includes('Teléfono');
-}
-
+// Extract rental data starting from a name line
 function extractRentalData(lines, startIndex, province) {
-    const name = cleanText(lines[startIndex]);
+    const nameLine = lines[startIndex];
+    const name = cleanText(nameLine);
 
-    if (!name || name.length < 3) return null;
+    if (!name || name.length < 3) {
+        return null;
+    }
 
     let type = 'Hospedaje';
     let email = '';
     let phone = '';
 
-    // Look ahead for additional data
-    for (let i = startIndex + 1; i < Math.min(startIndex + 10, lines.length); i++) {
+    // Look for type in next lines
+    for (let i = startIndex + 1; i < Math.min(startIndex + 5, lines.length); i++) {
         const line = lines[i];
 
         if (isRentalType(line)) {
             type = line;
-        } else if (line.includes('@')) {
+        } else if (isEmailLine(line)) {
             email = extractEmail(line);
-        } else if (line.match(/\d{3,4}[- ]?\d{3,4}/)) {
+        } else if (isPhoneLine(line)) {
             phone = extractPhone(line);
-        }
-
-        // Stop if we find another rental name
-        if (isRentalName(line) && i > startIndex + 2) {
+        } else if (isRentalName(line)) {
+            // Found next rental, stop searching
             break;
         }
     }
@@ -149,9 +180,31 @@ function extractRentalData(lines, startIndex, province) {
     };
 }
 
+// Helper functions
+function isRentalName(line) {
+    return line.length > 3 &&
+           !line.includes('@') &&
+           !isPhoneLine(line) &&
+           !isRentalType(line) &&
+           line !== 'Nombre' &&
+           line !== 'Modalidad' &&
+           line !== 'Correo Principal' &&
+           line !== 'Teléfono' &&
+           !line.includes('Provincia:') &&
+           !line.includes('Total por provincia:');
+}
+
 function isRentalType(line) {
     const types = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort'];
     return types.some(type => line.includes(type));
+}
+
+function isEmailLine(line) {
+    return line.includes('@') && line.includes('.');
+}
+
+function isPhoneLine(line) {
+    return /\d{3,4}[- \/]?\d{3,4}[- \/]?\d{3,4}/.test(line) || (line.includes('/') && /\d+/.test(line));
 }
 
 function extractEmail(text) {
@@ -188,8 +241,9 @@ app.get('/api/test', (req, res) => {
     res.json({
         message: 'ATP Rentals Search API is working!',
         status: 'success',
-        total_rentals: CURRENT_RENTALS.length,
-        data_source: 'LIVE_ATP_PDF'
+        timestamp: new Date().toISOString(),
+        data_source: 'LIVE_ATP_PDF',
+        total_rentals: CURRENT_RENTALS.length
     });
 });
 
@@ -235,9 +289,29 @@ app.get('/api/types', (req, res) => {
 app.get('/api/stats', (req, res) => {
     res.json({
         total_rentals: CURRENT_RENTALS.length,
-        last_updated: LAST_PDF_UPDATE,
+        last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
+        data_source: 'LIVE_ATP_DATA',
         status: PDF_STATUS,
-        data_source: 'LIVE_ATP_DATA'
+        note: 'Datos oficiales de la Autoridad de Turismo de Panamá'
+    });
+});
+
+// Enhanced debug endpoint
+app.get('/api/debug-pdf', (req, res) => {
+    const sampleRentals = CURRENT_RENTALS.slice(0, 20);
+
+    res.json({
+        pdf_status: PDF_STATUS,
+        total_rentals_found: CURRENT_RENTALS.length,
+        last_update: LAST_PDF_UPDATE,
+        sample_rentals: sampleRentals,
+        provinces: [...new Set(CURRENT_RENTALS.map(r => r.province))],
+        data_quality: {
+            with_names: CURRENT_RENTALS.filter(r => r.name && r.name.length > 2).length,
+            with_emails: CURRENT_RENTALS.filter(r => r.email).length,
+            with_phones: CURRENT_RENTALS.filter(r => r.phone).length,
+            with_types: CURRENT_RENTALS.filter(r => r.type && r.type !== 'Hospedaje').length
+        }
     });
 });
 
@@ -246,8 +320,10 @@ app.post('/api/refresh-pdf', async (req, res) => {
         const success = await fetchAndParsePDF();
         res.json({
             success: success,
+            message: success ? 'PDF data refreshed successfully' : 'Failed to refresh PDF data',
             total_rentals: CURRENT_RENTALS.length,
-            status: PDF_STATUS
+            status: PDF_STATUS,
+            last_update: LAST_PDF_UPDATE
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -256,10 +332,11 @@ app.post('/api/refresh-pdf', async (req, res) => {
 
 // Initialize
 app.listen(PORT, async () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
 
+    // Load PDF data on startup
     setTimeout(async () => {
         await fetchAndParsePDF();
-        console.log(`Loaded ${CURRENT_RENTALS.length} rentals`);
+        console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
     }, 2000);
 });
