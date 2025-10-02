@@ -4,7 +4,7 @@ const pdf = require('pdf-parse');
 const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PPORT || 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
@@ -18,38 +18,25 @@ let CURRENT_RENTALS = [];
 let LAST_PDF_UPDATE = null;
 let PDF_STATUS = 'No PDF processed yet';
 let LAST_ERROR = null;
-let PDF_RAW_CONTENT = '';
 
 async function fetchAndParsePDF() {
     for (const pdfUrl of PDF_URLS) {
         try {
-            console.log(`Fetching PDF from: ${pdfUrl}`);
             const response = await axios.get(pdfUrl, {
                 responseType: 'arraybuffer',
                 timeout: 30000
             });
 
             if (response.status === 200) {
-                console.log('PDF fetched, parsing...');
                 const data = await pdf(response.data);
-                PDF_RAW_CONTENT = data.text;
                 PDF_STATUS = `PDF processed successfully from: ${pdfUrl}`;
                 LAST_PDF_UPDATE = new Date().toISOString();
                 LAST_ERROR = null;
 
-                console.log('PDF text length:', PDF_RAW_CONTENT.length);
-                console.log('First 1000 chars:', PDF_RAW_CONTENT.substring(0, 1000));
-
-                // Run diagnostics first
-                const diagnostics = runPDFDiagnostics(PDF_RAW_CONTENT);
-                console.log('Diagnostics:', diagnostics);
-
-                // Then try to extract rentals
-                const parsedRentals = extractAllRentals(PDF_RAW_CONTENT);
-                console.log(`Extracted ${parsedRentals.length} rentals from PDF`);
+                const parsedRentals = extractAllRentals(data.text);
 
                 if (parsedRentals.length === 0) {
-                    LAST_ERROR = `PDF parsing found 0 rentals. Diagnostics: ${JSON.stringify(diagnostics)}`;
+                    LAST_ERROR = 'PDF parsing found 0 rentals';
                     PDF_STATUS = 'ERROR: No rentals found in PDF';
                 }
 
@@ -57,9 +44,7 @@ async function fetchAndParsePDF() {
                 return parsedRentals.length > 0;
             }
         } catch (error) {
-            const errorMsg = `Failed to fetch PDF: ${error.message}`;
-            console.log(errorMsg);
-            LAST_ERROR = errorMsg;
+            LAST_ERROR = `Failed to fetch PDF: ${error.message}`;
             PDF_STATUS = 'ERROR: Failed to fetch PDF';
         }
     }
@@ -69,89 +54,8 @@ async function fetchAndParsePDF() {
     return false;
 }
 
-// DIAGNOSTIC FUNCTION - Shows exactly what's in the PDF
-function runPDFDiagnostics(text) {
-    console.log('=== RUNNING PDF DIAGNOSTICS ===');
-    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-
-    const diagnostics = {
-        total_lines: lines.length,
-        lines_sample: lines.slice(0, 50), // First 50 lines
-        has_province_headers: false,
-        provinces_found: [],
-        potential_rental_lines: [],
-        email_lines: [],
-        phone_lines: [],
-        structure_analysis: {}
-    };
-
-    const provinces = [
-        'BOCAS DEL TORO', 'CHIRIQUÍ', 'COCLÉ', 'COLÓN', 'DARIÉN',
-        'HERRERA', 'LOS SANTOS', 'PANAMÁ', 'VERAGUAS', 'COMARCA',
-        'GUNAS', 'EMBERÁ', 'NGÄBE-BUGLÉ'
-    ];
-
-    // Analyze each line
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-
-        // Check for province headers
-        const provinceMatch = provinces.find(p => line.includes(p));
-        if (provinceMatch && line.includes('Provincia:')) {
-            diagnostics.has_province_headers = true;
-            diagnostics.provinces_found.push({
-                province: provinceMatch,
-                line_number: i,
-                full_line: line
-            });
-        }
-
-        // Check for potential rental names (long text without @ or numbers)
-        if (line.length > 10 && !line.includes('@') && !line.match(/\d{3,4}[- ]?\d{3,4}/)) {
-            diagnostics.potential_rental_lines.push({
-                line_number: i,
-                content: line
-            });
-        }
-
-        // Check for email lines
-        if (line.includes('@')) {
-            diagnostics.email_lines.push({
-                line_number: i,
-                content: line
-            });
-        }
-
-        // Check for phone lines
-        if (line.match(/\d{3,4}[- ]?\d{3,4}/)) {
-            diagnostics.phone_lines.push({
-                line_number: i,
-                content: line
-            });
-        }
-    }
-
-    // Structure analysis
-    diagnostics.structure_analysis = {
-        likely_table_structure: diagnostics.potential_rental_lines.length > 0 &&
-                               diagnostics.email_lines.length > 0 &&
-                               diagnostics.phone_lines.length > 0,
-        rental_to_email_ratio: diagnostics.potential_rental_lines.length / Math.max(1, diagnostics.email_lines.length),
-        rental_to_phone_ratio: diagnostics.potential_rental_lines.length / Math.max(1, diagnostics.phone_lines.length),
-        estimated_total_rentals: Math.min(
-            diagnostics.potential_rental_lines.length,
-            diagnostics.email_lines.length,
-            diagnostics.phone_lines.length
-        )
-    };
-
-    console.log('Diagnostics completed');
-    return diagnostics;
-}
-
-// SIMPLE EXTRACTION - Focus on what we can clearly identify
+// EFFICIENT EXTRACTION - Minimal logging
 function extractAllRentals(text) {
-    console.log('=== SIMPLE EXTRACTION ===');
     const rentals = [];
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
@@ -162,7 +66,10 @@ function extractAllRentals(text) {
     ];
 
     let currentProvince = '';
+    let currentSection = [];
+    let inProvinceSection = false;
 
+    // First pass: group by provinces
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
@@ -174,32 +81,113 @@ function extractAllRentals(text) {
             continue;
         }
 
-        // Detect province
+        // Detect province start
         const provinceMatch = provinces.find(p => line.includes(p));
-        if (provinceMatch) {
+        if (provinceMatch && line.includes('Provincia:')) {
+            // Process previous section
+            if (currentProvince && currentSection.length > 0) {
+                const provinceRentals = processProvinceSection(currentSection, currentProvince);
+                rentals.push(...provinceRentals);
+            }
+
+            // Start new province
             currentProvince = provinceMatch;
-            console.log(`Found province: ${currentProvince}`);
+            currentSection = [];
+            inProvinceSection = true;
             continue;
         }
 
-        // Simple extraction: if line looks like a rental name and we have a province
-        if (currentProvince && isLikelyRentalName(line)) {
-            const rental = extractRentalSimple(lines, i, currentProvince);
-            if (rental) {
-                rentals.push(rental);
-                console.log(`Found rental: ${rental.name}`);
+        // Detect end of province data
+        if (inProvinceSection && line.includes('Total por provincia:')) {
+            if (currentSection.length > 0) {
+                const provinceRentals = processProvinceSection(currentSection, currentProvince);
+                rentals.push(...provinceRentals);
             }
+            currentSection = [];
+            inProvinceSection = false;
+            continue;
+        }
+
+        // Collect data lines
+        if (inProvinceSection && line.length > 2) {
+            currentSection.push(line);
+        }
+    }
+
+    // Process the last province
+    if (currentProvince && currentSection.length > 0) {
+        const provinceRentals = processProvinceSection(currentSection, currentProvince);
+        rentals.push(...provinceRentals);
+    }
+
+    return rentals;
+}
+
+function processProvinceSection(lines, province) {
+    const rentals = [];
+    const rentalTypes = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort'];
+
+    let currentRental = { province: province };
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Skip column headers
+        if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono') {
+            continue;
+        }
+
+        // If line looks like a rental name and we don't have one yet
+        if (!currentRental.name && isRentalName(line)) {
+            currentRental.name = cleanText(line);
+        }
+        // If line is a rental type
+        else if (!currentRental.type && rentalTypes.some(type => line.includes(type))) {
+            currentRental.type = line;
+        }
+        // If line contains email
+        else if (!currentRental.email && line.includes('@')) {
+            currentRental.email = extractEmail(line);
+        }
+        // If line contains phone
+        else if (!currentRental.phone && hasPhoneNumbers(line)) {
+            currentRental.phone = extractPhone(line);
+        }
+
+        // If we have enough data to create a rental, save it and reset
+        if (currentRental.name && (currentRental.email || currentRental.phone || i > 10)) {
+            // Enhance the rental with additional fields
+            const enhancedRental = {
+                name: currentRental.name,
+                type: currentRental.type || 'Hospedaje',
+                email: currentRental.email || '',
+                phone: currentRental.phone || '',
+                province: province,
+                district: guessDistrict(currentRental.name, province),
+                description: `${currentRental.type || 'Hospedaje'} "${currentRental.name}" registrado en ${province}, Panamá.`,
+                google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(currentRental.name + ' ' + province + ' Panamá')}`,
+                whatsapp: currentRental.phone || '',
+                source: 'ATP_OFFICIAL'
+            };
+
+            rentals.push(enhancedRental);
+            currentRental = { province: province };
+        }
+
+        // If we've been processing too long without finding a rental, reset
+        if (i > 0 && !currentRental.name && lines[i].length < 3) {
+            currentRental = { province: province };
         }
     }
 
     return rentals;
 }
 
-function isLikelyRentalName(line) {
-    // Basic heuristics for rental names
+// Helper functions
+function isRentalName(line) {
     return line.length > 5 &&
            !line.includes('@') &&
-           !line.match(/\d{3,4}[- ]?\d{3,4}/) &&
+           !hasPhoneNumbers(line) &&
            !line.includes('Provincia:') &&
            !line.includes('Total por provincia:') &&
            !line.includes('Nombre') &&
@@ -208,52 +196,8 @@ function isLikelyRentalName(line) {
            !line.includes('Teléfono');
 }
 
-function extractRentalSimple(lines, startIndex, province) {
-    const nameLine = lines[startIndex];
-    const name = cleanText(nameLine);
-
-    if (!name || name.length < 3) return null;
-
-    let type = 'Hospedaje';
-    let email = '';
-    let phone = '';
-
-    // Look ahead a few lines for type, email, phone
-    for (let i = startIndex + 1; i < Math.min(startIndex + 10, lines.length); i++) {
-        const line = lines[i];
-
-        if (isRentalType(line)) {
-            type = line;
-        } else if (line.includes('@')) {
-            email = extractEmail(line);
-        } else if (line.match(/\d{3,4}[- ]?\d{3,4}/)) {
-            phone = extractPhone(line);
-        }
-
-        // Stop if we find another rental name
-        if (isLikelyRentalName(line) && i > startIndex + 2) {
-            break;
-        }
-    }
-
-    return {
-        name: name,
-        type: type,
-        email: email,
-        phone: phone,
-        province: province,
-        district: guessDistrict(name, province),
-        description: `${type} "${name}" registrado en ${province}, Panamá.`,
-        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(name + ' ' + province + ' Panamá')}`,
-        whatsapp: phone,
-        source: 'ATP_OFFICIAL'
-    };
-}
-
-// Helper functions (same as before)
-function isRentalType(line) {
-    const types = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort', 'Ecolodge'];
-    return types.some(type => line.includes(type));
+function hasPhoneNumbers(line) {
+    return /\d{3,4}[- \/]?\d{3,4}[- \/]?\d{3,4}/.test(line);
 }
 
 function extractEmail(text) {
@@ -285,7 +229,7 @@ function guessDistrict(name, province) {
     return districtMap[province] || province;
 }
 
-// API Routes with enhanced diagnostics
+// API Routes
 app.get('/api/test', (req, res) => {
     res.json({
         message: 'ATP Rentals Search API is working!',
@@ -303,7 +247,7 @@ app.get('/api/rentals', (req, res) => {
         return res.status(503).json({
             error: 'No rental data available',
             message: LAST_ERROR || 'The PDF parsing failed.',
-            suggestion: 'Check /api/diagnostics for detailed analysis'
+            suggestion: 'Try refreshing the data using POST /api/refresh-pdf'
         });
     }
 
@@ -335,59 +279,6 @@ app.get('/api/rentals', (req, res) => {
     res.json(filtered);
 });
 
-// NEW: Comprehensive diagnostics endpoint
-app.get('/api/diagnostics', (req, res) => {
-    const diagnostics = runPDFDiagnostics(PDF_RAW_CONTENT || '');
-
-    res.json({
-        pdf_status: PDF_STATUS,
-        total_rentals_found: CURRENT_RENTALS.length,
-        last_update: LAST_PDF_UPDATE,
-        last_error: LAST_ERROR,
-        has_data: CURRENT_RENTALS.length > 0,
-
-        // Raw content sample (first 2000 chars)
-        pdf_sample: PDF_RAW_CONTENT ? PDF_RAW_CONTENT.substring(0, 2000) : 'No PDF content',
-        pdf_total_length: PDF_RAW_CONTENT ? PDF_RAW_CONTENT.length : 0,
-
-        // Diagnostic results
-        diagnostics: diagnostics,
-
-        // Current rentals sample
-        current_rentals_sample: CURRENT_RENTALS.slice(0, 10),
-
-        // Recommendations
-        recommendations: generateRecommendations(diagnostics, CURRENT_RENTALS.length)
-    });
-});
-
-function generateRecommendations(diagnostics, rentalCount) {
-    const recommendations = [];
-
-    if (rentalCount === 0) {
-        if (diagnostics.provinces_found.length === 0) {
-            recommendations.push("No provinces detected. The PDF format may be completely different than expected.");
-        }
-        if (diagnostics.potential_rental_lines.length === 0) {
-            recommendations.push("No potential rental names found. The data might be in a different format.");
-        }
-        if (diagnostics.email_lines.length > 0 && diagnostics.potential_rental_lines.length > 0) {
-            recommendations.push("Emails and potential rentals found but not linked. Need better parsing logic.");
-        }
-    }
-
-    if (diagnostics.provinces_found.length > 0) {
-        recommendations.push(`Found ${diagnostics.provinces_found.length} provinces: ${diagnostics.provinces_found.map(p => p.province).join(', ')}`);
-    }
-
-    if (diagnostics.potential_rental_lines.length > 0) {
-        recommendations.push(`Found ${diagnostics.potential_rental_lines.length} potential rental names`);
-    }
-
-    return recommendations;
-}
-
-// Other API endpoints remain the same...
 app.get('/api/provinces', (req, res) => {
     if (CURRENT_RENTALS.length === 0) return res.json([]);
     const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province))].sort();
@@ -401,13 +292,50 @@ app.get('/api/types', (req, res) => {
 });
 
 app.get('/api/stats', (req, res) => {
+    const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province))];
+    const provinceCounts = {};
+    provinces.forEach(province => {
+        provinceCounts[province] = CURRENT_RENTALS.filter(r => r.province === province).length;
+    });
+
     res.json({
         total_rentals: CURRENT_RENTALS.length,
-        last_updated: LAST_PDF_UPDATE,
+        last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
+        data_source: 'LIVE_ATP_DATA',
         status: PDF_STATUS,
         last_error: LAST_ERROR,
         has_data: CURRENT_RENTALS.length > 0,
-        note: 'Check /api/diagnostics for detailed analysis'
+        provinces: provinceCounts,
+        note: CURRENT_RENTALS.length === 0 ? 'ERROR: No data extracted from PDF' : 'Datos oficiales de la Autoridad de Turismo de Panamá'
+    });
+});
+
+app.get('/api/debug', (req, res) => {
+    const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province))];
+    const provinceSamples = {};
+
+    provinces.forEach(province => {
+        const provinceRentals = CURRENT_RENTALS.filter(r => r.province === province);
+        provinceSamples[province] = {
+            count: provinceRentals.length,
+            sample: provinceRentals.slice(0, 3)
+        };
+    });
+
+    res.json({
+        pdf_status: PDF_STATUS,
+        total_rentals_found: CURRENT_RENTALS.length,
+        last_update: LAST_PDF_UPDATE,
+        last_error: LAST_ERROR,
+        has_data: CURRENT_RENTALS.length > 0,
+        provinces_found: provinces.length,
+        provinces: provinceSamples,
+        data_quality: {
+            with_names: CURRENT_RENTALS.filter(r => r.name && r.name.length > 2).length,
+            with_emails: CURRENT_RENTALS.filter(r => r.email).length,
+            with_phones: CURRENT_RENTALS.filter(r => r.phone).length,
+            with_types: CURRENT_RENTALS.filter(r => r.type && r.type !== 'Hospedaje').length
+        }
     });
 });
 
@@ -417,14 +345,18 @@ app.post('/api/refresh-pdf', async (req, res) => {
         res.json({
             success: success,
             message: success ?
-                `PDF data refreshed. Found ${CURRENT_RENTALS.length} rentals.` :
-                `Failed: ${LAST_ERROR}`,
+                `PDF data refreshed successfully. Found ${CURRENT_RENTALS.length} rentals.` :
+                `Failed to refresh PDF data. Error: ${LAST_ERROR}`,
             total_rentals: CURRENT_RENTALS.length,
             status: PDF_STATUS,
-            last_error: LAST_ERROR
+            last_error: LAST_ERROR,
+            last_update: LAST_PDF_UPDATE
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({
+            error: error.message,
+            message: 'Failed to refresh PDF data'
+        });
     }
 });
 
@@ -432,9 +364,14 @@ app.post('/api/refresh-pdf', async (req, res) => {
 app.listen(PORT, async () => {
     console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
 
+    // Load PDF data on startup
     setTimeout(async () => {
         console.log('Loading PDF data...');
-        await fetchAndParsePDF();
-        console.log(`Startup complete. Rentals: ${CURRENT_RENTALS.length}`);
+        const success = await fetchAndParsePDF();
+        if (success) {
+            console.log(`✅ Success! ${CURRENT_RENTALS.length} ATP rentals loaded`);
+        } else {
+            console.log(`❌ Failed to load PDF data: ${LAST_ERROR}`);
+        }
     }, 2000);
 });
