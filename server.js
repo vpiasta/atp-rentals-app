@@ -49,7 +49,7 @@ async function fetchAndParsePDF() {
     return false;
 }
 
-// NEW: Improved parser that handles the actual PDF structure
+// COMPLETELY NEW PARSER: Handles tabular column structure
 function parsePDFText(text) {
     console.log('=== PARSING ATP PDF DATA ===');
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
@@ -62,10 +62,8 @@ function parsePDFText(text) {
 
     const rentals = [];
     let currentProvince = '';
-    let currentSection = [];
-    let inDataSection = false;
 
-    // First pass: group by provinces
+    // Process each province section
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
@@ -75,71 +73,48 @@ function parsePDFText(text) {
         // Detect province
         const provinceMatch = provinces.find(p => line.toUpperCase().includes(p.toUpperCase()));
         if (provinceMatch) {
-            // Process previous section
-            if (currentSection.length > 0 && currentProvince) {
-                const provinceRentals = parseProvinceSection(currentSection, currentProvince);
-                rentals.push(...provinceRentals);
-            }
-
-            // Start new section
             currentProvince = provinceMatch;
-            currentSection = [];
-            inDataSection = true;
-            continue;
-        }
 
-        // Detect end of section
-        if (inDataSection && (line.includes('Total por provincia:') || line.includes('Total Provincial:'))) {
-            if (currentSection.length > 0 && currentProvince) {
-                const provinceRentals = parseProvinceSection(currentSection, currentProvince);
-                rentals.push(...provinceRentals);
-            }
-            currentSection = [];
-            inDataSection = false;
-            continue;
-        }
+            // Extract the data section for this province
+            const sectionEnd = findSectionEnd(lines, i);
+            const sectionLines = lines.slice(i, sectionEnd);
 
-        // Add to current section
-        if (inDataSection && line.length > 2) {
-            currentSection.push(line);
-        }
-    }
+            // Parse this province section
+            const provinceRentals = parseProvinceSection(sectionLines, currentProvince);
+            rentals.push(...provinceRentals);
 
-    // Process last section
-    if (currentSection.length > 0 && currentProvince) {
-        const provinceRentals = parseProvinceSection(currentSection, currentProvince);
-        rentals.push(...provinceRentals);
+            // Skip to end of section
+            i = sectionEnd - 1;
+        }
     }
 
     console.log(`=== PARSING COMPLETE: Found ${rentals.length} rentals ===`);
     return rentals;
 }
 
-// NEW: Parse province section by finding column data
+// NEW: Parse province section by extracting the 4 columns
 function parseProvinceSection(sectionLines, province) {
     const rentals = [];
 
-    // Find the column data sections
-    const columnSections = extractColumnSections(sectionLines);
+    // Extract the four columns from the section
+    const columns = extractColumns(sectionLines);
 
-    if (columnSections.names.length > 0) {
-        // Align the columns - they should have the same number of records
-        const maxRecords = Math.max(
-            columnSections.names.length,
-            columnSections.types.length,
-            columnSections.emails.length,
-            columnSections.phones.length
-        );
+    // Combine columns into records
+    if (columns.names.length > 0) {
+        const recordCount = columns.names.length;
 
-        for (let i = 0; i < maxRecords; i++) {
-            const name = columnSections.names[i] || '';
-            const type = columnSections.types[i] || '';
-            const email = columnSections.emails[i] || '';
-            const phone = columnSections.phones[i] || '';
+        for (let i = 0; i < recordCount; i++) {
+            const name = columns.names[i] || '';
+            const type = columns.types[i] || '';
+            const email = columns.emails[i] || '';
+            const phone = columns.phones[i] || '';
 
+            // Validate and create rental
             if (name && name.length > 2 && !isEmailLine(name) && !isPhoneLine(name)) {
                 const rental = createRentalObject(name, type, email, phone, province);
-                rentals.push(rental);
+                if (rental) {
+                    rentals.push(rental);
+                }
             }
         }
     }
@@ -148,8 +123,8 @@ function parseProvinceSection(sectionLines, province) {
     return rentals;
 }
 
-// NEW: Extract the four columns from section lines
-function extractColumnSections(sectionLines) {
+// NEW: Extract the four columns from a province section
+function extractColumns(sectionLines) {
     const columns = {
         names: [],
         types: [],
@@ -157,166 +132,152 @@ function extractColumnSections(sectionLines) {
         phones: []
     };
 
-    let currentColumn = 'unknown';
-    let foundHeaders = false;
+    // Find where each column starts
+    let nameStart = -1, typeStart = -1, emailStart = -1, phoneStart = -1;
 
-    for (const line of sectionLines) {
-        // Skip empty lines and headers
-        if (!line || line.length < 2) continue;
+    for (let i = 0; i < sectionLines.length; i++) {
+        const line = sectionLines[i];
 
-        // Look for column headers to identify sections
-        if (line === 'Nombre' || line === 'Modalidad' ||
-            line === 'Correo Principal' || line === 'Teléfono') {
-            foundHeaders = true;
-
-            if (line === 'Nombre') currentColumn = 'names';
-            else if (line === 'Modalidad') currentColumn = 'types';
-            else if (line === 'Correo Principal') currentColumn = 'emails';
-            else if (line === 'Teléfono') currentColumn = 'phones';
-            continue;
-        }
-
-        // Skip province headers and totals
-        if (line.includes('Provincia:') || line.includes('Total por provincia:')) {
-            continue;
-        }
-
-        // If we found headers, assign lines to columns based on content
-        if (foundHeaders) {
-            if (currentColumn === 'names' || isNameLine(line)) {
-                if (isNameLine(line)) {
-                    columns.names.push(line);
-                    currentColumn = 'names';
-                }
-            } else if (currentColumn === 'types' || isTypeLine(line)) {
-                if (isTypeLine(line)) {
-                    columns.types.push(line);
-                    currentColumn = 'types';
-                }
-            } else if (currentColumn === 'emails' || isEmailLine(line)) {
-                if (isEmailLine(line)) {
-                    columns.emails.push(line);
-                    currentColumn = 'emails';
-                }
-            } else if (currentColumn === 'phones' || isPhoneLine(line)) {
-                if (isPhoneLine(line)) {
-                    columns.phones.push(line);
-                    currentColumn = 'phones';
-                }
-            }
-        } else {
-            // Before headers are found, try to categorize based on content
-            if (isNameLine(line)) {
-                columns.names.push(line);
-            } else if (isTypeLine(line)) {
-                columns.types.push(line);
-            } else if (isEmailLine(line)) {
-                columns.emails.push(line);
-            } else if (isPhoneLine(line)) {
-                columns.phones.push(line);
-            }
+        // Look for column headers
+        if (line === 'Nombre' || (isNameLine(line) && nameStart === -1)) {
+            nameStart = i;
+        } else if (line === 'Modalidad' || (isTypeLine(line) && typeStart === -1)) {
+            typeStart = i;
+        } else if (line === 'Correo Principal' || (isEmailLine(line) && emailStart === -1)) {
+            emailStart = i;
+        } else if (line === 'Teléfono' || (isPhoneLine(line) && phoneStart === -1)) {
+            phoneStart = i;
         }
     }
 
-    return columns;
-}
-
-// NEW: Alternative approach - parse by fixed column positions
-function parseProvinceSectionAlternative(sectionLines, province) {
-    const rentals = [];
-
-    // Group lines into potential records (4 lines per record)
-    const recordGroups = [];
-    let currentGroup = [];
-
-    for (const line of sectionLines) {
-        // Skip headers and metadata
-        if (line === 'Nombre' || line === 'Modalidad' ||
-            line === 'Correo Principal' || line === 'Teléfono' ||
-            line.includes('Provincia:') || line.includes('Total por provincia:')) {
-            continue;
-        }
-
-        currentGroup.push(line);
-
-        // When we have 4 lines, try to form a record
-        if (currentGroup.length >= 4) {
-            // Check if this looks like a valid record (should have at least one name)
-            const hasName = currentGroup.some(l => isNameLine(l));
-            if (hasName) {
-                recordGroups.push([...currentGroup]);
-                currentGroup = [];
-            } else {
-                // Remove the oldest line and continue
-                currentGroup.shift();
-            }
-        }
-    }
-
-    // Process any remaining group
-    if (currentGroup.length >= 3) {
-        recordGroups.push([...currentGroup]);
-    }
-
-    // Parse each group
-    for (const group of recordGroups) {
-        const rental = parseRentalGroup(group, province);
-        if (rental) {
-            rentals.push(rental);
-        }
-    }
-
-    return rentals;
-}
-
-// NEW: Parse a group of lines as a rental record
-function parseRentalGroup(lines, province) {
-    let name = '', type = '', email = '', phone = '';
-
-    // Assign lines based on content type
-    for (const line of lines) {
-        if (!name && isNameLine(line)) {
-            name = line;
-        } else if (!type && isTypeLine(line)) {
-            type = line;
-        } else if (!email && isEmailLine(line)) {
-            email = line;
-        } else if (!phone && isPhoneLine(line)) {
-            phone = line;
-        }
-    }
-
-    // If we couldn't identify all fields, make educated guesses
-    if (!type) {
-        // Look for any line that contains common type words
-        for (const line of lines) {
-            if (line !== name && line !== email && line !== phone) {
-                type = line;
+    // If we couldn't find headers, use content-based detection
+    if (nameStart === -1) {
+        for (let i = 0; i < sectionLines.length; i++) {
+            const line = sectionLines[i];
+            if (isNameLine(line) && !line.includes('Provincia:') && !line.includes('Total')) {
+                nameStart = i;
                 break;
             }
         }
     }
 
-    if (name && name.length > 2) {
-        return createRentalObject(name, type, email, phone, province);
+    if (typeStart === -1) {
+        for (let i = 0; i < sectionLines.length; i++) {
+            const line = sectionLines[i];
+            if (isTypeLine(line) && line !== 'Modalidad') {
+                typeStart = i;
+                break;
+            }
+        }
     }
 
-    return null;
+    if (emailStart === -1) {
+        for (let i = 0; i < sectionLines.length; i++) {
+            const line = sectionLines[i];
+            if (isEmailLine(line) && line !== 'Correo Principal') {
+                emailStart = i;
+                break;
+            }
+        }
+    }
+
+    if (phoneStart === -1) {
+        for (let i = 0; i < sectionLines.length; i++) {
+            const line = sectionLines[i];
+            if (isPhoneLine(line) && line !== 'Teléfono') {
+                phoneStart = i;
+                break;
+            }
+        }
+    }
+
+    // Extract data from each column
+    if (nameStart !== -1) {
+        columns.names = extractColumnData(sectionLines, nameStart, 'name');
+    }
+    if (typeStart !== -1) {
+        columns.types = extractColumnData(sectionLines, typeStart, 'type');
+    }
+    if (emailStart !== -1) {
+        columns.emails = extractColumnData(sectionLines, emailStart, 'email');
+    }
+    if (phoneStart !== -1) {
+        columns.phones = extractColumnData(sectionLines, phoneStart, 'phone');
+    }
+
+    return columns;
 }
 
-// NEW: Create rental object with proper cleaning
+// NEW: Extract data from a specific column
+function extractColumnData(sectionLines, startIndex, columnType) {
+    const data = [];
+    let i = startIndex;
+
+    while (i < sectionLines.length) {
+        const line = sectionLines[i];
+
+        // Skip headers and metadata
+        if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono' ||
+            line.includes('Provincia:') || line.includes('Total por provincia:') ||
+            isHeaderLine(line)) {
+            i++;
+            continue;
+        }
+
+        // Check if we've reached the next column or end of section
+        if ((columnType === 'name' && (isTypeLine(line) || isEmailLine(line) || isPhoneLine(line))) ||
+            (columnType === 'type' && (isEmailLine(line) || isPhoneLine(line))) ||
+            (columnType === 'email' && isPhoneLine(line)) ||
+            i - startIndex > 200) { // Safety limit
+            break;
+        }
+
+        // Add valid data
+        if (columnType === 'name' && isNameLine(line)) {
+            data.push(line);
+        } else if (columnType === 'type' && isTypeLine(line)) {
+            data.push(line);
+        } else if (columnType === 'email' && isEmailLine(line)) {
+            data.push(line);
+        } else if (columnType === 'phone' && isPhoneLine(line)) {
+            data.push(line);
+        }
+
+        i++;
+    }
+
+    return data;
+}
+
+// NEW: Find the end of a province section
+function findSectionEnd(lines, startIndex) {
+    for (let i = startIndex + 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes('Total por provincia:') ||
+            line.includes('Total Provincial:') ||
+            line.match(/Página \d+ de \d+/)) {
+            return i + 1;
+        }
+    }
+    return lines.length;
+}
+
+// NEW: Create rental object with proper validation
 function createRentalObject(name, type, email, phone, province) {
-    // Clean the data
+    // Clean and validate data
     const cleanName = cleanText(name);
     const cleanType = cleanText(type || 'Hospedaje');
     const cleanEmail = extractEmail(email);
     const cleanPhone = extractFirstPhone(phone);
 
-    // Validate name - it shouldn't be an email or phone number
+    // Validate that name is not actually an email or phone
     if (cleanEmail && cleanName.includes('@')) {
         return null;
     }
     if (cleanPhone && isPhoneLine(cleanName)) {
+        return null;
+    }
+    if (!cleanName || cleanName.length < 2) {
         return null;
     }
 
@@ -339,9 +300,7 @@ function isHeaderLine(line) {
     return line.includes('Reporte de Hospedajes vigentes') ||
            line.includes('Reporte: rep_hos_web') ||
            line.includes('Actualizado al') ||
-           line.match(/Página \d+ de \d+/) ||
-           line.includes('Total por provincia:') ||
-           line.includes('Provincia:');
+           line.match(/Página \d+ de \d+/);
 }
 
 function isNameLine(line) {
@@ -377,7 +336,8 @@ function isPhoneLine(line) {
         /^\d{3,4}[- ]?\d{3,4}$/,
         /^\d{4}[- ]?\d{4}$/
     ];
-    return phonePatterns.some(pattern => pattern.test(line.replace(/\//g, '').trim()));
+    const cleanLine = line.replace(/\//g, '').trim();
+    return phonePatterns.some(pattern => pattern.test(cleanLine));
 }
 
 function extractEmail(text) {
@@ -438,83 +398,12 @@ function getFallbackData() {
             google_maps_url: "https://maps.google.com/?q=SOCIALTEL%20BOCAS%20DEL%20TORO%20BOCAS%20DEL%20TORO%20Panam%C3%A1",
             whatsapp: "64061547",
             source: "ATP_OFFICIAL"
-        },
-        {
-            name: "RED FROG BEACH",
-            type: "Albergue",
-            email: "reception.redfrog@collectivehospitality.com",
-            phone: "61127504",
-            province: "BOCAS DEL TORO",
-            district: "Bocas del Toro",
-            description: "Albergue \"RED FROG BEACH\" ubicado en BOCAS DEL TORO, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).",
-            google_maps_url: "https://maps.google.com/?q=RED%20FROG%20BEACH%20BOCAS%20DEL%20TORO%20Panam%C3%A1",
-            whatsapp: "61127504",
-            source: "ATP_OFFICIAL"
         }
         // Add more fallback records as needed
     ];
 }
 
-// NEW: Debug endpoint to analyze PDF structure
-app.get('/api/debug-structure', async (req, res) => {
-    try {
-        let pdfText = '';
-        let rawLines = [];
-
-        // Fetch PDF
-        for (const pdfUrl of PDF_URLS) {
-            try {
-                const response = await axios.get(pdfUrl, {
-                    responseType: 'arraybuffer',
-                    timeout: 30000
-                });
-
-                if (response.status === 200) {
-                    const data = await pdf(response.data);
-                    pdfText = data.text;
-                    rawLines = data.text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                    break;
-                }
-            } catch (error) {
-                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
-            }
-        }
-
-        if (!pdfText) {
-            return res.status(500).json({ error: 'Could not fetch PDF' });
-        }
-
-        // Analyze Bocas del Toro section specifically
-        const bocasIndex = rawLines.findIndex(line => line.includes('BOCAS DEL TORO'));
-        const bocasSection = rawLines.slice(bocasIndex, bocasIndex + 50);
-
-        // Parse with both methods for comparison
-        const method1Results = parsePDFText(pdfText);
-        const bocasRentals = method1Results.filter(r => r.province === 'BOCAS DEL TORO');
-
-        res.json({
-            pdf_info: {
-                total_lines: rawLines.length,
-                bocas_section_sample: bocasSection
-            },
-            parsing_results: {
-                total_rentals: method1Results.length,
-                bocas_del_toro_count: bocasRentals.length,
-                bocas_sample: bocasRentals.slice(0, 10),
-                sample_with_contacts: method1Results.filter(r => r.email || r.phone).slice(0, 5)
-            },
-            raw_structure: {
-                lines_50_to_100: rawLines.slice(50, 100),
-                lines_100_to_150: rawLines.slice(100, 150)
-            }
-        });
-
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Keep all your existing API routes
+// Keep all your existing API routes (they remain the same)
 app.get('/api/test', (req, res) => {
     res.json({
         message: 'ATP Rentals Search API is working!',
@@ -608,7 +497,6 @@ app.post('/api/refresh-pdf', async (req, res) => {
 // Initialize
 app.listen(PORT, async () => {
     console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
-    console.log(`📍 Debug URL: http://localhost:${PORT}/api/debug-structure`);
 
     // Load PDF data on startup
     setTimeout(async () => {
