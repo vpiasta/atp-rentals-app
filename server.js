@@ -1,6 +1,5 @@
 const express = require('express');
 const axios = require('axios');
-const pdf = require('pdf-parse');
 const cors = require('cors');
 
 const app = express();
@@ -18,286 +17,14 @@ let CURRENT_RENTALS = [];
 let LAST_PDF_UPDATE = null;
 let PDF_STATUS = 'No PDF processed yet';
 
-// Use your working parser function here
-async function fetchAndParsePDF() {
-    for (const pdfUrl of PDF_URLS) {
-        try {
-            console.log(`Fetching PDF from: ${pdfUrl}`);
-            const response = await axios.get(pdfUrl, {
-                responseType: 'arraybuffer',
-                timeout: 30000
-            });
+// ... [keep all your existing functions for the main app] ...
 
-            if (response.status === 200) {
-                console.log('PDF fetched, parsing...');
-                const data = await pdf(response.data);
-                PDF_STATUS = `PDF processed successfully from: ${pdfUrl}`;
-                LAST_PDF_UPDATE = new Date().toISOString();
-
-                const parsedRentals = parsePDFText(data.text);
-                console.log(`Parsed ${parsedRentals.length} rentals from PDF`);
-
-                CURRENT_RENTALS = parsedRentals;
-                return true;
-            }
-        } catch (error) {
-            console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
-        }
-    }
-
-    PDF_STATUS = 'No PDF available';
-    CURRENT_RENTALS = getFallbackData();
-    return false;
-}
-
-// Use your working parsePDFText function here
-function parsePDFText(text) {
-    console.log('=== PARSING ATP PDF DATA ===');
-    const rentals = [];
-    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-
-    let currentProvince = '';
-    let currentSection = [];
-    let inProvinceSection = false;
-
-    const provinces = [
-        'BOCAS DEL TORO', 'CHIRIQUÍ', 'COCLÉ', 'COLÓN', 'DARIÉN',
-        'HERRERA', 'LOS SANTOS', 'PANAMÁ', 'VERAGUAS', 'COMARCA',
-        'GUNAS', 'EMBERÁ', 'NGÄBE-BUGLÉ'
-    ];
-
-    // Group lines by province sections
-    const provinceSections = [];
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-
-        // Skip headers
-        if (line.includes('Reporte de Hospedajes vigentes') ||
-            line.includes('Reporte: rep_hos_web') ||
-            line.includes('Actualizado al') ||
-            line.match(/Página \d+ de \d+/)) {
-            continue;
-        }
-
-        // Detect province headers
-        const provinceMatch = provinces.find(province =>
-            line.toUpperCase().includes(province)
-        );
-
-        if (provinceMatch) {
-            // Save previous section
-            if (currentSection.length > 0 && currentProvince) {
-                provinceSections.push({
-                    province: currentProvince,
-                    lines: [...currentSection]
-                });
-            }
-
-            // Start new section
-            currentProvince = provinceMatch;
-            currentSection = [];
-            inProvinceSection = true;
-            continue;
-        }
-
-        // Detect end of province section
-        if (line.includes('Total por provincia:') && inProvinceSection) {
-            if (currentSection.length > 0 && currentProvince) {
-                provinceSections.push({
-                    province: currentProvince,
-                    lines: [...currentSection]
-                });
-            }
-            currentSection = [];
-            inProvinceSection = false;
-            continue;
-        }
-
-        // Add to current section
-        if (inProvinceSection && line.length > 2) {
-            currentSection.push(line);
-        }
-    }
-
-    // Parse each province section
-    for (const section of provinceSections) {
-        const provinceRentals = parseProvinceWithColumns(section.lines, section.province);
-        rentals.push(...provinceRentals);
-    }
-
-    console.log(`=== PARSING COMPLETE: Found ${rentals.length} rentals ===`);
-    return rentals;
-}
-
-function parseProvinceWithColumns(lines, province) {
-    const rentals = [];
-
-    const columnGroups = groupIntoColumns(lines);
-
-    if (columnGroups.names.length > 0) {
-        // Create rentals by aligning the columns
-        for (let i = 0; i < columnGroups.names.length; i++) {
-            const name = columnGroups.names[i] || '';
-            const type = columnGroups.types[i] || 'Hospedaje';
-            const email = columnGroups.emails[i] || '';
-            const phone = columnGroups.phones[i] || '';
-
-            if (name && name.length > 2) {
-                const cleanName = cleanText(name);
-                const cleanType = cleanText(type);
-                const cleanEmail = extractEmail(email);
-                const cleanPhone = extractFirstPhone(phone);
-
-                const rental = {
-                    name: cleanName,
-                    type: cleanType,
-                    email: cleanEmail,
-                    phone: cleanPhone,
-                    province: province,
-                    district: guessDistrict(cleanName, province),
-                    description: generateDescription(cleanName, cleanType, province),
-                    google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(cleanName + ' ' + province + ' Panamá')}`,
-                    whatsapp: cleanPhone,
-                    source: 'ATP_OFFICIAL'
-                };
-
-                rentals.push(rental);
-            }
-        }
-    }
-
-    console.log(`Province ${province}: ${rentals.length} rentals`);
-    return rentals;
-}
-
-function groupIntoColumns(lines) {
-    const result = {
-        names: [],
-        types: [],
-        emails: [],
-        phones: []
-    };
-
-    let currentColumn = 'names';
-
-    for (const line of lines) {
-        // Skip column headers
-        if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono') {
-            continue;
-        }
-
-        // Detect column changes based on content patterns
-        if (isEmailLine(line)) {
-            currentColumn = 'emails';
-        } else if (isPhoneLine(line)) {
-            currentColumn = 'phones';
-        } else if (isTypeLine(line)) {
-            currentColumn = 'types';
-        } else if (isNameLine(line)) {
-            currentColumn = 'names';
-        }
-
-        // Add to appropriate column
-        if (currentColumn === 'names' && isNameLine(line)) {
-            result.names.push(line);
-        } else if (currentColumn === 'types' && isTypeLine(line)) {
-            result.types.push(line);
-        } else if (currentColumn === 'emails' && isEmailLine(line)) {
-            result.emails.push(line);
-        } else if (currentColumn === 'phones' && isPhoneLine(line)) {
-            result.phones.push(line);
-        }
-    }
-
-    return result;
-}
-
-// Helper functions
-function isEmailLine(line) {
-    return line.includes('@') && line.includes('.');
-}
-
-function isPhoneLine(line) {
-    return line.match(/\d{3,4}[- \/]?\d{3,4}[- \/]?\d{3,4}/) ||
-           (line.includes('/') && line.match(/\d+/));
-}
-
-function isTypeLine(line) {
-    const types = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort', 'Ecolodge'];
-    return types.some(type => line.includes(type));
-}
-
-function isNameLine(line) {
-    return line.length > 3 &&
-           !line.includes('@') &&
-           !isPhoneLine(line) &&
-           !isTypeLine(line) &&
-           line !== 'Nombre' &&
-           line !== 'Modalidad' &&
-           line !== 'Correo Principal' &&
-           line !== 'Teléfono';
-}
-
-function extractEmail(text) {
-    const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-    return match ? match[1] : '';
-}
-
-function extractFirstPhone(text) {
-    const match = text.match(/(\d{3,4}[- ]?\d{3,4}[- ]?\d{3,4})/);
-    return match ? match[1] : '';
-}
-
-function cleanText(text) {
-    return text.replace(/\s+/g, ' ').trim();
-}
-
-function guessDistrict(name, province) {
-    const districtMap = {
-        'BOCAS DEL TORO': 'Bocas del Toro',
-        'CHIRIQUÍ': 'David',
-        'COCLÉ': 'Penonomé',
-        'COLÓN': 'Colón',
-        'DARIÉN': 'La Palma',
-        'HERRERA': 'Chitré',
-        'LOS SANTOS': 'Las Tablas',
-        'PANAMÁ': 'Ciudad de Panamá',
-        'VERAGUAS': 'Santiago',
-        'GUNAS': 'Guna Yala',
-        'EMBERÁ': 'Emberá',
-        'NGÄBE-BUGLÉ': 'Ngäbe-Buglé'
-    };
-    return districtMap[province] || province;
-}
-
-function generateDescription(name, type, province) {
-    return `${type} "${name}" ubicado en ${province}, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).`;
-}
-
-function getFallbackData() {
-    return [
-        {
-            name: "Hotel Boquete Mountain Resort",
-            type: "Hotel",
-            province: "Chiriquí",
-            district: "Boquete",
-            phone: "+507 720-1234",
-            email: "info@boquetemountain.com",
-            description: "Luxury resort in the highlands of Boquete",
-            google_maps_url: "https://maps.google.com/?q=Boquete,Chiriquí,Panama",
-            whatsapp: "+50761234567",
-            source: "SAMPLE"
-        }
-    ];
-}
-
-// SIMPLE DEBUG ENDPOINT - just returns raw text as plain HTML
-app.get('/debug-pdf-text', async (req, res) => {
+// NEW: Debug endpoint to show raw PDF structure with positioning
+app.get('/debug-pdf-raw', async (req, res) => {
     try {
-        let pdfText = '';
+        let pdfBuffer = null;
 
-        // Fetch PDF
+        // Fetch PDF as raw buffer
         for (const pdfUrl of PDF_URLS) {
             try {
                 const response = await axios.get(pdfUrl, {
@@ -306,8 +33,7 @@ app.get('/debug-pdf-text', async (req, res) => {
                 });
 
                 if (response.status === 200) {
-                    const data = await pdf(response.data);
-                    pdfText = data.text;
+                    pdfBuffer = response.data;
                     break;
                 }
             } catch (error) {
@@ -315,63 +41,176 @@ app.get('/debug-pdf-text', async (req, res) => {
             }
         }
 
-        if (!pdfText) {
+        if (!pdfBuffer) {
             return res.status(500).send('Could not fetch PDF');
         }
 
-        const lines = pdfText.split('\n');
+        // Convert buffer to hex and text for analysis
+        const hexString = pdfBuffer.toString('hex');
+        const textString = pdfBuffer.toString('binary');
+
         let html = `
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PDF Raw Text</title>
+    <title>PDF Raw Structure Analysis</title>
     <style>
-        body { font-family: monospace; margin: 20px; }
-        .line { margin: 2px 0; }
-        .line-number { color: #666; display: inline-block; width: 60px; }
-        .highlight-email { background-color: #e8f4fd; }
-        .highlight-phone { background-color: #ffebee; }
-        .highlight-type { background-color: #fff9e6; }
-        .highlight-name { background-color: #e8f5e8; }
+        body { font-family: monospace; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .section { margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 5px; }
+        .hex-view { background: #000; color: #0f0; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+        .text-view { background: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 12px; white-space: pre-wrap; }
+        .analysis { background: #e8f4fd; padding: 15px; border-radius: 5px; }
+        h2 { color: #333; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
+        .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; border-radius: 4px; margin: 10px 0; }
     </style>
 </head>
 <body>
-    <h1>PDF Raw Text (${lines.length} lines)</h1>
-    <div id="content">
-`;
+    <div class="container">
+        <h1>🔍 PDF Raw Structure Analysis</h1>
 
-        lines.forEach((line, index) => {
-            if (line.trim()) {
-                let className = '';
-                if (line.includes('@') && (line.includes('.com') || line.includes('.net'))) {
-                    className = 'highlight-email';
-                } else if (line.match(/\d{3,4}[- ]?\d{3,4}[- ]?\d{3,4}/) || line.match(/\d{7,8}/)) {
-                    className = 'highlight-phone';
-                } else if (line.match(/(Albergue|Aparta-Hotel|Bungalow|Hostal|Hotel|Posada|Resort|Ecolodge|Hospedaje|Cabaña)/i)) {
-                    className = 'highlight-type';
-                } else if (line === 'Nombre' || line === 'Modalidad' || line === 'Correo Principal' || line === 'Teléfono') {
-                    className = 'highlight-name';
-                }
+        <div class="warning">
+            <strong>Note:</strong> This shows the actual raw PDF data before any parsing.
+            Look for patterns like column separators, table structures, and positioning commands.
+        </div>
 
-                const escapedLine = escapeHtml(line);
-                html += `<div class="line ${className}"><span class="line-number">${index}</span> ${escapedLine}</div>`;
-            }
-        });
+        <div class="section">
+            <h2>📊 Basic PDF Info</h2>
+            <div class="analysis">
+                <strong>PDF Size:</strong> ${pdfBuffer.length} bytes<br>
+                <strong>First 100 bytes (hex):</strong> ${hexString.substring(0, 200)}<br>
+                <strong>PDF Header:</strong> ${textString.substring(0, 50)}<br>
+            </div>
+        </div>
 
-        html += `
+        <div class="section">
+            <h2>🔤 Extract Text Content with Positioning Hints</h2>
+            <div class="text-view" id="textContent">
+                ${extractTextWithPositioning(pdfBuffer)}
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📋 Search for Table/Column Patterns</h2>
+            <div class="analysis">
+                <h3>Common PDF Table Patterns to Look For:</h3>
+                <ul>
+                    <li><strong>Td/TD commands:</strong> Text positioning (look for sequences like "10 20 Td")</li>
+                    <li><strong>Tj/TJ commands:</strong> Text showing (actual content display)</li>
+                    <li><strong>BT/ET:</strong> Text block begin/end</li>
+                    <li><strong>Tm:</strong> Text matrix transformations</li>
+                    <li><strong>Re:</strong> Rectangle drawing (for table borders)</li>
+                    <li><strong>Patterns like "Nombre"[space]"Modalidad":</strong> Column headers</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔍 Raw Text Snippets (First 5000 chars)</h2>
+            <div class="text-view">
+                ${escapeHtml(textString.substring(0, 5000))}
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>⚡ Quick Analysis Results</h2>
+            <div class="analysis" id="quickAnalysis">
+                ${performQuickAnalysis(textString)}
+            </div>
+        </div>
     </div>
+
+    <script>
+        // Simple client-side search for patterns
+        function searchPattern(pattern) {
+            const content = document.getElementById('textContent');
+            const text = content.textContent;
+            const regex = new RegExp(pattern, 'gi');
+            const matches = text.match(regex);
+            alert('Found ' + (matches ? matches.length : 0) + ' matches for: ' + pattern);
+        }
+    </script>
 </body>
 </html>`;
 
         res.send(html);
 
     } catch (error) {
-        console.error('Error in debug endpoint:', error);
+        console.error('Error in raw debug endpoint:', error);
         res.status(500).send('Error: ' + error.message);
     }
 });
 
-// FIXED: Proper HTML escaping for Node.js
+// Function to extract text with positioning hints
+function extractTextWithPositioning(pdfBuffer) {
+    try {
+        const text = pdfBuffer.toString('binary');
+
+        // Look for common PDF operators that indicate structure
+        const patterns = [
+            { name: 'Text Position (Td)', regex: /[\d\.-]+\s+[\d\.-]+\s+Td/g, color: '#ff6b6b' },
+            { name: 'Show Text (Tj)', regex: /\([^)]*\)\s*Tj/g, color: '#4ecdc4' },
+            { name: 'Text Block (BT/ET)', regex: /(BT|ET)/g, color: '#45b7d1' },
+            { name: 'Text Matrix (Tm)', regex: /[\d\.-]+\s+[\d\.-]+\s+[\d\.-]+\s+[\d\.-]+\s+[\d\.-]+\s+[\d\.-]+\s+Tm/g, color: '#96ceb4' },
+            { name: 'Rectangle (re)', regex: /[\d\.-]+\s+[\d\.-]+\s+[\d\.-]+\s+[\d\.-]+\s+re/g, color: '#feca57' }
+        ];
+
+        let highlightedText = escapeHtml(text.substring(0, 10000)); // First 10KB for performance
+
+        patterns.forEach(pattern => {
+            const matches = text.match(pattern.regex);
+            if (matches) {
+                matches.forEach(match => {
+                    const escapedMatch = escapeHtml(match);
+                    highlightedText = highlightedText.replace(
+                        new RegExp(escapedMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+                        `<span style="background: ${pattern.color}; color: black; padding: 2px; margin: 1px; border-radius: 2px;" title="${pattern.name}">${escapedMatch}</span>`
+                    );
+                });
+            }
+        });
+
+        return highlightedText;
+
+    } catch (error) {
+        return `Error analyzing PDF structure: ${error.message}`;
+    }
+}
+
+// Function to perform quick analysis
+function performQuickAnalysis(text) {
+    const analysis = [];
+
+    // Look for column headers
+    const nombreCount = (text.match(/Nombre/g) || []).length;
+    const modalidadCount = (text.match(/Modalidad/g) || []).length;
+    const correoCount = (text.match(/Correo Principal/g) || []).length;
+    const telefonoCount = (text.match(/Tel[ée]fono/g) || []).length;
+
+    analysis.push(`<strong>Column Headers Found:</strong>`);
+    analysis.push(`- "Nombre": ${nombreCount} occurrences`);
+    analysis.push(`- "Modalidad": ${modalidadCount} occurrences`);
+    analysis.push(`- "Correo Principal": ${correoCount} occurrences`);
+    analysis.push(`- "Teléfono": ${telefonoCount} occurrences`);
+
+    // Look for positioning commands
+    const tdCount = (text.match(/\sTd\s/g) || []).length;
+    const tjCount = (text.match(/\sTj\s/g) || []).length;
+    const btCount = (text.match(/\sBT\s/g) || []).length;
+
+    analysis.push(`<br><strong>PDF Positioning Commands:</strong>`);
+    analysis.push(`- "Td" (position): ${tdCount} occurrences`);
+    analysis.push(`- "Tj" (show text): ${tjCount} occurrences`);
+    analysis.push(`- "BT" (begin text): ${btCount} occurrences`);
+
+    // Look for potential table structures
+    const reCount = (text.match(/\sre\s/g) || []).length;
+    analysis.push(`- "re" (rectangle): ${reCount} occurrences (possible table borders)`);
+
+    return analysis.join('<br>');
+}
+
+// HTML escaping function
 function escapeHtml(text) {
     return text
         .replace(/&/g, "&amp;")
@@ -381,101 +220,13 @@ function escapeHtml(text) {
         .replace(/'/g, "&#039;");
 }
 
-// Keep all your existing API routes
-app.get('/api/test', (req, res) => {
-    res.json({
-        message: 'ATP Rentals Search API is working!',
-        status: 'success',
-        timestamp: new Date().toISOString(),
-        data_source: 'LIVE_ATP_PDF',
-        total_rentals: CURRENT_RENTALS.length
-    });
-});
-
-app.get('/api/rentals', (req, res) => {
-    const { search, province, type } = req.query;
-    let filtered = CURRENT_RENTALS;
-
-    if (search) {
-        const searchLower = search.toLowerCase();
-        filtered = filtered.filter(rental =>
-            rental.name.toLowerCase().includes(searchLower) ||
-            rental.district.toLowerCase().includes(searchLower) ||
-            rental.description.toLowerCase().includes(searchLower) ||
-            rental.province.toLowerCase().includes(searchLower) ||
-            rental.type.toLowerCase().includes(searchLower)
-        );
-    }
-
-    if (province && province !== '') {
-        filtered = filtered.filter(rental =>
-            rental.province.toLowerCase() === province.toLowerCase()
-        );
-    }
-
-    if (type && type !== '') {
-        filtered = filtered.filter(rental =>
-            rental.type.toLowerCase() === type.toLowerCase()
-        );
-    }
-
-    res.json(filtered);
-});
-
-app.get('/api/provinces', (req, res) => {
-    const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province))].sort();
-    res.json(provinces);
-});
-
-app.get('/api/types', (req, res) => {
-    const types = [...new Set(CURRENT_RENTALS.map(r => r.type))].sort();
-    res.json(types);
-});
-
-app.get('/api/stats', (req, res) => {
-    res.json({
-        total_rentals: CURRENT_RENTALS.length,
-        last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
-        data_source: 'LIVE_ATP_DATA',
-        status: PDF_STATUS,
-        note: 'Datos oficiales de la Autoridad de Turismo de Panamá'
-    });
-});
-
-app.get('/api/debug-pdf', (req, res) => {
-    const sampleWithContacts = CURRENT_RENTALS
-        .filter(rental => rental.email || rental.phone)
-        .slice(0, 10);
-
-    res.json({
-        pdf_status: PDF_STATUS,
-        total_rentals_found: CURRENT_RENTALS.length,
-        last_update: LAST_PDF_UPDATE,
-        sample_with_contacts: sampleWithContacts,
-        all_provinces: [...new Set(CURRENT_RENTALS.map(r => r.province))],
-        all_types: [...new Set(CURRENT_RENTALS.map(r => r.type))]
-    });
-});
-
-app.post('/api/refresh-pdf', async (req, res) => {
-    try {
-        const success = await fetchAndParsePDF();
-        res.json({
-            success: success,
-            message: success ? 'PDF data refreshed successfully' : 'Failed to refresh PDF data',
-            total_rentals: CURRENT_RENTALS.length,
-            status: PDF_STATUS,
-            last_update: LAST_PDF_UPDATE
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
+// ... [keep all your existing API routes and initialization] ...
 
 // Initialize
 app.listen(PORT, async () => {
     console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
-    console.log(`📍 Debug URL: http://localhost:${PORT}/debug-pdf-text`);
+    console.log(`📍 Raw Debug URL: http://localhost:${PORT}/debug-pdf-raw`);
+    console.log(`📍 Text Debug URL: http://localhost:${PORT}/debug-pdf-text`);
 
     // Load PDF data on startup
     setTimeout(async () => {
