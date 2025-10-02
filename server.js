@@ -50,156 +50,164 @@ async function fetchAndParsePDF() {
 }
 
 function parsePDFText(text) {
-    console.log('=== PARSING ATP PDF DATA - TABLE BY TABLE ===');
-    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-    const allRentals = [];
+    try {
+        console.log('=== PARSING ATP PDF DATA - TABLE BY TABLE ===');
+        const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+        const allRentals = [];
 
-    let i = 0;
-    let currentProvince = '';
-    let currentRentalCount = 0;
+        let i = 0;
+        let currentProvince = '';
+        let currentRentalCount = 0;
 
-    while (i < lines.length) {
-        const line = lines[i];
+        while (i < lines.length) {
+            const line = lines[i];
 
-        // Skip headers
-        if (isHeaderLine(line)) {
-            i++;
-            continue;
-        }
-
-        // Look for province pattern: "BOCAS DEL TOROProvincia:"
-        const provinceMatch = line.match(/(.*)Provincia:/);
-        if (provinceMatch) {
-            currentProvince = provinceMatch[1].trim();
-            console.log(`\n=== PROCESSING PROVINCE: ${currentProvince} ===`);
-            i++;
-            continue;
-        }
-
-        // Look for rental count pattern: "151Total por provincia:"
-        const countMatch = line.match(/(\d+)Total por provincia:/);
-        if (countMatch && currentProvince) {
-            currentRentalCount = parseInt(countMatch[1]);
-            console.log(`Expected rental count: ${currentRentalCount}`);
-
-            // Process this table
-            const tableResult = processTable(lines, i + 1, currentProvince, currentRentalCount);
-            if (tableResult.rentals.length > 0) {
-                allRentals.push(...tableResult.rentals);
-                console.log(`Added ${tableResult.rentals.length} rentals for ${currentProvince}`);
+            // Skip headers
+            if (isHeaderLine(line)) {
+                i++;
+                continue;
             }
 
-            i = tableResult.nextIndex;
-            currentProvince = '';
-            currentRentalCount = 0;
-            continue;
+            // Look for province pattern: "BOCAS DEL TOROProvincia:"
+            const provinceMatch = line.match(/(.*)Provincia:/);
+            if (provinceMatch) {
+                currentProvince = provinceMatch[1].trim();
+                console.log(`\n=== PROCESSING PROVINCE: ${currentProvince} ===`);
+                i++;
+                continue;
+            }
+
+            // Look for rental count pattern: "151Total por provincia:"
+            const countMatch = line.match(/(\d+)Total por provincia:/);
+            if (countMatch && currentProvince) {
+                currentRentalCount = parseInt(countMatch[1]);
+                console.log(`Expected rental count: ${currentRentalCount}`);
+
+                // Process this table
+                const tableResult = processTable(lines, i + 1, currentProvince, currentRentalCount);
+                if (tableResult.rentals.length > 0) {
+                    allRentals.push(...tableResult.rentals);
+                    console.log(`Added ${tableResult.rentals.length} rentals for ${currentProvince}`);
+                }
+
+                i = tableResult.nextIndex;
+                currentProvince = '';
+                currentRentalCount = 0;
+                continue;
+            }
+
+            i++;
         }
 
-        i++;
+        console.log(`\n=== PARSING COMPLETE: Found ${allRentals.length} rentals ===`);
+        return allRentals;
+    } catch (error) {
+        console.error('Error in parsePDFText:', error);
+        return getFallbackData();
     }
-
-    console.log(`\n=== PARSING COMPLETE: Found ${allRentals.length} rentals ===`);
-    return allRentals;
 }
 
-// Process one table at a time
 function processTable(lines, startIndex, province, expectedCount) {
-    console.log(`Processing table starting at line ${startIndex}`);
+    try {
+        console.log(`Processing table starting at line ${startIndex}`);
 
-    const columns = {
-        names: [],
-        types: [],
-        emails: [],
-        phones: []
-    };
+        const columns = {
+            names: [],
+            types: [],
+            emails: [],
+            phones: []
+        };
 
-    let i = startIndex;
-    let currentColumn = 'names';
-    let tableEnded = false;
+        let i = startIndex;
+        let currentColumn = 'names';
+        let tableEnded = false;
 
-    while (i < lines.length && !tableEnded) {
-        const line = lines[i];
+        while (i < lines.length && !tableEnded) {
+            const line = lines[i];
 
-        // Stop conditions for this table
-        if (isHeaderLine(line) ||
-            line.includes('Provincia:') ||
-            line.includes('Total por provincia:')) {
-            tableEnded = true;
-            break;
-        }
-
-        // COLUMN 1: Names (ends with "Nombre")
-        if (currentColumn === 'names') {
-            if (line === 'Nombre') {
-                console.log(`Name column ended with ${columns.names.length} entries`);
-                currentColumn = 'types';
-                i++;
-                continue;
-            }
-            if (isNameLine(line)) {
-                columns.names.push(line);
-            }
-        }
-        // COLUMN 2: Types (ends with "Modalidad")
-        else if (currentColumn === 'types') {
-            if (line === 'Modalidad') {
-                console.log(`Type column ended with ${columns.types.length} entries`);
-                currentColumn = 'emails';
-                i++;
-                continue;
-            }
-            // Handle "Hostal Familiar" special case
-            if (line === 'Hostal' && i + 1 < lines.length && lines[i + 1] === 'Familiar') {
-                columns.types.push('Hostal Familiar');
-                i += 2;
-                continue;
-            }
-            if (isTypeLine(line)) {
-                columns.types.push(line);
-            }
-        }
-        // COLUMN 3: Emails (ends with "Correo Principal")
-        else if (currentColumn === 'emails') {
-            if (line === 'Correo Principal') {
-                console.log(`Email column ended with ${columns.emails.length} entries`);
-                currentColumn = 'phones';
-                i++;
-                continue;
-            }
-            // Process email line
-            if (isEmailLine(line) || isPotentialEmailPart(line)) {
-                let email = processEmailLine(line, lines, i);
-                columns.emails.push(email);
-            }
-        }
-        // COLUMN 4: Phones (ends with "Teléfono" or "Cel/Teléfono")
-        else if (currentColumn === 'phones') {
-            if (line === 'Teléfono' || line === 'Cel/Teléfono') {
-                console.log(`Phone column ended with ${columns.phones.length} entries`);
+            // Stop conditions for this table
+            if (isHeaderLine(line) ||
+                line.includes('Provincia:') ||
+                line.includes('Total por provincia:')) {
                 tableEnded = true;
                 break;
             }
-            // Process phone line
-            if (isPhoneLine(line) || isPotentialPhonePart(line)) {
-                let phone = processPhoneLine(line, lines, i);
-                columns.phones.push(phone);
+
+            // COLUMN 1: Names (ends with "Nombre")
+            if (currentColumn === 'names') {
+                if (line === 'Nombre') {
+                    console.log(`Name column ended with ${columns.names.length} entries`);
+                    currentColumn = 'types';
+                    i++;
+                    continue;
+                }
+                if (isNameLine(line)) {
+                    columns.names.push(line);
+                }
             }
+            // COLUMN 2: Types (ends with "Modalidad")
+            else if (currentColumn === 'types') {
+                if (line === 'Modalidad') {
+                    console.log(`Type column ended with ${columns.types.length} entries`);
+                    currentColumn = 'emails';
+                    i++;
+                    continue;
+                }
+                // Handle "Hostal Familiar" special case
+                if (line === 'Hostal' && i + 1 < lines.length && lines[i + 1] === 'Familiar') {
+                    columns.types.push('Hostal Familiar');
+                    i += 2;
+                    continue;
+                }
+                if (isTypeLine(line)) {
+                    columns.types.push(line);
+                }
+            }
+            // COLUMN 3: Emails (ends with "Correo Principal")
+            else if (currentColumn === 'emails') {
+                if (line === 'Correo Principal') {
+                    console.log(`Email column ended with ${columns.emails.length} entries`);
+                    currentColumn = 'phones';
+                    i++;
+                    continue;
+                }
+                // Process email line
+                if (isEmailLine(line) || isPotentialEmailPart(line)) {
+                    let email = processEmailLine(line, lines, i);
+                    columns.emails.push(email);
+                }
+            }
+            // COLUMN 4: Phones (ends with "Teléfono" or "Cel/Teléfono")
+            else if (currentColumn === 'phones') {
+                if (line === 'Teléfono' || line === 'Cel/Teléfono') {
+                    console.log(`Phone column ended with ${columns.phones.length} entries`);
+                    tableEnded = true;
+                    break;
+                }
+                // Process phone line
+                if (isPhoneLine(line) || isPotentialPhonePart(line)) {
+                    let phone = processPhoneLine(line, lines, i);
+                    columns.phones.push(phone);
+                }
+            }
+
+            i++;
         }
 
-        i++;
+        // OPTIMIZE and create rentals for this table
+        const optimizedColumns = optimizeColumnsForTable(columns, expectedCount);
+        const rentals = createRentalsFromTable(optimizedColumns, province);
+
+        return {
+            rentals: rentals,
+            nextIndex: i
+        };
+    } catch (error) {
+        console.error(`Error processing table for ${province}:`, error);
+        return { rentals: [], nextIndex: startIndex };
     }
-
-    // OPTIMIZE and create rentals for this table
-    const optimizedColumns = optimizeColumnsForTable(columns, expectedCount);
-    const rentals = createRentalsFromTable(optimizedColumns, province);
-
-    return {
-        rentals: rentals,
-        nextIndex: i
-    };
 }
 
-// Process a single email line, handling multi-line cases
 function processEmailLine(currentLine, lines, currentIndex) {
     let email = currentLine;
 
@@ -208,15 +216,12 @@ function processEmailLine(currentLine, lines, currentIndex) {
         const nextLine = lines[currentIndex + 1];
         if (isEmailContinuation(currentLine, nextLine)) {
             email += nextLine;
-            // Remove the processed line from further consideration
-            lines[currentIndex + 1] = '';
         }
     }
 
     return email.replace(/\s+/g, ''); // Remove all spaces
 }
 
-// Process a single phone line, handling multi-line cases
 function processPhoneLine(currentLine, lines, currentIndex) {
     let phone = currentLine;
 
@@ -225,15 +230,12 @@ function processPhoneLine(currentLine, lines, currentIndex) {
         const nextLine = lines[currentIndex + 1];
         if (isPhoneContinuation(currentLine, nextLine)) {
             phone += ' ' + nextLine;
-            // Remove the processed line from further consideration
-            lines[currentIndex + 1] = '';
         }
     }
 
     return phone;
 }
 
-// Optimize columns for one table
 function optimizeColumnsForTable(columns, expectedCount) {
     console.log(`Optimizing columns: Names=${columns.names.length}, Types=${columns.types.length}, Emails=${columns.emails.length}, Phones=${columns.phones.length}`);
 
@@ -271,7 +273,6 @@ function optimizeColumnsForTable(columns, expectedCount) {
     return optimized;
 }
 
-// Fix split names by combining single words
 function fixSplitNames(names, targetCount) {
     if (names.length <= targetCount) return names.slice(0, targetCount);
 
@@ -301,7 +302,6 @@ function fixSplitNames(names, targetCount) {
     return fixedNames;
 }
 
-// Align emails with names by checking similarity
 function alignEmailsWithNames(names, emails, targetCount) {
     const alignedEmails = new Array(targetCount).fill('');
     let emailIndex = 0;
@@ -334,7 +334,6 @@ function alignEmailsWithNames(names, emails, targetCount) {
     return alignedEmails;
 }
 
-// Create rentals from optimized table columns
 function createRentalsFromTable(columns, province) {
     const rentals = [];
 
@@ -370,16 +369,283 @@ function createRentalsFromTable(columns, province) {
     return rentals;
 }
 
-// [Keep all your existing helper functions: isHeaderLine, isNameLine, isTypeLine, isEmailLine, etc.]
-// [Keep all your existing API routes]
+// Helper functions
+function isHeaderLine(line) {
+    return line.includes('Reporte de Hospedajes vigentes') ||
+           line.includes('Reporte: rep_hos_web') ||
+           line.includes('Actualizado al') ||
+           line.match(/Página \d+ de \d+/);
+}
+
+function isNameLine(line) {
+    return line && line.length > 3 &&
+           !line.includes('@') &&
+           !isPhoneLine(line) &&
+           !isTypeLine(line) &&
+           line !== 'Nombre' &&
+           line !== 'Modalidad' &&
+           line !== 'Correo Principal' &&
+           line !== 'Teléfono';
+}
+
+function isTypeLine(line) {
+    if (!line) return false;
+    const types = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort', 'Ecolodge', 'Hospedaje', 'Cabaña'];
+    return types.some(type => line.includes(type));
+}
+
+function isEmailLine(line) {
+    return line && line.includes('@');
+}
+
+function isPotentialEmailPart(line) {
+    return line && (line.includes('.com') || line.includes('.net') || line.includes('.org'));
+}
+
+function isEmailContinuation(currentLine, nextLine) {
+    return currentLine.includes('@') && !currentLine.includes('.') &&
+           nextLine && (nextLine.includes('.com') || nextLine.includes('.net'));
+}
+
+function isPhoneLine(line) {
+    return line && line.match(/\d{7,8}/);
+}
+
+function isPotentialPhonePart(line) {
+    return line && line.match(/\d{3,4}/);
+}
+
+function isPhoneContinuation(currentLine, nextLine) {
+    return (currentLine.endsWith('/') || currentLine.includes('-')) &&
+           nextLine && nextLine.match(/\d+/);
+}
+
+function emailMatchesName(email, name) {
+    if (!email || !name) return false;
+
+    // Extract name part from email (before @)
+    const emailNamePart = email.split('@')[0].toLowerCase();
+    const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // Check if name appears in email or vice versa
+    return emailNamePart.includes(cleanName) || cleanName.includes(emailNamePart) ||
+           emailNamePart.includes(cleanName.substring(0, 5)) ||
+           cleanName.includes(emailNamePart.substring(0, 5));
+}
+
+function extractEmail(text) {
+    if (!text) return '';
+    try {
+        const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+        return match ? match[1] : '';
+    } catch (error) {
+        return '';
+    }
+}
+
+function extractFirstPhone(text) {
+    if (!text) return '';
+    try {
+        // Remove slashes and hyphens, take first 8 digits
+        const cleanText = text.replace(/[-\/\s]/g, '');
+        const match = cleanText.match(/(\d{7,8})/);
+        return match ? match[1] : '';
+    } catch (error) {
+        return '';
+    }
+}
+
+function cleanText(text) {
+    if (!text) return '';
+    return text.replace(/\s+/g, ' ').trim();
+}
+
+function guessDistrict(name, province) {
+    const districtMap = {
+        'BOCAS DEL TORO': 'Bocas del Toro',
+        'CHIRIQUÍ': 'David',
+        'COCLÉ': 'Penonomé',
+        'COLÓN': 'Colón',
+        'DARIÉN': 'La Palma',
+        'HERRERA': 'Chitré',
+        'LOS SANTOS': 'Las Tablas',
+        'PANAMÁ': 'Ciudad de Panamá',
+        'VERAGUAS': 'Santiago',
+        'GUNAS': 'Guna Yala',
+        'EMBERÁ': 'Emberá',
+        'NGÄBE-BUGLÉ': 'Ngäbe-Buglé'
+    };
+    return districtMap[province] || province;
+}
+
+function generateDescription(name, type, province) {
+    return `${type} "${name}" ubicado en ${province}, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).`;
+}
+
+function getFallbackData() {
+    return [
+        {
+            name: "SOCIALTEL BOCAS DEL TORO",
+            type: "Albergue",
+            email: "reception.bocasdeltoro@collectivehospitality.com",
+            phone: "64061547",
+            province: "BOCAS DEL TORO",
+            district: "Bocas del Toro",
+            description: "Albergue \"SOCIALTEL BOCAS DEL TORO\" ubicado en BOCAS DEL TORO, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).",
+            google_maps_url: "https://maps.google.com/?q=SOCIALTEL%20BOCAS%20DEL%20TORO%20BOCAS%20DEL%20TORO%20Panam%C3%A1",
+            whatsapp: "64061547",
+            source: "ATP_OFFICIAL"
+        }
+    ];
+}
+
+// API ROUTES WITH ERROR HANDLING
+app.get('/api/test', (req, res) => {
+    try {
+        res.json({
+            message: 'ATP Rentals Search API is working!',
+            status: 'success',
+            timestamp: new Date().toISOString(),
+            data_source: 'LIVE_ATP_PDF',
+            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0
+        });
+    } catch (error) {
+        console.error('Error in /api/test:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.get('/api/rentals', (req, res) => {
+    try {
+        const { search, province, type } = req.query;
+        let filtered = CURRENT_RENTALS || [];
+
+        if (search) {
+            const searchLower = search.toLowerCase();
+            filtered = filtered.filter(rental =>
+                rental && rental.name && rental.name.toLowerCase().includes(searchLower) ||
+                (rental.district && rental.district.toLowerCase().includes(searchLower)) ||
+                (rental.description && rental.description.toLowerCase().includes(searchLower)) ||
+                (rental.province && rental.province.toLowerCase().includes(searchLower)) ||
+                (rental.type && rental.type.toLowerCase().includes(searchLower))
+            );
+        }
+
+        if (province && province !== '') {
+            filtered = filtered.filter(rental =>
+                rental && rental.province && rental.province.toLowerCase() === province.toLowerCase()
+            );
+        }
+
+        if (type && type !== '') {
+            filtered = filtered.filter(rental =>
+                rental && rental.type && rental.type.toLowerCase() === type.toLowerCase()
+            );
+        }
+
+        res.json(filtered);
+    } catch (error) {
+        console.error('Error in /api/rentals:', error);
+        res.status(500).json({ error: 'Error al buscar hospedajes' });
+    }
+});
+
+app.get('/api/provinces', (req, res) => {
+    try {
+        const provinces = CURRENT_RENTALS ?
+            [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))].sort() : [];
+        res.json(provinces);
+    } catch (error) {
+        console.error('Error in /api/provinces:', error);
+        res.status(500).json({ error: 'Error cargando provincias' });
+    }
+});
+
+app.get('/api/types', (req, res) => {
+    try {
+        const types = CURRENT_RENTALS ?
+            [...new Set(CURRENT_RENTALS.map(r => r?.type).filter(Boolean))].sort() : [];
+        res.json(types);
+    } catch (error) {
+        console.error('Error in /api/types:', error);
+        res.status(500).json({ error: 'Error cargando tipos' });
+    }
+});
+
+app.get('/api/stats', (req, res) => {
+    try {
+        res.json({
+            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
+            data_source: 'LIVE_ATP_DATA',
+            status: PDF_STATUS,
+            note: 'Datos oficiales de la Autoridad de Turismo de Panamá'
+        });
+    } catch (error) {
+        console.error('Error in /api/stats:', error);
+        res.status(500).json({ error: 'Error cargando estadísticas' });
+    }
+});
+
+app.get('/api/debug-pdf', (req, res) => {
+    try {
+        const sampleWithContacts = CURRENT_RENTALS ?
+            CURRENT_RENTALS.filter(rental => rental && (rental.email || rental.phone)).slice(0, 10) : [];
+
+        res.json({
+            pdf_status: PDF_STATUS,
+            total_rentals_found: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            last_update: LAST_PDF_UPDATE,
+            sample_with_contacts: sampleWithContacts,
+            all_provinces: CURRENT_RENTALS ?
+                [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))] : [],
+            all_types: CURRENT_RENTALS ?
+                [...new Set(CURRENT_RENTALS.map(r => r?.type).filter(Boolean))] : []
+        });
+    } catch (error) {
+        console.error('Error in /api/debug-pdf:', error);
+        res.status(500).json({ error: 'Error en debug' });
+    }
+});
+
+app.post('/api/refresh-pdf', async (req, res) => {
+    try {
+        const success = await fetchAndParsePDF();
+        res.json({
+            success: success,
+            message: success ? 'PDF data refreshed successfully' : 'Failed to refresh PDF data',
+            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            status: PDF_STATUS,
+            last_update: LAST_PDF_UPDATE
+        });
+    } catch (error) {
+        console.error('Error in /api/refresh-pdf:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        rentals_loaded: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+        pdf_status: PDF_STATUS
+    });
+});
 
 // Initialize
 app.listen(PORT, async () => {
     console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
+    console.log(`📍 Health check: http://localhost:${PORT}/health`);
 
     // Load PDF data on startup
     setTimeout(async () => {
-        await fetchAndParsePDF();
-        console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
+        try {
+            await fetchAndParsePDF();
+            console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
+        } catch (error) {
+            console.error('Error during startup:', error);
+            CURRENT_RENTALS = getFallbackData();
+        }
     }, 2000);
 });
