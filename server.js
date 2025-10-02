@@ -49,7 +49,7 @@ async function fetchAndParsePDF() {
     return false;
 }
 
-// NEW: Content-based parser that handles multi-line elements
+// Content-based parser that handles multi-line elements
 function parsePDFText(text) {
     console.log('=== PARSING ATP PDF DATA ===');
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
@@ -115,7 +115,7 @@ function parsePDFText(text) {
     return rentals;
 }
 
-// NEW: Parse province section using content-based element identification
+// Parse province section using content-based element identification
 function parseProvinceSection(sectionLines, province) {
     const rentals = [];
 
@@ -126,7 +126,9 @@ function parseProvinceSection(sectionLines, province) {
     for (const record of records) {
         if (record.name && record.name.length > 2) {
             const rental = createRentalObject(record.name, record.type, record.email, record.phone, province);
-            rentals.push(rental);
+            if (rental) {
+                rentals.push(rental);
+            }
         }
     }
 
@@ -134,7 +136,7 @@ function parseProvinceSection(sectionLines, province) {
     return rentals;
 }
 
-// NEW: Reconstruct records by identifying elements based on content characteristics
+// Reconstruct records by identifying elements based on content characteristics
 function reconstructRecords(sectionLines) {
     const records = [];
     let currentRecord = { name: '', type: '', email: '', phone: '' };
@@ -173,6 +175,8 @@ function reconstructRecords(sectionLines) {
                 currentRecord.email = (currentRecord.email + line).replace(/\s+/g, '');
             } else if (lastElement === 'phone') {
                 currentRecord.phone += ' ' + line;
+            } else if (lastElement === 'type') {
+                currentRecord.type += ' ' + line;
             }
             pendingLines.push(line);
         } else {
@@ -198,7 +202,7 @@ function reconstructRecords(sectionLines) {
     return records;
 }
 
-// NEW: Identify element type based on content characteristics
+// Identify element type based on content characteristics
 function identifyElementType(line) {
     // Check for email first (most specific)
     if (isEmailLine(line)) {
@@ -224,7 +228,7 @@ function identifyElementType(line) {
     return 'name';
 }
 
-// NEW: Check if a line is a continuation of the previous element
+// Check if a line is a continuation of the previous element
 function isContinuationLine(line, pendingLines) {
     if (pendingLines.length === 0) return false;
 
@@ -248,7 +252,7 @@ function isContinuationLine(line, pendingLines) {
     return false;
 }
 
-// NEW: Get the type of the last element being processed
+// Get the type of the last element being processed
 function getLastElementType(currentRecord, pendingLines) {
     if (pendingLines.length === 0) return '';
 
@@ -256,7 +260,7 @@ function getLastElementType(currentRecord, pendingLines) {
     return identifyElementType(lastLine);
 }
 
-// IMPROVED: Better helper functions with content-based detection
+// Helper functions
 function isHeaderLine(line) {
     return line.includes('Reporte de Hospedajes vigentes') ||
            line.includes('Reporte: rep_hos_web') ||
@@ -350,16 +354,6 @@ function extractFirstPhone(text) {
 
             // Ensure we have a complete number
             if (phone.length >= 7) {
-                // Format as 8-digit for consistency (add leading 6 if missing for mobile)
-                if (phone.length === 7) {
-                    // Landline number, keep as is
-                    return phone;
-                } else if (phone.length === 8) {
-                    // Mobile number, ensure it starts with 6 or 7
-                    if (phone.startsWith('6') || phone.startsWith('7')) {
-                        return phone;
-                    }
-                }
                 return phone;
             }
         }
@@ -448,21 +442,195 @@ function getFallbackData() {
             google_maps_url: "https://maps.google.com/?q=SOCIALTEL%20BOCAS%20DEL%20TORO%20BOCAS%20DEL%20TORO%20Panam%C3%A1",
             whatsapp: "64061547",
             source: "ATP_OFFICIAL"
+        },
+        {
+            name: "RED FROG BEACH",
+            type: "Albergue",
+            email: "reception.redfrog@collectivehospitality.com",
+            phone: "61127504",
+            province: "BOCAS DEL TORO",
+            district: "Bocas del Toro",
+            description: "Albergue \"RED FROG BEACH\" ubicado en BOCAS DEL TORO, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).",
+            google_maps_url: "https://maps.google.com/?q=RED%20FROG%20BEACH%20BOCAS%20DEL%20TORO%20Panam%C3%A1",
+            whatsapp: "61127504",
+            source: "ATP_OFFICIAL"
         }
-        // Add more fallback records as needed
     ];
 }
 
-// Keep all your existing API routes (they remain the same)
-// ... [all your API routes] ...
+// API Routes - MAKE SURE ALL ROUTES ARE DEFINED
+app.get('/api/test', (req, res) => {
+    res.json({
+        message: 'ATP Rentals Search API is working!',
+        status: 'success',
+        timestamp: new Date().toISOString(),
+        data_source: 'LIVE_ATP_PDF',
+        total_rentals: CURRENT_RENTALS.length
+    });
+});
+
+app.get('/api/rentals', (req, res) => {
+    try {
+        const { search, province, type } = req.query;
+        let filtered = [...CURRENT_RENTALS];
+
+        if (search) {
+            const searchLower = search.toLowerCase();
+            filtered = filtered.filter(rental =>
+                rental.name.toLowerCase().includes(searchLower) ||
+                (rental.district && rental.district.toLowerCase().includes(searchLower)) ||
+                (rental.description && rental.description.toLowerCase().includes(searchLower)) ||
+                rental.province.toLowerCase().includes(searchLower) ||
+                rental.type.toLowerCase().includes(searchLower)
+            );
+        }
+
+        if (province && province !== '') {
+            filtered = filtered.filter(rental =>
+                rental.province.toLowerCase() === province.toLowerCase()
+            );
+        }
+
+        if (type && type !== '') {
+            filtered = filtered.filter(rental =>
+                rental.type.toLowerCase() === type.toLowerCase()
+            );
+        }
+
+        res.json(filtered);
+    } catch (error) {
+        console.error('Error in /api/rentals:', error);
+        res.status(500).json({ error: 'Error al buscar hospedajes' });
+    }
+});
+
+app.get('/api/provinces', (req, res) => {
+    try {
+        const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province).filter(Boolean))].sort();
+        res.json(provinces);
+    } catch (error) {
+        console.error('Error in /api/provinces:', error);
+        res.status(500).json({ error: 'Error cargando provincias' });
+    }
+});
+
+app.get('/api/types', (req, res) => {
+    try {
+        const types = [...new Set(CURRENT_RENTALS.map(r => r.type).filter(Boolean))].sort();
+        res.json(types);
+    } catch (error) {
+        console.error('Error in /api/types:', error);
+        res.status(500).json({ error: 'Error cargando tipos' });
+    }
+});
+
+app.get('/api/stats', (req, res) => {
+    try {
+        res.json({
+            total_rentals: CURRENT_RENTALS.length,
+            last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
+            data_source: 'LIVE_ATP_DATA',
+            status: PDF_STATUS,
+            note: 'Datos oficiales de la Autoridad de Turismo de Panamá (ATP)'
+        });
+    } catch (error) {
+        console.error('Error in /api/stats:', error);
+        res.status(500).json({ error: 'Error cargando estadísticas' });
+    }
+});
+
+app.get('/api/debug-pdf', (req, res) => {
+    try {
+        const sampleWithContacts = CURRENT_RENTALS
+            .filter(rental => rental.email || rental.phone)
+            .slice(0, 10);
+
+        res.json({
+            pdf_status: PDF_STATUS,
+            total_rentals_found: CURRENT_RENTALS.length,
+            last_update: LAST_PDF_UPDATE,
+            sample_with_contacts: sampleWithContacts,
+            all_provinces: [...new Set(CURRENT_RENTALS.map(r => r.province).filter(Boolean))],
+            all_types: [...new Set(CURRENT_RENTALS.map(r => r.type).filter(Boolean))]
+        });
+    } catch (error) {
+        console.error('Error in /api/debug-pdf:', error);
+        res.status(500).json({ error: 'Error en debug' });
+    }
+});
+
+app.post('/api/refresh-pdf', async (req, res) => {
+    try {
+        const success = await fetchAndParsePDF();
+        res.json({
+            success: success,
+            message: success ? 'PDF data refreshed successfully' : 'Failed to refresh PDF data',
+            total_rentals: CURRENT_RENTALS.length,
+            status: PDF_STATUS,
+            last_update: LAST_PDF_UPDATE
+        });
+    } catch (error) {
+        console.error('Error in /api/refresh-pdf:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Debug endpoint to check structure
+app.get('/api/debug-structure', async (req, res) => {
+    try {
+        let pdfText = '';
+
+        // Fetch PDF
+        for (const pdfUrl of PDF_URLS) {
+            try {
+                const response = await axios.get(pdfUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 30000
+                });
+
+                if (response.status === 200) {
+                    const data = await pdf(response.data);
+                    pdfText = data.text;
+                    break;
+                }
+            } catch (error) {
+                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
+            }
+        }
+
+        if (!pdfText) {
+            return res.status(500).json({ error: 'Could not fetch PDF' });
+        }
+
+        const parsedRentals = parsePDFText(pdfText);
+        const bocasRentals = parsedRentals.filter(r => r.province === 'BOCAS DEL TORO');
+
+        res.json({
+            total_rentals: parsedRentals.length,
+            bocas_del_toro_count: bocasRentals.length,
+            bocas_sample: bocasRentals.slice(0, 5),
+            sample_with_contacts: parsedRentals.filter(r => r.email || r.phone).slice(0, 3)
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // Initialize
 app.listen(PORT, async () => {
     console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
+    console.log(`📍 Frontend should be accessible`);
 
     // Load PDF data on startup
     setTimeout(async () => {
         await fetchAndParsePDF();
         console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
+
+        // Log available provinces and types for debugging
+        const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province))];
+        const types = [...new Set(CURRENT_RENTALS.map(r => r.type))];
+        console.log(`📊 Available provinces: ${provinces.join(', ')}`);
+        console.log(`🏨 Available types: ${types.join(', ')}`);
     }, 2000);
 });
