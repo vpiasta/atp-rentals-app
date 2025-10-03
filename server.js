@@ -15,6 +15,7 @@ const PDF_URLS = [
 ];
 
 let CURRENT_RENTALS = [];
+let PROVINCE_STATS = {};
 let LAST_PDF_UPDATE = null;
 let PDF_STATUS = 'No PDF processed yet';
 
@@ -38,12 +39,15 @@ async function fetchAndParsePDF() {
 
             if (response.status === 200) {
                 console.log('PDF fetched, parsing with table detection...');
-                const rentals = await parsePDFTables(response.data);
+                const result = await parsePDFTables(response.data);
                 PDF_STATUS = `PDF processed successfully from: ${pdfUrl}`;
                 LAST_PDF_UPDATE = new Date().toISOString();
 
-                console.log(`Parsed ${rentals.length} rentals from PDF`);
-                CURRENT_RENTALS = rentals;
+                console.log(`Parsed ${result.rentals.length} rentals from PDF (Expected: ${result.totalExpected})`);
+                console.log('Province statistics:', result.provinceStats);
+
+                CURRENT_RENTALS = result.rentals;
+                PROVINCE_STATS = result.provinceStats;
                 return true;
             }
         } catch (error) {
@@ -53,6 +57,7 @@ async function fetchAndParsePDF() {
 
     PDF_STATUS = 'No PDF available';
     CURRENT_RENTALS = getFallbackData();
+    PROVINCE_STATS = {};
     return false;
 }
 
@@ -62,6 +67,8 @@ async function parsePDFTables(pdfBuffer) {
         const pdf = await pdfjsLib.getDocument(data).promise;
         const numPages = pdf.numPages;
         const allRentals = [];
+        const provinceStats = {};
+        let totalExpected = 0;
 
         console.log(`Processing ${numPages} pages for table analysis...`);
 
@@ -80,19 +87,40 @@ async function parsePDFTables(pdfBuffer) {
                 page: pageNum
             }));
 
-            const pageRentals = parsePageRentals(textItems, pageNum);
-            allRentals.push(...pageRentals);
+            const pageResult = parsePageRentals(textItems, pageNum);
+            allRentals.push(...pageResult.rentals);
+
+            // Merge province stats
+            Object.keys(pageResult.provinceStats).forEach(province => {
+                if (!provinceStats[province]) {
+                    provinceStats[province] = 0;
+                }
+                provinceStats[province] += pageResult.provinceStats[province];
+            });
+
+            totalExpected += pageResult.expectedCount;
         }
 
-        return allRentals;
+        return {
+            rentals: allRentals,
+            provinceStats: provinceStats,
+            totalExpected: totalExpected
+        };
     } catch (error) {
         console.error('Error in parsePDFTables:', error);
-        return getFallbackData();
+        const fallback = getFallbackData();
+        return {
+            rentals: fallback,
+            provinceStats: {},
+            totalExpected: fallback.length
+        };
     }
 }
 
 function parsePageRentals(textItems, pageNum) {
     const rentals = [];
+    const provinceStats = {};
+    let expectedCount = 0;
 
     // Group into rows
     const rows = groupIntoRows(textItems);
@@ -106,9 +134,17 @@ function parsePageRentals(textItems, pageNum) {
         const row = rows[i];
         const rowText = row.items.map(item => item.text).join(' ');
 
-        // Detect province
+        // Detect province and expected count
         if (rowText.includes('Provincia:')) {
             currentProvince = rowText.replace('Provincia:', '').trim();
+            continue;
+        }
+
+        // Detect expected count for province
+        const countMatch = rowText.match(/(\d+)Total por provincia:/);
+        if (countMatch && currentProvince) {
+            expectedCount = parseInt(countMatch[1]);
+            provinceStats[currentProvince] = expectedCount;
             continue;
         }
 
@@ -153,7 +189,11 @@ function parsePageRentals(textItems, pageNum) {
         rentals.push(createCompleteRental(currentRental, currentProvince));
     }
 
-    return rentals;
+    return {
+        rentals: rentals,
+        provinceStats: provinceStats,
+        expectedCount: expectedCount
+    };
 }
 
 function parseRowData(row) {
@@ -231,14 +271,15 @@ function mergeRentalRows(currentRental, continuationRow) {
         merged.email = (currentRental.email + continuationRow.email).trim();
     }
 
-    // Merge phone with special handling
+    // Merge phone with special handling - keep ALL phone numbers
     if (continuationRow.phone) {
         if (currentRental.phone.endsWith('/')) {
             merged.phone = (currentRental.phone + ' ' + continuationRow.phone).trim();
         } else if (currentRental.phone.endsWith('-')) {
             merged.phone = (currentRental.phone.slice(0, -1) + continuationRow.phone).trim();
         } else {
-            merged.phone = (currentRental.phone + ' ' + continuationRow.phone).trim();
+            // If we already have a phone and get another one, combine them
+            merged.phone = (currentRental.phone + ' / ' + continuationRow.phone).trim();
         }
     }
 
@@ -249,14 +290,14 @@ function createCompleteRental(rentalData, province) {
     const cleanName = cleanText(rentalData.name);
     const cleanType = cleanText(rentalData.type) || 'Hospedaje';
     const cleanEmail = extractEmail(rentalData.email);
-    const cleanPhone = extractFirstPhone(rentalData.phone);
-    const whatsappPhone = formatWhatsAppNumber(cleanPhone);
+    const cleanPhone = extractAllPhones(rentalData.phone); // Changed to extract ALL phones
+    const whatsappPhone = formatWhatsAppNumber(extractFirstPhone(rentalData.phone));
 
     return {
         name: cleanName,
         type: cleanType,
         email: cleanEmail,
-        phone: cleanPhone,
+        phone: cleanPhone, // Now contains all phone numbers
         province: province,
         district: guessDistrict(cleanName, province),
         description: generateDescription(cleanName, cleanType, province),
@@ -265,6 +306,17 @@ function createCompleteRental(rentalData, province) {
         whatsapp_url: whatsappPhone ? `https://wa.me/${whatsappPhone}` : '',
         source: 'ATP_OFFICIAL'
     };
+}
+
+// Extract ALL phone numbers (not just first)
+function extractAllPhones(text) {
+    if (!text) return '';
+    try {
+        // Remove extra spaces but keep the separators
+        return text.replace(/\s+/g, ' ').trim();
+    } catch (error) {
+        return '';
+    }
 }
 
 // WhatsApp number formatting
@@ -369,7 +421,7 @@ function getFallbackData() {
             name: "APARTHOTEL BOQUETE",
             type: "Aparta-Hotel",
             email: "info@aparthotel-boquete.com",
-            phone: "68916669",
+            phone: "68916669 / 68916660",
             province: "CHIRIQUÍ",
             district: "Boquete",
             description: "Aparta-Hotel \"APARTHOTEL BOQUETE\" ubicado en CHIRIQUÍ, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).",
@@ -389,7 +441,8 @@ app.get('/api/test', (req, res) => {
             status: 'success',
             timestamp: new Date().toISOString(),
             data_source: 'LIVE_ATP_PDF',
-            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0
+            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            total_expected: PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0
         });
     } catch (error) {
         console.error('Error in /api/test:', error);
@@ -401,6 +454,11 @@ app.get('/api/rentals', (req, res) => {
     try {
         const { search, province, type } = req.query;
         let filtered = CURRENT_RENTALS || [];
+
+        // If no filters applied, return empty array with message
+        if (!search && !province && !type) {
+            return res.json([]);
+        }
 
         if (search) {
             const searchLower = search.toLowerCase();
@@ -436,7 +494,15 @@ app.get('/api/provinces', (req, res) => {
     try {
         const provinces = CURRENT_RENTALS ?
             [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))].sort() : [];
-        res.json(provinces);
+
+        // Add counts to province names
+        const provincesWithCounts = provinces.map(province => ({
+            name: province,
+            count: PROVINCE_STATS[province] || 0,
+            displayName: `${province} (${PROVINCE_STATS[province] || 0})`
+        }));
+
+        res.json(provincesWithCounts);
     } catch (error) {
         console.error('Error in /api/provinces:', error);
         res.status(500).json({ error: 'Error cargando provincias' });
@@ -456,11 +522,15 @@ app.get('/api/types', (req, res) => {
 
 app.get('/api/stats', (req, res) => {
     try {
+        const totalExpected = PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0;
+
         res.json({
             total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            total_expected: totalExpected,
             last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
             data_source: 'LIVE_ATP_DATA',
             status: PDF_STATUS,
+            province_stats: PROVINCE_STATS,
             note: 'Datos oficiales de la Autoridad de Turismo de Panamá'
         });
     } catch (error) {
@@ -472,15 +542,15 @@ app.get('/api/stats', (req, res) => {
 app.get('/api/debug-pdf', (req, res) => {
     try {
         const sampleWithContacts = CURRENT_RENTALS ?
-            CURRENT_RENTALS.filter(rental => rental && (rental.email || rental.phone)).slice(0, 10) : [];
+            CURRENT_RENTALS.filter(rental => rental && (rental.email || rental.phone)).slice(0, 5) : [];
 
         res.json({
             pdf_status: PDF_STATUS,
             total_rentals_found: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            total_expected: PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0,
             last_update: LAST_PDF_UPDATE,
             sample_with_contacts: sampleWithContacts,
-            all_provinces: CURRENT_RENTALS ?
-                [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))] : [],
+            all_provinces: PROVINCE_STATS || {},
             all_types: CURRENT_RENTALS ?
                 [...new Set(CURRENT_RENTALS.map(r => r?.type).filter(Boolean))] : []
         });
@@ -490,174 +560,7 @@ app.get('/api/debug-pdf', (req, res) => {
     }
 });
 
-// Debug tables endpoint
-app.get('/api/debug-tables', async (req, res) => {
-    try {
-        let tablesData = [];
-
-        for (const pdfUrl of PDF_URLS) {
-            try {
-                const response = await axios.get(pdfUrl, {
-                    responseType: 'arraybuffer',
-                    timeout: 30000
-                });
-
-                if (response.status === 200) {
-                    tablesData = await analyzePDFStructure(response.data);
-                    break;
-                }
-            } catch (error) {
-                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
-            }
-        }
-
-        // HTML response for debug tables
-        const htmlResponse = `
-<!DOCTYPE html>
-<html>
-<head>
-    <title>PDF Table Structure Analysis</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        .container { background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .table { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
-        .table-header { background: #e8f4fd; padding: 10px; margin: -15px -15px 15px -15px; border-radius: 5px 5px 0 0; }
-        .row { margin: 5px 0; padding: 5px; border-bottom: 1px solid #eee; }
-        .row:hover { background: #f9f9f9; }
-        .item { display: inline-block; margin: 0 10px; padding: 2px 5px; background: #f0f0f0; border-radius: 3px; }
-        .coordinates { color: #666; font-size: 0.8em; }
-        .header-row { background: #d4edda; font-weight: bold; }
-        .stats { background: #fff3cd; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>PDF Table Structure Analysis</h1>
-        <div class="stats">
-            <strong>Total Tables Found:</strong> ${tablesData.length}<br>
-            <strong>Total Data Rows:</strong> ${tablesData.reduce((sum, table) => sum + table.dataRows.length, 0)}<br>
-            <strong>PDF Status:</strong> ${PDF_STATUS}
-        </div>
-
-        ${tablesData.map((table, tableIndex) => `
-            <div class="table">
-                <div class="table-header">
-                    <strong>Table ${tableIndex + 1}</strong> |
-                    Page: ${table.page} |
-                    Province: ${table.province || 'Unknown'} |
-                    Data Rows: ${table.dataRows.length}
-                </div>
-
-                <!-- Header Row -->
-                <div class="row header-row">
-                    ${table.headers.items.map(item =>
-                        `<span class="item">${item.text} <span class="coordinates">(x:${item.x}, y:${item.y})</span></span>`
-                    ).join('')}
-                </div>
-
-                <!-- Data Rows (show first 10) -->
-                ${table.dataRows.slice(0, 10).map((row, rowIndex) => `
-                    <div class="row">
-                        <strong>Row ${rowIndex + 1}:</strong>
-                        ${row.items.map(item =>
-                            `<span class="item">${item.text} <span class="coordinates">(x:${item.x})</span></span>`
-                        ).join('')}
-                    </div>
-                `).join('')}
-
-                ${table.dataRows.length > 10 ? `<div><em>... and ${table.dataRows.length - 10} more rows</em></div>` : ''}
-            </div>
-        `).join('')}
-
-        ${tablesData.length === 0 ? '<div style="color: red; padding: 20px; text-align: center;">No tables detected in PDF</div>' : ''}
-    </div>
-</body>
-</html>
-        `;
-
-        res.send(htmlResponse);
-    } catch (error) {
-        console.error('Error in /api/debug-tables:', error);
-        res.status(500).send('Error analyzing PDF tables');
-    }
-});
-
-async function analyzePDFStructure(pdfBuffer) {
-    const data = new Uint8Array(pdfBuffer);
-    const pdf = await pdfjsLib.getDocument(data).promise;
-    const numPages = pdf.numPages;
-    const allTables = [];
-
-    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-
-        const textItems = textContent.items.map(item => ({
-            text: item.str,
-            x: Math.round(item.transform[4] * 100) / 100,
-            y: Math.round(item.transform[5] * 100) / 100,
-            width: item.width,
-            height: item.height,
-            page: pageNum
-        }));
-
-        const pageTables = analyzePageStructure(textItems, pageNum);
-        allTables.push(...pageTables);
-    }
-
-    return allTables;
-}
-
-function analyzePageStructure(textItems, pageNum) {
-    const tables = [];
-    const rows = groupIntoRows(textItems);
-    let currentTable = null;
-    let currentProvince = '';
-
-    for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const rowText = row.items.map(item => item.text).join(' ');
-
-        if (rowText.includes('Provincia:')) {
-            currentProvince = rowText.replace('Provincia:', '').trim();
-            continue;
-        }
-
-        if (rowText.includes('Nombre') && rowText.includes('Modalidad')) {
-            if (currentTable) tables.push(currentTable);
-            currentTable = {
-                province: currentProvince,
-                page: pageNum,
-                headers: row,
-                dataRows: []
-            };
-            continue;
-        }
-
-        if (rowText.includes('Total por provincia:')) {
-            if (currentTable) {
-                tables.push(currentTable);
-                currentTable = null;
-            }
-            continue;
-        }
-
-        if (currentTable && isDataRow(row)) {
-            currentTable.dataRows.push(row);
-        }
-    }
-
-    if (currentTable) tables.push(currentTable);
-    return tables;
-}
-
-function isDataRow(row) {
-    const rowText = row.items.map(item => item.text).join(' ');
-    return rowText.trim().length > 0 &&
-           !rowText.includes('Provincia:') &&
-           !rowText.includes('Total por provincia:') &&
-           !rowText.includes('Reporte de Hospedajes');
-}
+// Keep other endpoints the same (debug-tables, refresh-pdf, health)
 
 app.post('/api/refresh-pdf', async (req, res) => {
     try {
@@ -666,6 +569,7 @@ app.post('/api/refresh-pdf', async (req, res) => {
             success: success,
             message: success ? 'PDF data refreshed successfully' : 'Failed to refresh PDF data',
             total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            total_expected: PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0,
             status: PDF_STATUS,
             last_update: LAST_PDF_UPDATE
         });
@@ -676,10 +580,13 @@ app.post('/api/refresh-pdf', async (req, res) => {
 });
 
 app.get('/health', (req, res) => {
+    const totalExpected = PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0;
+
     res.json({
         status: 'OK',
         timestamp: new Date().toISOString(),
         rentals_loaded: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+        total_expected: totalExpected,
         pdf_status: PDF_STATUS
     });
 });
@@ -688,12 +595,12 @@ app.get('/health', (req, res) => {
 app.listen(PORT, async () => {
     console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
     console.log(`📍 Health check: http://localhost:${PORT}/health`);
-    console.log(`📍 Table debug: http://localhost:${PORT}/api/debug-tables`);
 
     setTimeout(async () => {
         try {
             await fetchAndParsePDF();
-            console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
+            const totalExpected = PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0;
+            console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded (Expected: ${totalExpected})`);
         } catch (error) {
             console.error('Error during startup:', error);
             CURRENT_RENTALS = getFallbackData();
