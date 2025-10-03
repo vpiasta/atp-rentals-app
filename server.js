@@ -1,5 +1,25 @@
+const express = require('express');
+const axios = require('axios');
+const pdf = require('pdf-parse');
 const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+const cors = require('cors');
 
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
+
+const PDF_URLS = [
+    'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf'
+];
+
+let CURRENT_RENTALS = [];
+let LAST_PDF_UPDATE = null;
+let PDF_STATUS = 'No PDF processed yet';
+
+// NEW: PDF parsing with pdfjs-dist (positional data)
 async function fetchAndParsePDF() {
     for (const pdfUrl of PDF_URLS) {
         try {
@@ -29,6 +49,7 @@ async function fetchAndParsePDF() {
     return false;
 }
 
+// NEW: Parse PDF with positional data
 async function parsePDFWithPositionalData(pdfBuffer) {
     try {
         const data = new Uint8Array(pdfBuffer);
@@ -64,6 +85,7 @@ async function parsePDFWithPositionalData(pdfBuffer) {
             );
             if (provinceItem) {
                 currentProvince = provinceItem.text.replace('Provincia:', '').trim();
+                console.log(`Found province: ${currentProvince}`);
             }
         }
 
@@ -75,6 +97,7 @@ async function parsePDFWithPositionalData(pdfBuffer) {
     }
 }
 
+// NEW: Process page items with positional grouping
 function processPageItems(textItems, currentProvince) {
     // Group items into rows based on Y-coordinate (with tolerance)
     const rows = {};
@@ -112,12 +135,14 @@ function processPageItems(textItems, currentProvince) {
         // Detect province
         if (rowText.includes('Provincia:')) {
             currentProvince = rowText.replace('Provincia:', '').trim();
+            console.log(`Processing province: ${currentProvince}`);
             return;
         }
 
         // Detect table start (column headers)
         if (rowText.includes('Nombre') && rowText.includes('Modalidad')) {
             inRentalTable = true;
+            console.log('Entering rental table section');
             return;
         }
 
@@ -129,10 +154,11 @@ function processPageItems(textItems, currentProvince) {
                 rentals.push(createRentalObject(currentRental, currentProvince));
                 currentRental = null;
             }
+            console.log('Exiting rental table section');
             return;
         }
 
-        if (inRentalTable) {
+        if (inRentalTable && currentProvince) {
             // Check if this looks like a new rental property row
             const looksLikePropertyName = isPotentialPropertyName(rowText);
             const hasMultipleColumns = rowItems.length >= 2;
@@ -145,6 +171,7 @@ function processPageItems(textItems, currentProvince) {
 
                 // Start new rental
                 currentRental = parseRentalRow(rowItems, currentProvince);
+                console.log(`Found rental: ${currentRental.name}`);
             } else if (currentRental && !currentRental.type && isTypeLine(rowText)) {
                 // This might be the type for the current rental (on next row)
                 currentRental.type = rowText;
@@ -164,6 +191,7 @@ function processPageItems(textItems, currentProvince) {
     return rentals;
 }
 
+// NEW: Parse rental row from positioned items
 function parseRentalRow(rowItems, province) {
     const rental = { province };
 
@@ -172,7 +200,11 @@ function parseRentalRow(rowItems, province) {
         item.text.trim().length > 2 &&
         !isTypeLine(item.text) &&
         !isEmailLine(item.text) &&
-        !isPhoneLine(item.text)
+        !isPhoneLine(item.text) &&
+        item.text !== 'Nombre' &&
+        item.text !== 'Modalidad' &&
+        item.text !== 'Correo Principal' &&
+        item.text !== 'Cel/Teléfono'
     );
 
     if (nameItem) {
@@ -200,6 +232,7 @@ function parseRentalRow(rowItems, province) {
     return rental;
 }
 
+// NEW: Create rental object from parsed data
 function createRentalObject(rentalData, province) {
     return {
         name: cleanText(rentalData.name),
@@ -215,4 +248,257 @@ function createRentalObject(rentalData, province) {
     };
 }
 
-// Keep all your existing helper functions (isHeaderLine, isTypeLine, etc.)
+// KEEP ALL EXISTING HELPER FUNCTIONS (unchanged)
+function isHeaderLine(line) {
+    return line.includes('Reporte de Hospedajes vigentes') ||
+           line.includes('Reporte: rep_hos_web') ||
+           line.includes('Actualizado al') ||
+           line.match(/Página \d+ de \d+/);
+}
+
+function isPotentialPropertyName(line) {
+    return line && line.length > 3 &&
+           !line.includes('@') &&
+           !isPhoneLine(line) &&
+           !isTypeLine(line) &&
+           line !== 'Nombre' &&
+           line !== 'Modalidad' &&
+           line !== 'Correo Principal' &&
+           line !== 'Cel/Teléfono' &&
+           line !== 'Teléfono';
+}
+
+function isTypeLine(line) {
+    if (!line) return false;
+    const types = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort', 'Ecolodge', 'Hospedaje', 'Cabaña'];
+    return types.some(type => line.includes(type));
+}
+
+function isEmailLine(line) {
+    return line && line.includes('@');
+}
+
+function isPhoneLine(line) {
+    return line && line.match(/\d{7,8}/);
+}
+
+function extractEmail(text) {
+    if (!text) return '';
+    try {
+        const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+        return match ? match[1] : '';
+    } catch (error) {
+        return '';
+    }
+}
+
+function extractFirstPhone(text) {
+    if (!text) return '';
+    try {
+        // Remove slashes and hyphens, take first 8 digits
+        const cleanText = text.replace(/[-\/\s]/g, '');
+        const match = cleanText.match(/(\d{7,8})/);
+        return match ? match[1] : '';
+    } catch (error) {
+        return '';
+    }
+}
+
+function cleanText(text) {
+    if (!text) return '';
+    return text.replace(/\s+/g, ' ').trim();
+}
+
+function guessDistrict(name, province) {
+    const districtMap = {
+        'BOCAS DEL TORO': 'Bocas del Toro',
+        'CHIRIQUÍ': 'David',
+        'COCLÉ': 'Penonomé',
+        'COLÓN': 'Colón',
+        'DARIÉN': 'La Palma',
+        'HERRERA': 'Chitré',
+        'LOS SANTOS': 'Las Tablas',
+        'PANAMÁ': 'Ciudad de Panamá',
+        'PANAMÁ OESTE': 'La Chorrera',
+        'VERAGUAS': 'Santiago',
+        'GUNAS': 'Guna Yala',
+        'EMBERÁ': 'Emberá',
+        'NGÄBE-BUGLÉ': 'Ngäbe-Buglé'
+    };
+    return districtMap[province] || province;
+}
+
+function generateDescription(name, type, province) {
+    return `${type} "${name}" ubicado en ${province}, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).`;
+}
+
+function getFallbackData() {
+    return [
+        {
+            name: "APARTHOTEL BOQUETE",
+            type: "Aparta-Hotel",
+            email: "info@aparthotel-boquete.com",
+            phone: "68916669 / 68916660",
+            province: "CHIRIQUÍ",
+            district: "Boquete",
+            description: "Aparta-Hotel \"APARTHOTEL BOQUETE\" ubicado en CHIRIQUÍ, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).",
+            google_maps_url: "https://maps.google.com/?q=APARTHOTEL%20BOQUETE%20BOQUETE%20Panam%C3%A1",
+            whatsapp: "50768916669",
+            source: "ATP_OFFICIAL"
+        }
+    ];
+}
+
+// KEEP ALL EXISTING API ROUTES (unchanged)
+app.get('/api/test', (req, res) => {
+    try {
+        res.json({
+            message: 'ATP Rentals Search API is working!',
+            status: 'success',
+            timestamp: new Date().toISOString(),
+            data_source: 'LIVE_ATP_PDF',
+            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0
+        });
+    } catch (error) {
+        console.error('Error in /api/test:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.get('/api/rentals', (req, res) => {
+    try {
+        const { search, province, type } = req.query;
+        let filtered = CURRENT_RENTALS || [];
+
+        if (search) {
+            const searchLower = search.toLowerCase();
+            filtered = filtered.filter(rental =>
+                rental && rental.name && rental.name.toLowerCase().includes(searchLower) ||
+                (rental.district && rental.district.toLowerCase().includes(searchLower)) ||
+                (rental.description && rental.description.toLowerCase().includes(searchLower)) ||
+                (rental.province && rental.province.toLowerCase().includes(searchLower)) ||
+                (rental.type && rental.type.toLowerCase().includes(searchLower))
+            );
+        }
+
+        if (province && province !== '') {
+            filtered = filtered.filter(rental =>
+                rental && rental.province && rental.province.toLowerCase() === province.toLowerCase()
+            );
+        }
+
+        if (type && type !== '') {
+            filtered = filtered.filter(rental =>
+                rental && rental.type && rental.type.toLowerCase() === type.toLowerCase()
+            );
+        }
+
+        res.json(filtered);
+    } catch (error) {
+        console.error('Error in /api/rentals:', error);
+        res.status(500).json({ error: 'Error al buscar hospedajes' });
+    }
+});
+
+app.get('/api/provinces', (req, res) => {
+    try {
+        const provinces = CURRENT_RENTALS ?
+            [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))].sort() : [];
+        res.json(provinces);
+    } catch (error) {
+        console.error('Error in /api/provinces:', error);
+        res.status(500).json({ error: 'Error cargando provincias' });
+    }
+});
+
+app.get('/api/types', (req, res) => {
+    try {
+        const types = CURRENT_RENTALS ?
+            [...new Set(CURRENT_RENTALS.map(r => r?.type).filter(Boolean))].sort() : [];
+        res.json(types);
+    } catch (error) {
+        console.error('Error in /api/types:', error);
+        res.status(500).json({ error: 'Error cargando tipos' });
+    }
+});
+
+app.get('/api/stats', (req, res) => {
+    try {
+        res.json({
+            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
+            data_source: 'LIVE_ATP_DATA',
+            status: PDF_STATUS,
+            note: 'Datos oficiales de la Autoridad de Turismo de Panamá'
+        });
+    } catch (error) {
+        console.error('Error in /api/stats:', error);
+        res.status(500).json({ error: 'Error cargando estadísticas' });
+    }
+});
+
+app.get('/api/debug-pdf', (req, res) => {
+    try {
+        const sampleWithContacts = CURRENT_RENTALS ?
+            CURRENT_RENTALS.filter(rental => rental && (rental.email || rental.phone)).slice(0, 10) : [];
+
+        res.json({
+            pdf_status: PDF_STATUS,
+            total_rentals_found: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            last_update: LAST_PDF_UPDATE,
+            sample_with_contacts: sampleWithContacts,
+            all_provinces: CURRENT_RENTALS ?
+                [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))] : [],
+            all_types: CURRENT_RENTALS ?
+                [...new Set(CURRENT_RENTALS.map(r => r?.type).filter(Boolean))] : []
+        });
+    } catch (error) {
+        console.error('Error in /api/debug-pdf:', error);
+        res.status(500).json({ error: 'Error en debug' });
+    }
+});
+
+app.post('/api/refresh-pdf', async (req, res) => {
+    try {
+        const success = await fetchAndParsePDF();
+        res.json({
+            success: success,
+            message: success ? 'PDF data refreshed successfully' : 'Failed to refresh PDF data',
+            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            status: PDF_STATUS,
+            last_update: LAST_PDF_UPDATE
+        });
+    } catch (error) {
+        console.error('Error in /api/refresh-pdf:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        rentals_loaded: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+        pdf_status: PDF_STATUS
+    });
+});
+
+// NEW: Improved server startup with error handling
+const SERVER_PORT = process.env.PORT || 3000;
+
+app.listen(SERVER_PORT, async () => {
+    console.log(`🚀 ATP Rentals Search API running on port ${SERVER_PORT}`);
+    console.log(`📍 Health check: http://localhost:${SERVER_PORT}/health`);
+
+    try {
+        await fetchAndParsePDF();
+        console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
+    } catch (error) {
+        console.error('Error during startup:', error);
+        CURRENT_RENTALS = getFallbackData();
+        console.log('✅ Using fallback data');
+    }
+}).on('error', (err) => {
+    console.error('Server failed to start:', err);
+    process.exit(1);
+});
