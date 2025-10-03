@@ -4,3 +4,5 @@ The decoded data represent the PDF tables not as a congrunent collection of line
 The problem is that sometimes elements of a column are empty, and in other cases, one item (e.g. a long name) is spread over two column elements.
 Still trying to find a better decoding method for the PDF file.
 Unfortunately, the published PDF is the only publicly accessable source, and there is no public access to the underlying data base.
+
+Now trying differen pdf parsers
