@@ -195,23 +195,37 @@ function processPageItems(textItems, currentProvince) {
 function parseRentalRow(rowItems, province) {
     const rental = { province };
 
-    // Simple heuristic: assume first substantial text is name
-    const nameItem = rowItems.find(item =>
+    // Filter out obvious non-name items first
+    const potentialNames = rowItems.filter(item =>
         item.text.trim().length > 2 &&
         !isTypeLine(item.text) &&
         !isEmailLine(item.text) &&
         !isPhoneLine(item.text) &&
+        !isHeaderText(item.text) &&
         item.text !== 'Nombre' &&
         item.text !== 'Modalidad' &&
         item.text !== 'Correo Principal' &&
-        item.text !== 'Cel/Teléfono'
+        item.text !== 'Cel/Teléfono' &&
+        !item.text.match(/^\d+$/) && // Not just numbers
+        !item.text.match(/^\d+-\d+$/) // Not phone-like patterns
     );
 
-    if (nameItem) {
-        rental.name = nameItem.text.trim();
+    // Use the first substantial text as name, or combine if multiple
+    if (potentialNames.length > 0) {
+        rental.name = potentialNames.map(item => item.text.trim()).join(' ');
+    } else if (rowItems.length > 0) {
+        // Fallback: use first item that's not a obvious field
+        const fallbackName = rowItems.find(item =>
+            item.text.trim().length > 2 &&
+            !isTypeLine(item.text) &&
+            !isEmailLine(item.text)
+        );
+        if (fallbackName) {
+            rental.name = fallbackName.text.trim();
+        }
     }
 
-    // Look for type in the same row
+    // Look for type in the same row (more strict matching)
     const typeItem = rowItems.find(item => isTypeLine(item.text));
     if (typeItem) {
         rental.type = typeItem.text.trim();
@@ -223,13 +237,19 @@ function parseRentalRow(rowItems, province) {
         rental.email = emailItem.text.trim();
     }
 
-    // Look for phone in the same row
-    const phoneItem = rowItems.find(item => isPhoneLine(item.text));
+    // Look for phone in the same row (more strict matching)
+    const phoneItem = rowItems.find(item => isPhoneLine(item.text) && item.text.length >= 7);
     if (phoneItem) {
         rental.phone = phoneItem.text.trim();
     }
 
     return rental;
+}
+
+// Add this helper function
+function isHeaderText(text) {
+    const headers = ['Nombre', 'Modalidad', 'Correo Principal', 'Cel/Teléfono', 'Teléfono', 'Provincia:', 'Total por provincia:'];
+    return headers.includes(text.trim());
 }
 
 // NEW: Create rental object from parsed data
