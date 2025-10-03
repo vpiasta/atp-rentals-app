@@ -222,18 +222,41 @@ function processEmailLine(currentLine, lines, currentIndex) {
     return email.replace(/\s+/g, ''); // Remove all spaces
 }
 
+// New processPhoneLine function with this improved version:
 function processPhoneLine(currentLine, lines, currentIndex) {
     let phone = currentLine;
 
-    // Check if phone continues on next line
+    // Check if phone continues on next line (YOUR LOGIC: if ends with slash, combine with next)
     if (currentIndex + 1 < lines.length) {
         const nextLine = lines[currentIndex + 1];
-        if (isPhoneContinuation(currentLine, nextLine)) {
+
+        // YOUR LOGIC: If current line ends with "/", combine with next line
+        if (currentLine.trim().endsWith('/')) {
             phone += ' ' + nextLine;
+            // Mark the next line as processed
+            lines[currentIndex + 1] = 'PROCESSED';
+        }
+        // Also combine if next line looks like a phone continuation
+        else if (isPhoneContinuation(currentLine, nextLine)) {
+            phone += ' ' + nextLine;
+            lines[currentIndex + 1] = 'PROCESSED';
         }
     }
 
     return phone;
+}
+
+// isPhoneContinuation function:
+function isPhoneContinuation(currentLine, nextLine) {
+    // If current line ends with slash, definitely combine
+    if (currentLine.trim().endsWith('/')) return true;
+
+    // If current line has incomplete phone and next line has digits, combine
+    const currentDigits = (currentLine.match(/\d/g) || []).length;
+    const nextDigits = (nextLine.match(/\d/g) || []).length;
+
+    return (currentDigits < 8 && nextDigits > 0) ||
+           (currentLine.includes('-') && !currentLine.match(/\d{8}/));
 }
 
 function optimizeColumnsForTable(columns, expectedCount) {
