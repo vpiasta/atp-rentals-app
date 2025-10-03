@@ -503,6 +503,155 @@ app.get('/health', (req, res) => {
     });
 });
 
+// ADD THIS ENDPOINT to your server.js (place it with the other API routes)
+
+app.get('/api/debug-pdf-text', async (req, res) => {
+    try {
+        let pdfText = 'No PDF data available';
+
+        // Try to fetch and parse the PDF fresh
+        for (const pdfUrl of PDF_URLS) {
+            try {
+                console.log(`Fetching PDF for debug from: ${pdfUrl}`);
+                const response = await axios.get(pdfUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 30000
+                });
+
+                if (response.status === 200) {
+                    // Parse with pdf-parse for clean text
+                    const data = await pdf(response.data);
+                    pdfText = data.text;
+                    break;
+                }
+            } catch (error) {
+                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
+            }
+        }
+
+        // Return as HTML for easy viewing
+        const htmlResponse = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Text Debug</title>
+    <style>
+        body { font-family: monospace; white-space: pre-wrap; margin: 20px; background: #f5f5f5; }
+        .container { background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .line-number { color: #666; display: inline-block; width: 60px; text-align: right; margin-right: 10px; }
+        .line:hover { background: #f0f0f0; }
+        h1 { color: #333; }
+        .stats { background: #e8f4fd; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF Text Content Debug</h1>
+        <div class="stats">
+            <strong>Total lines:</strong> ${pdfText.split('\n').length}<br>
+            <strong>Total characters:</strong> ${pdfText.length}<br>
+            <strong>PDF Status:</strong> ${PDF_STATUS}
+        </div>
+        <div class="content">
+            ${pdfText.split('\n').map((line, index) =>
+                `<div class="line"><span class="line-number">${index + 1}</span>${escapeHtml(line)}</div>`
+            ).join('')}
+        </div>
+    </div>
+</body>
+</html>
+        `;
+
+        res.send(htmlResponse);
+    } catch (error) {
+        console.error('Error in /api/debug-pdf-text:', error);
+        res.status(500).json({ error: 'Error fetching PDF text' });
+    }
+});
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Alternative version that returns JSON if you prefer
+app.get('/api/debug-pdf-text-json', async (req, res) => {
+    try {
+        let pdfText = 'No PDF data available';
+
+        for (const pdfUrl of PDF_URLS) {
+            try {
+                const response = await axios.get(pdfUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 30000
+                });
+
+                if (response.status === 200) {
+                    const data = await pdf(response.data);
+                    pdfText = data.text;
+                    break;
+                }
+            } catch (error) {
+                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
+            }
+        }
+
+        const lines = pdfText.split('\n').map((line, index) => ({
+            lineNumber: index + 1,
+            content: line,
+            length: line.length,
+            hasEmail: line.includes('@'),
+            hasPhone: /\d{7,8}/.test(line),
+            isHeader: isHeaderLine(line),
+            isProvince: line.includes('Provincia:'),
+            isTotal: line.includes('Total por provincia:')
+        }));
+
+        res.json({
+            totalLines: lines.length,
+            totalCharacters: pdfText.length,
+            pdfStatus: PDF_STATUS,
+            lines: lines,
+            sampleFirstLines: lines.slice(0, 50), // First 50 lines
+            sampleLastLines: lines.slice(-50)     // Last 50 lines
+        });
+    } catch (error) {
+        console.error('Error in /api/debug-pdf-text-json:', error);
+        res.status(500).json({ error: 'Error fetching PDF text' });
+    }
+});
+
+app.get('/api/debug-pdf-text-raw', async (req, res) => {
+    try {
+        let pdfText = 'No PDF data available';
+
+        for (const pdfUrl of PDF_URLS) {
+            try {
+                const response = await axios.get(pdfUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 30000
+                });
+
+                if (response.status === 200) {
+                    const data = await pdf(response.data);
+                    pdfText = data.text;
+                    break;
+                }
+            } catch (error) {
+                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
+            }
+        }
+
+        res.set('Content-Type', 'text/plain');
+        res.send(pdfText);
+    } catch (error) {
+        console.error('Error in /api/debug-pdf-text-raw:', error);
+        res.status(500).send('Error fetching PDF text');
+    }
+});
+
 // NEW: Improved server startup with error handling
 const SERVER_PORT = process.env.PORT || 3000;
 
