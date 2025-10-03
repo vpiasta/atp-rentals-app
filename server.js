@@ -129,8 +129,15 @@ function parsePageRentals(textItems, pageNum) {
     let currentProvince = '';
     let inTable = false;
     let currentRental = null;
+    let skipNextRow = false; // NEW: flag to skip already processed continuation rows
 
     for (let i = 0; i < rows.length; i++) {
+        // NEW: Skip this row if it was already processed as a continuation
+        if (skipNextRow) {
+            skipNextRow = false;
+            continue;
+        }
+
         const row = rows[i];
         const rowText = row.items.map(item => item.text).join(' ');
 
@@ -168,7 +175,7 @@ function parsePageRentals(textItems, pageNum) {
         if (inTable && currentProvince) {
             const rowData = parseRowData(row);
 
-            if (isNewRentalRow(rowData)) {
+            if (isNewRentalRow(rowData) && !skipNextRow) {
                 // Save previous rental if exists
                 if (currentRental) {
                     rentals.push(createCompleteRental(currentRental, currentProvince));
@@ -180,6 +187,7 @@ function parsePageRentals(textItems, pageNum) {
             } else if (currentRental && isContinuationRow(rowData, currentRental)) {
                 // This is a continuation row - merge with current rental
                 currentRental = mergeRentalRows(currentRental, rowData);
+                skipNextRow = true; // NEW: mark next row to be skipped since we already processed it
             }
         }
     }
@@ -236,21 +244,34 @@ function isNewRentalRow(rowData) {
 
 function isContinuationRow(rowData, currentRental) {
     // This is a continuation row if:
-    // 1. The current rental has no type AND this row has "Familiar" in type
-    // 2. OR the current rental's email is incomplete (no @ or no .com)
+    // 1. The current rental has "Hostal" and this row has "Familiar" in type
+    // 2. OR the current rental's email is incomplete (no @ or no .com/net/org)
     // 3. OR the current rental's phone ends with "/" or "-"
-    // 4. OR this row has no type but has content in other columns
+    // 4. OR this row has no substantial content (just a few words in name)
+    // 5. OR the row data looks like it continues the previous row's content
 
-    const hasFamiliarType = rowData.type.includes('Familiar') && currentRental.type === 'Hostal';
+    const hasFamiliarType = rowData.type.includes('Familiar') && currentRental.type.includes('Hostal');
     const hasIncompleteEmail = currentRental.email &&
                               (!currentRental.email.includes('@') ||
-                               !currentRental.email.includes('.'));
+                               (!currentRental.email.includes('.com') &&
+                                !currentRental.email.includes('.net') &&
+                                !currentRental.email.includes('.org')));
     const hasIncompletePhone = currentRental.phone &&
                               (currentRental.phone.endsWith('/') ||
                                currentRental.phone.endsWith('-'));
-    const hasNoTypeButContent = !rowData.type && (rowData.name || rowData.email || rowData.phone);
 
-    return hasFamiliarType || hasIncompleteEmail || hasIncompletePhone || hasNoTypeButContent;
+    // More strict: only continuation if name is very short (1-2 words) and doesn't look like a new property
+    const hasShortName = rowData.name && rowData.name.split(' ').length <= 2;
+    const looksLikeContinuation = hasShortName && !rowData.type && !rowData.email;
+
+    // Also check if this looks like it continues the previous name (starts with "DE", "DEL", etc.)
+    const continuesPreviousName = rowData.name &&
+                                 (rowData.name.startsWith('DE ') ||
+                                  rowData.name.startsWith('DEL ') ||
+                                  rowData.name.startsWith('LAS ') ||
+                                  rowData.name.startsWith('LOS '));
+
+    return hasFamiliarType || hasIncompleteEmail || hasIncompletePhone || looksLikeContinuation || continuesPreviousName;
 }
 
 function mergeRentalRows(currentRental, continuationRow) {
@@ -290,20 +311,22 @@ function createCompleteRental(rentalData, province) {
     const cleanName = cleanText(rentalData.name);
     const cleanType = cleanText(rentalData.type) || 'Hospedaje';
     const cleanEmail = extractEmail(rentalData.email);
-    const cleanPhone = extractAllPhones(rentalData.phone); // Changed to extract ALL phones
+    const cleanPhone = extractAllPhones(rentalData.phone);
     const whatsappPhone = formatWhatsAppNumber(extractFirstPhone(rentalData.phone));
+    const callPhone = formatCallNumber(extractFirstPhone(rentalData.phone));
 
     return {
         name: cleanName,
         type: cleanType,
         email: cleanEmail,
-        phone: cleanPhone, // Now contains all phone numbers
+        phone: cleanPhone,
         province: province,
         district: guessDistrict(cleanName, province),
         description: generateDescription(cleanName, cleanType, province),
         google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(cleanName + ' ' + province + ' Panamá')}`,
         whatsapp: whatsappPhone,
         whatsapp_url: whatsappPhone ? `https://wa.me/${whatsappPhone}` : '',
+        call_url: callPhone ? `tel:${callPhone}` : '',
         source: 'ATP_OFFICIAL'
     };
 }
@@ -337,6 +360,26 @@ function formatWhatsAppNumber(phone) {
     }
 
     return ''; // Invalid format for WhatsApp
+}
+
+// Call number formatting
+function formatCallNumber(phone) {
+    if (!phone) return '';
+
+    // Remove all non-digit characters
+    let cleanPhone = phone.replace(/\D/g, '');
+
+    // Ensure it's 8 digits and starts with 6
+    if (cleanPhone.length === 8 && cleanPhone.startsWith('6')) {
+        return '+507' + cleanPhone;
+    }
+
+    // If it's already 11 digits with 507 prefix
+    if (cleanPhone.length === 11 && cleanPhone.startsWith('507')) {
+        return '+' + cleanPhone;
+    }
+
+    return ''; // Invalid format
 }
 
 // Helper functions
@@ -428,6 +471,7 @@ function getFallbackData() {
             google_maps_url: "https://maps.google.com/?q=APARTHOTEL%20BOQUETE%20BOQUETE%20Panam%C3%A1",
             whatsapp: "50768916669",
             whatsapp_url: "https://wa.me/50768916669",
+            call_url: "tel:+50768916669",
             source: "ATP_OFFICIAL"
         }
     ];
@@ -495,11 +539,10 @@ app.get('/api/provinces', (req, res) => {
         const provinces = CURRENT_RENTALS ?
             [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))].sort() : [];
 
-        // Add counts to province names
+        // Add counts to province names - return simple strings for the selector
         const provincesWithCounts = provinces.map(province => ({
-            name: province,
-            count: PROVINCE_STATS[province] || 0,
-            displayName: `${province} (${PROVINCE_STATS[province] || 0})`
+            value: province,
+            label: `${province} (${PROVINCE_STATS[province] || 0})`
         }));
 
         res.json(provincesWithCounts);
@@ -511,9 +554,30 @@ app.get('/api/provinces', (req, res) => {
 
 app.get('/api/types', (req, res) => {
     try {
-        const types = CURRENT_RENTALS ?
+        let types = CURRENT_RENTALS ?
             [...new Set(CURRENT_RENTALS.map(r => r?.type).filter(Boolean))].sort() : [];
-        res.json(types);
+
+        // Clean up types - combine split types
+        const cleanedTypes = [];
+        const typeMap = {
+            'Sitio de': 'Sitio de acampar',
+            'acampar': 'Sitio de acampar',
+            'Hostal': 'Hostal Familiar', // If we see just "Hostal", it's probably "Hostal Familiar"
+            'Familiar': 'Hostal Familiar'
+        };
+
+        types.forEach(type => {
+            if (typeMap[type]) {
+                // Replace with combined type
+                if (!cleanedTypes.includes(typeMap[type])) {
+                    cleanedTypes.push(typeMap[type]);
+                }
+            } else if (type.length > 3) { // Only include substantial types
+                cleanedTypes.push(type);
+            }
+        });
+
+        res.json([...new Set(cleanedTypes)].sort());
     } catch (error) {
         console.error('Error in /api/types:', error);
         res.status(500).json({ error: 'Error cargando tipos' });
@@ -560,7 +624,174 @@ app.get('/api/debug-pdf', (req, res) => {
     }
 });
 
-// Keep other endpoints the same (debug-tables, refresh-pdf, health)
+// Debug tables endpoint
+app.get('/api/debug-tables', async (req, res) => {
+    try {
+        let tablesData = [];
+
+        for (const pdfUrl of PDF_URLS) {
+            try {
+                const response = await axios.get(pdfUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 30000
+                });
+
+                if (response.status === 200) {
+                    tablesData = await analyzePDFStructure(response.data);
+                    break;
+                }
+            } catch (error) {
+                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
+            }
+        }
+
+        // HTML response for debug tables
+        const htmlResponse = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Table Structure Analysis</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .table { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .table-header { background: #e8f4fd; padding: 10px; margin: -15px -15px 15px -15px; border-radius: 5px 5px 0 0; }
+        .row { margin: 5px 0; padding: 5px; border-bottom: 1px solid #eee; }
+        .row:hover { background: #f9f9f9; }
+        .item { display: inline-block; margin: 0 10px; padding: 2px 5px; background: #f0f0f0; border-radius: 3px; }
+        .coordinates { color: #666; font-size: 0.8em; }
+        .header-row { background: #d4edda; font-weight: bold; }
+        .stats { background: #fff3cd; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF Table Structure Analysis</h1>
+        <div class="stats">
+            <strong>Total Tables Found:</strong> ${tablesData.length}<br>
+            <strong>Total Data Rows:</strong> ${tablesData.reduce((sum, table) => sum + table.dataRows.length, 0)}<br>
+            <strong>PDF Status:</strong> ${PDF_STATUS}
+        </div>
+
+        ${tablesData.map((table, tableIndex) => `
+            <div class="table">
+                <div class="table-header">
+                    <strong>Table ${tableIndex + 1}</strong> |
+                    Page: ${table.page} |
+                    Province: ${table.province || 'Unknown'} |
+                    Data Rows: ${table.dataRows.length}
+                </div>
+
+                <!-- Header Row -->
+                <div class="row header-row">
+                    ${table.headers.items.map(item =>
+                        `<span class="item">${item.text} <span class="coordinates">(x:${item.x}, y:${item.y})</span></span>`
+                    ).join('')}
+                </div>
+
+                <!-- Data Rows (show first 10) -->
+                ${table.dataRows.slice(0, 10).map((row, rowIndex) => `
+                    <div class="row">
+                        <strong>Row ${rowIndex + 1}:</strong>
+                        ${row.items.map(item =>
+                            `<span class="item">${item.text} <span class="coordinates">(x:${item.x})</span></span>`
+                        ).join('')}
+                    </div>
+                `).join('')}
+
+                ${table.dataRows.length > 10 ? `<div><em>... and ${table.dataRows.length - 10} more rows</em></div>` : ''}
+            </div>
+        `).join('')}
+
+        ${tablesData.length === 0 ? '<div style="color: red; padding: 20px; text-align: center;">No tables detected in PDF</div>' : ''}
+    </div>
+</body>
+</html>
+        `;
+
+        res.send(htmlResponse);
+    } catch (error) {
+        console.error('Error in /api/debug-tables:', error);
+        res.status(500).send('Error analyzing PDF tables');
+    }
+});
+
+async function analyzePDFStructure(pdfBuffer) {
+    const data = new Uint8Array(pdfBuffer);
+    const pdf = await pdfjsLib.getDocument(data).promise;
+    const numPages = pdf.numPages;
+    const allTables = [];
+
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+
+        const textItems = textContent.items.map(item => ({
+            text: item.str,
+            x: Math.round(item.transform[4] * 100) / 100,
+            y: Math.round(item.transform[5] * 100) / 100,
+            width: item.width,
+            height: item.height,
+            page: pageNum
+        }));
+
+        const pageTables = analyzePageStructure(textItems, pageNum);
+        allTables.push(...pageTables);
+    }
+
+    return allTables;
+}
+
+function analyzePageStructure(textItems, pageNum) {
+    const tables = [];
+    const rows = groupIntoRows(textItems);
+    let currentTable = null;
+    let currentProvince = '';
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const rowText = row.items.map(item => item.text).join(' ');
+
+        if (rowText.includes('Provincia:')) {
+            currentProvince = rowText.replace('Provincia:', '').trim();
+            continue;
+        }
+
+        if (rowText.includes('Nombre') && rowText.includes('Modalidad')) {
+            if (currentTable) tables.push(currentTable);
+            currentTable = {
+                province: currentProvince,
+                page: pageNum,
+                headers: row,
+                dataRows: []
+            };
+            continue;
+        }
+
+        if (rowText.includes('Total por provincia:')) {
+            if (currentTable) {
+                tables.push(currentTable);
+                currentTable = null;
+            }
+            continue;
+        }
+
+        if (currentTable && isDataRow(row)) {
+            currentTable.dataRows.push(row);
+        }
+    }
+
+    if (currentTable) tables.push(currentTable);
+    return tables;
+}
+
+function isDataRow(row) {
+    const rowText = row.items.map(item => item.text).join(' ');
+    return rowText.trim().length > 0 &&
+           !rowText.includes('Provincia:') &&
+           !rowText.includes('Total por provincia:') &&
+           !rowText.includes('Reporte de Hospedajes');
+}
 
 app.post('/api/refresh-pdf', async (req, res) => {
     try {
