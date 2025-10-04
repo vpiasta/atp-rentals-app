@@ -502,6 +502,21 @@ app.get('/api/test', (req, res) => {
     }
 });
 
+app.get('/api/debug-parsing', (req, res) => {
+    const sampleItems = CURRENT_RENTALS.slice(0, 5).map(rental => ({
+        name: rental.name,
+        type: rental.type,
+        province: rental.province
+    }));
+
+    res.json({
+        totalRentals: CURRENT_RENTALS.length,
+        sampleRentals: sampleItems,
+        pdfStatus: PDF_STATUS,
+        provinceStats: PROVINCE_STATS
+    });
+});
+
 app.get('/api/rentals', (req, res) => {
     try {
         const { search, province, type } = req.query;
