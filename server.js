@@ -502,6 +502,100 @@ app.get('/api/test', (req, res) => {
     }
 });
 
+// DEBUG ENDPOINT - Shows raw table structure
+app.get('/api/debug-tables', async (req, res) => {
+    try {
+        let tablesData = [];
+
+        for (const pdfUrl of PDF_URLS) {
+            try {
+                const response = await axios.get(pdfUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 30000
+                });
+
+                if (response.status === 200) {
+                    tablesData = await parsePDFTables(response.data);
+                    break;
+                }
+            } catch (error) {
+                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
+            }
+        }
+
+        // Format for HTML display
+        const htmlResponse = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Table Structure Analysis</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .table { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .table-header { background: #e8f4fd; padding: 10px; margin: -15px -15px 15px -15px; border-radius: 5px 5px 0 0; }
+        .row { margin: 5px 0; padding: 5px; border-bottom: 1px solid #eee; }
+        .row:hover { background: #f9f9f9; }
+        .item { display: inline-block; margin: 0 10px; padding: 2px 5px; background: #f0f0f0; border-radius: 3px; }
+        .coordinates { color: #666; font-size: 0.8em; }
+        .header-row { background: #d4edda; font-weight: bold; }
+        .stats { background: #fff3cd; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF Table Structure Analysis</h1>
+        <div class="stats">
+            <strong>Total Tables Found:</strong> ${tablesData.length}<br>
+            <strong>Total Data Rows:</strong> ${tablesData.reduce((sum, table) => sum + table.dataRows.length, 0)}<br>
+            <strong>PDF Status:</strong> ${PDF_STATUS}
+        </div>
+
+        ${tablesData.map((table, tableIndex) => `
+            <div class="table">
+                <div class="table-header">
+                    <strong>Table ${tableIndex + 1}</strong> |
+                    Page: ${table.page} |
+                    Province: ${table.province || 'Unknown'} |
+                    Data Rows: ${table.dataRows.length} |
+                    Column Boundaries: ${table.columnBoundaries.map(c => `${c.name} (x:${c.x})`).join(', ')}
+                </div>
+
+                <!-- Header Row -->
+                <div class="row header-row">
+                    ${table.headers.items.map(item =>
+                        `<span class="item">${item.text} <span class="coordinates">(x:${item.x}, y:${item.y})</span></span>`
+                    ).join('')}
+                </div>
+
+                <!-- Data Rows (show first 10) -->
+                ${table.dataRows.slice(0, 10).map((row, rowIndex) => `
+                    <div class="row">
+                        <strong>Row ${rowIndex + 1}:</strong>
+                        ${row.items.map(item =>
+                            `<span class="item">${item.text} <span class="coordinates">(x:${item.x})</span></span>`
+                        ).join('')}
+                    </div>
+                `).join('')}
+
+                ${table.dataRows.length > 10 ? `<div><em>... and ${table.dataRows.length - 10} more rows</em></div>` : ''}
+            </div>
+        `).join('')}
+
+        ${tablesData.length === 0 ? '<div style="color: red; padding: 20px; text-align: center;">No tables detected in PDF</div>' : ''}
+    </div>
+</body>
+</html>
+        `;
+
+        res.send(htmlResponse);
+    } catch (error) {
+        console.error('Error in /api/debug-tables:', error);
+        res.status(500).send('Error analyzing PDF tables');
+    }
+});
+
+
 app.get('/api/debug-parsing', (req, res) => {
     const sampleItems = CURRENT_RENTALS.slice(0, 5).map(rental => ({
         name: rental.name,
