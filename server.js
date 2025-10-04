@@ -325,7 +325,7 @@ function mergeRentalRows(currentRental, continuationRow) {
 
 function createCompleteRental(rentalData, province) {
     const cleanName = cleanText(rentalData.name);
-    let cleanType = cleanText(rentalData.type) || 'Hospedaje';
+    let cleanType = cleanText(rentalData.type);
 
     // Clean up type - remove duplicate "Familiar"
     if (cleanType.includes('Familiar Familiar')) {
@@ -396,8 +396,8 @@ function formatCallNumber(phone) {
         cleanPhone = cleanPhone.substring(0, 8);
     }
 
-    // Ensure it's 8 digits and starts with 6
-    if (cleanPhone.length === 8 && cleanPhone.startsWith('6')) {
+    // Ensure it's 7 or 8 digits
+    if (cleanPhone.length === 8 || cleanPhone.length === 7) {
         return '+507' + cleanPhone;
     }
 
@@ -489,7 +489,7 @@ function getFallbackData() {
             phone: "68916669 / 68916660",
             province: "CHIRIQUÍ",
             district: "Boquete",
-            description: "Aparta-Hotel \"APARTHOTEL BOQUETE\" ubicado en CHIRIQUÍ, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).",
+            description: 'Aparta-Hotel "APARTHOTEL BOQUETE" ubicado en CHIRIQUÍ, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).',
             google_maps_url: "https://maps.google.com/?q=APARTHOTEL%20BOQUETE%20BOQUETE%20Panam%C3%A1",
             whatsapp: "50768916669",
             whatsapp_url: "https://wa.me/50768916669",
@@ -558,12 +558,12 @@ app.get('/api/rentals', (req, res) => {
 
 app.get('/api/provinces', (req, res) => {
     try {
-        const provinces = CURRENT_RENTALS ?
-            [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))].sort() : [];
+        // Get provinces from PROVINCE_STATS
+        const provinces = Object.keys(PROVINCE_STATS).sort();
 
-        // Return simple strings for province selector
+        // Return simple strings for province selector with correct counts
         const provincesWithCounts = provinces.map(province =>
-            `${province} (${PROVINCE_STATS[province] || 0})`
+            `${province} (${PROVINCE_STATS[province]})`
         );
 
         res.json(provincesWithCounts);
@@ -575,35 +575,20 @@ app.get('/api/provinces', (req, res) => {
 
 app.get('/api/types', (req, res) => {
     try {
-        let types = CURRENT_RENTALS ?
-            [...new Set(CURRENT_RENTALS.map(r => r?.type).filter(Boolean))].sort() : [];
+        const types = [
+            "Albergue",
+            "Aparta-Hotel",
+            "Bungalow",
+            "Cabaña",
+            "Hostal Familiar",
+            "Hotel",
+            "Motel",
+            "Pensión",
+            "Residencial",
+            "Sitio de acampar"
+        ];
 
-        // Clean up types - remove duplicates and combine split types
-        const cleanedTypes = new Set();
-
-        types.forEach(type => {
-            if (!type) return;
-
-            let cleanType = type.trim();
-
-            // Handle specific type combinations
-            if (cleanType === 'Sitio de' || cleanType === 'acampar') {
-                cleanType = 'Sitio de acampar';
-            } else if (cleanType === 'Hostal' || cleanType === 'Familiar') {
-                cleanType = 'Hostal Familiar';
-            }
-
-            // Remove any duplicate words
-            const words = cleanType.split(' ');
-            const uniqueWords = [...new Set(words)];
-            cleanType = uniqueWords.join(' ');
-
-            if (cleanType.length > 3) {
-                cleanedTypes.add(cleanType);
-            }
-        });
-
-        res.json([...cleanedTypes].sort());
+        res.json(types);
     } catch (error) {
         console.error('Error in /api/types:', error);
         res.status(500).json({ error: 'Error cargando tipos' });
