@@ -64,6 +64,15 @@ app.get('/api/rentals', (req, res) => {
     }
 });
 
+app.get('/api/test', (req, res) => {
+    res.json({
+        message: 'ATP Rentals API is working!',
+        status: 'success', 
+        total_rentals: CURRENT_RENTALS.length,
+        timestamp: new Date().toISOString()
+    });
+});
+
 app.get('/api/provinces', (req, res) => {
     const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province).filter(Boolean))];
     res.json(provinces);
@@ -121,3 +130,4 @@ app.listen(PORT, () => {
     console.log(`📍 Rentals endpoint: http://localhost:${PORT}/api/rentals`);
     console.log('✅ Server started successfully with sample data');
 });
+
