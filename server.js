@@ -134,65 +134,49 @@ function parsePageRentals(textItems, pageNum) {
         const row = rows[i];
         const rowText = row.items.map(item => item.text).join(' ');
 
-        // Detect province and expected count
+        // DEBUG: Log all rows to see what we're working with
+        if (rowText.includes('Provincia') || rowText.includes('Total')) {
+            console.log(`📄 Row ${i}: "${rowText}"`);
+        }
+
+        // Detect province and expected count - try multiple patterns
         if (rowText.includes('Provincia:')) {
             currentProvince = rowText.replace('Provincia:', '').trim();
-            console.log(`📍 Found province: ${currentProvince}`);
+            console.log(`📍 Found province: "${currentProvince}"`);
             continue;
         }
 
-        // Detect expected count for province
-        const countMatch = rowText.match(/(\d+)Total por provincia:/);
+        // Try multiple patterns for the count
+        let countMatch = null;
+
+        // Pattern 1: "151Total por provincia:"
+        countMatch = rowText.match(/(\d+)Total por provincia:/);
         if (countMatch && currentProvince) {
             expectedCount = parseInt(countMatch[1]);
             provinceStats[currentProvince] = expectedCount;
-            console.log(`✅ Found province count: ${currentProvince} = ${expectedCount}`);
+            console.log(`✅ Pattern 1 matched: ${currentProvince} = ${expectedCount}`);
             continue;
         }
 
-        // Detect table header
-        if (rowText.includes('Nombre') && rowText.includes('Modalidad')) {
-            inTable = true;
+        // Pattern 2: "151 Total por provincia:" (with space)
+        countMatch = rowText.match(/(\d+) Total por provincia:/);
+        if (countMatch && currentProvince) {
+            expectedCount = parseInt(countMatch[1]);
+            provinceStats[currentProvince] = expectedCount;
+            console.log(`✅ Pattern 2 matched: ${currentProvince} = ${expectedCount}`);
             continue;
         }
 
-        // Detect table end
-        if (rowText.includes('Total por provincia:')) {
-            inTable = false;
-            // Process any pending rental
-            if (currentRental) {
-                rentals.push(createCompleteRental(currentRental, currentProvince));
-                currentRental = null;
-            }
+        // Pattern 3: Just look for numbers before "Total"
+        countMatch = rowText.match(/(\d+)\s*Total/);
+        if (countMatch && currentProvince && rowText.includes('provincia')) {
+            expectedCount = parseInt(countMatch[1]);
+            provinceStats[currentProvince] = expectedCount;
+            console.log(`✅ Pattern 3 matched: ${currentProvince} = ${expectedCount}`);
             continue;
         }
 
-        if (inTable && currentProvince) {
-            const rowData = parseRowData(row);
-
-            // Check if this is a continuation of the current rental
-            if (currentRental && isContinuationRow(rowData, currentRental)) {
-                // Merge with current rental
-                currentRental = mergeRentalRows(currentRental, rowData);
-            }
-            // Check if this is a new rental
-            else if (isNewRentalRow(rowData)) {
-                // Save previous rental if exists
-                if (currentRental) {
-                    rentals.push(createCompleteRental(currentRental, currentProvince));
-                }
-
-                // Start new rental
-                currentRental = rowData;
-                currentRental.province = currentProvince;
-            }
-            // If we have a current rental but this row doesn't continue it, save current and start new
-            else if (currentRental && rowData.name && rowData.name.length > 2) {
-                rentals.push(createCompleteRental(currentRental, currentProvince));
-                currentRental = rowData;
-                currentRental.province = currentProvince;
-            }
-        }
+        // Rest of your existing code...
     }
 
     // Don't forget the last rental
