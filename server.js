@@ -28,6 +28,182 @@ const COLUMN_BOUNDARIES = {
     TELEFONO: { start: 481, end: 600 }
 };
 
+// HELPER FUNCTIONS (these were missing)
+function groupIntoRows(textItems) {
+    const rows = {};
+    const Y_TOLERANCE = 1.5;
+
+    textItems.forEach(item => {
+        if (!item.text.trim()) return;
+
+        const existingKey = Object.keys(rows).find(y =>
+            Math.abs(parseFloat(y) - item.y) <= Y_TOLERANCE
+        );
+
+        const rowY = existingKey || item.y.toString();
+        if (!rows[rowY]) rows[rowY] = [];
+        rows[rowY].push(item);
+    });
+
+    // Convert to array and sort by Y (top to bottom)
+    return Object.entries(rows)
+        .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
+        .map(([y, items]) => ({
+            y: parseFloat(y),
+            items: items.sort((a, b) => a.x - b.x)
+        }));
+}
+
+function cleanText(text) {
+    if (!text) return '';
+    return text.replace(/\s+/g, ' ').trim();
+}
+
+function extractEmail(text) {
+    if (!text) return '';
+    try {
+        const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+        return match ? match[1] : '';
+    } catch (error) {
+        return '';
+    }
+}
+
+function extractFirstPhone(text) {
+    if (!text) return '';
+    try {
+        // Remove slashes and hyphens, take first 8 digits
+        const cleanText = text.replace(/[-\/\s]/g, '');
+        const match = cleanText.match(/(\d{7,8})/);
+        return match ? match[1] : '';
+    } catch (error) {
+        return '';
+    }
+}
+
+function guessDistrict(name, province) {
+    const districtMap = {
+        'BOCAS DEL TORO': 'Bocas del Toro',
+        'CHIRIQUÍ': 'David',
+        'COCLÉ': 'Penonomé',
+        'COLÓN': 'Colón',
+        'DARIÉN': 'La Palma',
+        'HERRERA': 'Chitré',
+        'LOS SANTOS': 'Las Tablas',
+        'PANAMÁ': 'Ciudad de Panamá',
+        'PANAMÁ OESTE': 'La Chorrera',
+        'VERAGUAS': 'Santiago',
+        'GUNAS': 'Guna Yala',
+        'EMBERÁ': 'Emberá',
+        'NGÄBE-BUGLÉ': 'Ngäbe-Buglé'
+    };
+    return districtMap[province] || province;
+}
+
+function generateDescription(name, type, province) {
+    return `${type} "${name}" ubicado en ${province}, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).`;
+}
+
+function getFallbackData() {
+    return [
+        {
+            name: "APARTHOTEL BOQUETE",
+            type: "Aparta-Hotel",
+            email: "info@aparthotel-boquete.com",
+            phone: "68916669 / 68916660",
+            province: "CHIRIQUÍ",
+            district: "Boquete",
+            description: 'Aparta-Hotel "APARTHOTEL BOQUETE" ubicado en CHIRIQUÍ, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).',
+            google_maps_url: "https://maps.google.com/?q=APARTHOTEL%20BOQUETE%20BOQUETE%20Panam%C3%A1",
+            whatsapp: "50768916669",
+            whatsapp_url: "https://wa.me/50768916669",
+            call_url: "tel:+50768916669",
+            source: "ATP_OFFICIAL"
+        }
+    ];
+}
+
+function createCompleteRental(rentalData, province) {
+    const cleanName = cleanText(rentalData.name);
+    let cleanType = cleanText(rentalData.type);
+
+    // Clean up type - remove duplicate "Familiar"
+    if (cleanType.includes('Familiar Familiar')) {
+        cleanType = cleanType.replace(/Familiar\s+Familiar/g, 'Familiar');
+    }
+
+    const cleanEmail = extractEmail(rentalData.email);
+    const cleanPhone = extractAllPhones(rentalData.phone);
+    const whatsappPhone = formatWhatsAppNumber(extractFirstPhone(rentalData.phone));
+    const callPhone = formatCallNumber(extractFirstPhone(rentalData.phone));
+
+    return {
+        name: cleanName,
+        type: cleanType,
+        email: cleanEmail,
+        phone: cleanPhone,
+        province: province,
+        district: guessDistrict(cleanName, province),
+        description: generateDescription(cleanName, cleanType, province),
+        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(cleanName + ' ' + province + ' Panamá')}`,
+        whatsapp: whatsappPhone,
+        whatsapp_url: whatsappPhone ? `https://wa.me/${whatsappPhone}` : '',
+        call_url: callPhone ? `tel:${callPhone}` : '',
+        source: 'ATP_OFFICIAL'
+    };
+}
+
+// Extract ALL phone numbers (not just first)
+function extractAllPhones(text) {
+    if (!text) return '';
+    try {
+        // Remove extra spaces but keep the separators
+        return text.replace(/\s+/g, ' ').trim();
+    } catch (error) {
+        return '';
+    }
+}
+
+// WhatsApp number formatting
+function formatWhatsAppNumber(phone) {
+    if (!phone) return '';
+
+    // Remove all non-digit characters
+    let cleanPhone = phone.replace(/\D/g, '');
+
+    // Ensure it's 8 digits and starts with 6
+    if (cleanPhone.length === 8 && cleanPhone.startsWith('6')) {
+        return '507' + cleanPhone;
+    }
+
+    // If it's already 11 digits with 507 prefix
+    if (cleanPhone.length === 11 && cleanPhone.startsWith('507')) {
+        return cleanPhone;
+    }
+
+    return ''; // Invalid format for WhatsApp
+}
+
+// Call number formatting - use only first phone number with +507 prefix
+function formatCallNumber(phone) {
+    if (!phone) return '';
+
+    // Remove all non-digit characters and take only the first phone number
+    let cleanPhone = phone.replace(/\D/g, '');
+
+    // Take only the first 8 digits (one phone number)
+    if (cleanPhone.length >= 8) {
+        cleanPhone = cleanPhone.substring(0, 8);
+    }
+
+    // Ensure it's 7 or 8 digits
+    if (cleanPhone.length === 8 || cleanPhone.length === 7) {
+        return '+507' + cleanPhone;
+    }
+
+    return ''; // Invalid format
+}
+
 // PDF parsing with table detection and row stitching
 async function fetchAndParsePDF() {
     for (const pdfUrl of PDF_URLS) {
@@ -465,9 +641,6 @@ function validateProvinceCounts(rentals, provinceStats, debugData) {
     return validation;
 }
 
-// Keep the existing helper functions (groupIntoRows, cleanText, extractEmail, etc.)
-// ... [all your existing helper functions remain the same] ...
-
 // NEW DEBUG ENDPOINTS
 
 app.get('/api/debug-parsing-analysis', (req, res) => {
@@ -511,7 +684,8 @@ app.get('/api/debug-page-data/:pageNum?', (req, res) => {
 });
 
 app.get('/api/debug-visual', (req, res) => {
-    const htmlResponse = `
+    try {
+        const htmlResponse = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -540,7 +714,7 @@ app.get('/api/debug-visual', (req, res) => {
         <div class="section">
             <h2>Overall Statistics</h2>
             <div class="stats-grid">
-                <div class="stat-card ${CURRENT_RENTALS.length === DEBUG_DATA.totalValidation?.totalExpected ? 'good' : 'bad'}">
+                <div class="stat-card ${CURRENT_RENTALS.length === (DEBUG_DATA.totalValidation?.totalExpected || 0) ? 'good' : 'bad'}">
                     <h3>Total Rentals</h3>
                     <div>Found: ${CURRENT_RENTALS.length}</div>
                     <div>Expected: ${DEBUG_DATA.totalValidation?.totalExpected || 'N/A'}</div>
@@ -558,6 +732,7 @@ app.get('/api/debug-visual', (req, res) => {
 
         <div class="section">
             <h2>Province Validation</h2>
+            ${DEBUG_DATA.validation ? `
             <table class="validation-table">
                 <thead>
                     <tr>
@@ -569,7 +744,7 @@ app.get('/api/debug-visual', (req, res) => {
                     </tr>
                 </thead>
                 <tbody>
-                    ${Object.keys(DEBUG_DATA.validation || {}).map(province => {
+                    ${Object.keys(DEBUG_DATA.validation).map(province => {
                         const val = DEBUG_DATA.validation[province];
                         return `
                         <tr>
@@ -583,6 +758,7 @@ app.get('/api/debug-visual', (req, res) => {
                     }).join('')}
                 </tbody>
             </table>
+            ` : '<p>No validation data available</p>'}
         </div>
 
         <div class="section">
@@ -595,12 +771,14 @@ app.get('/api/debug-visual', (req, res) => {
                     ${event.continuationRow ? `<br>Continuation: ${JSON.stringify(event.continuationRow)}` : ''}
                 </div>
             `).join('')}
+            ${(DEBUG_DATA.stitchingEvents || []).length === 0 ? '<p>No stitching events recorded</p>' : ''}
         </div>
 
         <div class="section">
             <h2>Actions</h2>
             <button onclick="refreshData()">Refresh PDF Data</button>
             <button onclick="viewStitchingEvents()">View All Stitching Events</button>
+            <button onclick="viewParsingAnalysis()">View Parsing Analysis</button>
         </div>
     </div>
 
@@ -617,40 +795,140 @@ app.get('/api/debug-visual', (req, res) => {
         function viewStitchingEvents() {
             window.open('/api/debug-stitching-events');
         }
+
+        function viewParsingAnalysis() {
+            window.open('/api/debug-parsing-analysis');
+        }
     </script>
 </body>
 </html>
-    `;
+        `;
 
-    res.send(htmlResponse);
+        res.send(htmlResponse);
+    } catch (error) {
+        console.error('Error in /api/debug-visual:', error);
+        res.status(500).send('Error generating debug visual: ' + error.message);
+    }
 });
 
-// Keep all your existing API endpoints...
-// ... [all your existing endpoints remain the same] ...
+// KEEP ALL YOUR EXISTING API ENDPOINTS (test, rentals, provinces, types, stats, refresh-pdf, health)
+app.get('/api/test', (req, res) => {
+    try {
+        res.json({
+            message: 'ATP Rentals Search API is working!',
+            status: 'success',
+            timestamp: new Date().toISOString(),
+            data_source: 'LIVE_ATP_PDF',
+            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            total_expected: PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0
+        });
+    } catch (error) {
+        console.error('Error in /api/test:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
-// Initialize
-app.listen(PORT, async () => {
-    console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
-    console.log(`📍 Health check: http://localhost:${PORT}/health`);
-    console.log(`📍 Debug visual: http://localhost:${PORT}/api/debug-visual`);
+app.get('/api/rentals', (req, res) => {
+    try {
+        const { search, province, type } = req.query;
+        let filtered = CURRENT_RENTALS || [];
 
-    setTimeout(async () => {
-        try {
-            await fetchAndParsePDF();
-            const totalExpected = PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0;
-            console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded (Expected: ${totalExpected})`);
-
-            // Log validation results
-            if (DEBUG_DATA.validation) {
-                console.log('=== VALIDATION RESULTS ===');
-                Object.keys(DEBUG_DATA.validation).forEach(province => {
-                    const result = DEBUG_DATA.validation[province];
-                    console.log(`${province}: Expected ${result.expected}, Found ${result.found} (${result.status})`);
-                });
-            }
-        } catch (error) {
-            console.error('Error during startup:', error);
-            CURRENT_RENTALS = getFallbackData();
+        // If no filters applied, return empty array with message
+        if (!search && !province && !type) {
+            return res.json([]);
         }
-    }, 2000);
+
+        if (search) {
+            const searchLower = search.toLowerCase();
+            filtered = filtered.filter(rental =>
+                rental && rental.name && rental.name.toLowerCase().includes(searchLower) ||
+                (rental.district && rental.district.toLowerCase().includes(searchLower)) ||
+                (rental.description && rental.description.toLowerCase().includes(searchLower)) ||
+                (rental.province && rental.province.toLowerCase().includes(searchLower)) ||
+                (rental.type && rental.type.toLowerCase().includes(searchLower))
+            );
+        }
+
+        if (province && province !== '') {
+            filtered = filtered.filter(rental =>
+                rental && rental.province && rental.province.toLowerCase() === province.toLowerCase()
+            );
+        }
+
+        if (type && type !== '') {
+            filtered = filtered.filter(rental =>
+                rental && rental.type && rental.type.toLowerCase() === type.toLowerCase()
+            );
+        }
+
+        res.json(filtered);
+    } catch (error) {
+        console.error('Error in /api/rentals:', error);
+        res.status(500).json({ error: 'Error al buscar hospedajes' });
+    }
 });
+
+app.get('/api/provinces', (req, res) => {
+    try {
+        // If we have province stats from successful parsing, use them
+        if (PROVINCE_STATS && Object.keys(PROVINCE_STATS).length > 0) {
+            const provinces = Object.keys(PROVINCE_STATS).sort();
+            const provincesWithCounts = provinces.map(province =>
+                `${province} (${PROVINCE_STATS[province]})`
+            );
+            return res.json(provincesWithCounts);
+        }
+
+        // Fallback: If parsing didn't work, show provinces from CURRENT_RENTALS with unknown counts
+        const provinces = CURRENT_RENTALS ?
+            [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))].sort() : [];
+
+        const provincesWithCounts = provinces.map(province =>
+            `${province} (?)`
+        );
+
+        res.json(provincesWithCounts);
+    } catch (error) {
+        console.error('Error in /api/provinces:', error);
+        res.status(500).json({ error: 'Error cargando provincias' });
+    }
+});
+
+app.get('/api/types', (req, res) => {
+    try {
+        const types = [
+            "Albergue",
+            "Aparta-Hotel",
+            "Bungalow",
+            "Cabaña",
+            "Hostal Familiar",
+            "Hotel",
+            "Motel",
+            "Pensión",
+            "Residencial",
+            "Sitio de acampar"
+        ];
+
+        res.json(types);
+    } catch (error) {
+        console.error('Error in /api/types:', error);
+        res.status(500).json({ error: 'Error cargando tipos' });
+    }
+});
+
+app.get('/api/stats', (req, res) => {
+    try {
+        const totalExpected = PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0;
+
+        res.json({
+            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            total_expected: totalExpected,
+            last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
+            data_source: 'LIVE_ATP_DATA',
+            status: PDF_STATUS,
+            province_stats: PROVINCE_STATS,
+            note: 'Datos oficiales de la Autoridad de Turismo de Panamá'
+        });
+    } catch (error) {
+        console.error('Error in /api/stats:', error);
+        res
