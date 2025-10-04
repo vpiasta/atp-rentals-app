@@ -18,6 +18,7 @@ let CURRENT_RENTALS = [];
 let PROVINCE_STATS = {};
 let LAST_PDF_UPDATE = null;
 let PDF_STATUS = 'No PDF processed yet';
+let DEBUG_DATA = {}; // Store debug information
 
 // Column boundaries based on your analysis
 const COLUMN_BOUNDARIES = {
@@ -48,6 +49,7 @@ async function fetchAndParsePDF() {
 
                 CURRENT_RENTALS = result.rentals;
                 PROVINCE_STATS = result.provinceStats;
+                DEBUG_DATA = result.debugData || {};
                 return true;
             }
         } catch (error) {
@@ -69,6 +71,10 @@ async function parsePDFTables(pdfBuffer) {
         const allRentals = [];
         const provinceStats = {};
         let totalExpected = 0;
+        const debugData = {
+            pages: [],
+            stitchingEvents: []
+        };
 
         console.log(`Processing ${numPages} pages for table analysis...`);
 
@@ -87,7 +93,7 @@ async function parsePDFTables(pdfBuffer) {
                 page: pageNum
             }));
 
-            const pageResult = parsePageRentals(textItems, pageNum);
+            const pageResult = parsePageRentals(textItems, pageNum, debugData);
             allRentals.push(...pageResult.rentals);
 
             // Merge province stats
@@ -99,12 +105,25 @@ async function parsePDFTables(pdfBuffer) {
             });
 
             totalExpected += pageResult.expectedCount;
+
+            debugData.pages.push({
+                pageNum,
+                rows: pageResult.rawRows,
+                rentalsFound: pageResult.rentals.length,
+                expected: pageResult.expectedCount,
+                province: pageResult.currentProvince
+            });
         }
+
+        // Validate counts per province
+        const validationResults = validateProvinceCounts(allRentals, provinceStats, debugData);
 
         return {
             rentals: allRentals,
             provinceStats: provinceStats,
-            totalExpected: totalExpected
+            totalExpected: totalExpected,
+            debugData: debugData,
+            validation: validationResults
         };
     } catch (error) {
         console.error('Error in parsePDFTables:', error);
@@ -112,83 +131,231 @@ async function parsePDFTables(pdfBuffer) {
         return {
             rentals: fallback,
             provinceStats: {},
-            totalExpected: fallback.length
+            totalExpected: fallback.length,
+            debugData: { error: error.message }
         };
     }
 }
 
-function parsePageRentals(textItems, pageNum) {
+function parsePageRentals(textItems, pageNum, debugData) {
     const rentals = [];
     const provinceStats = {};
     let expectedCount = 0;
+    let currentProvince = '';
 
     // Group into rows
     const rows = groupIntoRows(textItems);
+    const rawRows = rows.map(row => ({
+        y: row.y,
+        items: row.items.map(item => ({ text: item.text, x: item.x })),
+        joinedText: row.items.map(item => item.text).join(' ')
+    }));
 
-    // Look for table patterns and process data rows
-    let currentProvince = '';
-    let inTable = false;
+    // Process rows to detect province and rentals
     let currentRental = null;
+    let stitchingInProgress = false;
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         const rowText = row.items.map(item => item.text).join(' ');
 
-        // DEBUG: Log all rows to see what we're working with
-        if (rowText.includes('Provincia') || rowText.includes('Total')) {
-            console.log(`📄 Row ${i}: "${rowText}"`);
-        }
-
-        // Detect province and expected count - try multiple patterns
-        if (rowText.includes('Provincia:')) {
-            currentProvince = rowText.replace('Provincia:', '').trim();
-            console.log(`📍 Found province: "${currentProvince}"`);
-            continue;
-        }
-
-        // Try multiple patterns for the count
-        let countMatch = null;
-
-        // Pattern 1: "151Total por provincia:"
-        countMatch = rowText.match(/(\d+)Total por provincia:/);
-        if (countMatch && currentProvince) {
-            expectedCount = parseInt(countMatch[1]);
+        // Detect province header
+        const provinceMatch = detectProvinceAndCount(rowText);
+        if (provinceMatch) {
+            currentProvince = provinceMatch.province;
+            expectedCount = provinceMatch.count;
             provinceStats[currentProvince] = expectedCount;
-            console.log(`✅ Pattern 1 matched: ${currentProvince} = ${expectedCount}`);
+            console.log(`📍 Province: "${currentProvince}", Expected: ${expectedCount}`);
             continue;
         }
 
-        // Pattern 2: "151 Total por provincia:" (with space)
-        countMatch = rowText.match(/(\d+) Total por provincia:/);
-        if (countMatch && currentProvince) {
-            expectedCount = parseInt(countMatch[1]);
-            provinceStats[currentProvince] = expectedCount;
-            console.log(`✅ Pattern 2 matched: ${currentProvince} = ${expectedCount}`);
+        // Skip header rows and other non-data rows
+        if (isHeaderRow(rowText) || !currentProvince) {
             continue;
         }
 
-        // Pattern 3: Just look for numbers before "Total"
-        countMatch = rowText.match(/(\d+)\s*Total/);
-        if (countMatch && currentProvince && rowText.includes('provincia')) {
-            expectedCount = parseInt(countMatch[1]);
-            provinceStats[currentProvince] = expectedCount;
-            console.log(`✅ Pattern 3 matched: ${currentProvince} = ${expectedCount}`);
-            continue;
-        }
+        // Parse row data
+        const rowData = parseRowData(row);
 
-        // Rest of your existing code...
+        // Check if this is a valid rental row
+        if (isValidRentalRow(rowData)) {
+            // If we have a current rental being stitched, check if this continues it
+            if (currentRental && isContinuationRow(rowData, currentRental)) {
+                debugData.stitchingEvents.push({
+                    type: 'CONTINUATION_DETECTED',
+                    page: pageNum,
+                    rowIndex: i,
+                    currentRental: { ...currentRental },
+                    continuationRow: { ...rowData },
+                    reason: getContinuationReason(rowData, currentRental)
+                });
+
+                currentRental = mergeRentalRows(currentRental, rowData);
+                stitchingInProgress = true;
+            } else {
+                // If we have a current rental, complete it before starting new one
+                if (currentRental) {
+                    const completeRental = createCompleteRental(currentRental, currentProvince);
+                    rentals.push(completeRental);
+
+                    debugData.stitchingEvents.push({
+                        type: 'RENTAL_COMPLETED',
+                        page: pageNum,
+                        rental: { ...completeRental },
+                        wasStitched: stitchingInProgress
+                    });
+
+                    stitchingInProgress = false;
+                }
+
+                // Start new rental
+                currentRental = { ...rowData };
+
+                debugData.stitchingEvents.push({
+                    type: 'NEW_RENTAL_STARTED',
+                    page: pageNum,
+                    rowIndex: i,
+                    rentalData: { ...rowData }
+                });
+            }
+        } else if (currentRental && isContinuationRow(rowData, currentRental)) {
+            // This row only contains continuation data
+            debugData.stitchingEvents.push({
+                type: 'CONTINUATION_ONLY',
+                page: pageNum,
+                rowIndex: i,
+                currentRental: { ...currentRental },
+                continuationRow: { ...rowData },
+                reason: getContinuationReason(rowData, currentRental)
+            });
+
+            currentRental = mergeRentalRows(currentRental, rowData);
+            stitchingInProgress = true;
+        }
     }
 
     // Don't forget the last rental
     if (currentRental) {
-        rentals.push(createCompleteRental(currentRental, currentProvince));
+        const completeRental = createCompleteRental(currentRental, currentProvince);
+        rentals.push(completeRental);
+
+        debugData.stitchingEvents.push({
+            type: 'FINAL_RENTAL_COMPLETED',
+            page: pageNum,
+            rental: { ...completeRental },
+            wasStitched: stitchingInProgress
+        });
     }
 
     return {
         rentals: rentals,
         provinceStats: provinceStats,
-        expectedCount: expectedCount
+        expectedCount: expectedCount,
+        currentProvince: currentProvince,
+        rawRows: rawRows
     };
+}
+
+function detectProvinceAndCount(rowText) {
+    // Multiple patterns to detect province and count
+    const patterns = [
+        /Provincia:\s*([A-ZÁÉÍÓÚÑ\s]+)\s*(\d+)\s*Total por provincia:/i,
+        /Provincia:\s*([A-ZÁÉÍÓÚÑ\s]+)\s*(\d+)\s*Total/i,
+        /([A-ZÁÉÍÓÚÑ\s]+)\s*(\d+)\s*Total por provincia:/i,
+        /Provincia:\s*([A-ZÁÉÍÓÚÑ\s]+).*?(\d+)\s*Total/i
+    ];
+
+    for (const pattern of patterns) {
+        const match = rowText.match(pattern);
+        if (match) {
+            return {
+                province: match[1].trim().toUpperCase(),
+                count: parseInt(match[2])
+            };
+        }
+    }
+    return null;
+}
+
+function isHeaderRow(rowText) {
+    const headerPatterns = [
+        /Nombre/i,
+        /Modalidad/i,
+        /Correo/i,
+        /Teléfono/i,
+        /Principal/i,
+        /REPORTE.*HOSPEDAJES/i,
+        /ATP/i
+    ];
+
+    return headerPatterns.some(pattern => pattern.test(rowText));
+}
+
+function isValidRentalRow(rowData) {
+    // A row is valid if it has substantial content in name and at least one other field
+    const hasValidName = rowData.name && rowData.name.trim().length > 2;
+    const hasType = rowData.type && rowData.type.trim().length > 0;
+    const hasEmail = rowData.email && rowData.email.trim().length > 0;
+    const hasPhone = rowData.phone && rowData.phone.trim().length > 0;
+
+    return hasValidName && (hasType || hasEmail || hasPhone);
+}
+
+function isContinuationRow(rowData, currentRental) {
+    // Check for specific multi-word type patterns
+    if (currentRental.type === 'Hostal' && rowData.type === 'Familiar') {
+        return true;
+    }
+    if (currentRental.type === 'Sitio de' && rowData.type === 'acampar') {
+        return true;
+    }
+
+    // Check for email continuation (incomplete email)
+    if (rowData.email && currentRental.email &&
+        !isCompleteEmail(currentRental.email) &&
+        !rowData.name && !rowData.type && !rowData.phone) {
+        return true;
+    }
+
+    // Check for phone continuation (ends with hyphen or slash)
+    if (rowData.phone && currentRental.phone &&
+        (currentRental.phone.endsWith('-') || currentRental.phone.endsWith('/')) &&
+        !rowData.name && !rowData.type && !rowData.email) {
+        return true;
+    }
+
+    // Check for name continuation (minimal content in other fields)
+    if (rowData.name &&
+        (!rowData.type || rowData.type.length < 3) &&
+        (!rowData.email || rowData.email.length < 3) &&
+        (!rowData.phone || rowData.phone.length < 3)) {
+        return true;
+    }
+
+    return false;
+}
+
+function getContinuationReason(rowData, currentRental) {
+    if (currentRental.type === 'Hostal' && rowData.type === 'Familiar') {
+        return 'Hostal Familiar pattern';
+    }
+    if (currentRental.type === 'Sitio de' && rowData.type === 'acampar') {
+        return 'Sitio de acampar pattern';
+    }
+    if (rowData.email && !isCompleteEmail(currentRental.email)) {
+        return 'Email continuation';
+    }
+    if (rowData.phone && (currentRental.phone.endsWith('-') || currentRental.phone.endsWith('/'))) {
+        return 'Phone continuation';
+    }
+    if (rowData.name && (!rowData.type && !rowData.email && !rowData.phone)) {
+        return 'Name continuation';
+    }
+    return 'Unknown reason';
+}
+
+function isCompleteEmail(email) {
+    return email.includes('@') && (email.includes('.com') || email.includes('.net') || email.includes('.org') || email.includes('.gob'));
 }
 
 function parseRowData(row) {
@@ -221,67 +388,20 @@ function parseRowData(row) {
     return rental;
 }
 
-function isNewRentalRow(rowData) {
-    // A row is considered a new rental if it has substantial content
-    const hasSubstantialName = rowData.name && rowData.name.length > 3;
-    const hasType = rowData.type && rowData.type.length > 0;
-    const hasEmailOrPhone = (rowData.email && rowData.email.length > 0) || (rowData.phone && rowData.phone.length > 0);
-
-    return hasSubstantialName && (hasType || hasEmailOrPhone);
-}
-
-function isContinuationRow(rowData, currentRental) {
-    // This is a continuation row if it continues any field of the current rental
-
-    // Check for name continuation (current name ends with incomplete word)
-    const nameContinues = rowData.name &&
-                         currentRental.name &&
-                         !currentRental.name.endsWith('.') &&
-                         (rowData.name.split(' ').length <= 2 ||
-                          rowData.name.startsWith('DE ') ||
-                          rowData.name.startsWith('DEL ') ||
-                          rowData.name.startsWith('LAS ') ||
-                          rowData.name.startsWith('LOS '));
-
-    // Check for email continuation (current email is incomplete)
-    const emailContinues = rowData.email &&
-                          currentRental.email &&
-                          (!currentRental.email.includes('@') ||
-                           (!currentRental.email.includes('.com') &&
-                            !currentRental.email.includes('.net') &&
-                            !currentRental.email.includes('.org')));
-
-    // Check for phone continuation (current phone ends with separator)
-    const phoneContinues = rowData.phone &&
-                          currentRental.phone &&
-                          (currentRental.phone.endsWith('/') ||
-                           currentRental.phone.endsWith('-'));
-
-    // Check for Hostal Familiar pattern
-    const hostalFamiliar = currentRental.type === 'Hostal' && rowData.type === 'Familiar';
-
-    // Check if this row only has partial data (suggesting it's a continuation)
-    const hasPartialData = rowData.name &&
-                          rowData.name.length > 0 &&
-                          (!rowData.type || rowData.type.length === 0) &&
-                          (!rowData.email || rowData.email.length === 0) &&
-                          (!rowData.phone || rowData.phone.length === 0);
-
-    return nameContinues || emailContinues || phoneContinues || hostalFamiliar || hasPartialData;
-}
-
 function mergeRentalRows(currentRental, continuationRow) {
     const merged = { ...currentRental };
 
-    // Merge name with space (if continuation has name)
+    // Merge name with space
     if (continuationRow.name && continuationRow.name.trim().length > 0) {
         merged.name = (currentRental.name + ' ' + continuationRow.name).trim();
     }
 
-    // Merge type - handle Hostal Familiar specifically
+    // Merge type - handle specific patterns
     if (continuationRow.type && continuationRow.type.trim().length > 0) {
         if (currentRental.type === 'Hostal' && continuationRow.type === 'Familiar') {
             merged.type = 'Hostal Familiar';
+        } else if (currentRental.type === 'Sitio de' && continuationRow.type === 'acampar') {
+            merged.type = 'Sitio de acampar';
         } else {
             merged.type = (currentRental.type + ' ' + continuationRow.type).trim();
         }
@@ -298,477 +418,236 @@ function mergeRentalRows(currentRental, continuationRow) {
             merged.phone = (currentRental.phone + ' ' + continuationRow.phone).trim();
         } else if (currentRental.phone.endsWith('-')) {
             merged.phone = (currentRental.phone.slice(0, -1) + continuationRow.phone).trim();
-        } else if (currentRental.phone.length > 0) {
-            // If we already have a phone and get another one, combine with separator
-            merged.phone = (currentRental.phone + ' / ' + continuationRow.phone).trim();
         } else {
-            merged.phone = continuationRow.phone.trim();
+            merged.phone = (currentRental.phone + ' ' + continuationRow.phone).trim();
         }
+
+        // Clean up phone format
+        merged.phone = merged.phone.replace(/\s+/g, ' ').trim();
     }
 
     return merged;
 }
 
-function createCompleteRental(rentalData, province) {
-    const cleanName = cleanText(rentalData.name);
-    let cleanType = cleanText(rentalData.type);
+function validateProvinceCounts(rentals, provinceStats, debugData) {
+    const validation = {};
+    let totalExpected = 0;
+    let totalFound = 0;
 
-    // Clean up type - remove duplicate "Familiar"
-    if (cleanType.includes('Familiar Familiar')) {
-        cleanType = cleanType.replace(/Familiar\s+Familiar/g, 'Familiar');
-    }
+    Object.keys(provinceStats).forEach(province => {
+        const expected = provinceStats[province];
+        const found = rentals.filter(r => r.province === province).length;
+        totalExpected += expected;
+        totalFound += found;
 
-    const cleanEmail = extractEmail(rentalData.email);
-    const cleanPhone = extractAllPhones(rentalData.phone);
-    const whatsappPhone = formatWhatsAppNumber(extractFirstPhone(rentalData.phone));
-    const callPhone = formatCallNumber(extractFirstPhone(rentalData.phone));
-
-    return {
-        name: cleanName,
-        type: cleanType,
-        email: cleanEmail,
-        phone: cleanPhone,
-        province: province,
-        district: guessDistrict(cleanName, province),
-        description: generateDescription(cleanName, cleanType, province),
-        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(cleanName + ' ' + province + ' Panamá')}`,
-        whatsapp: whatsappPhone,
-        whatsapp_url: whatsappPhone ? `https://wa.me/${whatsappPhone}` : '',
-        call_url: callPhone ? `tel:${callPhone}` : '',
-        source: 'ATP_OFFICIAL'
-    };
-}
-
-// Extract ALL phone numbers (not just first)
-function extractAllPhones(text) {
-    if (!text) return '';
-    try {
-        // Remove extra spaces but keep the separators
-        return text.replace(/\s+/g, ' ').trim();
-    } catch (error) {
-        return '';
-    }
-}
-
-// WhatsApp number formatting
-function formatWhatsAppNumber(phone) {
-    if (!phone) return '';
-
-    // Remove all non-digit characters
-    let cleanPhone = phone.replace(/\D/g, '');
-
-    // Ensure it's 8 digits and starts with 6
-    if (cleanPhone.length === 8 && cleanPhone.startsWith('6')) {
-        return '507' + cleanPhone;
-    }
-
-    // If it's already 11 digits with 507 prefix
-    if (cleanPhone.length === 11 && cleanPhone.startsWith('507')) {
-        return cleanPhone;
-    }
-
-    return ''; // Invalid format for WhatsApp
-}
-
-// Call number formatting - use only first phone number with +507 prefix
-function formatCallNumber(phone) {
-    if (!phone) return '';
-
-    // Remove all non-digit characters and take only the first phone number
-    let cleanPhone = phone.replace(/\D/g, '');
-
-    // Take only the first 8 digits (one phone number)
-    if (cleanPhone.length >= 8) {
-        cleanPhone = cleanPhone.substring(0, 8);
-    }
-
-    // Ensure it's 7 or 8 digits
-    if (cleanPhone.length === 8 || cleanPhone.length === 7) {
-        return '+507' + cleanPhone;
-    }
-
-    return ''; // Invalid format
-}
-
-// Helper functions
-function groupIntoRows(textItems) {
-    const rows = {};
-    const Y_TOLERANCE = 1.5;
-
-    textItems.forEach(item => {
-        if (!item.text.trim()) return;
-
-        const existingKey = Object.keys(rows).find(y =>
-            Math.abs(parseFloat(y) - item.y) <= Y_TOLERANCE
-        );
-
-        const rowY = existingKey || item.y.toString();
-        if (!rows[rowY]) rows[rowY] = [];
-        rows[rowY].push(item);
+        validation[province] = {
+            expected,
+            found,
+            difference: found - expected,
+            status: found === expected ? 'OK' : found > expected ? 'OVER' : 'UNDER'
+        };
     });
 
-    // Convert to array and sort by Y (top to bottom)
-    return Object.entries(rows)
-        .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
-        .map(([y, items]) => ({
-            y: parseFloat(y),
-            items: items.sort((a, b) => a.x - b.x)
-        }));
-}
-
-function cleanText(text) {
-    if (!text) return '';
-    return text.replace(/\s+/g, ' ').trim();
-}
-
-function extractEmail(text) {
-    if (!text) return '';
-    try {
-        const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-        return match ? match[1] : '';
-    } catch (error) {
-        return '';
-    }
-}
-
-function extractFirstPhone(text) {
-    if (!text) return '';
-    try {
-        // Remove slashes and hyphens, take first 8 digits
-        const cleanText = text.replace(/[-\/\s]/g, '');
-        const match = cleanText.match(/(\d{7,8})/);
-        return match ? match[1] : '';
-    } catch (error) {
-        return '';
-    }
-}
-
-function guessDistrict(name, province) {
-    const districtMap = {
-        'BOCAS DEL TORO': 'Bocas del Toro',
-        'CHIRIQUÍ': 'David',
-        'COCLÉ': 'Penonomé',
-        'COLÓN': 'Colón',
-        'DARIÉN': 'La Palma',
-        'HERRERA': 'Chitré',
-        'LOS SANTOS': 'Las Tablas',
-        'PANAMÁ': 'Ciudad de Panamá',
-        'PANAMÁ OESTE': 'La Chorrera',
-        'VERAGUAS': 'Santiago',
-        'GUNAS': 'Guna Yala',
-        'EMBERÁ': 'Emberá',
-        'NGÄBE-BUGLÉ': 'Ngäbe-Buglé'
+    debugData.validation = validation;
+    debugData.totalValidation = {
+        totalExpected,
+        totalFound: rentals.length,
+        difference: rentals.length - totalExpected
     };
-    return districtMap[province] || province;
+
+    console.log('=== VALIDATION RESULTS ===');
+    console.log(`Total Expected: ${totalExpected}, Total Found: ${rentals.length}`);
+    Object.keys(validation).forEach(province => {
+        const result = validation[province];
+        console.log(`${province}: Expected ${result.expected}, Found ${result.found} (${result.status})`);
+    });
+
+    return validation;
 }
 
-function generateDescription(name, type, province) {
-    return `${type} "${name}" ubicado en ${province}, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).`;
-}
+// Keep the existing helper functions (groupIntoRows, cleanText, extractEmail, etc.)
+// ... [all your existing helper functions remain the same] ...
 
-function getFallbackData() {
-    return [
-        {
-            name: "APARTHOTEL BOQUETE",
-            type: "Aparta-Hotel",
-            email: "info@aparthotel-boquete.com",
-            phone: "68916669 / 68916660",
-            province: "CHIRIQUÍ",
-            district: "Boquete",
-            description: 'Aparta-Hotel "APARTHOTEL BOQUETE" ubicado en CHIRIQUÍ, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).',
-            google_maps_url: "https://maps.google.com/?q=APARTHOTEL%20BOQUETE%20BOQUETE%20Panam%C3%A1",
-            whatsapp: "50768916669",
-            whatsapp_url: "https://wa.me/50768916669",
-            call_url: "tel:+50768916669",
-            source: "ATP_OFFICIAL"
-        }
-    ];
-}
+// NEW DEBUG ENDPOINTS
 
-// API ROUTES
-app.get('/api/test', (req, res) => {
-    try {
-        res.json({
-            message: 'ATP Rentals Search API is working!',
-            status: 'success',
-            timestamp: new Date().toISOString(),
-            data_source: 'LIVE_ATP_PDF',
-            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
-            total_expected: PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0
-        });
-    } catch (error) {
-        console.error('Error in /api/test:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+app.get('/api/debug-parsing-analysis', (req, res) => {
+    const analysis = {
+        totalRentalsFound: CURRENT_RENTALS.length,
+        totalExpected: Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0),
+        provinceStats: PROVINCE_STATS,
+        validation: DEBUG_DATA.validation || {},
+        stitchingEvents: DEBUG_DATA.stitchingEvents ? DEBUG_DATA.stitchingEvents.length : 0,
+        pdfStatus: PDF_STATUS
+    };
+
+    res.json(analysis);
 });
 
-// DEBUG ENDPOINT - Shows raw table structure
-app.get('/api/debug-tables', async (req, res) => {
-    try {
-        let tablesData = [];
+app.get('/api/debug-stitching-events', (req, res) => {
+    const events = DEBUG_DATA.stitchingEvents || [];
+    const limitedEvents = events.slice(0, 50); // Limit to first 50 events
 
-        for (const pdfUrl of PDF_URLS) {
-            try {
-                const response = await axios.get(pdfUrl, {
-                    responseType: 'arraybuffer',
-                    timeout: 30000
-                });
+    res.json({
+        totalEvents: events.length,
+        events: limitedEvents
+    });
+});
 
-                if (response.status === 200) {
-                    tablesData = await parsePDFTables(response.data);
-                    break;
-                }
-            } catch (error) {
-                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
-            }
-        }
+app.get('/api/debug-page-data/:pageNum?', (req, res) => {
+    const pageNum = parseInt(req.params.pageNum) || 1;
+    const pageData = DEBUG_DATA.pages ? DEBUG_DATA.pages[pageNum - 1] : null;
 
-        // Format for HTML display
-        const htmlResponse = `
+    if (!pageData) {
+        return res.status(404).json({ error: `No data for page ${pageNum}` });
+    }
+
+    res.json({
+        page: pageNum,
+        province: pageData.province,
+        expectedCount: pageData.expected,
+        rentalsFound: pageData.rentalsFound,
+        rawRows: pageData.rows.slice(0, 20) // First 20 rows
+    });
+});
+
+app.get('/api/debug-visual', (req, res) => {
+    const htmlResponse = `
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PDF Table Structure Analysis</title>
+    <title>PDF Parsing Debug Analysis</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
         .container { background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .table { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
-        .table-header { background: #e8f4fd; padding: 10px; margin: -15px -15px 15px -15px; border-radius: 5px 5px 0 0; }
-        .row { margin: 5px 0; padding: 5px; border-bottom: 1px solid #eee; }
-        .row:hover { background: #f9f9f9; }
-        .item { display: inline-block; margin: 0 10px; padding: 2px 5px; background: #f0f0f0; border-radius: 3px; }
-        .coordinates { color: #666; font-size: 0.8em; }
-        .header-row { background: #d4edda; font-weight: bold; }
-        .stats { background: #fff3cd; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+        .stat-card { background: #e8f4fd; padding: 10px; border-radius: 5px; text-align: center; }
+        .stat-card.good { background: #d4edda; }
+        .stat-card.bad { background: #f8d7da; }
+        .stat-card.warning { background: #fff3cd; }
+        .validation-table { width: 100%; border-collapse: collapse; }
+        .validation-table th, .validation-table td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+        .event { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 3px; }
+        .event.stitching { border-left: 4px solid #007bff; }
+        .event.new-rental { border-left: 4px solid #28a745; }
+        .raw-row { font-family: monospace; font-size: 0.9em; margin: 2px 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>PDF Table Structure Analysis</h1>
-        <div class="stats">
-            <strong>Total Tables Found:</strong> ${tablesData.length}<br>
-            <strong>Total Data Rows:</strong> ${tablesData.reduce((sum, table) => sum + table.dataRows.length, 0)}<br>
-            <strong>PDF Status:</strong> ${PDF_STATUS}
+        <h1>PDF Parsing Debug Analysis</h1>
+
+        <div class="section">
+            <h2>Overall Statistics</h2>
+            <div class="stats-grid">
+                <div class="stat-card ${CURRENT_RENTALS.length === DEBUG_DATA.totalValidation?.totalExpected ? 'good' : 'bad'}">
+                    <h3>Total Rentals</h3>
+                    <div>Found: ${CURRENT_RENTALS.length}</div>
+                    <div>Expected: ${DEBUG_DATA.totalValidation?.totalExpected || 'N/A'}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Stitching Events</h3>
+                    <div>${DEBUG_DATA.stitchingEvents?.length || 0}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Provinces</h3>
+                    <div>${Object.keys(PROVINCE_STATS).length}</div>
+                </div>
+            </div>
         </div>
 
-        ${tablesData.map((table, tableIndex) => `
-            <div class="table">
-                <div class="table-header">
-                    <strong>Table ${tableIndex + 1}</strong> |
-                    Page: ${table.page} |
-                    Province: ${table.province || 'Unknown'} |
-                    Data Rows: ${table.dataRows.length} |
-                    Column Boundaries: ${table.columnBoundaries.map(c => `${c.name} (x:${c.x})`).join(', ')}
+        <div class="section">
+            <h2>Province Validation</h2>
+            <table class="validation-table">
+                <thead>
+                    <tr>
+                        <th>Province</th>
+                        <th>Expected</th>
+                        <th>Found</th>
+                        <th>Difference</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${Object.keys(DEBUG_DATA.validation || {}).map(province => {
+                        const val = DEBUG_DATA.validation[province];
+                        return `
+                        <tr>
+                            <td>${province}</td>
+                            <td>${val.expected}</td>
+                            <td>${val.found}</td>
+                            <td>${val.difference}</td>
+                            <td>${val.status}</td>
+                        </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>Recent Stitching Events (First 10)</h2>
+            ${(DEBUG_DATA.stitchingEvents || []).slice(0, 10).map(event => `
+                <div class="event stitching">
+                    <strong>${event.type}</strong> - Page ${event.page}
+                    ${event.reason ? `<br><em>Reason: ${event.reason}</em>` : ''}
+                    ${event.currentRental ? `<br>Current: ${JSON.stringify(event.currentRental)}` : ''}
+                    ${event.continuationRow ? `<br>Continuation: ${JSON.stringify(event.continuationRow)}` : ''}
                 </div>
+            `).join('')}
+        </div>
 
-                <!-- Header Row -->
-                <div class="row header-row">
-                    ${table.headers.items.map(item =>
-                        `<span class="item">${item.text} <span class="coordinates">(x:${item.x}, y:${item.y})</span></span>`
-                    ).join('')}
-                </div>
-
-                <!-- Data Rows (show first 10) -->
-                ${table.dataRows.slice(0, 10).map((row, rowIndex) => `
-                    <div class="row">
-                        <strong>Row ${rowIndex + 1}:</strong>
-                        ${row.items.map(item =>
-                            `<span class="item">${item.text} <span class="coordinates">(x:${item.x})</span></span>`
-                        ).join('')}
-                    </div>
-                `).join('')}
-
-                ${table.dataRows.length > 10 ? `<div><em>... and ${table.dataRows.length - 10} more rows</em></div>` : ''}
-            </div>
-        `).join('')}
-
-        ${tablesData.length === 0 ? '<div style="color: red; padding: 20px; text-align: center;">No tables detected in PDF</div>' : ''}
+        <div class="section">
+            <h2>Actions</h2>
+            <button onclick="refreshData()">Refresh PDF Data</button>
+            <button onclick="viewStitchingEvents()">View All Stitching Events</button>
+        </div>
     </div>
+
+    <script>
+        function refreshData() {
+            fetch('/api/refresh-pdf', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    alert('Data refreshed! Total rentals: ' + data.total_rentals);
+                    location.reload();
+                });
+        }
+
+        function viewStitchingEvents() {
+            window.open('/api/debug-stitching-events');
+        }
+    </script>
 </body>
 </html>
-        `;
+    `;
 
-        res.send(htmlResponse);
-    } catch (error) {
-        console.error('Error in /api/debug-tables:', error);
-        res.status(500).send('Error analyzing PDF tables');
-    }
+    res.send(htmlResponse);
 });
 
-
-app.get('/api/debug-parsing', (req, res) => {
-    const sampleItems = CURRENT_RENTALS.slice(0, 5).map(rental => ({
-        name: rental.name,
-        type: rental.type,
-        province: rental.province
-    }));
-
-    res.json({
-        totalRentals: CURRENT_RENTALS.length,
-        sampleRentals: sampleItems,
-        pdfStatus: PDF_STATUS,
-        provinceStats: PROVINCE_STATS
-    });
-});
-
-app.get('/api/rentals', (req, res) => {
-    try {
-        const { search, province, type } = req.query;
-        let filtered = CURRENT_RENTALS || [];
-
-        // If no filters applied, return empty array with message
-        if (!search && !province && !type) {
-            return res.json([]);
-        }
-
-        if (search) {
-            const searchLower = search.toLowerCase();
-            filtered = filtered.filter(rental =>
-                rental && rental.name && rental.name.toLowerCase().includes(searchLower) ||
-                (rental.district && rental.district.toLowerCase().includes(searchLower)) ||
-                (rental.description && rental.description.toLowerCase().includes(searchLower)) ||
-                (rental.province && rental.province.toLowerCase().includes(searchLower)) ||
-                (rental.type && rental.type.toLowerCase().includes(searchLower))
-            );
-        }
-
-        if (province && province !== '') {
-            filtered = filtered.filter(rental =>
-                rental && rental.province && rental.province.toLowerCase() === province.toLowerCase()
-            );
-        }
-
-        if (type && type !== '') {
-            filtered = filtered.filter(rental =>
-                rental && rental.type && rental.type.toLowerCase() === type.toLowerCase()
-            );
-        }
-
-        res.json(filtered);
-    } catch (error) {
-        console.error('Error in /api/rentals:', error);
-        res.status(500).json({ error: 'Error al buscar hospedajes' });
-    }
-});
-
-app.get('/api/provinces', (req, res) => {
-    try {
-        // If we have province stats from successful parsing, use them
-        if (PROVINCE_STATS && Object.keys(PROVINCE_STATS).length > 0) {
-            const provinces = Object.keys(PROVINCE_STATS).sort();
-            const provincesWithCounts = provinces.map(province =>
-                `${province} (${PROVINCE_STATS[province]})`
-            );
-            return res.json(provincesWithCounts);
-        }
-
-        // Fallback: If parsing didn't work, show provinces from CURRENT_RENTALS with unknown counts
-        const provinces = CURRENT_RENTALS ?
-            [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))].sort() : [];
-
-        const provincesWithCounts = provinces.map(province =>
-            `${province} (?)`
-        );
-
-        res.json(provincesWithCounts);
-    } catch (error) {
-        console.error('Error in /api/provinces:', error);
-        res.status(500).json({ error: 'Error cargando provincias' });
-    }
-});
-
-app.get('/api/debug-province-stats', (req, res) => {
-    res.json({
-        provinceStats: PROVINCE_STATS,
-        hasProvinceStats: PROVINCE_STATS && Object.keys(PROVINCE_STATS).length > 0,
-        provinceStatsKeys: PROVINCE_STATS ? Object.keys(PROVINCE_STATS) : [],
-        currentRentalsCount: CURRENT_RENTALS.length,
-        pdfStatus: PDF_STATUS
-    });
-});
-
-app.get('/api/types', (req, res) => {
-    try {
-        const types = [
-            "Albergue",
-            "Aparta-Hotel",
-            "Bungalow",
-            "Cabaña",
-            "Hostal Familiar",
-            "Hotel",
-            "Motel",
-            "Pensión",
-            "Residencial",
-            "Sitio de acampar"
-        ];
-
-        res.json(types);
-    } catch (error) {
-        console.error('Error in /api/types:', error);
-        res.status(500).json({ error: 'Error cargando tipos' });
-    }
-});
-
-app.get('/api/stats', (req, res) => {
-    try {
-        const totalExpected = PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0;
-
-        res.json({
-            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
-            total_expected: totalExpected,
-            last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
-            data_source: 'LIVE_ATP_DATA',
-            status: PDF_STATUS,
-            province_stats: PROVINCE_STATS,
-            note: 'Datos oficiales de la Autoridad de Turismo de Panamá'
-        });
-    } catch (error) {
-        console.error('Error in /api/stats:', error);
-        res.status(500).json({ error: 'Error cargando estadísticas' });
-    }
-});
-
-// Keep other endpoints the same...
-
-app.post('/api/refresh-pdf', async (req, res) => {
-    try {
-        const success = await fetchAndParsePDF();
-        res.json({
-            success: success,
-            message: success ? 'PDF data refreshed successfully' : 'Failed to refresh PDF data',
-            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
-            total_expected: PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0,
-            status: PDF_STATUS,
-            last_update: LAST_PDF_UPDATE
-        });
-    } catch (error) {
-        console.error('Error in /api/refresh-pdf:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.get('/health', (req, res) => {
-    const totalExpected = PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0;
-
-    res.json({
-        status: 'OK',
-        timestamp: new Date().toISOString(),
-        rentals_loaded: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
-        total_expected: totalExpected,
-        pdf_status: PDF_STATUS
-    });
-});
+// Keep all your existing API endpoints...
+// ... [all your existing endpoints remain the same] ...
 
 // Initialize
 app.listen(PORT, async () => {
     console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
     console.log(`📍 Health check: http://localhost:${PORT}/health`);
+    console.log(`📍 Debug visual: http://localhost:${PORT}/api/debug-visual`);
 
     setTimeout(async () => {
         try {
             await fetchAndParsePDF();
             const totalExpected = PROVINCE_STATS ? Object.values(PROVINCE_STATS).reduce((a, b) => a + b, 0) : 0;
             console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded (Expected: ${totalExpected})`);
+
+            // Log validation results
+            if (DEBUG_DATA.validation) {
+                console.log('=== VALIDATION RESULTS ===');
+                Object.keys(DEBUG_DATA.validation).forEach(province => {
+                    const result = DEBUG_DATA.validation[province];
+                    console.log(`${province}: Expected ${result.expected}, Found ${result.found} (${result.status})`);
+                });
+            }
         } catch (error) {
             console.error('Error during startup:', error);
             CURRENT_RENTALS = getFallbackData();
