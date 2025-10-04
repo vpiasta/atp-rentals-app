@@ -151,7 +151,8 @@ app.get('/api/stats', (req, res) => {
         last_updated: new Date().toISOString(),
         data_source: 'ATP_OFFICIAL',
         status: 'Using sample data',
-        provinces_count: [...new Set(CURRENT_RENTALS.map(r => r.province))].length
+        provinces_count: [...new Set(CURRENT_RENTALS.map(r => r.province))].length,
+        note: 'Currently using sample data. PDF parsing to be added.'
     });
 });
 
@@ -192,5 +193,6 @@ app.listen(PORT, () => {
     console.log(`📍 Rentals endpoint: http://localhost:${PORT}/api/rentals`);
     console.log('✅ Server started successfully with sample data');
 });
+
 
 
