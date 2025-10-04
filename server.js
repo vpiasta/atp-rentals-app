@@ -122,6 +122,68 @@ app.get('/api/debug', (req, res) => {
     });
 });
 
+// Add these routes after your existing app.get routes
+
+app.get('/api/provinces', (req, res) => {
+    const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province).filter(Boolean))];
+    res.json(provinces);
+});
+
+app.get('/api/types', (req, res) => {
+    const types = [
+        "Albergue", 
+        "Aparta-Hotel", 
+        "Bungalow", 
+        "Cabaña", 
+        "Hostal Familiar", 
+        "Hotel", 
+        "Motel", 
+        "Pensión", 
+        "Residencial", 
+        "Sitio de acampar"
+    ];
+    res.json(types);
+});
+
+app.get('/api/stats', (req, res) => {
+    res.json({
+        total_rentals: CURRENT_RENTALS.length,
+        last_updated: new Date().toISOString(),
+        data_source: 'ATP_OFFICIAL',
+        status: 'Using sample data',
+        provinces_count: [...new Set(CURRENT_RENTALS.map(r => r.province))].length
+    });
+});
+
+// Search functionality for rentals
+app.get('/api/rentals/search', (req, res) => {
+    const { q, province, type } = req.query;
+    let filtered = CURRENT_RENTALS;
+
+    if (q) {
+        const searchLower = q.toLowerCase();
+        filtered = filtered.filter(rental =>
+            rental.name.toLowerCase().includes(searchLower) ||
+            (rental.province && rental.province.toLowerCase().includes(searchLower)) ||
+            (rental.type && rental.type.toLowerCase().includes(searchLower))
+        );
+    }
+
+    if (province) {
+        filtered = filtered.filter(rental =>
+            rental.province && rental.province.toLowerCase() === province.toLowerCase()
+        );
+    }
+
+    if (type) {
+        filtered = filtered.filter(rental =>
+            rental.type && rental.type.toLowerCase() === type.toLowerCase()
+        );
+    }
+
+    res.json(filtered);
+});
+
 // Start the server
 app.listen(PORT, () => {
     console.log(`🚀 ATP Rentals API running on port ${PORT}`);
@@ -130,4 +192,5 @@ app.listen(PORT, () => {
     console.log(`📍 Rentals endpoint: http://localhost:${PORT}/api/rentals`);
     console.log('✅ Server started successfully with sample data');
 });
+
 
