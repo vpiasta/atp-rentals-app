@@ -39,6 +39,55 @@ let CURRENT_RENTALS = [
     }
 ];
 
+const axios = require('axios');
+const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+
+const PDF_URLS = [
+    'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf'
+];
+
+let PDF_STATUS = 'Not attempted';
+let LAST_PDF_UPDATE = null;
+
+// Safe PDF parsing function
+async function tryParsePDF() {
+    try {
+        console.log('Attempting to fetch PDF...');
+        const response = await axios.get(PDF_URLS[0], {
+            responseType: 'arraybuffer',
+            timeout: 15000
+        });
+
+        if (response.status === 200) {
+            console.log('PDF fetched successfully, checking content...');
+            const data = new Uint8Array(response.data);
+            const pdf = await pdfjsLib.getDocument(data).promise;
+            const numPages = pdf.numPages;
+
+            PDF_STATUS = `PDF loaded: ${numPages} pages`;
+            LAST_PDF_UPDATE = new Date().toISOString();
+
+            console.log(`✅ ${PDF_STATUS}`);
+            return true;
+        }
+    } catch (error) {
+        PDF_STATUS = `PDF failed: ${error.message}`;
+        console.log(`❌ ${PDF_STATUS}`);
+    }
+    return false;
+}
+
+// Try PDF parsing in background (non-blocking)
+setTimeout(() => {
+    tryParsePDF().then(success => {
+        if (success) {
+            console.log('PDF parsing ready to be implemented');
+        } else {
+            console.log('PDF not available, continuing with sample data');
+        }
+    });
+}, 2000);
+
 // Basic endpoints
 app.get('/api/test', (req, res) => {
     res.json({
@@ -67,7 +116,7 @@ app.get('/api/rentals', (req, res) => {
 app.get('/api/test', (req, res) => {
     res.json({
         message: 'ATP Rentals API is working!',
-        status: 'success', 
+        status: 'success',
         total_rentals: CURRENT_RENTALS.length,
         timestamp: new Date().toISOString()
     });
@@ -131,15 +180,15 @@ app.get('/api/provinces', (req, res) => {
 
 app.get('/api/types', (req, res) => {
     const types = [
-        "Albergue", 
-        "Aparta-Hotel", 
-        "Bungalow", 
-        "Cabaña", 
-        "Hostal Familiar", 
-        "Hotel", 
-        "Motel", 
-        "Pensión", 
-        "Residencial", 
+        "Albergue",
+        "Aparta-Hotel",
+        "Bungalow",
+        "Cabaña",
+        "Hostal Familiar",
+        "Hotel",
+        "Motel",
+        "Pensión",
+        "Residencial",
         "Sitio de acampar"
     ];
     res.json(types);
@@ -193,6 +242,3 @@ app.listen(PORT, () => {
     console.log(`📍 Rentals endpoint: http://localhost:${PORT}/api/rentals`);
     console.log('✅ Server started successfully with sample data');
 });
-
-
-
