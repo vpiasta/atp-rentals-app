@@ -582,6 +582,16 @@ app.get('/api/provinces', (req, res) => {
     }
 });
 
+app.get('/api/debug-province-stats', (req, res) => {
+    res.json({
+        provinceStats: PROVINCE_STATS,
+        hasProvinceStats: PROVINCE_STATS && Object.keys(PROVINCE_STATS).length > 0,
+        provinceStatsKeys: PROVINCE_STATS ? Object.keys(PROVINCE_STATS) : [],
+        currentRentalsCount: CURRENT_RENTALS.length,
+        pdfStatus: PDF_STATUS
+    });
+});
+
 app.get('/api/types', (req, res) => {
     try {
         const types = [

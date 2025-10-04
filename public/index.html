@@ -251,30 +251,32 @@
 <body>
     <div class="container">
         <header>
-            <h1>Hospedajes Turísticos Registrados</h1>
-            <p class="subtitle">Autoridad de Turismo de Panamá (ATP) - Datos en Tiempo Real</p>
+            <h1>Registered Tourist Rentals in Panama</h1>
+            <p class="subtitle">Short-term Rentals registered with the Tourism Authority of Panama (ATP)</p>
+            <p class="subtitle">Data source: https://www.atp.gob.pa/industrias/hoteleros/</p>
+            <p class="subtitle">We recommend to rent only legally registered tourist rentals</p>
         </header>
 
         <div class="stats" id="statsPanel">
-            <div class="loading">Cargando estadísticas...</div>
+            <div class="loading">Loading statistics...</div>
         </div>
 
         <section class="search-section">
             <div class="search-box">
-                <input type="text" id="searchInput" placeholder="Buscar por nombre, ubicación, tipo de hospedaje...">
-                <button id="searchButton">Buscar</button>
+                <input type="text" id="searchInput" placeholder="Search for name, location, rental type ...">
+                <button id="searchButton">Search</button>
             </div>
             <div class="filters">
                 <div class="filter-group">
-                    <label for="provinceFilter">Provincia</label>
+                    <label for="provinceFilter">Province</label>
                     <select id="provinceFilter">
-                        <option value="">Todas las provincias</option>
+                        <option value="">All Provinces</option>
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label for="typeFilter">Tipo de Hospedaje</label>
+                    <label for="typeFilter">Hospitality Type</label>
                     <select id="typeFilter">
-                        <option value="">Todos los tipos</option>
+                        <option value="">All Types</option>
                     </select>
                 </div>
             </div>
@@ -282,13 +284,15 @@
 
         <section class="results-section" id="resultsContainer">
             <div class="no-results">
-                <p>Ingresa un término de búsqueda para encontrar hospedajes turísticos registrados.</p>
+                <p>Enter a search term to find registered tourist rentals</p>
             </div>
         </section>
 
         <footer>
-            <p>Datos proporcionados por la Autoridad de Turismo de Panamá (ATP)</p>
-            <p>Actualizado por última vez: <span id="lastUpdate">--</span></p>
+            <p>Data provided by the "Autoridad de Turismo de Panamá" (ATP)
+              <a href="https://www.atp.gob.pa/industrias/hoteleros/">HERE</a>
+            </p>
+            <p>Last update: <span id="lastUpdate">--</span></p>
         </footer>
     </div>
 
@@ -321,9 +325,11 @@
 
                 statsPanel.innerHTML = `
                     <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 1rem;">
-                        <div><strong>Total de Hospedajes:</strong> ${stats.total_rentals}</div>
+                        <div><strong>Total rentals found:</strong> ${stats.total_rentals}</div>
+                        <!--
                         <div><strong>Estado:</strong> ${stats.status}</div>
                         <div><strong>Características:</strong> ${stats.features}</div>
+                        -->
                     </div>
                 `;
                 lastUpdateSpan.textContent = new Date(stats.last_updated).toLocaleString();
