@@ -190,7 +190,59 @@ async function tryParsePDF() {
     return false;
 }
 
+// Automatic PDF parsing on startup
+async function initializePDFParsing() {
+    console.log('🚀 Initializing PDF parsing...');
+    const success = await tryParsePDF();
+    if (success) {
+        console.log(`✅ PDF parsing successful: ${PDF_RENTALS.length} rentals extracted`);
+        // Optionally switch to PDF data automatically
+        if (PDF_RENTALS.length > 0) {
+            CURRENT_RENTALS = PDF_RENTALS;
+            console.log(`🔄 Auto-switched to PDF data: ${PDF_RENTALS.length} rentals`);
+        }
+    } else {
+        console.log('❌ PDF parsing failed, using sample data');
+    }
+}
+
+// Start PDF parsing after a short delay (non-blocking)
+setTimeout(() => {
+    initializePDFParsing();
+}, 3000);
+
+
 // Basic endpoints
+
+// Manual PDF parsing trigger
+app.post('/api/parse-pdf', async (req, res) => {
+    try {
+        console.log('Manual PDF parsing triggered...');
+        const success = await tryParsePDF();
+
+        if (success) {
+            res.json({
+                success: true,
+                message: `PDF parsing successful: ${PDF_RENTALS.length} rentals extracted`,
+                total_rentals: PDF_RENTALS.length,
+                pdf_status: PDF_STATUS,
+                rentals_preview: PDF_RENTALS.slice(0, 5)
+            });
+        } else {
+            res.json({
+                success: false,
+                message: 'PDF parsing failed',
+                pdf_status: PDF_STATUS
+            });
+        }
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'PDF parsing error',
+            error: error.message
+        });
+    }
+});
 
 // Debug endpoint for PDF extracted data
 app.get('/api/pdf-rentals', (req, res) => {
