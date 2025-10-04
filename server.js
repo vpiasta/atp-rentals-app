@@ -124,22 +124,6 @@ function parsePageRentals(textItems, pageNum) {
 
     // Group into rows
     const rows = groupIntoRows(textItems);
-    // Detect expected count for province
-
-    const countMatch = rowText.match(/(\d+)Total por provincia:/);
-    if (countMatch && currentProvince) {
-        expectedCount = parseInt(countMatch[1]);
-        provinceStats[currentProvince] = expectedCount;
-        console.log(`✅ Found province count: ${currentProvince} = ${expectedCount}`); // ADD THIS LINE
-        continue;
-    }
-
-    // Detect province
-    if (rowText.includes('Provincia:')) {
-        currentProvince = rowText.replace('Provincia:', '').trim();
-        console.log(`📍 Found province: ${currentProvince}`); // ADD THIS LINE
-        continue;
-    }
 
     // Look for table patterns and process data rows
     let currentProvince = '';
@@ -153,6 +137,7 @@ function parsePageRentals(textItems, pageNum) {
         // Detect province and expected count
         if (rowText.includes('Provincia:')) {
             currentProvince = rowText.replace('Provincia:', '').trim();
+            console.log(`📍 Found province: ${currentProvince}`);
             continue;
         }
 
@@ -161,6 +146,7 @@ function parsePageRentals(textItems, pageNum) {
         if (countMatch && currentProvince) {
             expectedCount = parseInt(countMatch[1]);
             provinceStats[currentProvince] = expectedCount;
+            console.log(`✅ Found province count: ${currentProvince} = ${expectedCount}`);
             continue;
         }
 
