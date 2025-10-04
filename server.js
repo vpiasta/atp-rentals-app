@@ -558,12 +558,21 @@ app.get('/api/rentals', (req, res) => {
 
 app.get('/api/provinces', (req, res) => {
     try {
-        // Get provinces from PROVINCE_STATS
-        const provinces = Object.keys(PROVINCE_STATS).sort();
+        // If we have province stats from successful parsing, use them
+        if (PROVINCE_STATS && Object.keys(PROVINCE_STATS).length > 0) {
+            const provinces = Object.keys(PROVINCE_STATS).sort();
+            const provincesWithCounts = provinces.map(province =>
+                `${province} (${PROVINCE_STATS[province]})`
+            );
+            return res.json(provincesWithCounts);
+        }
 
-        // Return simple strings for province selector with correct counts
+        // Fallback: If parsing didn't work, show provinces from CURRENT_RENTALS with unknown counts
+        const provinces = CURRENT_RENTALS ?
+            [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))].sort() : [];
+
         const provincesWithCounts = provinces.map(province =>
-            `${province} (${PROVINCE_STATS[province]})`
+            `${province} (?)`
         );
 
         res.json(provincesWithCounts);
