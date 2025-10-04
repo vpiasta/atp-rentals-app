@@ -392,8 +392,6 @@ app.get('/api/debug', (req, res) => {
     });
 });
 
-// Add these routes after your existing app.get routes
-
 app.get('/api/provinces', (req, res) => {
     const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province).filter(Boolean))];
     res.json(provinces);
@@ -453,6 +451,108 @@ app.get('/api/rentals/search', (req, res) => {
     }
 
     res.json(filtered);
+});
+
+// Root endpoint with testing interface
+app.get('/', (req, res) => {
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>ATP Rentals PDF Parser</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; }
+                button { padding: 10px 20px; margin: 10px; font-size: 16px; }
+                .result { background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 5px; }
+                .success { background: #d4edda; }
+                .error { background: #f8d7da; }
+            </style>
+        </head>
+        <body>
+            <h1>ATP Rentals PDF Parser</h1>
+
+            <div>
+                <button onclick="parsePDF()">📄 Parse PDF Now</button>
+                <button onclick="checkPDFRentals()">🔍 Check PDF Rentals</button>
+                <button onclick="usePDFData()">🔄 Use PDF Data</button>
+                <button onclick="useSampleData()">📋 Use Sample Data</button>
+                <button onclick="checkStats()">📊 Check Stats</button>
+            </div>
+
+            <div id="result"></div>
+
+            <script>
+                async function parsePDF() {
+                    showResult('Parsing PDF...', '');
+                    try {
+                        const response = await fetch('/api/parse-pdf', { method: 'POST' });
+                        const data = await response.json();
+                        showResult('PDF Parsing Result', data, data.success ? 'success' : 'error');
+                    } catch (error) {
+                        showResult('Error', error.toString(), 'error');
+                    }
+                }
+
+                async function checkPDFRentals() {
+                    showResult('Checking PDF rentals...', '');
+                    try {
+                        const response = await fetch('/api/pdf-rentals');
+                        const data = await response.json();
+                        showResult('PDF Rentals Status', data);
+                    } catch (error) {
+                        showResult('Error', error.toString(), 'error');
+                    }
+                }
+
+                async function usePDFData() {
+                    showResult('Switching to PDF data...', '');
+                    try {
+                        const response = await fetch('/api/use-pdf-data');
+                        const data = await response.json();
+                        showResult('Data Switch Result', data, data.success ? 'success' : 'error');
+                    } catch (error) {
+                        showResult('Error', error.toString(), 'error');
+                    }
+                }
+
+                async function useSampleData() {
+                    showResult('Switching to sample data...', '');
+                    try {
+                        const response = await fetch('/api/use-sample-data');
+                        const data = await response.json();
+                        showResult('Data Switch Result', data, data.success ? 'success' : 'error');
+                    } catch (error) {
+                        showResult('Error', error.toString(), 'error');
+                    }
+                }
+
+                async function checkStats() {
+                    showResult('Checking stats...', '');
+                    try {
+                        const response = await fetch('/api/stats');
+                        const data = await response.json();
+                        showResult('Current Stats', data);
+                    } catch (error) {
+                        showResult('Error', error.toString(), 'error');
+                    }
+                }
+
+                function showResult(title, data, type = '') {
+                    const resultDiv = document.getElementById('result');
+                    resultDiv.innerHTML = `
+                        <div class="result ${type}">
+                            <h3>${title}</h3>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+
+                // Load initial stats on page load
+                checkStats();
+            </script>
+        </body>
+        </html>
+    `);
 });
 
 // Start the server
