@@ -148,7 +148,19 @@ app.get('/api/stats', (req, res) => {
         total_rentals: CURRENT_RENTALS.length,
         last_updated: new Date().toISOString(),
         data_source: 'ATP_OFFICIAL',
-        status: 'Using sample data'
+        pdf_status: PDF_STATUS,
+        last_pdf_update: LAST_PDF_UPDATE,
+        note: 'Sample data with PDF parsing in development'
+    });
+});
+
+app.get('/api/pdf-status', (req, res) => {
+    res.json({
+        pdf_status: PDF_STATUS,
+        last_attempt: LAST_PDF_UPDATE,
+        pdf_url: PDF_URLS[0],
+        current_data_source: 'sample',
+        note: 'PDF parsing is being implemented gradually'
     });
 });
 
