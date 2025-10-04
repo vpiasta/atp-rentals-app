@@ -48,47 +48,203 @@ const PDF_URLS = [
 
 let PDF_STATUS = 'Not attempted';
 let LAST_PDF_UPDATE = null;
+let PDF_RENTALS = [];
 
-// Safe PDF parsing function
+// Column boundaries from our previous work
+const COLUMN_BOUNDARIES = {
+    NOMBRE: { start: 0, end: 184 },
+    MODALIDAD: { start: 184, end: 265 },
+    CORREO: { start: 265, end: 481 },
+    TELEFONO: { start: 481, end: 600 }
+};
+
+// Group text items into rows based on Y coordinates
+function groupIntoRows(textItems) {
+    const rows = {};
+    const Y_TOLERANCE = 1.5;
+
+    textItems.forEach(item => {
+        if (!item.text.trim()) return;
+
+        const existingKey = Object.keys(rows).find(y =>
+            Math.abs(parseFloat(y) - item.y) <= Y_TOLERANCE
+        );
+
+        const rowY = existingKey || item.y.toString();
+        if (!rows[rowY]) rows[rowY] = [];
+        rows[rowY].push(item);
+    });
+
+    // Convert to array and sort by Y (top to bottom)
+    return Object.entries(rows)
+        .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
+        .map(([y, items]) => ({
+            y: parseFloat(y),
+            items: items.sort((a, b) => a.x - b.x)
+        }));
+}
+
+// Parse row data into columns
+function parseRowData(row) {
+    const rental = {
+        name: '',
+        type: '',
+        email: '',
+        phone: ''
+    };
+
+    // Assign items to columns based on X position
+    row.items.forEach(item => {
+        if (item.x >= COLUMN_BOUNDARIES.NOMBRE.start && item.x < COLUMN_BOUNDARIES.NOMBRE.end) {
+            rental.name += (rental.name ? ' ' : '') + item.text;
+        } else if (item.x >= COLUMN_BOUNDARIES.MODALIDAD.start && item.x < COLUMN_BOUNDARIES.MODALIDAD.end) {
+            rental.type += (rental.type ? ' ' : '') + item.text;
+        } else if (item.x >= COLUMN_BOUNDARIES.CORREO.start && item.x < COLUMN_BOUNDARIES.CORREO.end) {
+            rental.email += item.text; // No space for emails
+        } else if (item.x >= COLUMN_BOUNDARIES.TELEFONO.start && item.x < COLUMN_BOUNDARIES.TELEFONO.end) {
+            rental.phone += (rental.phone ? ' ' : '') + item.text;
+        }
+    });
+
+    // Clean the data
+    rental.name = rental.name.trim();
+    rental.type = rental.type.trim();
+    rental.email = rental.email.trim();
+    rental.phone = rental.phone.trim();
+
+    return rental;
+}
+
+// Enhanced PDF parsing with coordinate-based approach
 async function tryParsePDF() {
     try {
-        console.log('Attempting to fetch PDF...');
+        console.log('Attempting coordinate-based PDF parsing...');
         const response = await axios.get(PDF_URLS[0], {
             responseType: 'arraybuffer',
             timeout: 15000
         });
 
         if (response.status === 200) {
-            console.log('PDF fetched successfully, checking content...');
+            console.log('PDF fetched, starting coordinate parsing...');
             const data = new Uint8Array(response.data);
             const pdf = await pdfjsLib.getDocument(data).promise;
             const numPages = pdf.numPages;
 
-            PDF_STATUS = `PDF loaded: ${numPages} pages`;
+            const allRentals = [];
+            let totalRowsProcessed = 0;
+
+            // Process first 5 pages to test
+            for (let pageNum = 1; pageNum <= Math.min(5, numPages); pageNum++) {
+                console.log(`Processing page ${pageNum}...`);
+                const page = await pdf.getPage(pageNum);
+                const textContent = await page.getTextContent();
+
+                // Extract text with precise positioning
+                const textItems = textContent.items.map(item => ({
+                    text: item.str,
+                    x: Math.round(item.transform[4] * 100) / 100,
+                    y: Math.round(item.transform[5] * 100) / 100,
+                    page: pageNum
+                }));
+
+                // Group into rows
+                const rows = groupIntoRows(textItems);
+                totalRowsProcessed += rows.length;
+
+                // Process each row
+                for (let i = 0; i < rows.length; i++) {
+                    const rowData = parseRowData(rows[i]);
+
+                    // Only include rows that look like actual rentals
+                    if (rowData.name && rowData.name.length > 3 &&
+                        (rowData.type || rowData.email || rowData.phone)) {
+
+                        const rental = {
+                            name: rowData.name,
+                            type: rowData.type,
+                            email: rowData.email,
+                            phone: rowData.phone,
+                            province: 'EXTRACTING...', // Will be determined later
+                            district: 'EXTRACTING...',
+                            description: `${rowData.type} "${rowData.name}" ubicado en Panamá.`,
+                            google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(rowData.name + ' Panamá')}`,
+                            source: 'ATP_PDF_EXTRACTED'
+                        };
+
+                        allRentals.push(rental);
+                    }
+                }
+            }
+
+            PDF_RENTALS = allRentals;
+            PDF_STATUS = `PDF parsed: ${numPages} pages, ${allRentals.length} rentals found, ${totalRowsProcessed} rows processed`;
             LAST_PDF_UPDATE = new Date().toISOString();
 
             console.log(`✅ ${PDF_STATUS}`);
             return true;
         }
     } catch (error) {
-        PDF_STATUS = `PDF failed: ${error.message}`;
+        PDF_STATUS = `PDF parsing failed: ${error.message}`;
         console.log(`❌ ${PDF_STATUS}`);
     }
     return false;
 }
 
-// Try PDF parsing in background (non-blocking)
-setTimeout(() => {
-    tryParsePDF().then(success => {
-        if (success) {
-            console.log('PDF parsing ready to be implemented');
-        } else {
-            console.log('PDF not available, continuing with sample data');
-        }
-    });
-}, 2000);
-
 // Basic endpoints
+
+// Debug endpoint for PDF extracted data
+app.get('/api/pdf-rentals', (req, res) => {
+    res.json({
+        status: PDF_STATUS,
+        total_rentals: PDF_RENTALS.length,
+        last_update: LAST_PDF_UPDATE,
+        rentals: PDF_RENTALS.slice(0, 10), // First 10 rentals
+        note: 'Coordinate-based extraction from PDF'
+    });
+});
+
+// Switch between sample data and PDF data
+app.get('/api/use-pdf-data', (req, res) => {
+    if (PDF_RENTALS.length > 0) {
+        CURRENT_RENTALS = PDF_RENTALS;
+        res.json({
+            success: true,
+            message: `Switched to PDF data: ${PDF_RENTALS.length} rentals`,
+            total_rentals: PDF_RENTALS.length
+        });
+    } else {
+        res.json({
+            success: false,
+            message: 'No PDF data available yet',
+            pdf_status: PDF_STATUS
+        });
+    }
+});
+
+app.get('/api/use-sample-data', (req, res) => {
+    CURRENT_RENTALS = [
+        {
+            name: "APARTHOTEL BOQUETE",
+            type: "Aparta-Hotel",
+            email: "info@aparthotel-boquete.com",
+            phone: "68916669 / 68916660",
+            province: "CHIRIQUÍ",
+            district: "Boquete",
+            description: 'Aparta-Hotel "APARTHOTEL BOQUETE" ubicado en CHIRIQUÍ, Panamá.',
+            google_maps_url: "https://maps.google.com/?q=APARTHOTEL%20BOQUETE%20BOQUETE%20Panamá",
+            whatsapp: "50768916669",
+            whatsapp_url: "https://wa.me/50768916669",
+            call_url: "tel:+50768916669",
+            source: "ATP_OFFICIAL"
+        }
+    ];
+    res.json({
+        success: true,
+        message: 'Switched to sample data',
+        total_rentals: CURRENT_RENTALS.length
+    });
+});
+
 app.get('/api/test', (req, res) => {
     res.json({
         message: 'ATP Rentals API is working!',
@@ -146,11 +302,12 @@ app.get('/api/types', (req, res) => {
 app.get('/api/stats', (req, res) => {
     res.json({
         total_rentals: CURRENT_RENTALS.length,
+        pdf_rentals_available: PDF_RENTALS.length,
         last_updated: new Date().toISOString(),
-        data_source: 'ATP_OFFICIAL',
         pdf_status: PDF_STATUS,
         last_pdf_update: LAST_PDF_UPDATE,
-        note: 'Sample data with PDF parsing in development'
+        data_source: CURRENT_RENTALS[0]?.source || 'unknown',
+        note: 'Coordinate-based PDF parsing active'
     });
 });
 
