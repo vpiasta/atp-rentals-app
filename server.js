@@ -1,4 +1,6 @@
 const express = require('express');
+const axios = require('axios');
+const pdf = require('pdf-parse');
 const cors = require('cors');
 
 const app = express();
@@ -6,292 +8,494 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-
-// Simple in-memory data
-let CURRENT_RENTALS = [
-    {
-        name: "APARTHOTEL BOQUETE",
-        type: "Aparta-Hotel",
-        email: "info@aparthotel-boquete.com",
-        phone: "68916669 / 68916660",
-        province: "CHIRIQUÍ",
-        district: "Boquete",
-        description: 'Aparta-Hotel "APARTHOTEL BOQUETE" ubicado en CHIRIQUÍ, Panamá.',
-        google_maps_url: "https://maps.google.com/?q=APARTHOTEL%20BOQUETE%20BOQUETE%20Panamá",
-        whatsapp: "50768916669",
-        whatsapp_url: "https://wa.me/50768916669",
-        call_url: "tel:+50768916669",
-        source: "ATP_OFFICIAL"
-    },
-    {
-        name: "HOTEL EXAMPLE",
-        type: "Hotel",
-        email: "info@example.com",
-        phone: "6123-4567",
-        province: "PANAMÁ",
-        district: "Ciudad de Panamá",
-        description: 'Hotel "EXAMPLE" ubicado en PANAMÁ, Panamá.',
-        google_maps_url: "https://maps.google.com/?q=HOTEL%20EXAMPLE%20Panamá",
-        whatsapp: "50761234567",
-        whatsapp_url: "https://wa.me/50761234567",
-        call_url: "tel:+50761234567",
-        source: "ATP_OFFICIAL"
-    }
-];
-
-const axios = require('axios');
-const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+app.use(express.static('public'));
 
 const PDF_URLS = [
     'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf'
 ];
 
-let PDF_STATUS = 'Not attempted';
+let CURRENT_RENTALS = [];
 let LAST_PDF_UPDATE = null;
-let PDF_RENTALS = [];
+let PDF_STATUS = 'No PDF processed yet';
 
-// Column boundaries from our previous work
-const COLUMN_BOUNDARIES = {
-    NOMBRE: { start: 0, end: 184 },
-    MODALIDAD: { start: 184, end: 265 },
-    CORREO: { start: 265, end: 481 },
-    TELEFONO: { start: 481, end: 600 }
-};
+async function fetchAndParsePDF() {
+    for (const pdfUrl of PDF_URLS) {
+        try {
+            console.log(`Fetching PDF from: ${pdfUrl}`);
+            const response = await axios.get(pdfUrl, {
+                responseType: 'arraybuffer',
+                timeout: 30000
+            });
 
-// Group text items into rows based on Y coordinates
-function groupIntoRows(textItems) {
-    const rows = {};
-    const Y_TOLERANCE = 1.5;
+            if (response.status === 200) {
+                console.log('PDF fetched, parsing...');
+                const data = await pdf(response.data);
+                PDF_STATUS = `PDF processed successfully from: ${pdfUrl}`;
+                LAST_PDF_UPDATE = new Date().toISOString();
 
-    textItems.forEach(item => {
-        if (!item.text.trim()) return;
+                const parsedRentals = parsePDFText(data.text);
+                console.log(`Parsed ${parsedRentals.length} rentals from PDF`);
 
-        const existingKey = Object.keys(rows).find(y =>
-            Math.abs(parseFloat(y) - item.y) <= Y_TOLERANCE
-        );
-
-        const rowY = existingKey || item.y.toString();
-        if (!rows[rowY]) rows[rowY] = [];
-        rows[rowY].push(item);
-    });
-
-    // Convert to array and sort by Y (top to bottom)
-    return Object.entries(rows)
-        .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
-        .map(([y, items]) => ({
-            y: parseFloat(y),
-            items: items.sort((a, b) => a.x - b.x)
-        }));
-}
-
-// Parse row data into columns
-function parseRowData(row) {
-    const rental = {
-        name: '',
-        type: '',
-        email: '',
-        phone: ''
-    };
-
-    // Assign items to columns based on X position
-    row.items.forEach(item => {
-        if (item.x >= COLUMN_BOUNDARIES.NOMBRE.start && item.x < COLUMN_BOUNDARIES.NOMBRE.end) {
-            rental.name += (rental.name ? ' ' : '') + item.text;
-        } else if (item.x >= COLUMN_BOUNDARIES.MODALIDAD.start && item.x < COLUMN_BOUNDARIES.MODALIDAD.end) {
-            rental.type += (rental.type ? ' ' : '') + item.text;
-        } else if (item.x >= COLUMN_BOUNDARIES.CORREO.start && item.x < COLUMN_BOUNDARIES.CORREO.end) {
-            rental.email += item.text; // No space for emails
-        } else if (item.x >= COLUMN_BOUNDARIES.TELEFONO.start && item.x < COLUMN_BOUNDARIES.TELEFONO.end) {
-            rental.phone += (rental.phone ? ' ' : '') + item.text;
+                CURRENT_RENTALS = parsedRentals;
+                return true;
+            }
+        } catch (error) {
+            console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
         }
-    });
+    }
 
-    // Clean the data
-    rental.name = rental.name.trim();
-    rental.type = rental.type.trim();
-    rental.email = rental.email.trim();
-    rental.phone = rental.phone.trim();
-
-    return rental;
+    PDF_STATUS = 'No PDF available';
+    CURRENT_RENTALS = getFallbackData();
+    return false;
 }
 
-// Enhanced PDF parsing with coordinate-based approach
-// Debug version of PDF parsing function
-async function tryParsePDF() {
+function parsePDFText(text) {
     try {
-        console.log('🔄 Starting PDF parsing...');
-        const response = await axios.get(PDF_URLS[0], {
-            responseType: 'arraybuffer',
-            timeout: 15000
-        });
-
-        console.log('✅ PDF fetched, processing...');
-        const data = new Uint8Array(response.data);
-        const pdf = await pdfjsLib.getDocument(data).promise;
-        const numPages = pdf.numPages;
-
-        console.log(`📄 PDF has ${numPages} pages`);
-
+        console.log('=== PARSING ATP PDF DATA - TABLE BY TABLE ===');
+        const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);  // create "lines" array of clean, trimmed, non-empty lines
         const allRentals = [];
-        let totalRowsProcessed = 0;
 
-        // Process just ONE page first to test
-        for (let pageNum = 1; pageNum <= Math.min(1, numPages); pageNum++) {
-            console.log(`Processing page ${pageNum}...`);
-            const page = await pdf.getPage(pageNum);
-            const textContent = await page.getTextContent();
+        let i = 0;
+        let currentProvince = '';
+        let currentRentalCount = 0;
 
-            console.log(`📝 Page ${pageNum} has ${textContent.items.length} text items`);
+        while (i < lines.length) {
+            const line = lines[i];    // a line of array "lines"
 
-            // Extract text with precise positioning
-            const textItems = textContent.items.map(item => ({
-                text: item.str,
-                x: Math.round(item.transform[4] * 100) / 100,
-                y: Math.round(item.transform[5] * 100) / 100,
-                page: pageNum
-            }));
+            // Skip headers
+            if (isHeaderLine(line)) {
+                i++;
+                continue;
+            }
 
-            console.log(`📍 First text item: ${JSON.stringify(textItems[0])}`);
+            // Look for province pattern: "BOCAS DEL TOROProvincia:"
+            const provinceMatch = line.match(/(.*)Provincia:/);
+            if (provinceMatch) {
+                currentProvince = provinceMatch[1].trim();
+                console.log(`\n=== PROCESSING PROVINCE: ${currentProvince} ===`);
+                i++;
+                continue;
+            }
 
-            // Group into rows
-            const rows = groupIntoRows(textItems);
-            console.log(`📊 Grouped into ${rows.length} rows`);
-            totalRowsProcessed += rows.length;
+            // Look for rental count pattern: "151Total por provincia:"
+            const countMatch = line.match(/(\d+)Total por provincia:/);
+            if (countMatch && currentProvince) {
+                currentRentalCount = parseInt(countMatch[1]);
+                console.log(`Expected rental count: ${currentRentalCount}`);
 
-            // Process each row
-            for (let i = 0; i < rows.length; i++) {
-                const rowData = parseRowData(rows[i]);
+                // Process this table
+                const tableResult = processTable(lines, i + 1, currentProvince, currentRentalCount);
+                if (tableResult.rentals.length > 0) {
+                    allRentals.push(...tableResult.rentals);
+                    console.log(`Added ${tableResult.rentals.length} rentals for ${currentProvince}`);
+                }
 
-                // Only include rows that look like actual rentals
-                if (rowData.name && rowData.name.length > 3 &&
-                    (rowData.type || rowData.email || rowData.phone)) {
+                i = tableResult.nextIndex;
+                currentProvince = '';
+                currentRentalCount = 0;
+                continue;
+            }
 
-                    const rental = {
-                        name: rowData.name,
-                        type: rowData.type,
-                        email: rowData.email,
-                        phone: rowData.phone,
-                        province: 'EXTRACTING...',
-                        district: 'EXTRACTING...',
-                        description: `${rowData.type} "${rowData.name}" ubicado en Panamá.`,
-                        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(rowData.name + ' Panamá')}`,
-                        source: 'ATP_PDF_EXTRACTED'
-                    };
+            i++;
+        }
 
-                    allRentals.push(rental);
+        console.log(`\n=== PARSING COMPLETE: Found ${allRentals.length} rentals ===`);
+        return allRentals;
+    } catch (error) {
+        console.error('Error in parsePDFText:', error);
+        return getFallbackData();
+    }
+}
+
+function processTable(lines, startIndex, province, expectedCount) {
+    try {
+        console.log(`Processing table starting at line ${startIndex}`);
+
+        const columns = {
+            names: [],
+            types: [],
+            emails: [],
+            phones: []
+        };
+
+        let i = startIndex;
+        let currentColumn = 'names';
+        let tableEnded = false;
+
+        while (i < lines.length && !tableEnded) {
+            const line = lines[i];
+
+            // Stop conditions for this table
+            if (isHeaderLine(line) ||
+                line.includes('Reporte de Hospedajes vigentes') ||
+                line.includes('Provincia:') ||
+                line.includes('Total por provincia:')) {
+                tableEnded = true;
+                break;
+            }
+
+            // COLUMN 1: Names (ends with "Nombre")
+            if (currentColumn === 'names') {
+                if (line === 'Nombre') {
+                    console.log(`Name column ended with ${columns.names.length} entries`);
+                    currentColumn = 'types';
+                    i++;
+                    continue;
+                }
+                if (isNameLine(line)) {
+                    columns.names.push(line);
                 }
             }
+            // COLUMN 2: Types (ends with "Modalidad")
+            else if (currentColumn === 'types') {
+                if (line === 'Modalidad') {
+                    console.log(`Type column ended with ${columns.types.length} entries`);
+                    currentColumn = 'emails';
+                    i++;
+                    continue;
+                }
+                // Handle "Hostal Familiar" special case
+                if (line === 'Hostal' && i + 1 < lines.length && lines[i + 1] === 'Familiar') {
+                    columns.types.push('Hostal Familiar');
+                    i += 2;
+                    continue;
+                }
+                if (isTypeLine(line)) {
+                    columns.types.push(line);
+                }
+            }
+            // COLUMN 3: Emails (ends with "Correo Principal")
+            else if (currentColumn === 'emails') {
+                if (line === 'Correo Principal') {
+                    console.log(`Email column ended with ${columns.emails.length} entries`);
+                    currentColumn = 'phones';
+                    i++;
+                    continue;
+                }
+                // Process email line
+                if (isEmailLine(line) || isPotentialEmailPart(line)) {
+                    let email = processEmailLine(line, lines, i);
+                    columns.emails.push(email);
+                }
+            }
+            // COLUMN 4: Phones (ends with "Teléfono" or "Cel/Teléfono")
+            else if (currentColumn === 'phones') {
+                if (line === 'Cel/Teléfono') {
+                    console.log(`Phone column ended with ${columns.phones.length} entries`);
+                    tableEnded = true;
+                    break;
+                }
+                // Process phone line
+                if (isPhoneLine(line) || isPotentialPhonePart(line)) {
+                    let phone = processPhoneLine(line, lines, i);
+                    columns.phones.push(phone);
+                }
+            }
+
+            i++;
         }
 
-        PDF_RENTALS = allRentals;
-        PDF_STATUS = `PDF parsed: ${allRentals.length} rentals found from first page`;
-        LAST_PDF_UPDATE = new Date().toISOString();
+        // OPTIMIZE and create rentals for this table
+        const optimizedColumns = optimizeColumnsForTable(columns, expectedCount);
+        const rentals = createRentalsFromTable(optimizedColumns, province);
 
-        console.log(`✅ ${PDF_STATUS}`);
-        return true;
-
+        return {
+            rentals: rentals,
+            nextIndex: i
+        };
     } catch (error) {
-        console.error('❌ PDF parsing error details:', error);
-        PDF_STATUS = `PDF parsing failed: ${error.message}`;
-        console.log(`❌ ${PDF_STATUS}`);
-        return false;
+        console.error(`Error processing table for ${province}:`, error);
+        return { rentals: [], nextIndex: startIndex };
     }
 }
 
-// Automatic PDF parsing on startup
-async function initializePDFParsing() {
-    console.log('🚀 Initializing PDF parsing...');
-    const success = await tryParsePDF();
-    if (success) {
-        console.log(`✅ PDF parsing successful: ${PDF_RENTALS.length} rentals extracted`);
-        // Optionally switch to PDF data automatically
-        if (PDF_RENTALS.length > 0) {
-            CURRENT_RENTALS = PDF_RENTALS;
-            console.log(`🔄 Auto-switched to PDF data: ${PDF_RENTALS.length} rentals`);
+function processEmailLine(currentLine, lines, currentIndex) {
+    let email = currentLine;
+
+    // Check if email continues on next line
+    if (currentIndex + 1 < lines.length) {
+        const nextLine = lines[currentIndex + 1];
+        if (isEmailContinuation(currentLine, nextLine)) {
+            email += nextLine;
         }
-    } else {
-        console.log('❌ PDF parsing failed, using sample data');
     }
+
+    return email.replace(/\s+/g, ''); // Remove all spaces
 }
 
-// Start PDF parsing after a short delay (non-blocking)
-setTimeout(() => {
-    initializePDFParsing();
-}, 3000);
+// processPhoneLine function, improved version:
+function processPhoneLine(currentLine, lines, currentIndex) {
+    let phone = currentLine;
+
+    // Check if phone continues on next line (if it ends with hyphen or if next line has not slash, combine with next)
+    if (currentIndex + 1 < lines.length) {
+        const nextLine = lines[currentIndex + 1];
+
+        // If current line ends with "-", combine with next line
+        if (currentLine.trim().endsWith('-')) {
+            phone += ' ' + nextLine;
+            // Mark the next line as processed
+            lines[currentIndex + 1] = 'PROCESSED';
+        }
+        // Also combine if next line has no slash
+        else if (!nextLine.includes("/")) {
+            phone += ' ' + nextLine;
+            lines[currentIndex + 1] = 'PROCESSED';
+        }
+    }
+
+    return phone;
+}
 
 
-// Basic endpoints
+function optimizeColumnsForTable(columns, expectedCount) {
+    console.log(`Optimizing columns: Names=${columns.names.length}, Types=${columns.types.length}, Emails=${columns.emails.length}, Phones=${columns.phones.length}`);
 
-// Simple test endpoint to check if server is running
-app.get('/api/ping', (req, res) => {
-    res.json({
-        message: 'Server is running',
-        timestamp: new Date().toISOString(),
-        pdf_status: PDF_STATUS
-    });
-});
+    const optimized = {
+        names: [...columns.names],
+        types: [...columns.types],
+        emails: [...columns.emails],
+        phones: [...columns.phones]
+    };
 
-// Manual PDF parsing trigger
-app.post('/api/parse-pdf', async (req, res) => {
-    try {
-        console.log('Manual PDF parsing triggered...');
-        const success = await tryParsePDF();
+    // Use type count as the reference
+    const typeCount = optimized.types.length;
 
-        if (success) {
-            res.json({
-                success: true,
-                message: `PDF parsing successful: ${PDF_RENTALS.length} rentals extracted`,
-                total_rentals: PDF_RENTALS.length,
-                pdf_status: PDF_STATUS,
-                rentals_preview: PDF_RENTALS.slice(0, 5)
-            });
+    // FIX NAMES: Combine split names if we have more names than types
+    if (optimized.names.length > typeCount) {
+        optimized.names = fixSplitNames(optimized.names, typeCount);
+    }
+
+    // FIX EMAILS: Align emails with names/types
+    optimized.emails = alignEmailsWithNames(optimized.names, optimized.emails, typeCount);
+
+    // FIX PHONES: Simple alignment
+    if (optimized.phones.length > typeCount) {
+        optimized.phones = optimized.phones.slice(0, typeCount);
+    }
+
+    // Ensure all arrays have exactly expectedCount elements
+    while (optimized.names.length < expectedCount) optimized.names.push('');
+    while (optimized.types.length < expectedCount) optimized.types.push('');
+    while (optimized.emails.length < expectedCount) optimized.emails.push('');
+    while (optimized.phones.length < expectedCount) optimized.phones.push('');
+
+    console.log(`After optimization: Names=${optimized.names.length}, Types=${optimized.types.length}, Emails=${optimized.emails.length}, Phones=${optimized.phones.length}`);
+
+    return optimized;
+}
+
+function fixSplitNames(names, targetCount) {
+    if (names.length <= targetCount) return names.slice(0, targetCount);
+
+    const fixedNames = [];
+    let i = 0;
+
+    while (i < names.length && fixedNames.length < targetCount) {
+        let currentName = names[i];
+        let nextName = names[i+1].trim();
+
+        // If the next name looks like a split name (single word) and we need to reduce count
+        const isSingleWord = nextName.split(' ').length === 1;
+        const remainingNames = names.length - i - 1;
+        const neededNames = targetCount - fixedNames.length;
+
+        if (isSingleWord && !(nextName === "Nombre") && remainingNames >= neededNames) {
+            // This might be a split name - combine with previous name
+            currentName += ' ' + names[i + 1];
+            i++; // Skip the next name
+        }
+
+        fixedNames.push(currentName);
+        i++;
+    }
+
+    return fixedNames;
+}
+
+function alignEmailsWithNames(names, emails, targetCount) {
+    const alignedEmails = new Array(targetCount).fill('');
+    let emailIndex = 0;
+
+    for (let nameIndex = 0; nameIndex < targetCount && emailIndex < emails.length; nameIndex++) {
+        const currentEmail = emails[emailIndex];
+
+        if (emailMatchesName(currentEmail, names[nameIndex])) {
+            alignedEmails[nameIndex] = currentEmail;
+            emailIndex++;
         } else {
-            res.json({
-                success: false,
-                message: 'PDF parsing failed',
-                pdf_status: PDF_STATUS
-            });
+            // Check if this email belongs to a future name
+            let foundMatch = false;
+            for (let futureIndex = nameIndex + 1; futureIndex < Math.min(nameIndex + 3, targetCount); futureIndex++) {
+                if (emailMatchesName(currentEmail, names[futureIndex])) {
+                    // Leave current position empty, the email will be placed later
+                    foundMatch = true;
+                    break;
+                }
+            }
+
+            if (!foundMatch) {
+                // Email doesn't match any nearby name, use it here
+                alignedEmails[nameIndex] = currentEmail;
+                emailIndex++;
+            }
         }
+    }
+
+    return alignedEmails;
+}
+
+function createRentalsFromTable(columns, province) {
+    const rentals = [];
+
+    for (let i = 0; i < columns.names.length; i++) {
+        const name = columns.names[i];
+        const type = columns.types[i];
+        const email = columns.emails[i];
+        const phone = columns.phones[i];
+
+        if (name && name.length > 2) {
+            const cleanName = cleanText(name);
+            const cleanType = cleanText(type) || 'Hospedaje'; // "Hospedaje" is fallback if type is empty
+            const cleanEmail = extractEmail(email);
+            const cleanPhone = extractFirstPhone(phone);
+
+            const rental = {
+                name: cleanName,
+                type: cleanType,
+                email: cleanEmail,
+                phone: cleanPhone,
+                province: province,
+                district: guessDistrict(cleanName, province),
+                description: generateDescription(cleanName, cleanType, province),
+                google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(cleanName + ' ' + province + ' Panamá')}`,
+                whatsapp: cleanPhone,
+                source: 'ATP_OFFICIAL'
+            };
+
+            rentals.push(rental);
+        }
+    }
+
+    return rentals;
+}
+
+// Helper functions
+function isHeaderLine(line) {
+    return line.includes('Reporte de Hospedajes vigentes') ||
+           line.includes('Reporte: rep_hos_web') ||
+           line.includes('Actualizado al') ||
+           line.match(/Página \d+ de \d+/);
+}
+
+function isNameLine(line) {
+    return line && line.length > 3 &&
+           !line.includes('@') &&
+           !isPhoneLine(line) &&
+           !isTypeLine(line) &&
+           line !== 'Nombre' &&
+           line !== 'Modalidad' &&
+           line !== 'Correo Principal' &&
+           line !== 'Teléfono';
+}
+
+function isTypeLine(line) {
+    if (!line) return false;
+    const types = ['Albergue', 'Aparta-Hotel', 'Bungalow', 'Hostal', 'Hotel', 'Posada', 'Resort', 'Ecolodge', 'Hospedaje', 'Cabaña'];
+    return types.some(type => line.includes(type));
+}
+
+function isEmailLine(line) {
+    return line && line.includes('@');
+}
+
+function isPotentialEmailPart(line) {
+    return line && (line.includes('.com') || line.includes('.net') || line.includes('.org'));
+}
+
+function isEmailContinuation(currentLine, nextLine) {
+    return currentLine.includes('@') && !currentLine.includes('.') &&
+           nextLine && (nextLine.includes('.com') || nextLine.includes('.net'));
+}
+
+function isPhoneLine(line) {
+    return line && line.match(/\d{7,8}/);
+}
+
+function isPotentialPhonePart(line) {
+    return line && line.match(/\d{3,4}/);   // line contains a string of 3 or 4 digits (like 123 or 1234) or more
+}
+
+function isPhoneContinuation(currentLine, nextLine) {
+    return (currentLine.trim().endsWith('/') || currentLine.trim().endsWith('-')) &&
+           nextLine && !nextLine.trim().endsWith("/");
+}
+
+function emailMatchesName(email, name) {
+    if (!email || !name) return false;
+
+    // Extract name part from email (before @)
+    const emailNamePart = email.split('@')[0].toLowerCase();
+    const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // Check if name appears in email or vice versa
+    return emailNamePart.includes(cleanName) || cleanName.includes(emailNamePart) ||
+           emailNamePart.includes(cleanName.substring(0, 5)) ||
+           cleanName.includes(emailNamePart.substring(0, 5));
+}
+
+function extractEmail(text) {
+    if (!text) return '';
+    try {
+        const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+        return match ? match[1] : '';   // returns a valid email address if found, otherwise returns ""
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'PDF parsing error',
-            error: error.message
-        });
+        return '';
     }
-});
+}
 
-// Debug endpoint for PDF extracted data
-app.get('/api/pdf-rentals', (req, res) => {
-    res.json({
-        status: PDF_STATUS,
-        total_rentals: PDF_RENTALS.length,
-        last_update: LAST_PDF_UPDATE,
-        rentals: PDF_RENTALS.slice(0, 10), // First 10 rentals
-        note: 'Coordinate-based extraction from PDF'
-    });
-});
-
-// Switch between sample data and PDF data
-app.get('/api/use-pdf-data', (req, res) => {
-    if (PDF_RENTALS.length > 0) {
-        CURRENT_RENTALS = PDF_RENTALS;
-        res.json({
-            success: true,
-            message: `Switched to PDF data: ${PDF_RENTALS.length} rentals`,
-            total_rentals: PDF_RENTALS.length
-        });
-    } else {
-        res.json({
-            success: false,
-            message: 'No PDF data available yet',
-            pdf_status: PDF_STATUS
-        });
+function extractFirstPhone(text) {
+    if (!text) return '';
+    try {
+        // Remove slashes and hyphens, take first 8 digits
+        const cleanText = text.replace(/[-\/\s]/g, '');
+        const match = cleanText.match(/(\d{7,8})/);
+        return match ? match[1] : '';
+    } catch (error) {
+        return '';
     }
-});
+}
 
-app.get('/api/use-sample-data', (req, res) => {
-    CURRENT_RENTALS = [
+function cleanText(text) {
+    if (!text) return '';
+    return text.replace(/\s+/g, ' ').trim();  //replaces Any whitespace character (multiple spaces, tabs, newlines) with a single space
+}
+
+function guessDistrict(name, province) {
+    const districtMap = {
+        'BOCAS DEL TORO': 'Bocas del Toro',
+        'CHIRIQUÍ': 'David',
+        'COCLÉ': 'Penonomé',
+        'COLÓN': 'Colón',
+        'DARIÉN': 'La Palma',
+        'HERRERA': 'Chitré',
+        'LOS SANTOS': 'Las Tablas',
+        'PANAMÁ': 'Ciudad de Panamá',
+        'PANAMÁ OESTE': 'La Chorrera',
+        'VERAGUAS': 'Santiago',
+        'GUNAS': 'Guna Yala',
+        'EMBERÁ': 'Emberá',
+        'NGÄBE-BUGLÉ': 'Ngäbe-Buglé'
+    };
+    return districtMap[province] || province;
+}
+
+function generateDescription(name, type, province) {
+    return `${type} "${name}" ubicado en ${province}, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).`;
+}
+
+function getFallbackData() {
+    return [
         {
             name: "APARTHOTEL BOQUETE",
             type: "Aparta-Hotel",
@@ -299,284 +503,161 @@ app.get('/api/use-sample-data', (req, res) => {
             phone: "68916669 / 68916660",
             province: "CHIRIQUÍ",
             district: "Boquete",
-            description: 'Aparta-Hotel "APARTHOTEL BOQUETE" ubicado en CHIRIQUÍ, Panamá.',
-            google_maps_url: "https://maps.google.com/?q=APARTHOTEL%20BOQUETE%20BOQUETE%20Panamá",
+            description: "Aparta-Hotel \"APARTHOTEL BOQUETE\" ubicado en CHIRIQUÍ, Panamá. Registrado oficialmente ante la Autoridad de Turismo de Panamá (ATP).",
+            google_maps_url: "https://maps.google.com/?q=APARTHOTEL%20BOQUETE%20BOQUETE%20Panam%C3%A1",
             whatsapp: "50768916669",
-            whatsapp_url: "https://wa.me/50768916669",
-            call_url: "tel:+50768916669",
             source: "ATP_OFFICIAL"
         }
     ];
-    res.json({
-        success: true,
-        message: 'Switched to sample data',
-        total_rentals: CURRENT_RENTALS.length
-    });
-});
+}
 
+// API ROUTES WITH ERROR HANDLING
 app.get('/api/test', (req, res) => {
-    res.json({
-        message: 'ATP Rentals API is working!',
-        status: 'success',
-        total_rentals: CURRENT_RENTALS.length
-    });
-});
-
-app.get('/api/rentals', (req, res) => {
-    const { search } = req.query;
-
-    if (search) {
-        const searchLower = search.toLowerCase();
-        const filtered = CURRENT_RENTALS.filter(rental =>
-            rental.name.toLowerCase().includes(searchLower) ||
-            (rental.province && rental.province.toLowerCase().includes(searchLower)) ||
-            (rental.type && rental.type.toLowerCase().includes(searchLower))
-        );
-        res.json(filtered);
-    } else {
-        res.json(CURRENT_RENTALS);
+    try {
+        res.json({
+            message: 'ATP Rentals Search API is working!',
+            status: 'success',
+            timestamp: new Date().toISOString(),
+            data_source: 'LIVE_ATP_PDF',
+            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0
+        });
+    } catch (error) {
+        console.error('Error in /api/test:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
-app.get('/api/test', (req, res) => {
-    res.json({
-        message: 'ATP Rentals API is working!',
-        status: 'success',
-        total_rentals: CURRENT_RENTALS.length,
-        timestamp: new Date().toISOString()
-    });
+app.get('/api/rentals', (req, res) => {
+    try {
+        const { search, province, type } = req.query;
+        let filtered = CURRENT_RENTALS || [];
+
+        if (search) {
+            const searchLower = search.toLowerCase();
+            filtered = filtered.filter(rental =>
+                rental && rental.name && rental.name.toLowerCase().includes(searchLower) ||
+                (rental.district && rental.district.toLowerCase().includes(searchLower)) ||
+                (rental.description && rental.description.toLowerCase().includes(searchLower)) ||
+                (rental.province && rental.province.toLowerCase().includes(searchLower)) ||
+                (rental.type && rental.type.toLowerCase().includes(searchLower))
+            );
+        }
+
+        if (province && province !== '') {
+            filtered = filtered.filter(rental =>
+                rental && rental.province && rental.province.toLowerCase() === province.toLowerCase()
+            );
+        }
+
+        if (type && type !== '') {
+            filtered = filtered.filter(rental =>
+                rental && rental.type && rental.type.toLowerCase() === type.toLowerCase()
+            );
+        }
+
+        res.json(filtered);
+    } catch (error) {
+        console.error('Error in /api/rentals:', error);
+        res.status(500).json({ error: 'Error al buscar hospedajes' });
+    }
 });
 
 app.get('/api/provinces', (req, res) => {
-    const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province).filter(Boolean))];
-    res.json(provinces);
+    try {
+        const provinces = CURRENT_RENTALS ?
+            [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))].sort() : [];
+        res.json(provinces);
+    } catch (error) {
+        console.error('Error in /api/provinces:', error);
+        res.status(500).json({ error: 'Error cargando provincias' });
+    }
 });
 
 app.get('/api/types', (req, res) => {
-    const types = [
-        "Albergue",
-        "Aparta-Hotel",
-        "Bungalow",
-        "Cabaña",
-        "Hostal Familiar",
-        "Hotel",
-        "Motel",
-        "Pensión",
-        "Residencial",
-        "Sitio de acampar"
-    ];
-    res.json(types);
+    try {
+        const types = CURRENT_RENTALS ?
+            [...new Set(CURRENT_RENTALS.map(r => r?.type).filter(Boolean))].sort() : [];
+        res.json(types);
+    } catch (error) {
+        console.error('Error in /api/types:', error);
+        res.status(500).json({ error: 'Error cargando tipos' });
+    }
 });
 
 app.get('/api/stats', (req, res) => {
-    res.json({
-        total_rentals: CURRENT_RENTALS.length,
-        pdf_rentals_available: PDF_RENTALS.length,
-        last_updated: new Date().toISOString(),
-        pdf_status: PDF_STATUS,
-        last_pdf_update: LAST_PDF_UPDATE,
-        data_source: CURRENT_RENTALS[0]?.source || 'unknown',
-        note: 'Coordinate-based PDF parsing active'
-    });
+    try {
+        res.json({
+            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            last_updated: LAST_PDF_UPDATE || new Date().toISOString(),
+            data_source: 'LIVE_ATP_DATA',
+            status: PDF_STATUS,
+            note: 'Datos oficiales de la Autoridad de Turismo de Panamá'
+        });
+    } catch (error) {
+        console.error('Error in /api/stats:', error);
+        res.status(500).json({ error: 'Error cargando estadísticas' });
+    }
 });
 
-app.get('/api/pdf-status', (req, res) => {
-    res.json({
-        pdf_status: PDF_STATUS,
-        last_attempt: LAST_PDF_UPDATE,
-        pdf_url: PDF_URLS[0],
-        current_data_source: 'sample',
-        note: 'PDF parsing is being implemented gradually'
-    });
+app.get('/api/debug-pdf', (req, res) => {
+    try {
+        const sampleWithContacts = CURRENT_RENTALS ?
+            CURRENT_RENTALS.filter(rental => rental && (rental.email || rental.phone)).slice(0, 10) : [];
+
+        res.json({
+            pdf_status: PDF_STATUS,
+            total_rentals_found: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            last_update: LAST_PDF_UPDATE,
+            sample_with_contacts: sampleWithContacts,
+            all_provinces: CURRENT_RENTALS ?
+                [...new Set(CURRENT_RENTALS.map(r => r?.province).filter(Boolean))] : [],
+            all_types: CURRENT_RENTALS ?
+                [...new Set(CURRENT_RENTALS.map(r => r?.type).filter(Boolean))] : []
+        });
+    } catch (error) {
+        console.error('Error in /api/debug-pdf:', error);
+        res.status(500).json({ error: 'Error en debug' });
+    }
+});
+
+app.post('/api/refresh-pdf', async (req, res) => {
+    try {
+        const success = await fetchAndParsePDF();
+        res.json({
+            success: success,
+            message: success ? 'PDF data refreshed successfully' : 'Failed to refresh PDF data',
+            total_rentals: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+            status: PDF_STATUS,
+            last_update: LAST_PDF_UPDATE
+        });
+    } catch (error) {
+        console.error('Error in /api/refresh-pdf:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.get('/health', (req, res) => {
     res.json({
         status: 'OK',
         timestamp: new Date().toISOString(),
-        rentals_loaded: CURRENT_RENTALS.length,
-        version: '1.0.0'
+        rentals_loaded: CURRENT_RENTALS ? CURRENT_RENTALS.length : 0,
+        pdf_status: PDF_STATUS
     });
 });
 
-// Simple debug endpoint
-app.get('/api/debug', (req, res) => {
-    res.json({
-        totalRentals: CURRENT_RENTALS.length,
-        sampleRentals: CURRENT_RENTALS.slice(0, 2),
-        allProvinces: [...new Set(CURRENT_RENTALS.map(r => r.province))],
-        allTypes: [...new Set(CURRENT_RENTALS.map(r => r.type).filter(Boolean))]
-    });
-});
-
-app.get('/api/provinces', (req, res) => {
-    const provinces = [...new Set(CURRENT_RENTALS.map(r => r.province).filter(Boolean))];
-    res.json(provinces);
-});
-
-app.get('/api/types', (req, res) => {
-    const types = [
-        "Albergue",
-        "Aparta-Hotel",
-        "Bungalow",
-        "Cabaña",
-        "Hostal Familiar",
-        "Hotel",
-        "Motel",
-        "Pensión",
-        "Residencial",
-        "Sitio de acampar"
-    ];
-    res.json(types);
-});
-
-app.get('/api/stats', (req, res) => {
-    res.json({
-        total_rentals: CURRENT_RENTALS.length,
-        last_updated: new Date().toISOString(),
-        data_source: 'ATP_OFFICIAL',
-        status: 'Using sample data',
-        provinces_count: [...new Set(CURRENT_RENTALS.map(r => r.province))].length,
-        note: 'Currently using sample data. PDF parsing to be added.'
-    });
-});
-
-// Search functionality for rentals
-app.get('/api/rentals/search', (req, res) => {
-    const { q, province, type } = req.query;
-    let filtered = CURRENT_RENTALS;
-
-    if (q) {
-        const searchLower = q.toLowerCase();
-        filtered = filtered.filter(rental =>
-            rental.name.toLowerCase().includes(searchLower) ||
-            (rental.province && rental.province.toLowerCase().includes(searchLower)) ||
-            (rental.type && rental.type.toLowerCase().includes(searchLower))
-        );
-    }
-
-    if (province) {
-        filtered = filtered.filter(rental =>
-            rental.province && rental.province.toLowerCase() === province.toLowerCase()
-        );
-    }
-
-    if (type) {
-        filtered = filtered.filter(rental =>
-            rental.type && rental.type.toLowerCase() === type.toLowerCase()
-        );
-    }
-
-    res.json(filtered);
-});
-
-// Root endpoint with testing interface
-app.get('/', (req, res) => {
-    res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>ATP Rentals PDF Parser</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 40px; }
-                button { padding: 10px 20px; margin: 10px; font-size: 16px; }
-                .result { background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 5px; }
-                .success { background: #d4edda; }
-                .error { background: #f8d7da; }
-            </style>
-        </head>
-        <body>
-            <h1>ATP Rentals PDF Parser</h1>
-
-            <div>
-                <button onclick="parsePDF()">📄 Parse PDF Now</button>
-                <button onclick="checkPDFRentals()">🔍 Check PDF Rentals</button>
-                <button onclick="usePDFData()">🔄 Use PDF Data</button>
-                <button onclick="useSampleData()">📋 Use Sample Data</button>
-                <button onclick="checkStats()">📊 Check Stats</button>
-            </div>
-
-            <div id="result"></div>
-
-            <script>
-                async function parsePDF() {
-                    showResult('Parsing PDF...', '');
-                    try {
-                        const response = await fetch('/api/parse-pdf', { method: 'POST' });
-                        const data = await response.json();
-                        showResult('PDF Parsing Result', data, data.success ? 'success' : 'error');
-                    } catch (error) {
-                        showResult('Error', error.toString(), 'error');
-                    }
-                }
-
-                async function checkPDFRentals() {
-                    showResult('Checking PDF rentals...', '');
-                    try {
-                        const response = await fetch('/api/pdf-rentals');
-                        const data = await response.json();
-                        showResult('PDF Rentals Status', data);
-                    } catch (error) {
-                        showResult('Error', error.toString(), 'error');
-                    }
-                }
-
-                async function usePDFData() {
-                    showResult('Switching to PDF data...', '');
-                    try {
-                        const response = await fetch('/api/use-pdf-data');
-                        const data = await response.json();
-                        showResult('Data Switch Result', data, data.success ? 'success' : 'error');
-                    } catch (error) {
-                        showResult('Error', error.toString(), 'error');
-                    }
-                }
-
-                async function useSampleData() {
-                    showResult('Switching to sample data...', '');
-                    try {
-                        const response = await fetch('/api/use-sample-data');
-                        const data = await response.json();
-                        showResult('Data Switch Result', data, data.success ? 'success' : 'error');
-                    } catch (error) {
-                        showResult('Error', error.toString(), 'error');
-                    }
-                }
-
-                async function checkStats() {
-                    showResult('Checking stats...', '');
-                    try {
-                        const response = await fetch('/api/stats');
-                        const data = await response.json();
-                        showResult('Current Stats', data);
-                    } catch (error) {
-                        showResult('Error', error.toString(), 'error');
-                    }
-                }
-
-                function showResult(title, data, type = '') {
-                    const resultDiv = document.getElementById('result');
-                    resultDiv.innerHTML = `
-                        <div class="result ${type}">
-                            <h3>${title}</h3>
-                            <pre>${JSON.stringify(data, null, 2)}</pre>
-                        </div>
-                    `;
-                }
-
-                // Load initial stats on page load
-                checkStats();
-            </script>
-        </body>
-        </html>
-    `);
-});
-
-// Start the server
-app.listen(PORT, () => {
-    console.log(`🚀 ATP Rentals API running on port ${PORT}`);
+// Initialize
+app.listen(PORT, async () => {
+    console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
     console.log(`📍 Health check: http://localhost:${PORT}/health`);
-    console.log(`📍 Test endpoint: http://localhost:${PORT}/api/test`);
-    console.log(`📍 Rentals endpoint: http://localhost:${PORT}/api/rentals`);
-    console.log('✅ Server started successfully with sample data');
+
+    // Load PDF data on startup
+    setTimeout(async () => {
+        try {
+            await fetchAndParsePDF();
+            console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
+        } catch (error) {
+            console.error('Error during startup:', error);
+            CURRENT_RENTALS = getFallbackData();
+        }
+    }, 2000);
 });
