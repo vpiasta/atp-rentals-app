@@ -83,19 +83,58 @@ app.post('/api/extract-pdf', async (req, res) => {
 let PDF_STATUS = "Not loaded";
 
 // Basic endpoints
+
+// Web interface for testing PDF extraction
+app.get('/test-pdf', (req, res) => {
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>PDF Test</title>
+            <style>
+                body { font-family: Arial; margin: 40px; }
+                button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+                .result { background: #f5f5f5; padding: 20px; margin: 20px 0; }
+            </style>
+        </head>
+        <body>
+            <h1>PDF Extraction Test</h1>
+            <button onclick="testPDF()">Test PDF Extraction</button>
+            <div id="result"></div>
+
+            <script>
+                async function testPDF() {
+                    const resultDiv = document.getElementById('result');
+                    resultDiv.innerHTML = 'Testing PDF extraction...';
+
+                    try {
+                        const response = await fetch('/api/extract-pdf', {
+                            method: 'POST'
+                        });
+                        const data = await response.json();
+                        resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                    } catch (error) {
+                        resultDiv.innerHTML = 'Error: ' + error;
+                    }
+                }
+            </script>
+        </body>
+        </html>
+    `);
+});
+
 app.get('/', (req, res) => {
     res.json({
         message: 'ATP Rentals API',
         status: 'running',
-        pdf_status: PDF_STATUS
-    });
-});
-
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'OK',
-        timestamp: new Date().toISOString(),
-        rentals: CURRENT_RENTALS.length
+        pdf_status: PDF_STATUS,
+        endpoints: {
+            health: '/health',
+            rentals: '/api/rentals',
+            ping: '/api/ping',
+            test_pdf: '/test-pdf',
+            extract_pdf: 'POST /api/extract-pdf'
+        }
     });
 });
 
