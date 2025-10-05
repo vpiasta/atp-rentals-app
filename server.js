@@ -116,78 +116,86 @@ function parseRowData(row) {
 }
 
 // Enhanced PDF parsing with coordinate-based approach
+// Debug version of PDF parsing function
 async function tryParsePDF() {
     try {
-        console.log('Attempting coordinate-based PDF parsing...');
+        console.log('🔄 Starting PDF parsing...');
         const response = await axios.get(PDF_URLS[0], {
             responseType: 'arraybuffer',
             timeout: 15000
         });
 
-        if (response.status === 200) {
-            console.log('PDF fetched, starting coordinate parsing...');
-            const data = new Uint8Array(response.data);
-            const pdf = await pdfjsLib.getDocument(data).promise;
-            const numPages = pdf.numPages;
+        console.log('✅ PDF fetched, processing...');
+        const data = new Uint8Array(response.data);
+        const pdf = await pdfjsLib.getDocument(data).promise;
+        const numPages = pdf.numPages;
 
-            const allRentals = [];
-            let totalRowsProcessed = 0;
+        console.log(`📄 PDF has ${numPages} pages`);
 
-            // Process first 5 pages to test
-            for (let pageNum = 1; pageNum <= Math.min(5, numPages); pageNum++) {
-                console.log(`Processing page ${pageNum}...`);
-                const page = await pdf.getPage(pageNum);
-                const textContent = await page.getTextContent();
+        const allRentals = [];
+        let totalRowsProcessed = 0;
 
-                // Extract text with precise positioning
-                const textItems = textContent.items.map(item => ({
-                    text: item.str,
-                    x: Math.round(item.transform[4] * 100) / 100,
-                    y: Math.round(item.transform[5] * 100) / 100,
-                    page: pageNum
-                }));
+        // Process just ONE page first to test
+        for (let pageNum = 1; pageNum <= Math.min(1, numPages); pageNum++) {
+            console.log(`Processing page ${pageNum}...`);
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
 
-                // Group into rows
-                const rows = groupIntoRows(textItems);
-                totalRowsProcessed += rows.length;
+            console.log(`📝 Page ${pageNum} has ${textContent.items.length} text items`);
 
-                // Process each row
-                for (let i = 0; i < rows.length; i++) {
-                    const rowData = parseRowData(rows[i]);
+            // Extract text with precise positioning
+            const textItems = textContent.items.map(item => ({
+                text: item.str,
+                x: Math.round(item.transform[4] * 100) / 100,
+                y: Math.round(item.transform[5] * 100) / 100,
+                page: pageNum
+            }));
 
-                    // Only include rows that look like actual rentals
-                    if (rowData.name && rowData.name.length > 3 &&
-                        (rowData.type || rowData.email || rowData.phone)) {
+            console.log(`📍 First text item: ${JSON.stringify(textItems[0])}`);
 
-                        const rental = {
-                            name: rowData.name,
-                            type: rowData.type,
-                            email: rowData.email,
-                            phone: rowData.phone,
-                            province: 'EXTRACTING...', // Will be determined later
-                            district: 'EXTRACTING...',
-                            description: `${rowData.type} "${rowData.name}" ubicado en Panamá.`,
-                            google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(rowData.name + ' Panamá')}`,
-                            source: 'ATP_PDF_EXTRACTED'
-                        };
+            // Group into rows
+            const rows = groupIntoRows(textItems);
+            console.log(`📊 Grouped into ${rows.length} rows`);
+            totalRowsProcessed += rows.length;
 
-                        allRentals.push(rental);
-                    }
+            // Process each row
+            for (let i = 0; i < rows.length; i++) {
+                const rowData = parseRowData(rows[i]);
+
+                // Only include rows that look like actual rentals
+                if (rowData.name && rowData.name.length > 3 &&
+                    (rowData.type || rowData.email || rowData.phone)) {
+
+                    const rental = {
+                        name: rowData.name,
+                        type: rowData.type,
+                        email: rowData.email,
+                        phone: rowData.phone,
+                        province: 'EXTRACTING...',
+                        district: 'EXTRACTING...',
+                        description: `${rowData.type} "${rowData.name}" ubicado en Panamá.`,
+                        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(rowData.name + ' Panamá')}`,
+                        source: 'ATP_PDF_EXTRACTED'
+                    };
+
+                    allRentals.push(rental);
                 }
             }
-
-            PDF_RENTALS = allRentals;
-            PDF_STATUS = `PDF parsed: ${numPages} pages, ${allRentals.length} rentals found, ${totalRowsProcessed} rows processed`;
-            LAST_PDF_UPDATE = new Date().toISOString();
-
-            console.log(`✅ ${PDF_STATUS}`);
-            return true;
         }
+
+        PDF_RENTALS = allRentals;
+        PDF_STATUS = `PDF parsed: ${allRentals.length} rentals found from first page`;
+        LAST_PDF_UPDATE = new Date().toISOString();
+
+        console.log(`✅ ${PDF_STATUS}`);
+        return true;
+
     } catch (error) {
+        console.error('❌ PDF parsing error details:', error);
         PDF_STATUS = `PDF parsing failed: ${error.message}`;
         console.log(`❌ ${PDF_STATUS}`);
+        return false;
     }
-    return false;
 }
 
 // Automatic PDF parsing on startup
