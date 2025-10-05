@@ -20,101 +20,67 @@ let CURRENT_RENTALS = [
     }
 ];
 
-let PDF_STATUS = "Not loaded";
-
 const axios = require('axios');
-const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
 
-const PDF_URLS = [
-    'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf'
-];
-
-let PDF_STATUS = "Not loaded";
 let PDF_RENTALS = [];
+const PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
 
-// Step 1: Simple PDF test function
-async function testPDFConnection() {
+// Simple PDF text extraction using an external service
+async function extractPDFText() {
     try {
-        console.log('Testing PDF connection...');
-        const response = await axios.get(PDF_URLS[0], {
-            responseType: 'arraybuffer',
-            timeout: 10000
+        console.log('Attempting PDF text extraction...');
+        PDF_STATUS = "Extracting text...";
+
+        // Method 1: Try to get PDF as text directly
+        const response = await axios.get(PDF_URL, {
+            timeout: 15000,
+            headers: {
+                'Accept': 'text/plain,application/pdf'
+            }
         });
 
-        console.log('✅ PDF fetched successfully');
-        return true;
+        console.log('PDF response received, length:', response.data.length);
+        PDF_STATUS = "PDF content received";
+
+        // If we get here, we have the PDF content
+        // For now, just count how many rental-like patterns we can find
+        const content = response.data.toString();
+        const rentalCount = (content.match(/[A-Z][A-Z\s]{10,50}(Albergue|Aparta-Hotel|Hotel|Hostal|Motel)/g) || []).length;
+
+        PDF_STATUS = `PDF processed: Found ${rentalCount} potential rentals`;
+        console.log(PDF_STATUS);
+
+        return { success: true, rentalCount, contentLength: content.length };
+
     } catch (error) {
-        console.log('❌ PDF fetch failed:', error.message);
-        return false;
-    }
-}
-
-// Step 2: Simple PDF loading (no parsing yet)
-async function loadPDF() {
-    try {
-        console.log('Loading PDF document...');
-        const response = await axios.get(PDF_URLS[0], {
-            responseType: 'arraybuffer',
-            timeout: 15000
-        });
-
-        const data = new Uint8Array(response.data);
-        const pdf = await pdfjsLib.getDocument(data).promise;
-        const numPages = pdf.numPages;
-
-        PDF_STATUS = `PDF loaded: ${numPages} pages`;
-        console.log(`✅ ${PDF_STATUS}`);
-
-        return { success: true, pdf, numPages };
-    } catch (error) {
-        PDF_STATUS = `PDF loading failed: ${error.message}`;
-        console.log(`❌ ${PDF_STATUS}`);
+        PDF_STATUS = `PDF extraction failed: ${error.message}`;
+        console.log(PDF_STATUS);
         return { success: false, error: error.message };
     }
 }
 
-// Step 3: Safe PDF parsing endpoint
-app.post('/api/load-pdf', async (req, res) => {
+// PDF extraction endpoint
+app.post('/api/extract-pdf', async (req, res) => {
     try {
-        console.log('Loading PDF...');
-        const result = await loadPDF();
-
-        if (result.success) {
-            res.json({
-                success: true,
-                message: PDF_STATUS,
-                pages: result.numPages
-            });
-        } else {
-            res.json({
-                success: false,
-                message: PDF_STATUS,
-                error: result.error
-            });
-        }
+        const result = await extractPDFText();
+        res.json({
+            success: result.success,
+            message: PDF_STATUS,
+            rental_count: result.rentalCount || 0,
+            content_length: result.contentLength || 0
+        });
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: 'PDF loading error',
+            message: 'PDF extraction error',
             error: error.message
         });
     }
 });
 
-// Update the root endpoint to show PDF status
-app.get('/', (req, res) => {
-    res.json({
-        message: 'ATP Rentals API',
-        status: 'running',
-        pdf_status: PDF_STATUS,
-        endpoints: {
-            health: '/health',
-            rentals: '/api/rentals',
-            ping: '/api/ping',
-            load_pdf: 'POST /api/load-pdf'
-        }
-    });
-});
+// Update package.json to only add axios
+
+let PDF_STATUS = "Not loaded";
 
 // Basic endpoints
 app.get('/', (req, res) => {
