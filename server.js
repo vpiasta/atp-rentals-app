@@ -222,6 +222,15 @@ setTimeout(() => {
 
 // Basic endpoints
 
+// Simple test endpoint to check if server is running
+app.get('/api/ping', (req, res) => {
+    res.json({
+        message: 'Server is running',
+        timestamp: new Date().toISOString(),
+        pdf_status: PDF_STATUS
+    });
+});
+
 // Manual PDF parsing trigger
 app.post('/api/parse-pdf', async (req, res) => {
     try {
