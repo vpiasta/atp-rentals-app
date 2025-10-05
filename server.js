@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const pdf = require('pdf-parse');
+const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
 const cors = require('cors');
 
 const app = express();
@@ -18,6 +19,7 @@ let CURRENT_RENTALS = [];
 let LAST_PDF_UPDATE = null;
 let PDF_STATUS = 'No PDF processed yet';
 
+// NEW: PDF parsing with pdfjs-dist (positional data)
 async function fetchAndParsePDF() {
     for (const pdfUrl of PDF_URLS) {
         try {
@@ -28,15 +30,13 @@ async function fetchAndParsePDF() {
             });
 
             if (response.status === 200) {
-                console.log('PDF fetched, parsing...');
-                const data = await pdf(response.data);
+                console.log('PDF fetched, parsing with pdfjs-dist...');
+                const rentals = await parsePDFWithPositionalData(response.data);
                 PDF_STATUS = `PDF processed successfully from: ${pdfUrl}`;
                 LAST_PDF_UPDATE = new Date().toISOString();
 
-                const parsedRentals = parsePDFText(data.text);
-                console.log(`Parsed ${parsedRentals.length} rentals from PDF`);
-
-                CURRENT_RENTALS = parsedRentals;
+                console.log(`Parsed ${rentals.length} rentals from PDF`);
+                CURRENT_RENTALS = rentals;
                 return true;
             }
         } catch (error) {
@@ -49,338 +49,226 @@ async function fetchAndParsePDF() {
     return false;
 }
 
-function parsePDFText(text) {
+// NEW: Parse PDF with positional data
+async function parsePDFWithPositionalData(pdfBuffer) {
     try {
-        console.log('=== PARSING ATP PDF DATA - TABLE BY TABLE ===');
-        const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);  // create "lines" array of clean, trimmed, non-empty lines
+        const data = new Uint8Array(pdfBuffer);
+        const pdf = await pdfjsLib.getDocument(data).promise;
+        const numPages = pdf.numPages;
         const allRentals = [];
-
-        let i = 0;
         let currentProvince = '';
-        let currentRentalCount = 0;
 
-        while (i < lines.length) {
-            const line = lines[i];    // a line of array "lines"
+        console.log(`Processing ${numPages} pages...`);
 
-            // Skip headers
-            if (isHeaderLine(line)) {
-                i++;
-                continue;
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+            console.log(`Processing page ${pageNum}...`);
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
+
+            // Extract text with positioning
+            const textItems = textContent.items.map(item => ({
+                text: item.str,
+                x: item.transform[4],
+                y: item.transform[5],
+                width: item.width,
+                height: item.height,
+                page: pageNum
+            }));
+
+            // Group by rows and process table structure
+            const pageRentals = processPageItems(textItems, currentProvince);
+            allRentals.push(...pageRentals);
+
+            // Update current province for next page
+            const provinceItem = textItems.find(item =>
+                item.text.includes('Provincia:') && item.text.trim().length > 10
+            );
+            if (provinceItem) {
+                currentProvince = provinceItem.text.replace('Provincia:', '').trim();
+                console.log(`Found province: ${currentProvince}`);
             }
-
-            // Look for province pattern: "BOCAS DEL TOROProvincia:"
-            const provinceMatch = line.match(/(.*)Provincia:/);
-            if (provinceMatch) {
-                currentProvince = provinceMatch[1].trim();
-                console.log(`\n=== PROCESSING PROVINCE: ${currentProvince} ===`);
-                i++;
-                continue;
-            }
-
-            // Look for rental count pattern: "151Total por provincia:"
-            const countMatch = line.match(/(\d+)Total por provincia:/);
-            if (countMatch && currentProvince) {
-                currentRentalCount = parseInt(countMatch[1]);
-                console.log(`Expected rental count: ${currentRentalCount}`);
-
-                // Process this table
-                const tableResult = processTable(lines, i + 1, currentProvince, currentRentalCount);
-                if (tableResult.rentals.length > 0) {
-                    allRentals.push(...tableResult.rentals);
-                    console.log(`Added ${tableResult.rentals.length} rentals for ${currentProvince}`);
-                }
-
-                i = tableResult.nextIndex;
-                currentProvince = '';
-                currentRentalCount = 0;
-                continue;
-            }
-
-            i++;
         }
 
-        console.log(`\n=== PARSING COMPLETE: Found ${allRentals.length} rentals ===`);
+        console.log(`Total rentals found: ${allRentals.length}`);
         return allRentals;
     } catch (error) {
-        console.error('Error in parsePDFText:', error);
+        console.error('Error in parsePDFWithPositionalData:', error);
         return getFallbackData();
     }
 }
 
-function processTable(lines, startIndex, province, expectedCount) {
-    try {
-        console.log(`Processing table starting at line ${startIndex}`);
+// NEW: Process page items with positional grouping
+function processPageItems(textItems, currentProvince) {
+    // Group items into rows based on Y-coordinate (with tolerance)
+    const rows = {};
+    const Y_TOLERANCE = 2; // Points tolerance for same row
 
-        const columns = {
-            names: [],
-            types: [],
-            emails: [],
-            phones: []
-        };
+    textItems.forEach(item => {
+        if (!item.text.trim()) return;
 
-        let i = startIndex;
-        let currentColumn = 'names';
-        let tableEnded = false;
+        // Find existing row key within tolerance
+        const existingKey = Object.keys(rows).find(key =>
+            Math.abs(parseFloat(key) - item.y) <= Y_TOLERANCE
+        );
 
-        while (i < lines.length && !tableEnded) {
-            const line = lines[i];
+        const rowKey = existingKey || item.y.toString();
+        if (!rows[rowKey]) rows[rowKey] = [];
+        rows[rowKey].push(item);
+    });
 
-            // Stop conditions for this table
-            if (isHeaderLine(line) ||
-                line.includes('Reporte de Hospedajes vigentes') ||
-                line.includes('Provincia:') ||
-                line.includes('Total por provincia:')) {
-                tableEnded = true;
-                break;
-            }
+    // Sort rows from top to bottom (higher Y first in PDF coordinates)
+    const sortedRowKeys = Object.keys(rows).sort((a, b) => parseFloat(b) - parseFloat(a));
 
-            // COLUMN 1: Names (ends with "Nombre")
-            if (currentColumn === 'names') {
-                if (line === 'Nombre') {
-                    console.log(`Name column ended with ${columns.names.length} entries`);
-                    currentColumn = 'types';
-                    i++;
-                    continue;
-                }
-                if (isNameLine(line)) {
-                    columns.names.push(line);
-                }
-            }
-            // COLUMN 2: Types (ends with "Modalidad")
-            else if (currentColumn === 'types') {
-                if (line === 'Modalidad') {
-                    console.log(`Type column ended with ${columns.types.length} entries`);
-                    currentColumn = 'emails';
-                    i++;
-                    continue;
-                }
-                // Handle "Hostal Familiar" special case
-                if (line === 'Hostal' && i + 1 < lines.length && lines[i + 1] === 'Familiar') {
-                    columns.types.push('Hostal Familiar');
-                    i += 2;
-                    continue;
-                }
-                if (isTypeLine(line)) {
-                    columns.types.push(line);
-                }
-            }
-            // COLUMN 3: Emails (ends with "Correo Principal")
-            else if (currentColumn === 'emails') {
-                if (line === 'Correo Principal') {
-                    console.log(`Email column ended with ${columns.emails.length} entries`);
-                    currentColumn = 'phones';
-                    i++;
-                    continue;
-                }
-                // Process email line
-                if (isEmailLine(line) || isPotentialEmailPart(line)) {
-                    let email = processEmailLine(line, lines, i);
-                    columns.emails.push(email);
-                }
-            }
-            // COLUMN 4: Phones (ends with "Teléfono" or "Cel/Teléfono")
-            else if (currentColumn === 'phones') {
-                if (line === 'Cel/Teléfono') {
-                    console.log(`Phone column ended with ${columns.phones.length} entries`);
-                    tableEnded = true;
-                    break;
-                }
-                // Process phone line
-                if (isPhoneLine(line) || isPotentialPhonePart(line)) {
-                    let phone = processPhoneLine(line, lines, i);
-                    columns.phones.push(phone);
-                }
-            }
-
-            i++;
-        }
-
-        // OPTIMIZE and create rentals for this table
-        const optimizedColumns = optimizeColumnsForTable(columns, expectedCount);
-        const rentals = createRentalsFromTable(optimizedColumns, province);
-
-        return {
-            rentals: rentals,
-            nextIndex: i
-        };
-    } catch (error) {
-        console.error(`Error processing table for ${province}:`, error);
-        return { rentals: [], nextIndex: startIndex };
-    }
-}
-
-function processEmailLine(currentLine, lines, currentIndex) {
-    let email = currentLine;
-
-    // Check if email continues on next line
-    if (currentIndex + 1 < lines.length) {
-        const nextLine = lines[currentIndex + 1];
-        if (isEmailContinuation(currentLine, nextLine)) {
-            email += nextLine;
-        }
-    }
-
-    return email.replace(/\s+/g, ''); // Remove all spaces
-}
-
-// processPhoneLine function, improved version:
-function processPhoneLine(currentLine, lines, currentIndex) {
-    let phone = currentLine;
-
-    // Check if phone continues on next line (if it ends with hyphen or if next line has not slash, combine with next)
-    if (currentIndex + 1 < lines.length) {
-        const nextLine = lines[currentIndex + 1];
-
-        // If current line ends with "-", combine with next line
-        if (currentLine.trim().endsWith('-')) {
-            phone += ' ' + nextLine;
-            // Mark the next line as processed
-            lines[currentIndex + 1] = 'PROCESSED';
-        }
-        // Also combine if next line has no slash
-        else if (!nextLine.includes("/")) {
-            phone += ' ' + nextLine;
-            lines[currentIndex + 1] = 'PROCESSED';
-        }
-    }
-
-    return phone;
-}
-
-
-function optimizeColumnsForTable(columns, expectedCount) {
-    console.log(`Optimizing columns: Names=${columns.names.length}, Types=${columns.types.length}, Emails=${columns.emails.length}, Phones=${columns.phones.length}`);
-
-    const optimized = {
-        names: [...columns.names],
-        types: [...columns.types],
-        emails: [...columns.emails],
-        phones: [...columns.phones]
-    };
-
-    // Use type count as the reference
-    const typeCount = optimized.types.length;
-
-    // FIX NAMES: Combine split names if we have more names than types
-    if (optimized.names.length > typeCount) {
-        optimized.names = fixSplitNames(optimized.names, typeCount);
-    }
-
-    // FIX EMAILS: Align emails with names/types
-    optimized.emails = alignEmailsWithNames(optimized.names, optimized.emails, typeCount);
-
-    // FIX PHONES: Simple alignment
-    if (optimized.phones.length > typeCount) {
-        optimized.phones = optimized.phones.slice(0, typeCount);
-    }
-
-    // Ensure all arrays have exactly expectedCount elements
-    while (optimized.names.length < expectedCount) optimized.names.push('');
-    while (optimized.types.length < expectedCount) optimized.types.push('');
-    while (optimized.emails.length < expectedCount) optimized.emails.push('');
-    while (optimized.phones.length < expectedCount) optimized.phones.push('');
-
-    console.log(`After optimization: Names=${optimized.names.length}, Types=${optimized.types.length}, Emails=${optimized.emails.length}, Phones=${optimized.phones.length}`);
-
-    return optimized;
-}
-
-function fixSplitNames(names, targetCount) {
-    if (names.length <= targetCount) return names.slice(0, targetCount);
-
-    const fixedNames = [];
-    let i = 0;
-
-    while (i < names.length && fixedNames.length < targetCount) {
-        let currentName = names[i];
-        let nextName = names[i+1].trim();
-
-        // If the next name looks like a split name (single word) and we need to reduce count
-        const isSingleWord = nextName.split(' ').length === 1;
-        const remainingNames = names.length - i - 1;
-        const neededNames = targetCount - fixedNames.length;
-
-        if (isSingleWord && !(nextName === "Nombre") && remainingNames >= neededNames) {
-            // This might be a split name - combine with previous name
-            currentName += ' ' + names[i + 1];
-            i++; // Skip the next name
-        }
-
-        fixedNames.push(currentName);
-        i++;
-    }
-
-    return fixedNames;
-}
-
-function alignEmailsWithNames(names, emails, targetCount) {
-    const alignedEmails = new Array(targetCount).fill('');
-    let emailIndex = 0;
-
-    for (let nameIndex = 0; nameIndex < targetCount && emailIndex < emails.length; nameIndex++) {
-        const currentEmail = emails[emailIndex];
-
-        if (emailMatchesName(currentEmail, names[nameIndex])) {
-            alignedEmails[nameIndex] = currentEmail;
-            emailIndex++;
-        } else {
-            // Check if this email belongs to a future name
-            let foundMatch = false;
-            for (let futureIndex = nameIndex + 1; futureIndex < Math.min(nameIndex + 3, targetCount); futureIndex++) {
-                if (emailMatchesName(currentEmail, names[futureIndex])) {
-                    // Leave current position empty, the email will be placed later
-                    foundMatch = true;
-                    break;
-                }
-            }
-
-            if (!foundMatch) {
-                // Email doesn't match any nearby name, use it here
-                alignedEmails[nameIndex] = currentEmail;
-                emailIndex++;
-            }
-        }
-    }
-
-    return alignedEmails;
-}
-
-function createRentalsFromTable(columns, province) {
     const rentals = [];
+    let inRentalTable = false;
+    let currentRental = null;
 
-    for (let i = 0; i < columns.names.length; i++) {
-        const name = columns.names[i];
-        const type = columns.types[i];
-        const email = columns.emails[i];
-        const phone = columns.phones[i];
+    sortedRowKeys.forEach(key => {
+        const rowItems = rows[key].sort((a, b) => a.x - b.x); // Sort left to right
+        const rowText = rowItems.map(item => item.text).join(' ').trim();
 
-        if (name && name.length > 2) {
-            const cleanName = cleanText(name);
-            const cleanType = cleanText(type) || 'Hospedaje'; // "Hospedaje" is fallback if type is empty
-            const cleanEmail = extractEmail(email);
-            const cleanPhone = extractFirstPhone(phone);
-
-            const rental = {
-                name: cleanName,
-                type: cleanType,
-                email: cleanEmail,
-                phone: cleanPhone,
-                province: province,
-                district: guessDistrict(cleanName, province),
-                description: generateDescription(cleanName, cleanType, province),
-                google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(cleanName + ' ' + province + ' Panamá')}`,
-                whatsapp: cleanPhone,
-                source: 'ATP_OFFICIAL'
-            };
-
-            rentals.push(rental);
+        // Skip header lines
+        if (isHeaderLine(rowText) || rowText.includes('Reporte de Hospedajes')) {
+            return;
         }
+
+        // Detect province
+        if (rowText.includes('Provincia:')) {
+            currentProvince = rowText.replace('Provincia:', '').trim();
+            console.log(`Processing province: ${currentProvince}`);
+            return;
+        }
+
+        // Detect table start (column headers)
+        if (rowText.includes('Nombre') && rowText.includes('Modalidad')) {
+            inRentalTable = true;
+            console.log('Entering rental table section');
+            return;
+        }
+
+        // Detect table end
+        if (rowText.includes('Total por provincia:')) {
+            inRentalTable = false;
+            // Save current rental if exists
+            if (currentRental && currentRental.name) {
+                rentals.push(createRentalObject(currentRental, currentProvince));
+                currentRental = null;
+            }
+            console.log('Exiting rental table section');
+            return;
+        }
+
+        if (inRentalTable && currentProvince) {
+            // Check if this looks like a new rental property row
+            const looksLikePropertyName = isPotentialPropertyName(rowText);
+            const hasMultipleColumns = rowItems.length >= 2;
+
+            if (looksLikePropertyName && hasMultipleColumns) {
+                // Save previous rental if exists
+                if (currentRental && currentRental.name) {
+                    rentals.push(createRentalObject(currentRental, currentProvince));
+                }
+
+                // Start new rental
+                currentRental = parseRentalRow(rowItems, currentProvince);
+                console.log(`Found rental: ${currentRental.name}`);
+            } else if (currentRental && !currentRental.type && isTypeLine(rowText)) {
+                // This might be the type for the current rental (on next row)
+                currentRental.type = rowText;
+            } else if (currentRental && !currentRental.email && isEmailLine(rowText)) {
+                currentRental.email = rowText;
+            } else if (currentRental && !currentRental.phone && isPhoneLine(rowText)) {
+                currentRental.phone = rowText;
+            }
+        }
+    });
+
+    // Don't forget the last rental
+    if (currentRental && currentRental.name) {
+        rentals.push(createRentalObject(currentRental, currentProvince));
     }
 
     return rentals;
 }
 
-// Helper functions
+// NEW: Parse rental row from positioned items
+function parseRentalRow(rowItems, province) {
+    const rental = { province };
+
+    // Filter out obvious non-name items first
+    const potentialNames = rowItems.filter(item =>
+        item.text.trim().length > 2 &&
+        !isTypeLine(item.text) &&
+        !isEmailLine(item.text) &&
+        !isPhoneLine(item.text) &&
+        !isHeaderText(item.text) &&
+        item.text !== 'Nombre' &&
+        item.text !== 'Modalidad' &&
+        item.text !== 'Correo Principal' &&
+        item.text !== 'Cel/Teléfono' &&
+        !item.text.match(/^\d+$/) && // Not just numbers
+        !item.text.match(/^\d+-\d+$/) // Not phone-like patterns
+    );
+
+    // Use the first substantial text as name, or combine if multiple
+    if (potentialNames.length > 0) {
+        rental.name = potentialNames.map(item => item.text.trim()).join(' ');
+    } else if (rowItems.length > 0) {
+        // Fallback: use first item that's not a obvious field
+        const fallbackName = rowItems.find(item =>
+            item.text.trim().length > 2 &&
+            !isTypeLine(item.text) &&
+            !isEmailLine(item.text)
+        );
+        if (fallbackName) {
+            rental.name = fallbackName.text.trim();
+        }
+    }
+
+    // Look for type in the same row (more strict matching)
+    const typeItem = rowItems.find(item => isTypeLine(item.text));
+    if (typeItem) {
+        rental.type = typeItem.text.trim();
+    }
+
+    // Look for email in the same row
+    const emailItem = rowItems.find(item => isEmailLine(item.text));
+    if (emailItem) {
+        rental.email = emailItem.text.trim();
+    }
+
+    // Look for phone in the same row (more strict matching)
+    const phoneItem = rowItems.find(item => isPhoneLine(item.text) && item.text.length >= 7);
+    if (phoneItem) {
+        rental.phone = phoneItem.text.trim();
+    }
+
+    return rental;
+}
+
+// Add this helper function
+function isHeaderText(text) {
+    const headers = ['Nombre', 'Modalidad', 'Correo Principal', 'Cel/Teléfono', 'Teléfono', 'Provincia:', 'Total por provincia:'];
+    return headers.includes(text.trim());
+}
+
+// NEW: Create rental object from parsed data
+function createRentalObject(rentalData, province) {
+    return {
+        name: cleanText(rentalData.name),
+        type: cleanText(rentalData.type) || 'Hospedaje',
+        email: extractEmail(rentalData.email || ''),
+        phone: extractFirstPhone(rentalData.phone || ''),
+        province: province,
+        district: guessDistrict(rentalData.name, province),
+        description: generateDescription(rentalData.name, rentalData.type, province),
+        google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(rentalData.name + ' ' + province + ' Panamá')}`,
+        whatsapp: extractFirstPhone(rentalData.phone || ''),
+        source: 'ATP_OFFICIAL'
+    };
+}
+
+// KEEP ALL EXISTING HELPER FUNCTIONS (unchanged)
 function isHeaderLine(line) {
     return line.includes('Reporte de Hospedajes vigentes') ||
            line.includes('Reporte: rep_hos_web') ||
@@ -388,7 +276,7 @@ function isHeaderLine(line) {
            line.match(/Página \d+ de \d+/);
 }
 
-function isNameLine(line) {
+function isPotentialPropertyName(line) {
     return line && line.length > 3 &&
            !line.includes('@') &&
            !isPhoneLine(line) &&
@@ -396,6 +284,7 @@ function isNameLine(line) {
            line !== 'Nombre' &&
            line !== 'Modalidad' &&
            line !== 'Correo Principal' &&
+           line !== 'Cel/Teléfono' &&
            line !== 'Teléfono';
 }
 
@@ -409,46 +298,15 @@ function isEmailLine(line) {
     return line && line.includes('@');
 }
 
-function isPotentialEmailPart(line) {
-    return line && (line.includes('.com') || line.includes('.net') || line.includes('.org'));
-}
-
-function isEmailContinuation(currentLine, nextLine) {
-    return currentLine.includes('@') && !currentLine.includes('.') &&
-           nextLine && (nextLine.includes('.com') || nextLine.includes('.net'));
-}
-
 function isPhoneLine(line) {
     return line && line.match(/\d{7,8}/);
-}
-
-function isPotentialPhonePart(line) {
-    return line && line.match(/\d{3,4}/);   // line contains a string of 3 or 4 digits (like 123 or 1234) or more
-}
-
-function isPhoneContinuation(currentLine, nextLine) {
-    return (currentLine.trim().endsWith('/') || currentLine.trim().endsWith('-')) &&
-           nextLine && !nextLine.trim().endsWith("/");
-}
-
-function emailMatchesName(email, name) {
-    if (!email || !name) return false;
-
-    // Extract name part from email (before @)
-    const emailNamePart = email.split('@')[0].toLowerCase();
-    const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-    // Check if name appears in email or vice versa
-    return emailNamePart.includes(cleanName) || cleanName.includes(emailNamePart) ||
-           emailNamePart.includes(cleanName.substring(0, 5)) ||
-           cleanName.includes(emailNamePart.substring(0, 5));
 }
 
 function extractEmail(text) {
     if (!text) return '';
     try {
         const match = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-        return match ? match[1] : '';   // returns a valid email address if found, otherwise returns ""
+        return match ? match[1] : '';
     } catch (error) {
         return '';
     }
@@ -468,7 +326,7 @@ function extractFirstPhone(text) {
 
 function cleanText(text) {
     if (!text) return '';
-    return text.replace(/\s+/g, ' ').trim();  //replaces Any whitespace character (multiple spaces, tabs, newlines) with a single space
+    return text.replace(/\s+/g, ' ').trim();
 }
 
 function guessDistrict(name, province) {
@@ -511,7 +369,7 @@ function getFallbackData() {
     ];
 }
 
-// API ROUTES WITH ERROR HANDLING
+// KEEP ALL EXISTING API ROUTES (unchanged)
 app.get('/api/test', (req, res) => {
     try {
         res.json({
@@ -645,19 +503,171 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Initialize
-app.listen(PORT, async () => {
-    console.log(`🚀 ATP Rentals Search API running on port ${PORT}`);
-    console.log(`📍 Health check: http://localhost:${PORT}/health`);
+// ADD THIS ENDPOINT to your server.js (place it with the other API routes)
 
-    // Load PDF data on startup
-    setTimeout(async () => {
-        try {
-            await fetchAndParsePDF();
-            console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
-        } catch (error) {
-            console.error('Error during startup:', error);
-            CURRENT_RENTALS = getFallbackData();
+app.get('/api/debug-pdf-text', async (req, res) => {
+    try {
+        let pdfText = 'No PDF data available';
+
+        // Try to fetch and parse the PDF fresh
+        for (const pdfUrl of PDF_URLS) {
+            try {
+                console.log(`Fetching PDF for debug from: ${pdfUrl}`);
+                const response = await axios.get(pdfUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 30000
+                });
+
+                if (response.status === 200) {
+                    // Parse with pdf-parse for clean text
+                    const data = await pdf(response.data);
+                    pdfText = data.text;
+                    break;
+                }
+            } catch (error) {
+                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
+            }
         }
-    }, 2000);
+
+        // Return as HTML for easy viewing
+        const htmlResponse = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Text Debug</title>
+    <style>
+        body { font-family: monospace; white-space: pre-wrap; margin: 20px; background: #f5f5f5; }
+        .container { background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .line-number { color: #666; display: inline-block; width: 60px; text-align: right; margin-right: 10px; }
+        .line:hover { background: #f0f0f0; }
+        h1 { color: #333; }
+        .stats { background: #e8f4fd; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF Text Content Debug</h1>
+        <div class="stats">
+            <strong>Total lines:</strong> ${pdfText.split('\n').length}<br>
+            <strong>Total characters:</strong> ${pdfText.length}<br>
+            <strong>PDF Status:</strong> ${PDF_STATUS}
+        </div>
+        <div class="content">
+            ${pdfText.split('\n').map((line, index) =>
+                `<div class="line"><span class="line-number">${index + 1}</span>${escapeHtml(line)}</div>`
+            ).join('')}
+        </div>
+    </div>
+</body>
+</html>
+        `;
+
+        res.send(htmlResponse);
+    } catch (error) {
+        console.error('Error in /api/debug-pdf-text:', error);
+        res.status(500).json({ error: 'Error fetching PDF text' });
+    }
+});
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Alternative version that returns JSON if you prefer
+app.get('/api/debug-pdf-text-json', async (req, res) => {
+    try {
+        let pdfText = 'No PDF data available';
+
+        for (const pdfUrl of PDF_URLS) {
+            try {
+                const response = await axios.get(pdfUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 30000
+                });
+
+                if (response.status === 200) {
+                    const data = await pdf(response.data);
+                    pdfText = data.text;
+                    break;
+                }
+            } catch (error) {
+                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
+            }
+        }
+
+        const lines = pdfText.split('\n').map((line, index) => ({
+            lineNumber: index + 1,
+            content: line,
+            length: line.length,
+            hasEmail: line.includes('@'),
+            hasPhone: /\d{7,8}/.test(line),
+            isHeader: isHeaderLine(line),
+            isProvince: line.includes('Provincia:'),
+            isTotal: line.includes('Total por provincia:')
+        }));
+
+        res.json({
+            totalLines: lines.length,
+            totalCharacters: pdfText.length,
+            pdfStatus: PDF_STATUS,
+            lines: lines,
+            sampleFirstLines: lines.slice(0, 50), // First 50 lines
+            sampleLastLines: lines.slice(-50)     // Last 50 lines
+        });
+    } catch (error) {
+        console.error('Error in /api/debug-pdf-text-json:', error);
+        res.status(500).json({ error: 'Error fetching PDF text' });
+    }
+});
+
+app.get('/api/debug-pdf-text-raw', async (req, res) => {
+    try {
+        let pdfText = 'No PDF data available';
+
+        for (const pdfUrl of PDF_URLS) {
+            try {
+                const response = await axios.get(pdfUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 30000
+                });
+
+                if (response.status === 200) {
+                    const data = await pdf(response.data);
+                    pdfText = data.text;
+                    break;
+                }
+            } catch (error) {
+                console.log(`Failed to fetch from ${pdfUrl}: ${error.message}`);
+            }
+        }
+
+        res.set('Content-Type', 'text/plain');
+        res.send(pdfText);
+    } catch (error) {
+        console.error('Error in /api/debug-pdf-text-raw:', error);
+        res.status(500).send('Error fetching PDF text');
+    }
+});
+
+// NEW: Improved server startup with error handling
+const SERVER_PORT = process.env.PORT || 3000;
+
+app.listen(SERVER_PORT, async () => {
+    console.log(`🚀 ATP Rentals Search API running on port ${SERVER_PORT}`);
+    console.log(`📍 Health check: http://localhost:${SERVER_PORT}/health`);
+
+    try {
+        await fetchAndParsePDF();
+        console.log(`✅ Ready! ${CURRENT_RENTALS.length} ATP rentals loaded`);
+    } catch (error) {
+        console.error('Error during startup:', error);
+        CURRENT_RENTALS = getFallbackData();
+        console.log('✅ Using fallback data');
+    }
+}).on('error', (err) => {
+    console.error('Server failed to start:', err);
+    process.exit(1);
 });
