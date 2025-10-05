@@ -94,6 +94,77 @@ function parseRowData(row) {
     return rental;
 }
 
+// Check if a row is a continuation of the previous row
+function isContinuationRow(rowData, previousRowData) {
+    // Check for Hostal Familiar pattern
+    if (previousRowData.type === 'Hostal' && rowData.type === 'Familiar') {
+        return true;
+    }
+
+    // Check for Sitio de acampar pattern
+    if (previousRowData.type === 'Sitio de' && rowData.type === 'acampar') {
+        return true;
+    }
+
+    // Check for incomplete email (current email doesn't end with domain)
+    if (previousRowData.email && !previousRowData.email.includes('.') && rowData.email) {
+        return true;
+    }
+
+    // Check for incomplete phone (ends with slash or hyphen)
+    if (previousRowData.phone && (previousRowData.phone.endsWith('/') || previousRowData.phone.endsWith('-')) && rowData.phone) {
+        return true;
+    }
+
+    // Check for name continuation (current row has minimal data)
+    if (rowData.name && (!rowData.type || rowData.type.length < 2) &&
+        (!rowData.email || rowData.email.length < 3) &&
+        (!rowData.phone || rowData.phone.length < 3)) {
+        return true;
+    }
+
+    return false;
+}
+
+// Merge two rows that belong to the same rental
+function mergeRentalRows(previousRental, continuationRow) {
+    const merged = { ...previousRental };
+
+    // Merge name with space
+    if (continuationRow.name) {
+        merged.name = (previousRental.name + ' ' + continuationRow.name).trim();
+    }
+
+    // Merge type - handle special cases
+    if (continuationRow.type) {
+        if (previousRental.type === 'Hostal' && continuationRow.type === 'Familiar') {
+            merged.type = 'Hostal Familiar';
+        } else if (previousRental.type === 'Sitio de' && continuationRow.type === 'acampar') {
+            merged.type = 'Sitio de acampar';
+        } else {
+            merged.type = (previousRental.type + ' ' + continuationRow.type).trim();
+        }
+    }
+
+    // Merge email without space
+    if (continuationRow.email) {
+        merged.email = (previousRental.email + continuationRow.email).trim();
+    }
+
+    // Merge phone with proper formatting
+    if (continuationRow.phone) {
+        if (previousRental.phone.endsWith('/')) {
+            merged.phone = (previousRental.phone + ' ' + continuationRow.phone).trim();
+        } else if (previousRental.phone.endsWith('-')) {
+            merged.phone = (previousRental.phone.slice(0, -1) + continuationRow.phone).trim();
+        } else {
+            merged.phone = (previousRental.phone + ' ' + continuationRow.phone).trim();
+        }
+    }
+
+    return merged;
+}
+
 // Coordinate-based PDF parsing
 async function parsePDFWithCoordinates() {
     try {
@@ -133,6 +204,9 @@ async function parsePDFWithCoordinates() {
             console.log(`Page ${pageNum}: ${rows.length} rows found`);
 
             // Process each row
+            let currentRental = null;
+            let stitchingInProgress = false;
+
             for (let i = 0; i < rows.length; i++) {
                 const row = rows[i];
                 const rowText = row.items.map(item => item.text).join(' ');
@@ -153,19 +227,34 @@ async function parsePDFWithCoordinates() {
                 // Parse row data
                 const rowData = parseRowData(row);
 
-                // Only include valid rental rows
-                if (rowData.name && rowData.name.length > 3) {
-                    const rental = {
-                        name: rowData.name,
-                        type: rowData.type,
-                        email: rowData.email,
-                        phone: rowData.phone,
-                        province: currentProvince,
-                        district: 'Extracted',
-                        source: 'ATP_PDF_COORDINATES'
-                    };
-                    allRentals.push(rental);
+                // Check if this row continues the previous rental
+                if (currentRental && isContinuationRow(rowData, currentRental)) {
+                    console.log(`🔄 Stitching row ${i} to previous rental`);
+                    currentRental = mergeRentalRows(currentRental, rowData);
+                    stitchingInProgress = true;
                 }
+                // If we have a complete rental, save it and start new one
+                else if (currentRental && rowData.name && rowData.name.length > 3) {
+                    allRentals.push(currentRental);
+                    currentRental = { ...rowData, province: currentProvince };
+                    stitchingInProgress = false;
+                }
+                // Start new rental
+                else if (rowData.name && rowData.name.length > 3) {
+                    currentRental = { ...rowData, province: currentProvince };
+                    stitchingInProgress = false;
+                }
+                // This row might be a continuation with minimal data
+                else if (currentRental && isContinuationRow(rowData, currentRental)) {
+                    console.log(`🔄 Stitching minimal row ${i}`);
+                    currentRental = mergeRentalRows(currentRental, rowData);
+                    stitchingInProgress = true;
+                }
+            }
+
+            // Don't forget the last rental
+            if (currentRental) {
+                allRentals.push(currentRental);
             }
         }
 
@@ -185,6 +274,19 @@ async function parsePDFWithCoordinates() {
 
 
 // Basic endpoints
+
+// Debug endpoint to see stitching results
+app.get('/api/pdf-debug-stitching', (req, res) => {
+    const stitchedExamples = PDF_RENTALS.filter(rental =>
+        rental.name.includes(' ') && rental.name.split(' ').length > 2
+    ).slice(0, 5);
+
+    res.json({
+        total_stitched_rentals: PDF_RENTALS.filter(r => r.name.includes(' ') && r.name.split(' ').length > 2).length,
+        examples: stitchedExamples,
+        total_rentals: PDF_RENTALS.length
+    });
+});
 
 // PDF extraction endpoint
 app.post('/api/extract-pdf', async (req, res) => {
