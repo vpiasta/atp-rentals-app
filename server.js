@@ -137,7 +137,7 @@ function isContinuationRow(rowData, previousRowData) {
     //        return true;
     //    }
     //}
-    
+
     return false;
 }
 
@@ -199,7 +199,7 @@ async function parsePDFWithCoordinates() {
         let currentProvince = '';
 
         // Process just first 3 pages to test
-        for (let pageNum = 1; pageNum <= Math.min(3, numPages); pageNum++) {
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
             console.log(`Processing page ${pageNum}...`);
             const page = await pdf.getPage(pageNum);
             const textContent = await page.getTextContent();
@@ -272,7 +272,7 @@ async function parsePDFWithCoordinates() {
         }
 
         PDF_RENTALS = allRentals;
-        PDF_STATUS = `PDF parsed: ${allRentals.length} rentals found from first 3 pages`;
+        PDF_STATUS = `PDF parsed: ${allRentals.length} rentals found from ${numPages} pages`;
         console.log(`✅ ${PDF_STATUS}`);
 
         return { success: true, rentals: allRentals.length };
@@ -309,7 +309,7 @@ app.post('/api/extract-pdf', async (req, res) => {
             success: result.success,
             message: PDF_STATUS,
             rentals_found: PDF_RENTALS.length,
-            sample_rentals: PDF_RENTALS.slice(0, 5),
+            //sample_rentals: PDF_RENTALS.slice(0, 5),
             current_province_stats: Object.keys(PDF_RENTALS.reduce((acc, r) => {
                 acc[r.province] = true;
                 return acc;
