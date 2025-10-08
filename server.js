@@ -61,7 +61,9 @@ function groupIntoRows(textItems) {
             y: parseFloat(y),
             items: items.sort((a, b) => a.x - b.x)
         }));
-}
+}       // end of groupIntoRows
+
+//============================================================
 
 // Parse row data into columns
 function parseRowData(row) {
@@ -96,33 +98,46 @@ function parseRowData(row) {
 
 // Check if a row is a continuation of the previous row
 function isContinuationRow(rowData, previousRowData) {
-    // Check for Hostal Familiar pattern
+    // 1. Check for specific multi-word type patterns
     if (previousRowData.type === 'Hostal' && rowData.type === 'Familiar') {
         return true;
     }
-
-    // Check for Sitio de acampar pattern
     if (previousRowData.type === 'Sitio de' && rowData.type === 'acampar') {
         return true;
     }
 
-    // Check for incomplete email (current email doesn't end with domain)
-    if (previousRowData.email && !previousRowData.email.includes('.') && rowData.email) {
-        return true;
+    // 2. Check for email continuation
+    if (previousRowData.email && rowData.email && !rowData.type ) {
+        // Check if previous email is incomplete (doesn't look like a complete email)
+        const isPreviousEmailComplete = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(previousRowData.email);
+
+        if (!isPreviousEmailComplete) {
+            return true;
+        }
     }
 
-    // Check for incomplete phone (ends with slash or hyphen)
-    if (previousRowData.phone && (previousRowData.phone.endsWith('/') || previousRowData.phone.endsWith('-')) && rowData.phone) {
-        return true;
+    // 3. Check for phone continuation
+    if (previousRowData.phone && rowData.phone && !rowData.name && !rowData.type && !rowData.email) {
+        // Phone continues if previous ends with hyphen (number interrupted)
+        if (previousRowData.phone.endsWith('-')) {
+            return true;
+        }
+        // OR if previous ends with slash AND current doesn't end with slash (second number)
+        if (previousRowData.phone.endsWith('/') && !rowData.phone.endsWith('/')) {
+            return true;
+        }
     }
 
-    // Check for name continuation (current row has minimal data)
-    if (rowData.name && (!rowData.type || rowData.type.length < 2) &&
-        (!rowData.email || rowData.email.length < 3) &&
-        (!rowData.phone || rowData.phone.length < 3)) {
-        return true;
-    }
-
+    // 4. Check for name continuation - VERY conservative
+    //if (rowData.name && !rowData.type && !rowData.email && !rowData.phone) {
+        // Only continue if previous row has substantial content and this looks like a name fragment
+    //    const isNameFragment = rowData.name.split(' ').length <= 2 &&
+    //                          rowData.name.length < 20;
+    //    if (isNameFragment && previousRowData.name && previousRowData.name.length > 3) {
+    //        return true;
+    //    }
+    //}
+    
     return false;
 }
 
@@ -141,8 +156,6 @@ function mergeRentalRows(previousRental, continuationRow) {
             merged.type = 'Hostal Familiar';
         } else if (previousRental.type === 'Sitio de' && continuationRow.type === 'acampar') {
             merged.type = 'Sitio de acampar';
-        } else {
-            merged.type = (previousRental.type + ' ' + continuationRow.type).trim();
         }
     }
 
