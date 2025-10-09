@@ -321,7 +321,7 @@ async function parsePDFWithCoordinates() {
     }
 }
 
-// 
+//
 async function initializePDFData() {
     try {
         console.log('🔄 Auto-loading PDF data on startup...');
@@ -457,9 +457,19 @@ app.get('/api/stats', (req, res) => {
     res.json(stats);
 });
 
-// API endpoint for provinces
+// API endpoint for provinces with counts
 app.get('/api/provinces', (req, res) => {
-    const provinces = [...new Set(CURRENT_RENTALS.map(rental => rental.province))].filter(Boolean).sort();
+    const provinceCounts = CURRENT_RENTALS.reduce((acc, rental) => {
+        if (rental.province) {
+            acc[rental.province] = (acc[rental.province] || 0) + 1;
+        }
+        return acc;
+    }, {});
+
+    const provinces = Object.entries(provinceCounts)
+        .map(([province, count]) => ({ province, count }))
+        .sort((a, b) => a.province.localeCompare(b.province));
+
     res.json(provinces);
 });
 
