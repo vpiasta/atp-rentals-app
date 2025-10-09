@@ -1,11 +1,16 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from the 'public' directory
+app.use(express.static('public'));
+
 
 // Simple data
 let CURRENT_RENTALS = [
@@ -413,19 +418,9 @@ app.get('/test-pdf', (req, res) => {
     `);
 });
 
+// Serve the main HTML page
 app.get('/', (req, res) => {
-    res.json({
-        message: 'ATP Rentals API',
-        status: 'running',
-        pdf_status: PDF_STATUS,
-        endpoints: {
-            health: '/health',
-            rentals: '/api/rentals',
-            ping: '/api/ping',
-            test_pdf: '/test-pdf',
-            extract_pdf: 'POST /api/extract-pdf'
-        }
-    });
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.get('/api/ping', (req, res) => {
@@ -435,11 +430,78 @@ app.get('/api/ping', (req, res) => {
     });
 });
 
-app.get('/api/rentals', (req, res) => {
-    res.json(CURRENT_RENTALS);
+// API endpoint for statistics
+app.get('/api/stats', (req, res) => {
+    const stats = {
+        total_rentals: CURRENT_RENTALS.length,
+        last_updated: new Date().toISOString(),
+        status: "PDF Data Loaded",
+        features: "Search by name, type, province"
+    };
+    res.json(stats);
 });
+
+// API endpoint for provinces
+app.get('/api/provinces', (req, res) => {
+    const provinces = [...new Set(CURRENT_RENTALS.map(rental => rental.province))].filter(Boolean).sort();
+    res.json(provinces);
+});
+
+// API endpoint for rental types
+app.get('/api/types', (req, res) => {
+    const types = [...new Set(CURRENT_RENTALS.map(rental => rental.type))].filter(Boolean).sort();
+    res.json(types);
+});
+
+// Enhanced rentals endpoint with search and filtering
+app.get('/api/rentals', (req, res) => {
+    const { search, province, type } = req.query;
+
+    let filteredRentals = [...CURRENT_RENTALS];
+
+    // Apply search filter
+    if (search) {
+        const searchLower = search.toLowerCase();
+        filteredRentals = filteredRentals.filter(rental =>
+            rental.name.toLowerCase().includes(searchLower) ||
+            (rental.email && rental.email.toLowerCase().includes(searchLower)) ||
+            (rental.phone && rental.phone.toLowerCase().includes(searchLower)) ||
+            (rental.province && rental.province.toLowerCase().includes(searchLower)) ||
+            (rental.type && rental.type.toLowerCase().includes(searchLower))
+        );
+    }
+
+    // Apply province filter
+    if (province) {
+        filteredRentals = filteredRentals.filter(rental =>
+            rental.province === province
+        );
+    }
+
+    // Apply type filter
+    if (type) {
+        filteredRentals = filteredRentals.filter(rental =>
+            rental.type === type
+        );
+    }
+
+    res.json(filteredRentals);
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        pdf_status: PDF_STATUS,
+        total_rentals: CURRENT_RENTALS.length
+    });
+});
+
 
 app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
+    console.log(`📍 Main page: http://localhost:${PORT}`);
     console.log(`📍 Health: http://localhost:${PORT}/health`);
+    console.log(`📍 PDF Test: http://localhost:${PORT}/test-pdf`);
 });
