@@ -217,6 +217,7 @@ async function parsePDFWithCoordinates() {
         console.log(`Processing ${numPages} pages...`);
         const allRentals = [];
         let currentProvince = '';
+        let currentRental = null;
 
         // Process all pages
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
@@ -237,7 +238,6 @@ async function parsePDFWithCoordinates() {
             console.log(`Page ${pageNum}: ${rows.length} rows found`);
 
             // Process each row
-            let currentRental = null;
             let stitchingInProgress = false;
 
             for (let i = 0; i < rows.length; i++) {
