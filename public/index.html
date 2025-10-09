@@ -439,9 +439,9 @@
           const selectedCountDiv = document.getElementById('selectedCount');
           if (selectedCountDiv) {
               if (count === null || count === undefined) {
-                  selectedCountDiv.innerHTML = '<strong>Selected:</strong> None';
+                  selectedCountDiv.innerHTML = '<strong>(None Selected)</strong>';
               } else {
-                  selectedCountDiv.innerHTML = `<strong>Selected:</strong> ${count}`;
+                  selectedCountDiv.innerHTML = `<strong>(${count} Selected)</strong>`;
               }
           }
       }
@@ -453,11 +453,11 @@
               const stats = await response.json();
 
               statsPanel.innerHTML = `
-                  <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 1rem;">
-                      <div><strong>Total rentals found:</strong> ${stats.total_rentals}</div>
-                      <div id="selectedCount"><strong>Selected:</strong> None</div>
-                  </div>
-              `;
+                <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px;">
+                    <div><strong>Total rentals found:</strong> ${stats.total_rentals}</div>
+                    <div id="selectedCount"><strong>(None Selected)</strong></div>
+                </div>
+            `;
               lastUpdateSpan.textContent = new Date(stats.last_updated).toLocaleString();
           } catch (error) {
               console.error('Error loading stats:', error);
@@ -534,6 +534,30 @@
               `;
               updateSelectedCount(0);
           }
+      }
+
+      // Function to get phone numbers for different purposes
+      function getPhoneNumbers(phoneStr) {
+          if (!phoneStr) return { display: '', call: null, whatsapp: null };
+
+          // Clean and split phone numbers
+          const phoneNumbers = phoneStr.split('/')
+              .map(p => p.trim().replace(/\D/g, ''))
+              .filter(p => p && p.length >= 7); // Filter out invalid numbers
+
+          // Find mobile numbers (starting with 6) for WhatsApp
+          const mobileNumbers = phoneNumbers.filter(num => num.startsWith('6'));
+          const whatsappNumber = mobileNumbers.length > 0 ? mobileNumbers[0].substring(0, 8) : null;
+
+          // Find non-mobile numbers for calls, or use first mobile if no non-mobile exists
+          const nonMobileNumbers = phoneNumbers.filter(num => !num.startsWith('6'));
+          const callNumber = nonMobileNumbers.length > 0 ? nonMobileNumbers[0].substring(0, 8) :
+                           phoneNumbers.length > 0 ? phoneNumbers[0].substring(0, 8) : null;
+
+          // Create display string (clean version)
+          const display = cleanPhoneNumber(phoneStr);
+
+          return { display, call: callNumber, whatsapp: whatsappNumber };
       }
 
       // Display results
