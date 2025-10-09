@@ -180,6 +180,24 @@ function mergeRentalRows(previousRental, continuationRow) {
     return merged;
 }
 
+// Function to detect if a row is a page header or table header
+function isHeaderRow(rowText) {
+    // Page headers
+    if (rowText.includes('Reporte de Hospedajes vigentes') ||
+        rowText.includes('Página') ||
+        rowText.includes('Total por provincia')) {
+        return true;
+    }
+
+    // Table headers
+    if (rowText.includes('Nombre') &&
+        (rowText.includes('Modalidad') || rowText.includes('Correo'))) {
+        return true;
+    }
+
+    return false;
+}
+
 // Coordinate-based PDF parsing
 async function parsePDFWithCoordinates() {
     try {
@@ -234,9 +252,13 @@ async function parsePDFWithCoordinates() {
                 }
 
                 // Skip header rows
-                if (rowText.includes('Nombre') || rowText.includes('Modalidad') ||
-                    rowText.includes('Correo') || !currentProvince) {
-                    continue;
+                if (isHeaderRow(rowText) || !currentProvince) {
+                  continue;
+                }
+
+                // Skip summary rows
+                if (rowText.includes('Total por')) {
+                  continue;
                 }
 
                 // Parse row data
