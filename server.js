@@ -309,11 +309,11 @@ app.post('/api/extract-pdf', async (req, res) => {
             success: result.success,
             message: PDF_STATUS,
             rentals_found: PDF_RENTALS.length,
-            //sample_rentals: PDF_RENTALS.slice(0, 5),
-            current_province_stats: Object.keys(PDF_RENTALS.reduce((acc, r) => {
-                acc[r.province] = true;
-                return acc;
-            }, {})),
+            rentals: PDF_RENTALS,
+            current_province_stats: Object.entries(PDF_RENTALS.reduce((acc, r) => {
+              acc[r.province] = (acc[r.province] || 0) + 1;
+              return acc;
+            }, {})).map(([province, count]) => `${province}: ${count}`),
             note: 'Coordinate-based extraction'
         });
     } catch (error) {
