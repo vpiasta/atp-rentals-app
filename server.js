@@ -105,9 +105,10 @@ function isContinuationRow(rowData, previousRowData) {
     if (previousRowData.type === 'Sitio de' && rowData.type === 'acampar') {
         return true;
     }
-    if ((rowData.name || rowData.email || rowData.phone) && !rowData.type) {
+    if (!rowData.type) {
         return true;
     }
+
     // 2. Check for email continuation
     if (previousRowData.email && rowData.email && !rowData.type ) {
         // Check if previous email is incomplete (doesn't look like a complete email)
@@ -130,16 +131,7 @@ function isContinuationRow(rowData, previousRowData) {
         }
     }
 
-    // 4. Check for name continuation - VERY conservative
-    //if (rowData.name && !rowData.type && !rowData.email && !rowData.phone) {
-        // Only continue if previous row has substantial content and this looks like a name fragment
-    //    const isNameFragment = rowData.name.split(' ').length <= 2 &&
-    //                          rowData.name.length < 20;
-    //    if (isNameFragment && previousRowData.name && previousRowData.name.length > 3) {
-    //        return true;
-    //    }
-    //}
-
+    console.log(`Not a continuation: row has type "${rowData.type}"`);
     return false;
 }
 
@@ -185,13 +177,16 @@ function isHeaderRow(rowText) {
     // Page headers
     if (rowText.includes('Reporte de Hospedajes vigentes') ||
         rowText.includes('Página') ||
-        rowText.includes('Total por provincia')) {
+        rowText.includes('Total por provincia')) ||
+        rowText.includes('rep_hos_web')) {
+        console.log(`Header detected: ${rowText}`);
         return true;
     }
 
     // Table headers
     if (rowText.includes('Nombre') &&
-        (rowText.includes('Modalidad') || rowText.includes('Correo'))) {
+          (rowText.includes('Modalidad') || rowText.includes('Correo'))) {
+          console.log(`Table header detected: ${rowText}`);
         return true;
     }
 
@@ -253,26 +248,35 @@ async function parsePDFWithCoordinates() {
 
                 // Skip header rows
                 if (isHeaderRow(rowText) || !currentProvince) {
+                    console.log(`Skipping header row: ${rowText}`);
                     continue;
                 }
 
                 // Skip summary rows
                 if (rowText.includes('Total por')) {
+                    console.log(`Skipping summary row: ${rowText}`);
                     continue;
                 }
 
                 // Parse row data
                 const rowData = parseRowData(row);
+                console.log(`Processing row ${i}:`, rowData);
+                console.log(`Current rental:`, currentRental);
 
                 // ALWAYS check for continuation first - using the "no type" criterion
                 if (currentRental && isContinuationRow(rowData, currentRental)) {
                     console.log(`🔄 Stitching row ${i} to previous rental`);
+                    console.log(`Before stitch - currentRental:`, currentRental);
+                    console.log(`Row to stitch:`, rowData);
+
                     currentRental = mergeRentalRows(currentRental, rowData);
+                    console.log(`After stitch - currentRental:`, currentRental);
                     continue; // Skip the rest of the logic for this row
                 }
 
                 // If we have a current rental and this row is NOT a continuation, save it
                 if (currentRental) {
+                    console.log(`💾 Saving current rental:`, currentRental);
                     allRentals.push(currentRental);
                     currentRental = null;
                 }
@@ -285,6 +289,7 @@ async function parsePDFWithCoordinates() {
                 }
                 // If we have minimal data but no current rental, start one cautiously
                 else if (!currentRental && rowData.name && rowData.name.trim()) {
+                    console.log(`⚠️ Starting cautious rental:`, rowData);
                     currentRental = { ...rowData, province: currentProvince };
                 }
             }
