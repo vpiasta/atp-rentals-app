@@ -545,14 +545,22 @@
               .map(p => p.trim().replace(/\D/g, ''))
               .filter(p => p && p.length >= 7); // Filter out invalid numbers
 
-          // Find mobile numbers (starting with 6) for WhatsApp
+          // Separate mobile (starts with 6) and non-mobile numbers
           const mobileNumbers = phoneNumbers.filter(num => num.startsWith('6'));
-          const whatsappNumber = mobileNumbers.length > 0 ? mobileNumbers[0].substring(0, 8) : null;
-
-          // Find non-mobile numbers for calls, or use first mobile if no non-mobile exists
           const nonMobileNumbers = phoneNumbers.filter(num => !num.startsWith('6'));
-          const callNumber = nonMobileNumbers.length > 0 ? nonMobileNumbers[0].substring(0, 8) :
-                           phoneNumbers.length > 0 ? phoneNumbers[0].substring(0, 8) : null;
+
+          // For calls: prefer non-mobile numbers, fall back to mobile if no non-mobile exists
+          let callNumber = null;
+          if (nonMobileNumbers.length > 0) {
+              callNumber = nonMobileNumbers[0].substring(0, 8);
+          } else if (mobileNumbers.length > 0) {
+              callNumber = mobileNumbers[0].substring(0, 8);
+          } else if (phoneNumbers.length > 0) {
+              callNumber = phoneNumbers[0].substring(0, 8);
+          }
+
+          // For WhatsApp: only use mobile numbers
+          const whatsappNumber = mobileNumbers.length > 0 ? mobileNumbers[0].substring(0, 8) : null;
 
           // Create display string (clean version)
           const display = cleanPhoneNumber(phoneStr);
