@@ -280,20 +280,16 @@ async function parsePDFWithCoordinates() {
                     currentRental = null;
                 }
 
-                // If we have a current rental and this row is NOT a continuation, save it
-                if (currentRental) {
-                    allRentals.push(currentRental);
-                    currentRental = null;
-                }
 
                 // Start new rental only if it has substantial data
-                // A valid rental row should have at least name + one other field
-                if (rowData.name && rowData.name.trim() &&
-                    (rowData.type || rowData.email || rowData.phone)) {
+                // A valid rental row must always have at least name + type + (email or phone)
+                if (rowData.name && rowData.name.trim() && rowData.type &&
+                    (rowData.email || rowData.phone)) {
                     currentRental = { ...rowData, province: currentProvince };
                 }
+
                 // If we have minimal data but no current rental, start one cautiously
-                else if (!currentRental && rowData.name && rowData.name.trim()) {
+                else if (!currentRental && rowData.name && rowData.name.trim() && rowData.type) {
                     console.log(`⚠️ Starting cautious rental:`, rowData);
                       currentRental = { ...rowData, province: currentProvince };  //copies rowData and province into currentRental
                 }
