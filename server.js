@@ -105,6 +105,8 @@ function isContinuationRow(rowData, previousRowData) {
     if (previousRowData.type === 'Sitio de' && rowData.type === 'acampar') {
         return true;
     }
+    if (!rowData.type) {
+        return true;
 
     // 2. Check for email continuation
     if (previousRowData.email && rowData.email && !rowData.type ) {
