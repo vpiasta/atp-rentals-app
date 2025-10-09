@@ -216,7 +216,8 @@ async function parsePDFWithCoordinates() {
 
         console.log(`Processing ${numPages} pages...`);
         const allRentals = [];
-        let currentProvince = '';
+        let currentProvince = '';// Process just first 3 pages to test
+for (let pageNum = 1; pageNum <= Math.min(3, numPages); pageNum++)
         let currentRental = null;
 
         // Process all pages
