@@ -218,7 +218,7 @@ async function parsePDFWithCoordinates() {
         const allRentals = [];
         let currentProvince = '';
 
-        // Process just first 3 pages to test
+        // Process all pages
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
             console.log(`Processing page ${pageNum}...`);
             const page = await pdf.getPage(pageNum);
@@ -253,41 +253,42 @@ async function parsePDFWithCoordinates() {
 
                 // Skip header rows
                 if (isHeaderRow(rowText) || !currentProvince) {
-                  continue;
+                    continue;
                 }
 
                 // Skip summary rows
                 if (rowText.includes('Total por')) {
-                  continue;
+                    continue;
                 }
 
                 // Parse row data
                 const rowData = parseRowData(row);
 
-                // Check if this row continues the previous rental
+                // ALWAYS check for continuation first - using the "no type" criterion
                 if (currentRental && isContinuationRow(rowData, currentRental)) {
                     console.log(`🔄 Stitching row ${i} to previous rental`);
                     currentRental = mergeRentalRows(currentRental, rowData);
-                    stitchingInProgress = true;
+                    continue; // Skip the rest of the logic for this row
                 }
-                // If we have a complete rental, save it and start new one
-                else if (currentRental && rowData.name && rowData.name.length > 3) {
+
+                // If we have a current rental and this row is NOT a continuation, save it
+                if (currentRental) {
                     allRentals.push(currentRental);
-                    currentRental = { ...rowData, province: currentProvince };
-                    stitchingInProgress = false;
+                    currentRental = null;
                 }
-                // Start new rental
-                else if (rowData.name && rowData.name.length > 3) {
+
+                // Start new rental only if it has substantial data
+                // A valid rental row should have at least name + one other field
+                if (rowData.name && rowData.name.trim() &&
+                    (rowData.type || rowData.email || rowData.phone)) {
                     currentRental = { ...rowData, province: currentProvince };
-                    stitchingInProgress = false;
                 }
-                // This row might be a continuation with minimal data
-                else if (currentRental && isContinuationRow(rowData, currentRental)) {
-                    console.log(`🔄 Stitching minimal row ${i}`);
-                    currentRental = mergeRentalRows(currentRental, rowData);
-                    stitchingInProgress = true;
+                // If we have minimal data but no current rental, start one cautiously
+                else if (!currentRental && rowData.name && rowData.name.trim()) {
+                    currentRental = { ...rowData, province: currentProvince };
                 }
             }
+
 
             // Don't forget the last rental
             if (currentRental) {
