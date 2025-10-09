@@ -288,12 +288,11 @@ async function parsePDFWithCoordinates() {
                     currentRental = { ...rowData, province: currentProvince };
                 }
             }
+        }
 
-
-            // Don't forget the last rental
-            if (currentRental) {
-                allRentals.push(currentRental);
-            }
+        // Don't forget the last rental
+        if (currentRental) {
+            allRentals.push(currentRental);
         }
 
         PDF_RENTALS = allRentals;
