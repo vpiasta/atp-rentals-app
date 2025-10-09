@@ -233,7 +233,7 @@ async function parsePDFWithCoordinates() {
             console.log(`Page ${pageNum}: ${rows.length} rows found`);
 
             // Process each row
-            let stitchingInProgress = false;
+            //let stitchingInProgress = false;
 
             for (let i = 0; i < rows.length; i++) {
                 const row = rows[i];
@@ -268,7 +268,6 @@ async function parsePDFWithCoordinates() {
                     console.log(`🔄 Stitching row ${i} to previous rental`);
                     console.log(`Before stitch - currentRental:`, currentRental);
                     console.log(`Row to stitch:`, rowData);
-
                     currentRental = mergeRentalRows(currentRental, rowData);
                     console.log(`After stitch - currentRental:`, currentRental);
                     continue; // Skip the rest of the logic for this row
@@ -277,6 +276,12 @@ async function parsePDFWithCoordinates() {
                 // If we have a current rental and this row is NOT a continuation, save it
                 if (currentRental) {
                     console.log(`💾 Saving current rental:`, currentRental);
+                    allRentals.push(currentRental);
+                    currentRental = null;
+                }
+
+                // If we have a current rental and this row is NOT a continuation, save it
+                if (currentRental) {
                     allRentals.push(currentRental);
                     currentRental = null;
                 }
@@ -290,12 +295,12 @@ async function parsePDFWithCoordinates() {
                 // If we have minimal data but no current rental, start one cautiously
                 else if (!currentRental && rowData.name && rowData.name.trim()) {
                     console.log(`⚠️ Starting cautious rental:`, rowData);
-                    currentRental = { ...rowData, province: currentProvince };
+                      currentRental = { ...rowData, province: currentProvince };  //copies rowData and province into currentRental
                 }
             }
         }
 
-        // Don't forget the last rental
+        // Only save the final rental AFTER processing ALL pages
         if (currentRental) {
             allRentals.push(currentRental);
         }
