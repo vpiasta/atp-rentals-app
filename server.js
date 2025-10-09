@@ -321,6 +321,22 @@ async function parsePDFWithCoordinates() {
     }
 }
 
+// 
+async function initializePDFData() {
+    try {
+        console.log('🔄 Auto-loading PDF data on startup...');
+        const result = await parsePDFWithCoordinates();
+        if (result.success) {
+            CURRENT_RENTALS = PDF_RENTALS;
+            console.log(`✅ Auto-loaded ${CURRENT_RENTALS.length} rentals from PDF`);
+        }
+    } catch (error) {
+        console.error('Auto-load error:', error);
+    }
+}
+
+// Call this when server starts
+initializePDFData();
 
 // Basic endpoints
 
