@@ -177,7 +177,7 @@ function isHeaderRow(rowText) {
     // Page headers
     if (rowText.includes('Reporte de Hospedajes vigentes') ||
         rowText.includes('Página') ||
-        rowText.includes('Total por provincia')) ||
+        rowText.includes('Total por provincia') ||
         rowText.includes('rep_hos_web')) {
         console.log(`Header detected: ${rowText}`);
         return true;
