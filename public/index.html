@@ -323,346 +323,324 @@
 
     <script>
     // API Base URL - POINTING TO YOUR RAILWAY BACKEND
-      const API_BASE_URL = 'https://atp-rentals-app-production.up.railway.app';
+const API_BASE_URL = 'https://atp-rentals-app-production.up.railway.app';
 
-      // DOM elements
-      const searchInput = document.getElementById('searchInput');
-      const searchButton = document.getElementById('searchButton');
-      const provinceFilter = document.getElementById('provinceFilter');
-      const typeFilter = document.getElementById('typeFilter');
-      const resultsContainer = document.getElementById('resultsContainer');
-      const statsPanel = document.getElementById('statsPanel');
-      const lastUpdateSpan = document.getElementById('lastUpdate');
+// DOM elements
+const searchInput = document.getElementById('searchInput');
+const searchButton = document.getElementById('searchButton');
+const provinceFilter = document.getElementById('provinceFilter');
+const typeFilter = document.getElementById('typeFilter');
+const resultsContainer = document.getElementById('resultsContainer');
+const statsPanel = document.getElementById('statsPanel');
+const lastUpdateSpan = document.getElementById('lastUpdate');
 
-      // Track if we're showing search results or default view
-      let isShowingSearchResults = false;
+// Track if we're showing search results or default view
+let isShowingSearchResults = false;
 
-      // Load initial data
-      async function loadInitialData() {
-          await loadStats();
-          await loadFilters();
-          showDefaultView();
-      }
+// Load initial data
+async function loadInitialData() {
+    await loadStats();
+    await loadFilters();
+    showDefaultView();
+}
 
-      // Show default view (initial state)
-      function showDefaultView() {
-          isShowingSearchResults = false;
-          resultsContainer.innerHTML = `
-              <div style="text-align: center; padding: 2rem; color: #666;">
-                  <p>Use the search or filters to find specific rentals</p>
-                  <p><small>Example rental:</small></p>
-              </div>
+// Show default view (initial state)
+function showDefaultView() {
+    isShowingSearchResults = false;
+    resultsContainer.innerHTML = `
+        <div style="text-align: center; padding: 2rem; color: #666;">
+            <p>Use the search or filters to find specific rentals</p>
+            <p><small>Example rental:</small></p>
+        </div>
 
-              <!-- Show the default rental as an example -->
-              <div class="result-card">
-                  <div class="result-header">
-                      <div style="flex: 1;">
-                          <h3 class="result-title">APARTHOTEL BOQUETE</h3>
-                          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                              <span class="result-category">Aparta-Hotel</span>
-                              <span class="result-category" style="background: #005ca9;">CHIRIQUÍ</span>
-                          </div>
-                      </div>
-                  </div>
-
-                  <div class="result-details">
-                      <div class="detail-item">
-                          <i>📍</i>
-                          <div>
-                              <strong>Province:</strong> CHIRIQUÍ
-                          </div>
-                      </div>
-
-                      <div class="detail-item">
-                          <i>📞</i>
-                          <div>
-                              <strong>Phone:</strong> 68916669 / 68916660<br>
-                              <strong>Email:</strong> info@aparthotel-boquete.com
-                          </div>
-                      </div>
-                  </div>
-
-                  <div class="contact-buttons">
-                      <a href="tel:+50768916669" class="contact-button">
-                          📞 Call
-                      </a>
-                      <a href="mailto:info@aparthotel-boquete.com" class="contact-button">
-                          ✉️ Email
-                      </a>
-                      <a href="https://wa.me/50768916669" target="_blank" class="contact-button whatsapp-button">
-                          💬 WhatsApp
-                      </a>
-                      <a href="https://www.google.com/maps/search/?api=1&query=APARTHOTEL+BOQUETE+CHIRIQUÍ+Panama"
-                         target="_blank" class="contact-button">
-                          📍 Google Maps
-                      </a>
-                  </div>
-              </div>
-          `;
-      }
-
-      // Function to clean phone numbers
-      function cleanPhoneNumber(phoneStr) {
-          if (!phoneStr) return '';
-
-          // Remove leading/trailing slashes and trim
-          let cleaned = phoneStr.replace(/^\/+|\/+$/g, '').trim();
-
-          // Clean up multiple spaces around slashes
-          cleaned = cleaned.replace(/\s*\/\s*/g, ' / ');
-
-          return cleaned;
-      }
-
-      // Function to extract WhatsApp number (only mobile numbers starting with 6)
-      function getWhatsAppNumber(phoneStr) {
-          if (!phoneStr) return null;
-
-          const phoneNumbers = phoneStr.split('/').map(p => p.trim().replace(/\D/g, '')).filter(p => p);
-
-          // Find first mobile number (starts with 6)
-          const mobileNumber = phoneNumbers.find(num => num.startsWith('6'));
-
-          return mobileNumber ? mobileNumber.substring(0, 8) : null;
-      }
-
-      // Function to get first phone number for calls
-      function getFirstPhoneNumber(phoneStr) {
-          if (!phoneStr) return null;
-
-          const phoneNumbers = phoneStr.split('/').map(p => p.trim().replace(/\D/g, '')).filter(p => p);
-          return phoneNumbers.length > 0 ? phoneNumbers[0].substring(0, 8) : null;
-      }
-
-      // Update selected count display
-      function updateSelectedCount(count) {
-          const selectedCountDiv = document.getElementById('selectedCount');
-          if (selectedCountDiv) {
-              if (count === null || count === undefined) {
-                  selectedCountDiv.innerHTML = '<strong>(None Selected)</strong>';
-              } else {
-                  selectedCountDiv.innerHTML = `<strong>(${count} Selected)</strong>`;
-              }
-          }
-      }
-
-      // Load statistics
-      async function loadStats() {
-          try {
-              const response = await fetch(`${API_BASE_URL}/api/stats`);
-              const stats = await response.json();
-
-              statsPanel.innerHTML = `
-                <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px;">
-                    <div><strong>Total rentals found:</strong> ${stats.total_rentals}</div>
-                    <div id="selectedCount"><strong>(None Selected)</strong></div>
+        <!-- Show the default rental as an example -->
+        <div class="result-card">
+            <div class="result-header">
+                <div style="flex: 1;">
+                    <h3 class="result-title">APARTHOTEL BOQUETE</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <span class="result-category">Aparta-Hotel</span>
+                        <span class="result-category" style="background: #005ca9;">CHIRIQUÍ</span>
+                    </div>
                 </div>
-            `;
-              lastUpdateSpan.textContent = new Date(stats.last_updated).toLocaleString();
-          } catch (error) {
-              console.error('Error loading stats:', error);
-              statsPanel.innerHTML = '<div style="color: #666;">Error loading statistics</div>';
-          }
-      }
+            </div>
 
-      // Load filter options
-      async function loadFilters() {
-          try {
-              const [provincesResponse, typesResponse] = await Promise.all([
-                  fetch(`${API_BASE_URL}/api/provinces`),
-                  fetch(`${API_BASE_URL}/api/types`)
-              ]);
+            <div class="result-details">
+                <div class="detail-item">
+                    <i>📍</i>
+                    <div>
+                        <strong>Province:</strong> CHIRIQUÍ
+                    </div>
+                </div>
 
-              const provinces = await provincesResponse.json();
-              const types = await typesResponse.json();
+                <div class="detail-item">
+                    <i>📞</i>
+                    <div>
+                        <strong>Phone:</strong> 68916669 / 68916660<br>
+                        <strong>Email:</strong> info@aparthotel-boquete.com
+                    </div>
+                </div>
+            </div>
 
-              // Populate province filter with counts
-              provinces.forEach(({ province, count }) => {
-                  const option = document.createElement('option');
-                  option.value = province;
-                  option.textContent = `${province}: ${count} rentals`;
-                  provinceFilter.appendChild(option);
-              });
+            <div class="contact-buttons">
+                <a href="tel:+50768916669" class="contact-button">
+                    📞 Call
+                </a>
+                <a href="mailto:info@aparthotel-boquete.com" class="contact-button">
+                    ✉️ Email
+                </a>
+                <a href="https://wa.me/50768916669" target="_blank" class="contact-button whatsapp-button">
+                    💬 WhatsApp
+                </a>
+                <a href="https://www.google.com/maps/search/?api=1&query=APARTHOTEL+BOQUETE+CHIRIQUÍ+Panama"
+                   target="_blank" class="contact-button">
+                    📍 Google Maps
+                </a>
+            </div>
+        </div>
+    `;
+}
 
-              // Populate type filter
-              types.forEach(type => {
-                  const option = document.createElement('option');
-                  option.value = type;
-                  option.textContent = type;
-                  typeFilter.appendChild(option);
-              });
-          } catch (error) {
-              console.error('Error loading filters:', error);
-          }
-      }
+// Function to clean phone numbers
+function cleanPhoneNumber(phoneStr) {
+    if (!phoneStr) return '';
 
-      // Search function
-      async function performSearch() {
-          const searchTerm = searchInput.value;
-          const selectedProvince = provinceFilter.value;
-          const selectedType = typeFilter.value;
+    // Remove leading/trailing slashes and trim
+    let cleaned = phoneStr.replace(/^\/+|\/+$/g, '').trim();
 
-          // If no search criteria and showing default view, do nothing
-          if (!searchTerm && !selectedProvince && !selectedType && !isShowingSearchResults) {
-              updateSelectedCount(null);
-              return;
-          }
+    // Clean up multiple spaces around slashes
+    cleaned = cleaned.replace(/\s*\/\s*/g, ' / ');
 
-          // Build query parameters
-          const params = new URLSearchParams();
-          if (searchTerm) params.append('search', searchTerm);
-          if (selectedProvince) params.append('province', selectedProvince);
-          if (selectedType) params.append('type', selectedType);
+    return cleaned;
+}
 
-          try {
-              resultsContainer.innerHTML = '<div class="loading">Searching rentals...</div>';
-              isShowingSearchResults = true;
+// Function to get phone numbers for different purposes
+function getPhoneNumbers(phoneStr) {
+    if (!phoneStr) return { display: '', call: null, whatsapp: null };
 
-              const response = await fetch(`${API_BASE_URL}/api/rentals?${params}`);
-              const rentals = await response.json();
+    // Clean and split phone numbers
+    const phoneNumbers = phoneStr.split('/')
+        .map(p => p.trim().replace(/\D/g, ''))
+        .filter(p => p && p.length >= 7); // Filter out invalid numbers
 
-              // Update selected count
-              updateSelectedCount(rentals.length);
+    // Separate mobile (starts with 6) and non-mobile numbers
+    const mobileNumbers = phoneNumbers.filter(num => num.startsWith('6'));
+    const nonMobileNumbers = phoneNumbers.filter(num => !num.startsWith('6'));
 
-              displayResults(rentals);
-          } catch (error) {
-              console.error('Error searching:', error);
-              resultsContainer.innerHTML = `
-                  <div class="no-results">
-                      <p>Error searching rentals. Please try again.</p>
-                  </div>
-              `;
-              updateSelectedCount(0);
-          }
-      }
+    // For calls: prefer non-mobile numbers, fall back to mobile if no non-mobile exists
+    let callNumber = null;
+    if (nonMobileNumbers.length > 0) {
+        callNumber = nonMobileNumbers[0].substring(0, 8);
+    } else if (mobileNumbers.length > 0) {
+        callNumber = mobileNumbers[0].substring(0, 8);
+    } else if (phoneNumbers.length > 0) {
+        callNumber = phoneNumbers[0].substring(0, 8);
+    }
 
-      // Function to get phone numbers for different purposes
-      function getPhoneNumbers(phoneStr) {
-          if (!phoneStr) return { display: '', call: null, whatsapp: null };
+    // For WhatsApp: only use mobile numbers
+    const whatsappNumber = mobileNumbers.length > 0 ? mobileNumbers[0].substring(0, 8) : null;
 
-          // Clean and split phone numbers
-          const phoneNumbers = phoneStr.split('/')
-              .map(p => p.trim().replace(/\D/g, ''))
-              .filter(p => p && p.length >= 7); // Filter out invalid numbers
+    // Create display string (clean version)
+    const display = cleanPhoneNumber(phoneStr);
 
-          // Separate mobile (starts with 6) and non-mobile numbers
-          const mobileNumbers = phoneNumbers.filter(num => num.startsWith('6'));
-          const nonMobileNumbers = phoneNumbers.filter(num => !num.startsWith('6'));
+    return { display, call: callNumber, whatsapp: whatsappNumber };
+}
 
-          // For calls: prefer non-mobile numbers, fall back to mobile if no non-mobile exists
-          let callNumber = null;
-          if (nonMobileNumbers.length > 0) {
-              callNumber = nonMobileNumbers[0].substring(0, 8);
-          } else if (mobileNumbers.length > 0) {
-              callNumber = mobileNumbers[0].substring(0, 8);
-          } else if (phoneNumbers.length > 0) {
-              callNumber = phoneNumbers[0].substring(0, 8);
-          }
+// Update selected count display
+function updateSelectedCount(count) {
+    const selectedCountDiv = document.getElementById('selectedCount');
+    if (selectedCountDiv) {
+        if (count === null || count === undefined) {
+            selectedCountDiv.innerHTML = '<strong>(None Selected)</strong>';
+        } else {
+            selectedCountDiv.innerHTML = `<strong>(${count} Selected)</strong>`;
+        }
+    }
+}
 
-          // For WhatsApp: only use mobile numbers
-          const whatsappNumber = mobileNumbers.length > 0 ? mobileNumbers[0].substring(0, 8) : null;
+// Load statistics
+async function loadStats() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/stats`);
+        const stats = await response.json();
 
-          // Create display string (clean version)
-          const display = cleanPhoneNumber(phoneStr);
+        statsPanel.innerHTML = `
+            <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 10px;">
+                <div><strong>Total rentals found:</strong> ${stats.total_rentals}</div>
+                <div id="selectedCount"><strong>(None Selected)</strong></div>
+            </div>
+        `;
+        lastUpdateSpan.textContent = new Date(stats.last_updated).toLocaleString();
+    } catch (error) {
+        console.error('Error loading stats:', error);
+        statsPanel.innerHTML = '<div style="color: #666;">Error loading statistics</div>';
+    }
+}
 
-          return { display, call: callNumber, whatsapp: whatsappNumber };
-      }
+// Load filter options
+async function loadFilters() {
+    try {
+        const [provincesResponse, typesResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}/api/provinces`),
+            fetch(`${API_BASE_URL}/api/types`)
+        ]);
 
-      // Display results
-      function displayResults(rentals) {
-          resultsContainer.innerHTML = '';
+        const provinces = await provincesResponse.json();
+        const types = await typesResponse.json();
 
-          if (rentals.length === 0) {
-              resultsContainer.innerHTML = `
-                  <div class="no-results">
-                      <p>No rentals found matching your search.</p>
-                      <p>Try terms like "Boquete", "Chiriquí", or "Hotel"</p>
-                  </div>
-              `;
-              return;
-          }
+        // Populate province filter with counts
+        provinces.forEach(({ province, count }) => {
+            const option = document.createElement('option');
+            option.value = province;
+            option.textContent = `${province}: ${count} rentals`;
+            provinceFilter.appendChild(option);
+        });
 
-          rentals.forEach(rental => {
-              const resultCard = document.createElement('div');
-              resultCard.className = 'result-card';
+        // Populate type filter
+        types.forEach(type => {
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type;
+            typeFilter.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading filters:', error);
+    }
+}
 
-              // Clean and process phone numbers
-              const cleanPhone = cleanPhoneNumber(rental.phone);
-              const firstPhone = getFirstPhoneNumber(rental.phone);
-              const whatsappNumber = getWhatsAppNumber(rental.phone);
+// Search function
+async function performSearch() {
+    const searchTerm = searchInput.value;
+    const selectedProvince = provinceFilter.value;
+    const selectedType = typeFilter.value;
 
-              const phoneUrl = firstPhone ? `tel:+507${firstPhone}` : '#';
-              const whatsappUrl = whatsappNumber ? `https://wa.me/507${whatsappNumber}` : '#';
-              const emailUrl = rental.email ? `mailto:${rental.email}` : '#';
-              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name + ' ' + (rental.province || '') + ' Panama')}`;
+    // If no search criteria and showing default view, do nothing
+    if (!searchTerm && !selectedProvince && !selectedType && !isShowingSearchResults) {
+        updateSelectedCount(null);
+        return;
+    }
 
-              resultCard.innerHTML = `
-                  <div class="result-header">
-                      <div style="flex: 1;">
-                          <h3 class="result-title">${rental.name}</h3>
-                          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                              ${rental.type ? `<span class="result-category">${rental.type}</span>` : ''}
-                              ${rental.province ? `<span class="result-category" style="background: #005ca9;">${rental.province}</span>` : ''}
-                          </div>
-                      </div>
-                  </div>
+    // Build query parameters
+    const params = new URLSearchParams();
+    if (searchTerm) params.append('search', searchTerm);
+    if (selectedProvince) params.append('province', selectedProvince);
+    if (selectedType) params.append('type', selectedType);
 
-                  <div class="result-details">
-                      ${rental.province ? `
-                      <div class="detail-item">
-                          <i>📍</i>
-                          <div>
-                              <strong>Province:</strong> ${rental.province}
-                          </div>
-                      </div>` : ''}
+    try {
+        resultsContainer.innerHTML = '<div class="loading">Searching rentals...</div>';
+        isShowingSearchResults = true;
 
-                      ${cleanPhone || rental.email ? `
-                      <div class="detail-item">
-                          <i>📞</i>
-                          <div>
-                              ${cleanPhone ? `<strong>Phone:</strong> ${cleanPhone}<br>` : ''}
-                              ${rental.email ? `<strong>Email:</strong> ${rental.email}` : ''}
-                          </div>
-                      </div>` : ''}
-                  </div>
+        const response = await fetch(`${API_BASE_URL}/api/rentals?${params}`);
+        const rentals = await response.json();
 
-                  <div class="contact-buttons">
-                      ${firstPhone ? `
-                      <a href="${phoneUrl}" class="contact-button">
-                          📞 Call
-                      </a>` : ''}
+        // Update selected count
+        updateSelectedCount(rentals.length);
 
-                      ${rental.email ? `
-                      <a href="${emailUrl}" class="contact-button">
-                          ✉️ Email
-                      </a>` : ''}
+        displayResults(rentals);
+    } catch (error) {
+        console.error('Error searching:', error);
+        resultsContainer.innerHTML = `
+            <div class="no-results">
+                <p>Error searching rentals. Please try again.</p>
+            </div>
+        `;
+        updateSelectedCount(0);
+    }
+}
 
-                      ${whatsappNumber ? `
-                      <a href="${whatsappUrl}" target="_blank" class="contact-button whatsapp-button">
-                          💬 WhatsApp
-                      </a>` : ''}
+// Display results
+function displayResults(rentals) {
+    resultsContainer.innerHTML = '';
 
-                      <a href="${mapsUrl}" target="_blank" class="contact-button">
-                          📍 Google Maps
-                      </a>
-                  </div>
-              `;
-              resultsContainer.appendChild(resultCard);
-          });
-      }
+    if (rentals.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="no-results">
+                <p>No rentals found matching your search.</p>
+                <p>Try terms like "Boquete", "Chiriquí", or "Hotel"</p>
+            </div>
+        `;
+        return;
+    }
 
-      // Event listeners
-      searchButton.addEventListener('click', performSearch);
-      searchInput.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') performSearch();
-      });
+    rentals.forEach(rental => {
+        const resultCard = document.createElement('div');
+        resultCard.className = 'result-card';
 
-      provinceFilter.addEventListener('change', performSearch);
-      typeFilter.addEventListener('change', performSearch);
+        // Process phone numbers
+        const phoneData = getPhoneNumbers(rental.phone);
 
-      // Initialize the app
-      loadInitialData();
-  </script>
+        const phoneUrl = phoneData.call ? `tel:+507${phoneData.call}` : '#';
+        const whatsappUrl = phoneData.whatsapp ? `https://wa.me/507${phoneData.whatsapp}` : '#';
+        const emailUrl = rental.email ? `mailto:${rental.email}` : '#';
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name + ' ' + (rental.province || '') + ' Panama')}`;
+
+        resultCard.innerHTML = `
+            <div class="result-header">
+                <div style="flex: 1;">
+                    <h3 class="result-title">${rental.name}</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        ${rental.type ? `<span class="result-category">${rental.type}</span>` : ''}
+                        ${rental.province ? `<span class="result-category" style="background: #005ca9;">${rental.province}</span>` : ''}
+                    </div>
+                </div>
+            </div>
+
+            <div class="result-details">
+                ${rental.province ? `
+                <div class="detail-item">
+                    <i>📍</i>
+                    <div>
+                        <strong>Province:</strong> ${rental.province}
+                    </div>
+                </div>` : ''}
+
+                ${phoneData.display || rental.email ? `
+                <div class="detail-item">
+                    <i>📞</i>
+                    <div>
+                        ${phoneData.display ? `<strong>Phone:</strong> ${phoneData.display}<br>` : ''}
+                        ${rental.email ? `<strong>Email:</strong> ${rental.email}` : ''}
+                    </div>
+                </div>` : ''}
+            </div>
+
+            <div class="contact-buttons">
+                ${phoneData.call ? `
+                <a href="${phoneUrl}" class="contact-button">
+                    📞 Call
+                </a>` : ''}
+
+                ${rental.email ? `
+                <a href="${emailUrl}" class="contact-button">
+                    ✉️ Email
+                </a>` : ''}
+
+                ${phoneData.whatsapp ? `
+                <a href="${whatsappUrl}" target="_blank" class="contact-button whatsapp-button">
+                    💬 WhatsApp
+                </a>` : ''}
+
+                <a href="${mapsUrl}" target="_blank" class="contact-button">
+                    📍 Google Maps
+                </a>
+            </div>
+        `;
+        resultsContainer.appendChild(resultCard);
+    });
+}
+
+    // Event listeners
+    searchButton.addEventListener('click', performSearch);
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') performSearch();
+    });
+
+    provinceFilter.addEventListener('change', performSearch);
+    typeFilter.addEventListener('change', performSearch);
+
+    // Initialize the app
+    loadInitialData();
+      </script>
 
 </body>
 </html>
