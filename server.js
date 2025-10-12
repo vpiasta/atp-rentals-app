@@ -3,7 +3,6 @@ const cors = require('cors');
 const path = require('path');
 const axios = require('axios');
 const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-const cheerio = require('cheerio');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,7 +28,7 @@ let CURRENT_RENTALS = [
 ];
 
 //const PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
-PDF_URL = getLatestPdfUrl()
+const PDF_URL = await getLatestPdfUrl();
 
 let PDF_STATUS = "Not loaded";
 let PDF_RENTALS = [];
@@ -43,27 +42,38 @@ const COLUMN_BOUNDARIES = {
     TELEFONO: { start: 481, end: 600 }
 };
 
-// Function to get the latest PDF URL from ATP website
+// Function to get the latest PDF URL from ATP website (without cheerio)
 async function getLatestPdfUrl() {
     try {
         const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
         const response = await axios.get(atpUrl);
-        const $ = cheerio.load(response.data);
+        const html = response.data;
 
+        // Use regex to find the PDF URL in the HTML
         // Look for the button with "Descargar PDF" text
-        const pdfLink = $('a.qubely-block-btn-anchor:contains("Descargar PDF")').attr('href');
-        
-        if (!pdfLink) {
+        const regex = /<a[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*)"[^>]*>[\s]*Descargar PDF[\s]*<\/a>/i;
+        const match = html.match(regex);
+
+        if (match && match[1]) {
+            console.log('Found latest PDF URL:', match[1]);
+            return match[1];
+        } else {
+            // Fallback to manual search if the specific regex doesn't work
+            const fallbackRegex = /href="([^"]*\.pdf)"/i;
+            const fallbackMatch = html.match(fallbackRegex);
+
+            if (fallbackMatch && fallbackMatch[1]) {
+                console.log('Found PDF URL via fallback:', fallbackMatch[1]);
+                return fallbackMatch[1];
+            }
+
             throw new Error('PDF link not found on the page');
         }
 
-        console.log('Found latest PDF URL:', pdfLink);
-        return pdfLink;
-
     } catch (error) {
         console.error('Error fetching PDF URL:', error.message);
-        // Fallback to a default URL or handle error as needed
-        throw error;
+        // Fallback to the original URL if dynamic fetching fails
+        return 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
     }
 }
 
