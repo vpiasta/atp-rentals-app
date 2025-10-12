@@ -28,7 +28,7 @@ let CURRENT_RENTALS = [
 ];
 
 //const PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
-const PDF_URL = await getLatestPdfUrl();
+const PDF_URL = getLatestPdfUrl();
 
 let PDF_STATUS = "Not loaded";
 let PDF_RENTALS = [];
