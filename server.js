@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const axios = require('axios');
+const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+const cheerio = require('cheerio');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,10 +28,8 @@ let CURRENT_RENTALS = [
     }
 ];
 
-const axios = require('axios');
-const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-
-const PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
+//const PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
+PDF_URL = getLatestPdfUrl()
 
 let PDF_STATUS = "Not loaded";
 let PDF_RENTALS = [];
@@ -41,6 +42,30 @@ const COLUMN_BOUNDARIES = {
     CORREO: { start: 265, end: 481 },
     TELEFONO: { start: 481, end: 600 }
 };
+
+// Function to get the latest PDF URL from ATP website
+async function getLatestPdfUrl() {
+    try {
+        const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
+        const response = await axios.get(atpUrl);
+        const $ = cheerio.load(response.data);
+
+        // Look for the button with "Descargar PDF" text
+        const pdfLink = $('a.qubely-block-btn-anchor:contains("Descargar PDF")').attr('href');
+        
+        if (!pdfLink) {
+            throw new Error('PDF link not found on the page');
+        }
+
+        console.log('Found latest PDF URL:', pdfLink);
+        return pdfLink;
+
+    } catch (error) {
+        console.error('Error fetching PDF URL:', error.message);
+        // Fallback to a default URL or handle error as needed
+        throw error;
+    }
+}
 
 // Group text items into rows based on Y coordinates
 function groupIntoRows(textItems) {
