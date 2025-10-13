@@ -51,53 +51,83 @@ async function getLatestPdfUrl() {
         const response = await axios.get(atpUrl, {
             timeout: 10000,
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Connection': 'keep-alive',
+            },
+            maxRedirects: 5
         });
 
         const html = response.data;
-        console.log('ATP page fetched successfully');
+        console.log('ATP page fetched successfully, length:', html.length);
 
-        // Multiple strategies to find the PDF URL
+        // Let's first check if we can find "Descargar PDF" in the HTML
+        const descargarIndex = html.indexOf('Descargar PDF');
+        console.log('Index of "Descargar PDF":', descargarIndex);
 
-        // Strategy 1: Look for the specific button structure
-        const buttonRegex = /<a[^>]*qubely-block-btn-anchor[^>]*href="([^"]+\.pdf)"[^>]*>/i;
-        const buttonMatch = html.match(buttonRegex);
-        if (buttonMatch && buttonMatch[1]) {
-            console.log('Found PDF via button:', buttonMatch[1]);
-            return buttonMatch[1];
+        if (descargarIndex === -1) {
+            console.log('"Descargar PDF" text not found in HTML');
+            // Let's save a snippet of the HTML to see what we're dealing with
+            const snippet = html.substring(0, 2000);
+            console.log('First 2000 chars of HTML:', snippet);
+            throw new Error('"Descargar PDF" not found on page');
         }
 
-        // Strategy 2: Look for any PDF link in the content
-        const pdfRegex = /href="(https:\/\/www\.atp\.gob\.pa\/wp-content\/uploads\/[^"]+\.pdf)"/gi;
-        const pdfMatches = [...html.matchAll(pdfRegex)];
+        // Extract a larger context around "Descargar PDF"
+        const contextStart = Math.max(0, descargarIndex - 500);
+        const contextEnd = Math.min(html.length, descargarIndex + 500);
+        const context = html.substring(contextStart, contextEnd);
+        console.log('Context around "Descargar PDF":', context);
 
-        if (pdfMatches.length > 0) {
-            // Find the most likely PDF (the one that contains "HOSPEDAJES" or "REPORTE")
-            for (const match of pdfMatches) {
-                if (match[1].toUpperCase().includes('HOSPEDAJES') || match[1].toUpperCase().includes('REPORTE')) {
-                    console.log('Found PDF via content search:', match[1]);
-                    return match[1];
-                }
-            }
-            // If no specific match, return the first PDF found
-            console.log('Found PDF (first match):', pdfMatches[0][1]);
-            return pdfMatches[0][1];
+        // Now try to extract the PDF URL using the specific HTML structure you provided
+        const regex = /<a\s+[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
+        const match = context.match(regex);
+
+        if (match && match[1]) {
+            console.log('Found PDF URL:', match[1]);
+            return match[1];
         }
 
-        // Strategy 3: Look for any .pdf extension
-        const anyPdfRegex = /href="([^"]*\.pdf)"/gi;
-        const anyPdfMatches = [...html.matchAll(anyPdfRegex)];
-        if (anyPdfMatches.length > 0) {
-            console.log('Found PDF via extension:', anyPdfMatches[0][1]);
-            return anyPdfMatches[0][1];
+        // Alternative: Look for any PDF link near "Descargar PDF"
+        const pdfRegex = /href="([^"]*\.pdf)"/gi;
+        let pdfMatch;
+        while ((pdfMatch = pdfRegex.exec(context)) !== null) {
+            console.log('Found PDF URL near "Descargar PDF":', pdfMatch[1]);
+            return pdfMatch[1];
         }
 
-        throw new Error('No PDF link found on the page');
+        throw new Error('PDF link not found near "Descargar PDF" text');
 
     } catch (error) {
         console.error('Error fetching PDF URL:', error.message);
-        // Return the fallback URL
+
+        // If we get a header overflow, try with a different approach
+        if (error.message.includes('Header overflow')) {
+            console.log('Trying alternative method without custom headers...');
+            try {
+                const response = await axios.get(atpUrl, {
+                    timeout: 15000,
+                    // No custom headers
+                });
+
+                const html = response.data;
+                const descargarIndex = html.indexOf('Descargar PDF');
+                if (descargarIndex !== -1) {
+                    const context = html.substring(Math.max(0, descargarIndex - 300), descargarIndex + 300);
+                    const regex = /href="([^"]*\.pdf)"/i;
+                    const match = context.match(regex);
+                    if (match && match[1]) {
+                        console.log('Found PDF URL (alternative method):', match[1]);
+                        return match[1];
+                    }
+                }
+            } catch (fallbackError) {
+                console.error('Alternative method also failed:', fallbackError.message);
+            }
+        }
+
+        // Fallback to the original static URL
         return 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
     }
 }
