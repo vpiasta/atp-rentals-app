@@ -42,36 +42,62 @@ const COLUMN_BOUNDARIES = {
 };
 
 // Function to get the latest PDF URL from ATP website (without cheerio)
+// Function to get the latest PDF URL from ATP website
 async function getLatestPdfUrl() {
     try {
         const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
-        const response = await axios.get(atpUrl);
-        const html = response.data;
+        console.log('Fetching ATP page:', atpUrl);
 
-        // Use regex to find the PDF URL in the HTML
-        // Look for the button with "Descargar PDF" text
-        const regex = /<a[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*)"[^>]*>[\s]*Descargar PDF[\s]*<\/a>/i;
-        const match = html.match(regex);
-
-        if (match && match[1]) {
-            console.log('Found latest PDF URL:', match[1]);
-            return match[1];
-        } else {
-            // Fallback to manual search if the specific regex doesn't work
-            const fallbackRegex = /href="([^"]*\.pdf)"/i;
-            const fallbackMatch = html.match(fallbackRegex);
-
-            if (fallbackMatch && fallbackMatch[1]) {
-                console.log('Found PDF URL via fallback:', fallbackMatch[1]);
-                return fallbackMatch[1];
+        const response = await axios.get(atpUrl, {
+            timeout: 10000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
+        });
 
-            throw new Error('PDF link not found on the page');
+        const html = response.data;
+        console.log('ATP page fetched successfully');
+
+        // Multiple strategies to find the PDF URL
+
+        // Strategy 1: Look for the specific button structure
+        const buttonRegex = /<a[^>]*qubely-block-btn-anchor[^>]*href="([^"]+\.pdf)"[^>]*>/i;
+        const buttonMatch = html.match(buttonRegex);
+        if (buttonMatch && buttonMatch[1]) {
+            console.log('Found PDF via button:', buttonMatch[1]);
+            return buttonMatch[1];
         }
+
+        // Strategy 2: Look for any PDF link in the content
+        const pdfRegex = /href="(https:\/\/www\.atp\.gob\.pa\/wp-content\/uploads\/[^"]+\.pdf)"/gi;
+        const pdfMatches = [...html.matchAll(pdfRegex)];
+
+        if (pdfMatches.length > 0) {
+            // Find the most likely PDF (the one that contains "HOSPEDAJES" or "REPORTE")
+            for (const match of pdfMatches) {
+                if (match[1].toUpperCase().includes('HOSPEDAJES') || match[1].toUpperCase().includes('REPORTE')) {
+                    console.log('Found PDF via content search:', match[1]);
+                    return match[1];
+                }
+            }
+            // If no specific match, return the first PDF found
+            console.log('Found PDF (first match):', pdfMatches[0][1]);
+            return pdfMatches[0][1];
+        }
+
+        // Strategy 3: Look for any .pdf extension
+        const anyPdfRegex = /href="([^"]*\.pdf)"/gi;
+        const anyPdfMatches = [...html.matchAll(anyPdfRegex)];
+        if (anyPdfMatches.length > 0) {
+            console.log('Found PDF via extension:', anyPdfMatches[0][1]);
+            return anyPdfMatches[0][1];
+        }
+
+        throw new Error('No PDF link found on the page');
 
     } catch (error) {
         console.error('Error fetching PDF URL:', error.message);
-        // Fallback to the original URL if dynamic fetching fails
+        // Return the fallback URL
         return 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
     }
 }
@@ -242,7 +268,7 @@ async function parsePDFWithCoordinates() {
         const pdfUrl = await getLatestPdfUrl();
         console.log('Using PDF URL:', pdfUrl);
 
-        const response = await axios.get(pdfurl, {
+        const response = await axios.get(pdfUrl, {
             responseType: 'arraybuffer',
             timeout: 30000
         });
@@ -355,7 +381,8 @@ async function parsePDFWithCoordinates() {
     } catch (error) {
         PDF_STATUS = `PDF parsing failed: ${error.message}`;
         console.error('PDF error:', error);
-        return { success: false, error: error.message };
+        throw error;
+        //return { success: false, error: error.message };
     }
 }
 
