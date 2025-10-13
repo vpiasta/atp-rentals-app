@@ -27,8 +27,7 @@ let CURRENT_RENTALS = [
     }
 ];
 
-//const PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
-const PDF_URL = getLatestPdfUrl();
+const PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';  // Fallback URL if we cannot get it from the ATP website
 
 let PDF_STATUS = "Not loaded";
 let PDF_RENTALS = [];
@@ -239,7 +238,11 @@ async function parsePDFWithCoordinates() {
         console.log('Starting coordinate-based PDF parsing...');
         PDF_STATUS = "Loading PDF...";
 
-        const response = await axios.get(PDF_URL, {
+        // Get the latest PDF URL dynamically
+        const pdfUrl = await getLatestPdfUrl();
+        console.log('Using PDF URL:', pdfUrl);
+
+        const response = await axios.get(pdfurl, {
             responseType: 'arraybuffer',
             timeout: 30000
         });
