@@ -44,8 +44,9 @@ const COLUMN_BOUNDARIES = {
 
 // Function to get the latest PDF URL from ATP website
 async function getLatestPdfUrl() {
+    const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/'; // Define atpUrl here
+
     try {
-        const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
         console.log('🔍 Fetching ATP page:', atpUrl);
 
         // Try with minimal headers first
@@ -61,24 +62,6 @@ async function getLatestPdfUrl() {
         console.log('✅ ATP page fetched successfully');
         console.log('📄 HTML length:', html.length);
 
-        // Debug: Check if the page contains key elements
-        const hasDescargar = html.includes('Descargar PDF');
-        const hasQubely = html.includes('qubely-block-btn-anchor');
-        const hasPdf = html.includes('.pdf');
-
-        console.log('🔍 Page contains:', {
-            'Descargar PDF': hasDescargar,
-            'qubely-block-btn-anchor': hasQubely,
-            '.pdf extension': hasPdf
-        });
-
-        if (!hasDescargar) {
-            console.log('❌ "Descargar PDF" text not found in HTML');
-            // Save first 5000 chars to see what we got
-            console.log('📋 First 5000 chars:', html.substring(0, 5000));
-            throw new Error('"Descargar PDF" not found on page');
-        }
-
         // Method 1: Direct regex for the specific structure
         console.log('🔍 Trying Method 1: Direct regex extraction...');
         const directRegex = /<a\s+[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
@@ -90,83 +73,45 @@ async function getLatestPdfUrl() {
             return directMatch[1];
         }
 
-        // Method 2: Find "Descargar PDF" and extract nearby PDF
-        console.log('🔍 Trying Method 2: Context-based extraction...');
-        const descargarIndex = html.indexOf('Descargar PDF');
-        if (descargarIndex !== -1) {
-            const contextStart = Math.max(0, descargarIndex - 1000);
-            const contextEnd = Math.min(html.length, descargarIndex + 1000);
-            const context = html.substring(contextStart, contextEnd);
-
-            console.log('📋 Context around "Descargar PDF":', context);
-
-            const contextRegex = /href="([^"]*\.pdf)"/i;
-            const contextMatch = context.match(contextRegex);
-
-            if (contextMatch && contextMatch[1]) {
-                console.log('✅ Found PDF URL (Method 2):', contextMatch[1]);
-                PDF_URL = contextMatch[1];
-                return contextMatch[1];
-            }
-        }
-
-        // Method 3: Find all PDF links on the page
-        console.log('🔍 Trying Method 3: Find all PDF links...');
-        const pdfRegex = /href="(https:\/\/[^"]*\.pdf)"/gi;
-        const allPdfMatches = [...html.matchAll(pdfRegex)];
-
-        console.log('📋 Found PDF links:', allPdfMatches.map(m => m[1]));
-
-        if (allPdfMatches.length > 0) {
-            // Return the first PDF link that looks like a report
-            const reportPdf = allPdfMatches.find(match =>
-                match[1].toUpperCase().includes('HOSPEDAJES') ||
-                match[1].toUpperCase().includes('REPORTE')
-            );
-
-            if (reportPdf) {
-                console.log('✅ Found PDF URL (Method 3):', reportPdf[1]);
-                PDF_URL = reportPdf[1];
-                return reportPdf[1];
-            }
-
-            // Otherwise return the first PDF found
-            console.log('✅ Found PDF URL (first PDF):', allPdfMatches[0][1]);
-            return allPdfMatches[0][1];
-        }
-
-        throw new Error('No PDF link found using any method');
+        throw new Error('PDF link not found using direct method');
 
     } catch (error) {
         console.error('❌ Error fetching PDF URL:', error.message);
 
-        // If it's a header overflow, try a different approach
+        // If we get a header overflow, try with a different approach
         if (error.message.includes('Header overflow') || error.message.includes('Parse Error')) {
-            console.log('🔄 Trying alternative method for header issues...');
+            console.log('🔄 Trying alternative method without custom headers...');
             try {
                 // Use a simpler request with no custom headers
-                const response = await axios.get(atpUrl, { timeout: 15000 });
-                const html = response.data;
+                const response = await axios.get(atpUrl, {
+                    timeout: 15000
+                    // No custom headers
+                });
 
-                // Simple search for PDF near "Descargar PDF"
+                const html = response.data;
                 const descargarIndex = html.indexOf('Descargar PDF');
                 if (descargarIndex !== -1) {
-                    const snippet = html.substring(descargarIndex - 200, descargarIndex + 200);
-                    const pdfMatch = snippet.match(/href="([^"]*\.pdf)"/i);
-                    if (pdfMatch) {
-                        console.log('✅ Found PDF URL (alternative):', pdfMatch[1]);
-                        return pdfMatch[1];
+                    const context = html.substring(Math.max(0, descargarIndex - 300), descargarIndex + 300);
+                    const regex = /href="([^"]*\.pdf)"/i;
+                    const match = context.match(regex);
+                    if (match && match[1]) {
+                        console.log('✅ Found PDF URL (alternative method):', match[1]);
+                        PDF_URL = match[1];
+                        return match[1];
                     }
                 }
             } catch (fallbackError) {
-                console.error('❌ Alternative method failed:', fallbackError.message);
+                console.error('❌ Alternative method also failed:', fallbackError.message);
             }
         }
 
+        // Fallback to the original static URL
         console.log('🔄 Using fallback URL');
         return 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
     }
 }
+
+
 // Group text items into rows based on Y coordinates
 function groupIntoRows(textItems) {
     const rows = {};
@@ -325,12 +270,14 @@ function isHeaderRow(rowText) {
 
 // Coordinate-based PDF parsing
 async function parsePDFWithCoordinates() {
+    let pdfUrl;
+
     try {
         console.log('Starting coordinate-based PDF parsing...');
         PDF_STATUS = "Loading PDF...";
 
         // Get the latest PDF URL dynamically
-        const pdfUrl = await getLatestPdfUrl();
+        pdfUrl = await getLatestPdfUrl();
         console.log('Using PDF URL:', pdfUrl);
 
         const response = await axios.get(pdfUrl, {
@@ -338,12 +285,29 @@ async function parsePDFWithCoordinates() {
             timeout: 30000
         });
 
-        console.log('PDF downloaded, processing...');
+        console.log('PDF downloaded, response length:', response.data.length);
+
+        // Check if it's actually a PDF
         const data = new Uint8Array(response.data);
+
+        // Validate PDF header
+        if (data[0] === 0x25 && data[1] === 0x50 && data[2] === 0x44 && data[3] === 0x46) {
+            console.log('✅ Valid PDF header found (%PDF)');
+        } else {
+            // Check if it's HTML error page
+            const textStart = new TextDecoder().decode(data.slice(0, 100));
+            if (textStart.includes('<html') || textStart.includes('<!DOCTYPE')) {
+                throw new Error('Server returned HTML instead of PDF');
+            } else {
+                throw new Error('Invalid PDF format');
+            }
+        }
+
+        console.log('Processing PDF...');
         const pdf = await pdfjsLib.getDocument(data).promise;
         const numPages = pdf.numPages;
 
-        console.log(`Processing ${numPages} pages...`);
+        console.log(`PDF loaded with ${numPages} pages...`);
         const allRentals = [];
         let currentProvince = '';
         let currentRental = null;
@@ -444,10 +408,131 @@ async function parsePDFWithCoordinates() {
         return { success: true, rentals: allRentals.length };
 
     } catch (error) {
-        PDF_STATUS = `PDF parsing failed: ${error.message}`;
-        console.error('PDF error:', error);
-        throw error;
-        //return { success: false, error: error.message };
+        console.error('PDF processing error:', error.message);
+
+        // If the ATP PDF fails and we weren't already using the fallback, try the fallback
+        if (pdfUrl && !pdfUrl.includes('aparthotel-boquete.com')) {
+            console.log('🔄 ATP PDF failed, trying fallback URL...');
+            try {
+                const fallbackUrl = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
+                console.log('Trying fallback URL:', fallbackUrl);
+
+                const fallbackResponse = await axios.get(fallbackUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 30000
+                });
+
+                console.log('Fallback PDF downloaded, processing...');
+                const fallbackData = new Uint8Array(fallbackResponse.data);
+                const pdf = await pdfjsLib.getDocument(fallbackData).promise;
+                const numPages = pdf.numPages;
+                console.log(`Fallback PDF loaded with ${numPages} pages`);
+
+                // Now run your existing processing logic with the fallback data
+                // You'll need to copy the processing logic from above here
+                // Or extract it into a separate function to avoid duplication
+
+                const allRentals = [];
+                let currentProvince = '';
+                let currentRental = null;
+
+                // Process all pages (same logic as above)
+                for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                    console.log(`Processing page ${pageNum}...`);
+                    const page = await pdf.getPage(pageNum);
+                    const textContent = await page.getTextContent();
+
+                    // Extract text with precise positioning
+                    const textItems = textContent.items.map(item => ({
+                        text: item.str,
+                        x: Math.round(item.transform[4] * 100) / 100,
+                        y: Math.round(item.transform[5] * 100) / 100,
+                        page: pageNum
+                    }));
+
+                    // Group into rows
+                    const rows = groupIntoRows(textItems);
+                    console.log(`Page ${pageNum}: ${rows.length} rows found`);
+
+                    // Process each row (same logic as above)
+                    for (let i = 0; i < rows.length; i++) {
+                        const row = rows[i];
+                        const rowText = row.items.map(item => item.text).join(' ');
+
+                        // Detect province
+                        if (rowText.includes('Provincia:')) {
+                            currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
+                            console.log(`Found province: ${currentProvince}`);
+                            continue;
+                        }
+
+                        // Skip header rows
+                        if (isHeaderRow(rowText) || !currentProvince) {
+                            console.log(`Skipping header row: ${rowText}`);
+                            continue;
+                        }
+
+                        // Skip summary rows
+                        if (rowText.includes('Total por')) {
+                            console.log(`Skipping summary row: ${rowText}`);
+                            continue;
+                        }
+
+                        // Parse row data
+                        const rowData = parseRowData(row);
+                        console.log(`Processing row ${i}:`, rowData);
+                        console.log(`Current rental:`, currentRental);
+
+                        // ALWAYS check for continuation first
+                        if (currentRental && isContinuationRow(rowData, currentRental)) {
+                            console.log(`🔄 Stitching row ${i} to previous rental`);
+                            currentRental = mergeRentalRows(currentRental, rowData);
+                            continue;
+                        }
+
+                        // If we have a current rental and this row is NOT a continuation, save it
+                        if (currentRental && rowData.name && rowData.name.trim() &&
+                            (rowData.type || rowData.email || rowData.phone)) {
+                            console.log(`💾 Saving current rental and starting new one:`, currentRental);
+                            allRentals.push(currentRental);
+                            currentRental = { ...rowData, province: currentProvince };
+                        }
+                        else if (!currentRental && rowData.name && rowData.name.trim() &&
+                                 (rowData.type || rowData.email || rowData.phone)) {
+                            console.log(`🆕 Starting new rental:`, rowData);
+                            currentRental = { ...rowData, province: currentProvince };
+                        }
+                        else if (!currentRental && rowData.name && rowData.name.trim()) {
+                            console.log(`⚠️ Starting cautious rental:`, rowData);
+                            currentRental = { ...rowData, province: currentProvince };
+                        }
+                        else if (currentRental) {
+                            console.log(`❓ Row doesn't look like continuation or new rental, keeping current rental`);
+                        }
+                    }
+                }
+
+                // Only save the final rental AFTER processing ALL pages
+                if (currentRental) {
+                    allRentals.push(currentRental);
+                }
+
+                PDF_RENTALS = allRentals;
+                PDF_STATUS = `PDF parsed (fallback): ${allRentals.length} rentals found from ${numPages} pages`;
+                console.log(`✅ ${PDF_STATUS}`);
+
+                return { success: true, rentals: allRentals.length };
+
+            } catch (fallbackError) {
+                console.error('Fallback PDF also failed:', fallbackError.message);
+                PDF_STATUS = `PDF parsing failed: ${fallbackError.message}`;
+                throw fallbackError;
+            }
+        } else {
+            PDF_STATUS = `PDF parsing failed: ${error.message}`;
+            console.error('PDF error:', error);
+            throw error;
+        }
     }
 }
 
