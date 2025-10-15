@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -279,7 +279,7 @@
             <p class="subtitle2">Data source:
               <a href="https://www.atp.gob.pa/industrias/hoteleros/">https://www.atp.gob.pa/industrias/hoteleros/</a>
             </p>
-            <p class="subtitle2">We recommen renting only legally registered tourist rentals</p>
+            <p class="subtitle2">We recommend renting only legally registered tourist rentals</p>
         </header>
 
         <div class="stats" id="statsPanel">
@@ -314,14 +314,15 @@
         </section>
 
         <footer>
-            <p>Data provided by the "Autoridad de Turismo de Panamá" (ATP)
-              <a href="https://www.atp.gob.pa/industrias/hoteleros/">HERE</a>
-            </p>
-            <p>Last update: <span id="lastUpdate">--</span></p>
+          <p>Data provided by the "Autoridad de Turismo de Panamá" (ATP)
+              <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">HERE</a>
+          </p>
+          <p>PDF Source: <a id="pdfSourceLink" href="#" target="_blank">Loading...</a></p>
+          <p>Last update: <span id="lastUpdate">--</span></p>
         </footer>
     </div>
 
-    <script>
+<script>
     // API Base URL - POINTING TO YOUR RAILWAY BACKEND
 const API_BASE_URL = 'https://atp-rentals-app-production.up.railway.app';
 
@@ -455,6 +456,32 @@ function updateSelectedCount(count) {
         } else {
             selectedCountDiv.innerHTML = `<strong>(${count} Selected)</strong>`;
         }
+    }
+}
+
+// Function to update the PDF source in the footer
+async function updatePdfSource() {
+    try {
+        // Use either the status endpoint or the new pdf-source endpoint
+        const response = await fetch('/api/status');
+        const data = await response.json();
+
+        const pdfLink = document.getElementById('pdfSourceLink');
+        if (pdfLink && data.pdfUrl) {
+            pdfLink.href = data.pdfUrl;
+            pdfLink.textContent = 'View PDF Source';
+
+            // Color code based on source
+            if (data.pdfUrl.includes('atp.gob.pa')) {
+                pdfLink.style.color = 'green';
+                pdfLink.title = 'Using latest ATP PDF';
+            } else {
+                pdfLink.style.color = 'orange';
+                pdfLink.title = 'Using fallback PDF (ATP link not found)';
+            }
+        }
+    } catch (error) {
+        console.error('Error updating PDF source:', error);
     }
 }
 
@@ -634,9 +661,13 @@ function displayResults(rentals) {
     searchInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') performSearch();
     });
+    document.addEventListener('DOMContentLoaded', function() {
+    updatePdfSource();
+    });
 
     provinceFilter.addEventListener('change', performSearch);
     typeFilter.addEventListener('change', performSearch);
+
 
     // Initialize the app
     loadInitialData();

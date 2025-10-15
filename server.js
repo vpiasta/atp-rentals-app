@@ -27,7 +27,7 @@ let CURRENT_RENTALS = [
     }
 ];
 
-const PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';  // Fallback URL if we cannot get it from the ATP website
+let PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';  // Fallback URL if we cannot get it from the ATP website
 
 let PDF_STATUS = "Not loaded";
 let PDF_RENTALS = [];
@@ -86,6 +86,7 @@ async function getLatestPdfUrl() {
 
         if (match && match[1]) {
             console.log('Found PDF URL:', match[1]);
+            PDF_URL = match[1];
             return match[1];
         }
 
@@ -94,6 +95,7 @@ async function getLatestPdfUrl() {
         let pdfMatch;
         while ((pdfMatch = pdfRegex.exec(context)) !== null) {
             console.log('Found PDF URL near "Descargar PDF":', pdfMatch[1]);
+            PDF_URL = pdfmatch[1];
             return pdfMatch[1];
         }
 
@@ -490,6 +492,21 @@ app.post('/api/use-pdf-data', (req, res) => {
     }
 });
 
+app.get('/api/status', (req, res) => {
+    res.json({
+        status: PDF_STATUS,
+        lastUpdated: new Date().toISOString(),
+        rentalsCount: PDF_RENTALS.length,
+        pdfUrl: PDF_URL
+    });
+});
+
+app.get('/api/pdf-source', (req, res) => {
+    res.json({
+        pdfUrl: PDF_URL
+    });
+});
+
 // Web interface for testing PDF extraction
 app.get('/test-pdf', (req, res) => {
     res.send(`
@@ -578,7 +595,7 @@ app.get('/api/types', (req, res) => {
 app.get('/api/rentals', (req, res) => {
     const { search, province, type } = req.query;
 
-    let filteredRentals = [...CURRENT_RENTALS];
+    let filteredRentals = [...CURRENT_RENTALS];   // creates a copy
 
     // Apply search filter
     if (search) {
