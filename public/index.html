@@ -469,7 +469,7 @@ async function updatePdfSource() {
         const pdfLink = document.getElementById('pdfSourceLink');
         if (pdfLink && data.pdfUrl) {
             pdfLink.href = data.pdfUrl;
-            pdfLink.textContent = 'View PDF Source';
+            pdfLink.textContent = data.pdfUrl;
 
             // Color code based on source
             if (data.pdfUrl.includes('atp.gob.pa')) {
