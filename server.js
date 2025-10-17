@@ -6,6 +6,7 @@ const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const https = require('https');
 
 app.use(cors());
 app.use(express.json());
@@ -44,14 +45,20 @@ const COLUMN_BOUNDARIES = {
 
 // Function to get the latest PDF URL from ATP website
 async function getLatestPdfUrl() {
-    const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/'; // Define atpUrl here
+    const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
 
     try {
         console.log('🔍 Fetching ATP page:', atpUrl);
 
-        // Try with minimal headers first
+        // Create a custom HTTPS agent with larger header size limits
+        const httpsAgent = new https.Agent({
+            maxHeaderSize: 32768, // Increase from default 16KB to 32KB
+            rejectUnauthorized: true // Keep SSL verification for security
+        });
+
         const response = await axios.get(atpUrl, {
             timeout: 15000,
+            httpsAgent: httpsAgent, // Use the custom agent
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
@@ -78,36 +85,56 @@ async function getLatestPdfUrl() {
     } catch (error) {
         console.error('❌ Error fetching PDF URL:', error.message);
 
-        // If we get a header overflow, try with a different approach
+        // If we still get header overflow, try with even larger limit
         if (error.message.includes('Header overflow') || error.message.includes('Parse Error')) {
-            console.log('🔄 Trying alternative method without custom headers...');
+            console.log('🔄 Trying with even larger header size limit...');
             try {
-                // Use a simpler request with no custom headers
+                const httpsAgent = new https.Agent({
+                    maxHeaderSize: 65536, // Increase to 64KB
+                    rejectUnauthorized: true
+                });
+
                 const response = await axios.get(atpUrl, {
-                    timeout: 15000
-                    // No custom headers
+                    timeout: 15000,
+                    httpsAgent: httpsAgent,
+                    // No custom headers this time
                 });
 
                 const html = response.data;
+                console.log('✅ ATP page fetched successfully with larger header limit');
+
+                // Try multiple extraction methods
+                const directRegex = /<a\s+[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
+                const directMatch = html.match(directRegex);
+
+                if (directMatch && directMatch[1]) {
+                    console.log('✅ Found PDF URL (larger header method):', directMatch[1]);
+                    PDF_URL = directMatch[1];
+                    return directMatch[1];
+                }
+
+                // Fallback: search for "Descargar PDF" text
                 const descargarIndex = html.indexOf('Descargar PDF');
                 if (descargarIndex !== -1) {
-                    const context = html.substring(Math.max(0, descargarIndex - 300), descargarIndex + 300);
+                    const context = html.substring(Math.max(0, descargarIndex - 500), descargarIndex + 500);
                     const regex = /href="([^"]*\.pdf)"/i;
                     const match = context.match(regex);
                     if (match && match[1]) {
-                        console.log('✅ Found PDF URL (alternative method):', match[1]);
+                        console.log('✅ Found PDF URL (Descargar PDF method):', match[1]);
                         PDF_URL = match[1];
                         return match[1];
                     }
                 }
-            } catch (fallbackError) {
-                console.error('❌ Alternative method also failed:', fallbackError.message);
-            }
-        }
 
-        // Fallback to the original static URL
-        console.log('🔄 Using fallback URL');
-        return 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
+                throw new Error('PDF link not found in HTML');
+
+            } catch (fallbackError) {
+                console.error('❌ Larger header method also failed:', fallbackError.message);
+                throw fallbackError;
+            }
+        } else {
+            throw error;
+        }
     }
 }
 
@@ -195,7 +222,7 @@ function isContinuationRow(rowData, previousRowData) {
     }
 
     // 3. Check for phone continuation
-    if (previousRowData.phone && rowData.phone && !rowData.name && !rowData.type && !rowData.email) {
+    if (previousRowData.phone && rowData.phone && !rowData.type) {
         // Phone continues if previous ends with hyphen (number interrupted)
         if (previousRowData.phone.endsWith('-')) {
             return true;
