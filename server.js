@@ -43,115 +43,85 @@ const COLUMN_BOUNDARIES = {
 };
 
 
-// Function to get the latest PDF URL from ATP website
+// Function to get the latest PDF URL from ATP website using native https
 async function getLatestPdfUrl() {
     const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
 
-    try {
-        console.log('🔍 Fetching ATP page:', atpUrl);
+    return new Promise((resolve, reject) => {
+        console.log('🔍 Fetching ATP page with native HTTPS module:', atpUrl);
 
-        // Create a custom HTTPS agent with larger header size limits
-        const httpsAgent = new https.Agent({
-            maxHeaderSize: 65536, // 64KB
-            rejectUnauthorized: true
-        });
-
-        const response = await axios.get(atpUrl, {
-            timeout: 15000,
-            httpsAgent: httpsAgent,
+        const options = {
+            hostname: 'www.atp.gob.pa',
+            port: 443,
+            path: '/industrias/hoteleros/',
+            method: 'GET',
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-            }
+            },
+            // Bypass the header size limits by using raw socket
+            agent: false
+        };
+
+        const req = https.request(options, (res) => {
+            console.log(`✅ Status: ${res.statusCode}`);
+            console.log('📄 Response headers received');
+
+            let html = '';
+
+            res.on('data', (chunk) => {
+                html += chunk.toString();
+            });
+
+            res.on('end', () => {
+                console.log('✅ Full HTML received, length:', html.length);
+
+                try {
+                    // Try multiple extraction methods
+                    const directRegex = /<a\s+[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
+                    const directMatch = html.match(directRegex);
+
+                    if (directMatch && directMatch[1]) {
+                        const pdfUrl = new URL(directMatch[1], atpUrl).href;
+                        console.log('✅ Found PDF URL:', pdfUrl);
+                        resolve(pdfUrl);
+                        return;
+                    }
+
+                    // Fallback: find any PDF link
+                    const pdfRegex = /href="([^"]*\.pdf)"/gi;
+                    const matches = [...html.matchAll(pdfRegex)];
+                    console.log(`📄 Found ${matches.length} PDF links in page`);
+
+                    if (matches.length > 0) {
+                        const pdfUrl = new URL(matches[0][1], atpUrl).href;
+                        console.log('✅ Using first PDF found:', pdfUrl);
+                        resolve(pdfUrl);
+                        return;
+                    }
+
+                    reject(new Error('No PDF links found in HTML'));
+
+                } catch (parseError) {
+                    reject(parseError);
+                }
+            });
         });
 
-        const html = response.data;
-        console.log('✅ ATP page fetched successfully');
-        console.log('📄 HTML length:', html.length);
+        req.on('error', (error) => {
+            console.error('❌ Request error:', error.message);
+            reject(error);
+        });
 
-        // Save HTML for debugging (optional)
-        // require('fs').writeFileSync('debug_atp.html', html);
+        req.on('socket', (socket) => {
+            socket.setTimeout(15000);
+            socket.on('timeout', () => {
+                req.destroy(new Error('Request timeout'));
+            });
+        });
 
-        // Try multiple extraction methods
-        console.log('🔍 Trying multiple PDF extraction methods...');
-
-        // Method 1: Direct regex for qubely button
-        console.log('📝 Method 1: Direct regex for qubely button...');
-        const directRegex = /<a\s+[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
-        const directMatch = html.match(directRegex);
-        if (directMatch && directMatch[1]) {
-            const pdfUrl = new URL(directMatch[1], atpUrl).href;
-            console.log('✅ Found PDF URL (Method 1):', pdfUrl);
-            return pdfUrl;
-        }
-
-        // Method 2: Search for any PDF link with "Descargar" text nearby
-        console.log('📝 Method 2: Searching for PDF near "Descargar"...');
-        const descargarIndex = html.toLowerCase().indexOf('descargar');
-        if (descargarIndex !== -1) {
-            const context = html.substring(Math.max(0, descargarIndex - 1000), descargarIndex + 1000);
-            const pdfRegex = /href="([^"]*\.pdf)"/gi;
-            const matches = [...context.matchAll(pdfRegex)];
-            if (matches.length > 0) {
-                const pdfUrl = new URL(matches[0][1], atpUrl).href;
-                console.log('✅ Found PDF URL (Method 2):', pdfUrl);
-                return pdfUrl;
-            }
-        }
-
-        // Method 3: Find all PDF links in the entire page
-        console.log('📝 Method 3: Finding all PDF links in page...');
-        const allPdfRegex = /href="([^"]*\.pdf)"/gi;
-        const allPdfMatches = [...html.matchAll(allPdfRegex)];
-        console.log(`📄 Found ${allPdfMatches.length} PDF links total`);
-
-        if (allPdfMatches.length > 0) {
-            // Filter for likely report PDFs (look for keywords in URL)
-            const reportKeywords = ['informe', 'operacion', 'hotelera', 'reporte', 'estadistica'];
-            for (const match of allPdfMatches) {
-                const pdfUrl = new URL(match[1], atpUrl).href;
-                const urlLower = pdfUrl.toLowerCase();
-
-                // Check if URL contains report-related keywords
-                if (reportKeywords.some(keyword => urlLower.includes(keyword))) {
-                    console.log('✅ Found likely report PDF (Method 3):', pdfUrl);
-                    return pdfUrl;
-                }
-            }
-
-            // If no keyword matches, return the first PDF found
-            const firstPdfUrl = new URL(allPdfMatches[0][1], atpUrl).href;
-            console.log('✅ Using first PDF found (Method 3):', firstPdfUrl);
-            return firstPdfUrl;
-        }
-
-        // Method 4: Look for PDF in button texts or data attributes
-        console.log('📝 Method 4: Searching for PDF in buttons and data...');
-        const buttonPdfRegex = /<a[^>]*href="([^"]*\.pdf)"[^>]*>(?:[^<]*<(?:[^>]*>)*)*\s*(?:Descargar|Download|PDF|Informe)/i;
-        const buttonMatch = html.match(buttonPdfRegex);
-        if (buttonMatch && buttonMatch[1]) {
-            const pdfUrl = new URL(buttonMatch[1], atpUrl).href;
-            console.log('✅ Found PDF URL (Method 4):', pdfUrl);
-            return pdfUrl;
-        }
-
-        // Method 5: Debug - log a snippet around common PDF indicators
-        console.log('📝 Method 5: Debugging - searching for PDF indicators...');
-        const pdfIndicators = ['.pdf', 'Descargar', 'Informe', 'Hotelera'];
-        for (const indicator of pdfIndicators) {
-            const index = html.toLowerCase().indexOf(indicator.toLowerCase());
-            if (index !== -1) {
-                const snippet = html.substring(Math.max(0, index - 200), index + 200);
-                console.log(`🔍 Found "${indicator}" at position ${index}, snippet:`, snippet.replace(/\s+/g, ' ').substring(0, 150));
-            }
-        }
-
-        throw new Error('PDF link not found using any method');
-
-    } catch (error) {
-        console.error('❌ Error fetching PDF URL:', error.message);
-        throw error;
-    }
+        req.end();
+    });
 }
 
 
