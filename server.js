@@ -43,85 +43,49 @@ const COLUMN_BOUNDARIES = {
 };
 
 
-// Function to get the latest PDF URL from ATP website using native https
+// Function to get the latest PDF URL from ATP website using proxy Service
 async function getLatestPdfUrl() {
     const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
 
-    return new Promise((resolve, reject) => {
-        console.log('🔍 Fetching ATP page with native HTTPS module:', atpUrl);
+    // Try different proxy services
+    const proxyServices = [
+        `https://cors-anywhere.herokuapp.com/${atpUrl}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(atpUrl)}`,
+        `https://corsproxy.io/?${encodeURIComponent(atpUrl)}`
+    ];
 
-        const options = {
-            hostname: 'www.atp.gob.pa',
-            port: 443,
-            path: '/industrias/hoteleros/',
-            method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-            },
-            // Bypass the header size limits by using raw socket
-            agent: false
-        };
+    for (let i = 0; i < proxyServices.length; i++) {
+        try {
+            console.log(`🔍 Trying proxy service ${i + 1}: ${proxyServices[i]}`);
 
-        const req = https.request(options, (res) => {
-            console.log(`✅ Status: ${res.statusCode}`);
-            console.log('📄 Response headers received');
-
-            let html = '';
-
-            res.on('data', (chunk) => {
-                html += chunk.toString();
-            });
-
-            res.on('end', () => {
-                console.log('✅ Full HTML received, length:', html.length);
-
-                try {
-                    // Try multiple extraction methods
-                    const directRegex = /<a\s+[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
-                    const directMatch = html.match(directRegex);
-
-                    if (directMatch && directMatch[1]) {
-                        const pdfUrl = new URL(directMatch[1], atpUrl).href;
-                        console.log('✅ Found PDF URL:', pdfUrl);
-                        resolve(pdfUrl);
-                        return;
-                    }
-
-                    // Fallback: find any PDF link
-                    const pdfRegex = /href="([^"]*\.pdf)"/gi;
-                    const matches = [...html.matchAll(pdfRegex)];
-                    console.log(`📄 Found ${matches.length} PDF links in page`);
-
-                    if (matches.length > 0) {
-                        const pdfUrl = new URL(matches[0][1], atpUrl).href;
-                        console.log('✅ Using first PDF found:', pdfUrl);
-                        resolve(pdfUrl);
-                        return;
-                    }
-
-                    reject(new Error('No PDF links found in HTML'));
-
-                } catch (parseError) {
-                    reject(parseError);
+            const response = await axios.get(proxyServices[i], {
+                timeout: 15000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 }
             });
-        });
 
-        req.on('error', (error) => {
-            console.error('❌ Request error:', error.message);
-            reject(error);
-        });
+            const html = response.data;
+            console.log(`✅ Proxy ${i + 1} successful, HTML length:`, html.length);
 
-        req.on('socket', (socket) => {
-            socket.setTimeout(15000);
-            socket.on('timeout', () => {
-                req.destroy(new Error('Request timeout'));
-            });
-        });
+            // Extract PDF URL
+            const pdfRegex = /href="([^"]*\.pdf)"/gi;
+            const matches = [...html.matchAll(pdfRegex)];
+            console.log(`📄 Found ${matches.length} PDF links`);
 
-        req.end();
-    });
+            if (matches.length > 0) {
+                const pdfUrl = new URL(matches[0][1], atpUrl).href;
+                console.log('✅ Found PDF URL via proxy:', pdfUrl);
+                return pdfUrl;
+            }
+
+        } catch (error) {
+            console.log(`❌ Proxy ${i + 1} failed:`, error.message);
+            // Continue to next proxy
+        }
+    }
+
+    throw new Error('All proxy attempts failed');
 }
 
 
