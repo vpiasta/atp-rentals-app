@@ -80,7 +80,7 @@ async function getLatestPdfUrl() {
 
     } catch (error) {
         console.error('❌ Error fetching PDF URL:', error.message);
-        // Return fallback instead of throwing - THIS IS WHAT WAS WORKING
+        // Return fallback instead of throwing
         return {
             pdfUrl: 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf',
             headingText: 'Hospedajes Registrados - ATP'
@@ -91,7 +91,7 @@ async function getLatestPdfUrl() {
 function extractPdfAndHeading(html, baseUrl) {
     console.log('🔍 Extracting PDF and heading from Hospedajes section...');
 
-    // Method 1: Look for the specific Hospedajes section structure - DON'T CHANGE THIS
+    // Method 1: Look for the specific Hospedajes section structure
     const hospedajesRegex = /<div[^>]*class="wp-block-qubely-heading[^"]*"[^>]*id="hospedaje"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<a[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
 
     const hospedajesMatch = html.match(hospedajesRegex);
@@ -111,110 +111,69 @@ function extractPdfAndHeading(html, baseUrl) {
         };
     }
 
-    // Keep all your existing fallback methods exactly as they were...
-    // ... rest of your existing code
+    // Method 2: Look for the heading by ID and then find the PDF link nearby
+    const hospedajeIdIndex = html.indexOf('id="hospedaje"');
+    if (hospedajeIdIndex !== -1) {
+        console.log('✅ Found Hospedajes section by ID');
+
+        // Get a larger context around the hospedaje section
+        const contextStart = Math.max(0, hospedajeIdIndex - 500);
+        const contextEnd = hospedajeIdIndex + 2000;
+        const context = html.substring(contextStart, contextEnd);
+
+        // Extract PDF URL from this context
+        const pdfRegex = /href="([^"]*\.pdf)"/i;
+        const pdfMatch = context.match(pdfRegex);
+
+        if (pdfMatch) {
+            const pdfUrl = new URL(pdfMatch[1], baseUrl).href;
+
+            // Extract heading text from the context
+            const headingText = extractHeadingTextFromContext(context);
+
+            return {
+                pdfUrl: pdfUrl,
+                headingText: headingText,
+                fullMatch: false
+            };
+        }
+    }
+
+    // Method 3: Fallback - search for "Hospedajes" and then find PDF
+    const hospedajesTextIndex = html.indexOf('Hospedajes');
+    if (hospedajesTextIndex !== -1) {
+        console.log('✅ Found Hospedajes text, searching nearby...');
+
+        const contextStart = Math.max(0, hospedajesTextIndex - 200);
+        const contextEnd = hospedajesTextIndex + 1500;
+        const context = html.substring(contextStart, contextEnd);
+
+        const pdfRegex = /href="([^"]*\.pdf)"/i;
+        const pdfMatch = context.match(pdfRegex);
+
+        if (pdfMatch) {
+            const pdfUrl = new URL(pdfMatch[1], baseUrl).href;
+
+            return {
+                pdfUrl: pdfUrl,
+                headingText: "Hospedajes Registrados por la Autoridad de Turismo de Panamá (ATP)",
+                fullMatch: false
+            };
+        }
+    }
+
+    return { pdfUrl: null, headingText: null };
 }
 
 function extractHeadingText(html) {
-    // Try to extract both h4 and h3 text without breaking the existing flow
-    const h4Match = html.match(/<h4[^>]*>([^<]+)<\/h4>/i);
-    const h3Match = html.match(/<h3[^>]*>([^<]+)<\/h3>/i);
+    // Extract text from heading HTML
+    const cleanText = html
+        .replace(/<[^>]*>/g, ' ') // Remove HTML tags
+        .replace(/\s+/g, ' ')     // Collapse multiple spaces
+        .trim();
 
-    let headingText = 'Hospedajes';
-
-    if (h4Match && h3Match) {
-        headingText = `${h4Match[1].trim()} - ${h3Match[1].trim()}`;
-    } else if (h3Match) {
-        headingText = `Hospedajes - ${h3Match[1].trim()}`;
-    }
-
-    console.log('📝 Extracted heading text:', headingText);
-    return headingText;
-}
-
-function extractHeadingTextFromContext(context) {
-    // Look for h3 and h4 tags in the context
-    const h3Match = context.match(/<h3[^>]*>([^<]+)<\/h3>/);
-    const h4Match = context.match(/<h4[^>]*>([^<]+)<\/h4>/);
-
-    let headingParts = [];
-
-    if (h4Match && h4Match[1]) {
-        headingParts.push(h4Match[1].trim());
-    }
-
-    if (h3Match && h3Match[1]) {
-        headingParts.push(h3Match[1].trim());
-    }
-
-    if (headingParts.length > 0) {
-        const fullHeading = headingParts.join(' - ');
-        console.log('📝 Extracted full heading from context:', fullHeading);
-        return fullHeading;
-    }
-
-    // Fallback: if we can't extract specific headings, return a descriptive text
-    return "Hospedajes Registrados por la Autoridad de Turismo de Panamá (ATP)";
-}
-
-
-// Function to extract and format the date from heading text
-function extractFormattedDate(headingText) {
-    try {
-        console.log('📅 Extracting date from heading:', headingText);
-
-        // If we can't extract a date, use current date as fallback
-        if (!headingText || headingText === 'Hospedajes') {
-            const currentDate = new Date();
-            return currentDate.toLocaleDateString('en-US', {
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric'
-            });
-        }
-        
-        return 'Date not available'; // Fallback
-
-    } catch (error) {
-        console.error('❌ Error extracting date:', error);
-        const currentDate = new Date();
-        return currentDate.toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric'
-        });
-    }
-}
-
-// Function to convert Spanish date to US format
-function convertSpanishDateToUS(spanishDate) {
-    const months = {
-        'enero': 'January', 'febrero': 'February', 'marzo': 'March', 'abril': 'April',
-        'mayo': 'May', 'junio': 'June', 'julio': 'July', 'agosto': 'August',
-        'septiembre': 'September', 'octubre': 'October', 'noviembre': 'November', 'diciembre': 'December'
-    };
-
-    // Handle "5 de septiembre de 2025" format
-    const deMatch = spanishDate.match(/(\d+) de ([a-z]+) de (\d{4})/i);
-    if (deMatch) {
-        const [, day, monthEs, year] = deMatch;
-        const monthEn = months[monthEs.toLowerCase()];
-        if (monthEn) {
-            return `${monthEn} ${parseInt(day)}, ${year}`;
-        }
-    }
-
-    // Handle "05/09/2025" format
-    const slashMatch = spanishDate.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (slashMatch) {
-        const [, day, month, year] = slashMatch;
-        const date = new Date(year, month - 1, day);
-        return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-    }
-
-    // If no pattern matches, return original
-    console.log('❌ Unknown date format:', spanishDate);
-    return spanishDate;
+    console.log('📝 Extracted heading text:', cleanText);
+    return cleanText;
 }
 
 function extractHeadingTextFromContext(context) {
@@ -900,12 +859,9 @@ app.get('/', (req, res) => {
 });
 
 app.get('/api/pdf-info', (req, res) => {
-    const formattedDate = extractFormattedDate(PDF_HEADING);
-
     res.json({
         pdfUrl: PDF_URL,
         heading: PDF_HEADING,
-        formattedDate: formattedDate,
         lastUpdated: new Date().toISOString()
     });
 });
@@ -918,23 +874,14 @@ app.get('/api/ping', (req, res) => {
 });
 
 // API endpoint for statistics
-// API endpoint for statistics - make sure this exists and works
 app.get('/api/stats', (req, res) => {
-    try {
-        const stats = {
-            total_rentals: CURRENT_RENTALS.length,
-            last_updated: new Date().toISOString(),
-            status: "PDF Data Loaded",
-            features: "Search by name, type, province"
-        };
-        res.json(stats);
-    } catch (error) {
-        console.error('Error in /api/stats:', error);
-        res.status(500).json({
-            error: 'Failed to load statistics',
-            total_rentals: 0
-        });
-    }
+    const stats = {
+        total_rentals: CURRENT_RENTALS.length,
+        last_updated: new Date().toISOString(),
+        status: "PDF Data Loaded",
+        features: "Search by name, type, province"
+    };
+    res.json(stats);
 });
 
 // API endpoint for provinces with counts
