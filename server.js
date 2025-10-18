@@ -166,14 +166,95 @@ function extractPdfAndHeading(html, baseUrl) {
 }
 
 function extractHeadingText(html) {
-    // Extract text from heading HTML
+    // Extract text from heading HTML, but preserve the full structure
     const cleanText = html
         .replace(/<[^>]*>/g, ' ') // Remove HTML tags
         .replace(/\s+/g, ' ')     // Collapse multiple spaces
         .trim();
 
-    console.log('📝 Extracted heading text:', cleanText);
+    console.log('📝 Raw extracted heading text:', cleanText);
+
+    // If we only got "Hospedajes", try to get more context
+    if (cleanText === 'Hospedajes' || cleanText.length < 50) {
+        console.log('🔄 Heading text too short, trying alternative extraction...');
+        // Look for the h3 text specifically
+        const h3Match = html.match(/<h3[^>]*>([^<]+)</);
+        if (h3Match && h3Match[1]) {
+            const h3Text = h3Match[1].trim();
+            console.log('📝 Found h3 text:', h3Text);
+            return `Hospedajes - ${h3Text}`;
+        }
+    }
+
     return cleanText;
+}
+
+// Function to extract and format the date from heading text
+function extractFormattedDate(headingText) {
+    try {
+        console.log('📅 Extracting date from heading:', headingText);
+
+        // Look for date patterns in the text
+        const datePatterns = [
+            /Actualizado al (\d+ de [a-z]+ de \d{4})/i, // "Actualizado al 5 de septiembre de 2025"
+            /(\d+ de [a-z]+ de \d{4})/i, // "5 de septiembre de 2025"
+            /al (\d+\/\d+\/\d+)/i, // "al 05/09/2025"
+        ];
+
+        let dateStr = null;
+
+        for (const pattern of datePatterns) {
+            const match = headingText.match(pattern);
+            if (match) {
+                dateStr = match[1];
+                console.log('📅 Found date string:', dateStr);
+                break;
+            }
+        }
+
+        if (!dateStr) {
+            console.log('❌ No date pattern found in heading text');
+            return 'Date not available';
+        }
+
+        // Convert Spanish date to US format
+        return convertSpanishDateToUS(dateStr);
+
+    } catch (error) {
+        console.error('❌ Error extracting date:', error);
+        return 'Date not available';
+    }
+}
+
+// Function to convert Spanish date to US format
+function convertSpanishDateToUS(spanishDate) {
+    const months = {
+        'enero': 'January', 'febrero': 'February', 'marzo': 'March', 'abril': 'April',
+        'mayo': 'May', 'junio': 'June', 'julio': 'July', 'agosto': 'August',
+        'septiembre': 'September', 'octubre': 'October', 'noviembre': 'November', 'diciembre': 'December'
+    };
+
+    // Handle "5 de septiembre de 2025" format
+    const deMatch = spanishDate.match(/(\d+) de ([a-z]+) de (\d{4})/i);
+    if (deMatch) {
+        const [, day, monthEs, year] = deMatch;
+        const monthEn = months[monthEs.toLowerCase()];
+        if (monthEn) {
+            return `${monthEn} ${parseInt(day)}, ${year}`;
+        }
+    }
+
+    // Handle "05/09/2025" format
+    const slashMatch = spanishDate.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slashMatch) {
+        const [, day, month, year] = slashMatch;
+        const date = new Date(year, month - 1, day);
+        return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+
+    // If no pattern matches, return original
+    console.log('❌ Unknown date format:', spanishDate);
+    return spanishDate;
 }
 
 function extractHeadingTextFromContext(context) {
@@ -859,9 +940,12 @@ app.get('/', (req, res) => {
 });
 
 app.get('/api/pdf-info', (req, res) => {
+    const formattedDate = extractFormattedDate(PDF_HEADING);
+
     res.json({
         pdfUrl: PDF_URL,
         heading: PDF_HEADING,
+        formattedDate: formattedDate,
         lastUpdated: new Date().toISOString()
     });
 });
