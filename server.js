@@ -29,6 +29,7 @@ let CURRENT_RENTALS = [
 ];
 
 let PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';  // Fallback URL if we cannot get it from the ATP website
+let PDF_HEADING = 'Hospedajes Registrados - ATP'; // Default heading
 
 let PDF_STATUS = "Not loaded";
 let PDF_RENTALS = [];
@@ -47,45 +48,152 @@ const COLUMN_BOUNDARIES = {
 async function getLatestPdfUrl() {
     const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
 
-    // Try different proxy services
-    const proxyServices = [
-        `https://cors-anywhere.herokuapp.com/${atpUrl}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(atpUrl)}`,
-        `https://corsproxy.io/?${encodeURIComponent(atpUrl)}`
-    ];
+    // Use the working proxy service
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(atpUrl)}`;
 
-    for (let i = 0; i < proxyServices.length; i++) {
-        try {
-            console.log(`🔍 Trying proxy service ${i + 1}: ${proxyServices[i]}`);
+    try {
+        console.log('🔍 Fetching ATP page via proxy...');
 
-            const response = await axios.get(proxyServices[i], {
-                timeout: 15000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-            });
-
-            const html = response.data;
-            console.log(`✅ Proxy ${i + 1} successful, HTML length:`, html.length);
-
-            // Extract PDF URL
-            const pdfRegex = /href="([^"]*\.pdf)"/gi;
-            const matches = [...html.matchAll(pdfRegex)];
-            console.log(`📄 Found ${matches.length} PDF links`);
-
-            if (matches.length > 0) {
-                const pdfUrl = new URL(matches[0][1], atpUrl).href;
-                console.log('✅ Found PDF URL via proxy:', pdfUrl);
-                return pdfUrl;
+        const response = await axios.get(proxyUrl, {
+            timeout: 15000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
+        });
 
-        } catch (error) {
-            console.log(`❌ Proxy ${i + 1} failed:`, error.message);
-            // Continue to next proxy
+        const html = response.data;
+        console.log('✅ Proxy successful, HTML length:', html.length);
+
+        // Extract both the PDF URL and the heading text
+        const result = extractPdfAndHeading(html, atpUrl);
+
+        if (result.pdfUrl) {
+            console.log('✅ Found PDF URL:', result.pdfUrl);
+            if (result.headingText) {
+                console.log('✅ Found heading text:', result.headingText);
+            }
+            return result;
+        }
+
+        throw new Error('PDF link not found in Hospedajes section');
+
+    } catch (error) {
+        console.error('❌ Error fetching PDF URL:', error.message);
+        throw error;
+    }
+}
+
+function extractPdfAndHeading(html, baseUrl) {
+    console.log('🔍 Extracting PDF and heading from Hospedajes section...');
+
+    // Method 1: Look for the specific Hospedajes section structure
+    const hospedajesRegex = /<div[^>]*class="wp-block-qubely-heading[^"]*"[^>]*id="hospedaje"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<a[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
+
+    const hospedajesMatch = html.match(hospedajesRegex);
+    if (hospedajesMatch) {
+        console.log('✅ Found Hospedajes section with specific structure');
+
+        const headingHtml = hospedajesMatch[1];
+        const pdfUrl = new URL(hospedajesMatch[2], baseUrl).href;
+
+        // Extract clean heading text from the HTML
+        const headingText = extractHeadingText(headingHtml);
+
+        return {
+            pdfUrl: pdfUrl,
+            headingText: headingText,
+            fullMatch: true
+        };
+    }
+
+    // Method 2: Look for the heading by ID and then find the PDF link nearby
+    const hospedajeIdIndex = html.indexOf('id="hospedaje"');
+    if (hospedajeIdIndex !== -1) {
+        console.log('✅ Found Hospedajes section by ID');
+
+        // Get a larger context around the hospedaje section
+        const contextStart = Math.max(0, hospedajeIdIndex - 500);
+        const contextEnd = hospedajeIdIndex + 2000;
+        const context = html.substring(contextStart, contextEnd);
+
+        // Extract PDF URL from this context
+        const pdfRegex = /href="([^"]*\.pdf)"/i;
+        const pdfMatch = context.match(pdfRegex);
+
+        if (pdfMatch) {
+            const pdfUrl = new URL(pdfMatch[1], baseUrl).href;
+
+            // Extract heading text from the context
+            const headingText = extractHeadingTextFromContext(context);
+
+            return {
+                pdfUrl: pdfUrl,
+                headingText: headingText,
+                fullMatch: false
+            };
         }
     }
 
-    throw new Error('All proxy attempts failed');
+    // Method 3: Fallback - search for "Hospedajes" and then find PDF
+    const hospedajesTextIndex = html.indexOf('Hospedajes');
+    if (hospedajesTextIndex !== -1) {
+        console.log('✅ Found Hospedajes text, searching nearby...');
+
+        const contextStart = Math.max(0, hospedajesTextIndex - 200);
+        const contextEnd = hospedajesTextIndex + 1500;
+        const context = html.substring(contextStart, contextEnd);
+
+        const pdfRegex = /href="([^"]*\.pdf)"/i;
+        const pdfMatch = context.match(pdfRegex);
+
+        if (pdfMatch) {
+            const pdfUrl = new URL(pdfMatch[1], baseUrl).href;
+
+            return {
+                pdfUrl: pdfUrl,
+                headingText: "Hospedajes Registrados por la Autoridad de Turismo de Panamá (ATP)",
+                fullMatch: false
+            };
+        }
+    }
+
+    return { pdfUrl: null, headingText: null };
+}
+
+function extractHeadingText(html) {
+    // Extract text from heading HTML
+    const cleanText = html
+        .replace(/<[^>]*>/g, ' ') // Remove HTML tags
+        .replace(/\s+/g, ' ')     // Collapse multiple spaces
+        .trim();
+
+    console.log('📝 Extracted heading text:', cleanText);
+    return cleanText;
+}
+
+function extractHeadingTextFromContext(context) {
+    // Look for the h4 and h3 text in the context
+    const h4Match = context.match(/<h4[^>]*>([^<]*)<\/h4>/i);
+    const h3Match = context.match(/<h3[^>]*>([^<]*)<\/h3>/i);
+
+    let headingText = '';
+    
+    if (h4Match && h4Match[1]) {
+        headingText += h4Match[1].trim();
+    }
+
+    if (h3Match && h3Match[1]) {
+        if (headingText) headingText += ' - ';
+        headingText += h3Match[1].trim();
+    }
+
+    // If no specific headings found, return generic text
+    if (!headingText) {
+        headingText = "Hospedajes Registrados por la Autoridad de Turismo de Panamá (ATP)";
+    }
+
+    console.log('📝 Context extracted heading:', headingText);
+    return headingText;
 }
 
 
@@ -254,8 +362,16 @@ async function parsePDFWithCoordinates() {
         PDF_STATUS = "Loading PDF...";
 
         // Get the latest PDF URL dynamically
-        pdfUrl = await getLatestPdfUrl();
-        console.log('Using PDF URL:', pdfUrl);
+        // Instead of just getting the PDF URL, get both URL and heading
+        const result = await getLatestPdfUrl();
+        const pdfUrl = result.pdfUrl;
+        const headingText = result.headingText;
+
+        console.log('📄 Using PDF URL:', pdfUrl);
+        console.log('🏷️ Using heading:', headingText);
+
+        // Store the heading text for use in your frontend
+        PDF_HEADING = headingText; // Add this global variable
 
         const response = await axios.get(pdfUrl, {
             responseType: 'arraybuffer',
@@ -666,6 +782,14 @@ app.get('/test-pdf', (req, res) => {
 // Serve the main HTML page
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/api/pdf-info', (req, res) => {
+    res.json({
+        pdfUrl: PDF_URL,
+        heading: PDF_HEADING,
+        lastUpdated: new Date().toISOString()
+    });
 });
 
 app.get('/api/ping', (req, res) => {
