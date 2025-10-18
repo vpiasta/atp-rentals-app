@@ -325,6 +325,8 @@
 const API_BASE_URL = 'https://atp-rentals-app-production.up.railway.app';
 let LAST_DATE_EXTRACTION = null;
 let CACHED_FORMATTED_DATE = null;
+const statsPanel = document.getElementById('statsPanel');
+const lastUpdateSpan = document.getElementById('lastUpdateSpan');
 
 function extractFormattedDate(headingText) {
     // Return cached result if we recently extracted
@@ -542,19 +544,38 @@ async function updatePdfSource() {
 // Load statistics
 async function loadStats() {
     try {
+        console.log('📊 Loading statistics...');
         const response = await fetch(`${API_BASE_URL}/api/stats`);
-        const stats = await response.json();
 
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const stats = await response.json();
+        console.log('📊 Stats received:', stats);
+
+        // Update stats panel
         statsPanel.innerHTML = `
             <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 10px;">
                 <div><strong>Total rentals found:</strong> ${stats.total_rentals}</div>
                 <div id="selectedCount"><strong>(None Selected)</strong></div>
             </div>
         `;
-        lastUpdateSpan.textContent = new Date(stats.last_updated).toLocaleString();
+
+        // Update last update time
+        if (lastUpdateSpan) {
+            lastUpdateSpan.textContent = new Date(stats.last_updated).toLocaleString();
+        }
+
+        console.log('✅ Statistics loaded successfully');
+
     } catch (error) {
-        console.error('Error loading stats:', error);
+        console.error('❌ Error loading stats:', error);
         statsPanel.innerHTML = '<div style="color: #666;">Error loading statistics</div>';
+
+        if (lastUpdateSpan) {
+            lastUpdateSpan.textContent = 'Error';
+        }
     }
 }
 
