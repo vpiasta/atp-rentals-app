@@ -504,7 +504,7 @@ async function parsePDFWithCoordinates() {
         PDF_RENTALS = allRentals;
         PDF_STATUS = `PDF parsed: ${allRentals.length} rentals found from ${numPages} pages`;
         console.log(`✅ ${PDF_STATUS}`);
-
+        console.log(`✅ PDF processing complete: ${allRentals.length} rentals extracted`);
         return { success: true, rentals: allRentals.length };
 
     } catch (error) {
@@ -643,10 +643,12 @@ async function initializePDFData() {
         const result = await parsePDFWithCoordinates();
         if (result.success) {
             CURRENT_RENTALS = PDF_RENTALS;
-            console.log(`✅ Auto-loaded ${CURRENT_RENTALS.length} rentals from PDF`);
+            DATA_SOURCE = 'atp-pdf';
+            console.log(`✅ Auto-loaded ${CURRENT_RENTALS.length} rentals from ATP PDF`);
         }
     } catch (error) {
-        console.error('Auto-load error:', error);
+        console.error('Auto-load error:', error
+        DATA_SOURCE = 'fallback';
     }
 }
 
@@ -658,21 +660,59 @@ initializePDFData();
 // Add this endpoint for testing
 app.get('/api/debug-pdf-url', async (req, res) => {
     try {
-        const pdfUrl = await getLatestPdfUrl();
+        // If we already have ATP data, return current state
+        if (DATA_SOURCE === 'atp-pdf') {
+            return res.json({
+                success: true,
+                pdfUrl: PDF_URL,
+                heading: PDF_HEADING,
+                dataSource: DATA_SOURCE,
+                rentalsCount: CURRENT_RENTALS.length,
+                message: 'Using ATP PDF data (already loaded)'
+            });
+        }
+
+        // Otherwise, try to get the latest PDF URL
+        const result = await getLatestPdfUrl();
         res.json({
             success: true,
-            pdfUrl: pdfUrl,
-            isFallback: pdfUrl.includes('aparthotel-boquete.com'),
-            message: pdfUrl.includes('aparthotel-boquete.com')
-                ? 'Using fallback URL'
-                : 'Using dynamic ATP URL'
+            pdfUrl: result.pdfUrl,
+            heading: result.headingText,
+            dataSource: 'atp-pdf (not yet loaded)',
+            message: 'ATP PDF URL found, but data not loaded yet. Call /api/extract-pdf to load it.'
         });
     } catch (error) {
         res.json({
             success: false,
             error: error.message,
             pdfUrl: 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf',
-            isFallback: true
+            dataSource: 'fallback',
+            rentalsCount: CURRENT_RENTALS.length
+        });
+    }
+});
+
+// Force reload of PDF data
+app.post('/api/reload-pdf', async (req, res) => {
+    try {
+        console.log('🔄 Manually reloading PDF data...');
+        await initializePDFData();
+
+        res.json({
+            success: true,
+            dataSource: DATA_SOURCE,
+            rentalsCount: CURRENT_RENTALS.length,
+            pdfUrl: PDF_URL,
+            heading: PDF_HEADING,
+            message: DATA_SOURCE === 'atp-pdf'
+                ? `PDF data reloaded: ${CURRENT_RENTALS.length} rentals`
+                : 'Using fallback data'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            dataSource: DATA_SOURCE
         });
     }
 });
@@ -736,8 +776,11 @@ app.get('/api/status', (req, res) => {
     res.json({
         status: PDF_STATUS,
         lastUpdated: new Date().toISOString(),
-        rentalsCount: PDF_RENTALS.length,
-        pdfUrl: PDF_URL
+        rentalsCount: CURRENT_RENTALS.length,
+        pdfUrl: PDF_URL,
+        pdfHeading: PDF_HEADING,
+        dataSource: DATA_SOURCE,
+        isFallback: DATA_SOURCE === 'fallback'
     });
 });
 
