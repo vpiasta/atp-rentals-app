@@ -8,6 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const https = require('https');
 
+
 app.use(cors());
 app.use(express.json());
 
@@ -33,6 +34,7 @@ let PDF_HEADING = 'Hospedajes Registrados - ATP'; // Default heading
 
 let PDF_STATUS = "Not loaded";
 let PDF_RENTALS = [];
+let DATA_SOURCE = "";
 
 
 // Column boundaries from our previous work
