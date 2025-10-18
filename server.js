@@ -177,7 +177,7 @@ function extractHeadingTextFromContext(context) {
     const h3Match = context.match(/<h3[^>]*>([^<]*)<\/h3>/i);
 
     let headingText = '';
-    
+
     if (h4Match && h4Match[1]) {
         headingText += h4Match[1].trim();
     }
@@ -373,9 +373,16 @@ async function parsePDFWithCoordinates() {
         // Store the heading text for use in your frontend
         PDF_HEADING = headingText; // Add this global variable
 
-        const response = await axios.get(pdfUrl, {
+        // Use proxy for PDF download too  (latest change 20251017 19:56)
+        const proxyPdfUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(pdfUrl)}`;
+
+        const response = await axios.get(proxyPdfUrl, {
             responseType: 'arraybuffer',
-            timeout: 30000
+            timeout: 30000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/pdf, */*'
+            }
         });
 
         console.log('PDF downloaded, response length:', response.data.length);
