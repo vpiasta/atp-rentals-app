@@ -647,7 +647,7 @@ async function initializePDFData() {
             console.log(`✅ Auto-loaded ${CURRENT_RENTALS.length} rentals from ATP PDF`);
         }
     } catch (error) {
-        console.error('Auto-load error:', error
+        console.error('Auto-load error:', error);
         DATA_SOURCE = 'fallback';
     }
 }
