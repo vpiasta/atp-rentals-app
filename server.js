@@ -91,8 +91,8 @@ async function getLatestPdfUrl() {
 function extractPdfAndHeading(html, baseUrl) {
     console.log('🔍 Extracting PDF and heading from Hospedajes section...');
 
-    // Method 1: Look for the specific Hospedajes section with full context
-    const hospedajesRegex = /<div[^>]*class="wp-block-group[^>]*>[\s\S]*?<div[^>]*class="wp-block-qubely-heading[^>]*id="hospedaje"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<a[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
+    // Method 1: Look for the entire Hospedajes section block
+    const hospedajesRegex = /<div[^>]*class="wp-block-group[^>]*>[\s\S]*?<div[^>]*id="hospedaje"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<a[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
 
     const hospedajesMatch = html.match(hospedajesRegex);
     if (hospedajesMatch) {
@@ -111,7 +111,60 @@ function extractPdfAndHeading(html, baseUrl) {
         };
     }
 
-    // Rest of your existing methods...
+    // Method 2: Alternative - look for the heading by text content
+    const hospedajesTextIndex = html.indexOf('Hospedajes');
+    if (hospedajesTextIndex !== -1) {
+        console.log('✅ Found Hospedajes text, extracting context...');
+
+        // Get a larger context around "Hospedajes"
+        const contextStart = Math.max(0, hospedajesTextIndex - 100);
+        const contextEnd = hospedajesTextIndex + 2000;
+        const context = html.substring(contextStart, contextEnd);
+
+        // Look for PDF URL in this context
+        const pdfRegex = /href="([^"]*\.pdf)"/i;
+        const pdfMatch = context.match(pdfRegex);
+
+        if (pdfMatch) {
+            const pdfUrl = new URL(pdfMatch[1], baseUrl).href;
+
+            // Try to extract the full heading from context
+            const headingText = extractHeadingTextFromContext(context);
+
+            return {
+                pdfUrl: pdfUrl,
+                headingText: headingText,
+                fullMatch: false
+            };
+        }
+    }
+
+    return { pdfUrl: null, headingText: null };
+}
+
+function extractHeadingTextFromContext(context) {
+    // Look for h3 and h4 tags in the context
+    const h3Match = context.match(/<h3[^>]*>([^<]+)<\/h3>/);
+    const h4Match = context.match(/<h4[^>]*>([^<]+)<\/h4>/);
+
+    let headingParts = [];
+
+    if (h4Match && h4Match[1]) {
+        headingParts.push(h4Match[1].trim());
+    }
+
+    if (h3Match && h3Match[1]) {
+        headingParts.push(h3Match[1].trim());
+    }
+
+    if (headingParts.length > 0) {
+        const fullHeading = headingParts.join(' - ');
+        console.log('📝 Extracted full heading from context:', fullHeading);
+        return fullHeading;
+    }
+
+    // Fallback: if we can't extract specific headings, return a descriptive text
+    return "Hospedajes Registrados por la Autoridad de Turismo de Panamá (ATP)";
 }
 
 function extractHeadingText(html) {
