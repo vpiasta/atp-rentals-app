@@ -69,6 +69,7 @@ async function getLatestPdfUrl() {
 
         if (result.pdfUrl) {
             console.log('✅ Found PDF URL:', result.pdfUrl);
+            console.log('✅ Is this ATP URL?', result.pdfUrl.includes('atp.gob.pa'));
             if (result.headingText) {
                 console.log('✅ Found heading text:', result.headingText);
             }
@@ -79,7 +80,11 @@ async function getLatestPdfUrl() {
 
     } catch (error) {
         console.error('❌ Error fetching PDF URL:', error.message);
-        throw error;
+        // Return fallback instead of throwing
+        return {
+            pdfUrl: 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf',
+            headingText: 'Hospedajes Registrados - ATP'
+        };
     }
 }
 
@@ -355,26 +360,26 @@ function isHeaderRow(rowText) {
 
 // Coordinate-based PDF parsing
 async function parsePDFWithCoordinates() {
-    let pdfUrl;
-
     try {
-        console.log('Starting coordinate-based PDF parsing...');
+        console.log('🔄 Starting PDF processing, current PDF_URL:', PDF_URL);
         PDF_STATUS = "Loading PDF...";
 
         // Get the latest PDF URL dynamically
         // Instead of just getting the PDF URL, get both URL and heading
         const result = await getLatestPdfUrl();
-        const pdfUrl = result.pdfUrl;
+        PDF_URL = result.pdfUrl;  // Update the GLOBAL PDF_URL
+        console.log('📝 Updated PDF_URL to:', PDF_URL);
+        console.log('📝 Is ATP URL?', PDF_URL.includes('atp.gob.pa'));
         const headingText = result.headingText;
 
-        console.log('📄 Using PDF URL:', pdfUrl);
+        console.log('📄 Using PDF URL:', PDF_URL);
         console.log('🏷️ Using heading:', headingText);
 
         // Store the heading text for use in your frontend
-        PDF_HEADING = headingText; // Add this global variable
+        PDF_HEADING = headingText;
 
         // Use proxy for PDF download too  (latest change 20251017 19:56)
-        const proxyPdfUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(pdfUrl)}`;
+        const proxyPdfUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(PDF_URL)}`;
 
         const response = await axios.get(proxyPdfUrl, {
             responseType: 'arraybuffer',
@@ -640,11 +645,14 @@ async function parsePDFWithCoordinates() {
 async function initializePDFData() {
     try {
         console.log('🔄 Auto-loading PDF data on startup...');
+        console.log('📝 Current PDF_URL before processing:', PDF_URL);
+
         const result = await parsePDFWithCoordinates();
         if (result.success) {
             CURRENT_RENTALS = PDF_RENTALS;
             DATA_SOURCE = 'atp-pdf';
             console.log(`✅ Auto-loaded ${CURRENT_RENTALS.length} rentals from ATP PDF`);
+            console.log('📝 Final PDF_URL:', PDF_URL);
         }
     } catch (error) {
         console.error('Auto-load error:', error);
@@ -689,6 +697,22 @@ app.get('/api/debug-pdf-url', async (req, res) => {
             dataSource: 'fallback',
             rentalsCount: CURRENT_RENTALS.length
         });
+    }
+});
+
+app.get('/api/test-pdf-fetch', async (req, res) => {
+    try {
+        console.log('🧪 Testing PDF URL fetch directly...');
+        const result = await getLatestPdfUrl();
+
+        res.json({
+            directResult: result,
+            currentGlobalPDF_URL: PDF_URL,
+            areTheySame: result.pdfUrl === PDF_URL,
+            isATP: result.pdfUrl.includes('atp.gob.pa')
+        });
+    } catch (error) {
+        res.json({ error: error.message });
     }
 });
 
