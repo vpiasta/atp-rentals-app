@@ -91,7 +91,7 @@ async function getLatestPdfUrl() {
 function extractPdfAndHeading(html, baseUrl) {
     console.log('🔍 Extracting PDF and heading from Hospedajes section...');
 
-    // Method 1: Look for the specific Hospedajes section structure - DON'T CHANGE THIS
+    // Method 1: Look for the specific Hospedajes section structure
     const hospedajesRegex = /<div[^>]*class="wp-block-qubely-heading[^"]*"[^>]*id="hospedaje"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<a[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
 
     const hospedajesMatch = html.match(hospedajesRegex);
@@ -101,8 +101,8 @@ function extractPdfAndHeading(html, baseUrl) {
         const headingHtml = hospedajesMatch[1];
         const pdfUrl = new URL(hospedajesMatch[2], baseUrl).href;
 
-        // Extract clean heading text from the HTML
-        const headingText = extractHeadingText(headingHtml);
+        // Extract clean heading text from the HTML - IMPROVED VERSION
+        const headingText = extractHeadingTextImproved(html, baseUrl);
 
         return {
             pdfUrl: pdfUrl,
@@ -111,8 +111,53 @@ function extractPdfAndHeading(html, baseUrl) {
         };
     }
 
-    // Keep all your existing fallback methods exactly as they were...
-    // ... rest of your existing code
+    // Rest of your existing fallback methods...
+    return { pdfUrl: null, headingText: null };
+}
+
+function extractHeadingTextImproved(html, baseUrl) {
+    console.log('🔍 Improved heading extraction...');
+
+    // Look for the specific structure we know exists
+    // Based on your HTML snippet:
+    // <h4>Hospedajes</h4> and <h3>Registrados por la Autoridad de Turismo de Panamá (ATP). Actualizado al 5 de septiembre de 2025</h3>
+
+    const h4Match = html.match(/<h4[^>]*>([^<]+)<\/h4>/i);
+    const h3Match = html.match(/<h3[^>]*>([^<]+)<\/h3>/i);
+
+    let headingParts = [];
+
+    if (h4Match && h4Match[1]) {
+        headingParts.push(h4Match[1].trim());
+    }
+
+    if (h3Match && h3Match[1]) {
+        headingParts.push(h3Match[1].trim());
+    }
+
+    if (headingParts.length > 0) {
+        const fullHeading = headingParts.join(' - ');
+        console.log('📝 Extracted full heading:', fullHeading);
+        return fullHeading;
+    }
+
+    // If we can't extract specific headings, search for the context around "Hospedajes"
+    const hospedajesIndex = html.indexOf('Hospedajes');
+    if (hospedajesIndex !== -1) {
+        const context = html.substring(Math.max(0, hospedajesIndex - 50), hospedajesIndex + 500);
+        console.log('🔍 Context around Hospedajes:', context.substring(0, 200));
+
+        // Try to extract date from context
+        const dateMatch = context.match(/Actualizado al (\d+ de [a-z]+ de \d{4})/i);
+        if (dateMatch) {
+            const fullHeading = `Hospedajes - Registrados por la Autoridad de Turismo de Panamá (ATP). ${dateMatch[0]}`;
+            console.log('📝 Constructed heading with date:', fullHeading);
+            return fullHeading;
+        }
+    }
+
+    // Final fallback
+    return "Hospedajes - Registrados por la Autoridad de Turismo de Panamá (ATP)";
 }
 
 function extractHeadingText(html) {
@@ -163,17 +208,45 @@ function extractFormattedDate(headingText) {
     try {
         console.log('📅 Extracting date from heading:', headingText);
 
-        // If we can't extract a date, use current date as fallback
-        if (!headingText || headingText === 'Hospedajes') {
-            const currentDate = new Date();
-            return currentDate.toLocaleDateString('en-US', {
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric'
-            });
+        // Look for date patterns in the text
+        const datePatterns = [
+            /Actualizado al (\d+ de [a-z]+ de \d{4})/i, // "Actualizado al 5 de septiembre de 2025"
+            /(\d+ de [a-z]+ de \d{4})/i, // "5 de septiembre de 2025"
+        ];
+
+        for (const pattern of datePatterns) {
+            const match = headingText.match(pattern);
+            if (match) {
+                const dateStr = match[1];
+                console.log('📅 Found date string:', dateStr);
+                return convertSpanishDateToUS(dateStr);
+            }
         }
 
-        return 'Date not available'; // Fallback
+        // If no date found, try to extract from PDF URL as fallback
+        if (PDF_URL) {
+            const urlDateMatch = PDF_URL.match(/\/(\d{4})\/(\d{2})\/.*?(\d{1,2})-(\d{1,2})-(\d{4})/);
+            if (urlDateMatch) {
+                const [, year, month, day] = urlDateMatch;
+                const date = new Date(year, month - 1, day);
+                const formatted = date.toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+                console.log('📅 Extracted date from PDF URL:', formatted);
+                return formatted;
+            }
+        }
+
+        // Final fallback to current date
+        console.log('📅 Using current date as fallback');
+        const currentDate = new Date();
+        return currentDate.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+        });
 
     } catch (error) {
         console.error('❌ Error extracting date:', error);
@@ -710,6 +783,37 @@ initializePDFData();
 
 // Basic endpoints
 
+// Debug endpoint to check current rentals state
+app.get('/api/debug-rentals', (req, res) => {
+    res.json({
+        CURRENT_RENTALS_length: CURRENT_RENTALS.length,
+        PDF_RENTALS_length: PDF_RENTALS.length,
+        PDF_URL: PDF_URL,
+        PDF_HEADING: PDF_HEADING,
+        PDF_STATUS: PDF_STATUS,
+        DATA_SOURCE: DATA_SOURCE
+    });
+});
+
+// Test endpoint to check heading extraction
+app.get('/api/test-heading', async (req, res) => {
+    try {
+        const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(atpUrl)}`;
+
+        const response = await axios.get(proxyUrl, {
+            timeout: 15000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+
+        const result = extractPdfAndHeading(response.data, atpUrl);
+        res.json(result);
+    } catch (error) {
+        res.json({ error: error.message });
+    }
+});
 
 app.get('/api/test-pdf-download', async (req, res) => {
     try {
@@ -951,21 +1055,24 @@ app.get('/api/ping', (req, res) => {
 });
 
 // API endpoint for statistics
-// API endpoint for statistics - make sure this exists and works
 app.get('/api/stats', (req, res) => {
     try {
+        console.log('📊 Stats endpoint called, CURRENT_RENTALS length:', CURRENT_RENTALS ? CURRENT_RENTALS.length : 'undefined');
+
         const stats = {
             total_rentals: CURRENT_RENTALS.length,
             last_updated: new Date().toISOString(),
-            status: "PDF Data Loaded",
-            features: "Search by name, type, province"
+            status: PDF_STATUS || "PDF Data Loaded",
+            features: "Search by name, type, province",
+            data_source: DATA_SOURCE || 'unknown'
         };
         res.json(stats);
     } catch (error) {
-        console.error('Error in /api/stats:', error);
+        console.error('❌ Error in /api/stats:', error);
         res.status(500).json({
             error: 'Failed to load statistics',
-            total_rentals: 0
+            total_rentals: 0,
+            status: 'Error'
         });
     }
 });
