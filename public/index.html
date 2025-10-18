@@ -544,15 +544,14 @@ async function loadStats() {
     try {
         const response = await fetch(`${API_BASE_URL}/api/stats`);
         const stats = await response.json();
-        console.log(`Got Stats: ${stats}`);
+        console.log('Got Stats:', stats);
 
         statsPanel.innerHTML = `
             <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 10px;">
                 <div><strong>Total rentals found:</strong> ${stats.total_rentals}</div>
                 <div id="selectedCount"><strong>(None Selected)</strong></div>
             </div>
-        `;
-        lastUpdateSpan.textContent = new Date(stats.last_updated).toLocaleString();
+        `;        
     } catch (error) {
         console.error('Error loading stats:', error);
         statsPanel.innerHTML = '<div style="color: #666;">Error loading statistics</div>';
