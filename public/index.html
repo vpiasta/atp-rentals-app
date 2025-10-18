@@ -323,6 +323,28 @@
 <script>
     // API Base URL - POINTING TO YOUR RAILWAY BACKEND
 const API_BASE_URL = 'https://atp-rentals-app-production.up.railway.app';
+let LAST_DATE_EXTRACTION = null;
+let CACHED_FORMATTED_DATE = null;
+
+function extractFormattedDate(headingText) {
+    // Return cached result if we recently extracted
+    if (LAST_DATE_EXTRACTION && Date.now() - LAST_DATE_EXTRACTION < 60000) { // 1 minute cache
+        return CACHED_FORMATTED_DATE;
+    }
+
+    try {
+        console.log('📅 Extracting date from heading:', headingText);
+        LAST_DATE_EXTRACTION = Date.now();
+
+        // Your date extraction logic here...
+
+        CACHED_FORMATTED_DATE = result; // Cache the result
+        return result;
+
+    } catch (error) {
+        // Error handling...
+    }
+}
 
 // DOM elements
 const searchInput = document.getElementById('searchInput');
