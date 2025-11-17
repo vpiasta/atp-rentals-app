@@ -29,7 +29,7 @@ let CURRENT_RENTALS = [
     }
 ];
 
-let PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';  // Fallback URL if we cannot get it from the ATP website
+let PDF_URL = '';  // Will be set dynamically  // Fallback URL if we cannot get it from the ATP website
 let PDF_HEADING = 'Hospedajes Registrados - ATP'; // Default heading
 
 let PDF_STATUS = "Not loaded";
@@ -560,11 +560,24 @@ async function parsePDFWithCoordinates() {
                 const row = rows[i];
                 const rowText = row.items.map(item => item.text).join(' ');
 
-                // Detect province
-                if (rowText.includes('Provincia:')) {
-                    currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
-                    console.log(`Found province: ${currentProvince}`);
-                    continue;
+                // IMPROVED province detection
+                if (rowText.includes('Provincia:') && rowText.includes('Total por provincia:')) {
+                    const provinceMatch = rowText.match(/Provincia:\s*([A-ZÁÉÍÓÚÑ\s]+)\s*Total por provincia:/);
+                    if (provinceMatch) {
+                        currentProvince = provinceMatch[1].trim();
+                        console.log(`✅ Found province: "${currentProvince}"`);
+
+                        // Skip the next row if it's the table header
+                        if (i + 1 < rows.length) {
+                            const nextRow = rows[i + 1];
+                            const nextRowText = nextRow.items.map(item => item.text).join(' ');
+                            if (nextRowText.includes('Nombre') && nextRowText.includes('Modalidad')) {
+                                console.log('⏭️ Skipping table header row');
+                                i++; // Skip the header row
+                            }
+                        }
+                        continue;
+                    }
                 }
 
                 // Skip header rows
@@ -684,11 +697,24 @@ async function parsePDFWithCoordinates() {
                         const row = rows[i];
                         const rowText = row.items.map(item => item.text).join(' ');
 
-                        // Detect province
-                        if (rowText.includes('Provincia:')) {
-                            currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
-                            console.log(`Found province: ${currentProvince}`);
-                            continue;
+                        // IMPROVED province detection
+                        if (rowText.includes('Provincia:') && rowText.includes('Total por provincia:')) {
+                            const provinceMatch = rowText.match(/Provincia:\s*([A-ZÁÉÍÓÚÑ\s]+)\s*Total por provincia:/);
+                            if (provinceMatch) {
+                                currentProvince = provinceMatch[1].trim();
+                                console.log(`✅ Found province: "${currentProvince}"`);
+
+                                // Skip the next row if it's the table header
+                                if (i + 1 < rows.length) {
+                                    const nextRow = rows[i + 1];
+                                    const nextRowText = nextRow.items.map(item => item.text).join(' ');
+                                    if (nextRowText.includes('Nombre') && nextRowText.includes('Modalidad')) {
+                                        console.log('⏭️ Skipping table header row');
+                                        i++; // Skip the header row
+                                    }
+                                }
+                                continue;
+                            }
                         }
 
                         // Skip header rows
@@ -765,7 +791,11 @@ async function parsePDFWithCoordinates() {
 async function initializePDFData() {
     try {
         console.log('🔄 Auto-loading PDF data on startup...');
-        console.log('📝 Current PDF_URL before processing:', PDF_URL);
+        // First get the latest PDF URL
+        const urlResult = await getLatestPdfUrl();
+        PDF_URL = urlResult.pdfUrl;
+        PDF_HEADING = urlResult.headingText;
+        console.log('📝 Using PDF_URL:', PDF_URL);
 
         const result = await parsePDFWithCoordinates();
         if (result.success) {
@@ -871,7 +901,8 @@ app.get('/api/test-download-extracted-pdf', async (req, res) => {
 
 app.get('/api/test-pdf-download', async (req, res) => {
     try {
-        const testUrl = 'https://www.atp.gob.pa/wp-content/uploads/2025/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf';
+        const urlResult = await getLatestPdfUrl();
+        const testUrl = urlResult.pdfUrl;
         console.log('🧪 Testing PDF download from:', testUrl);
 
         const response = await axios.get(testUrl, {
