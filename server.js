@@ -835,6 +835,40 @@ app.get('/api/test-current-pdf', async (req, res) => {
     }
 });
 
+app.get('/api/test-download-extracted-pdf', async (req, res) => {
+    try {
+        // First get the current PDF URL
+        const urlResult = await getLatestPdfUrl();
+        const pdfUrl = urlResult.pdfUrl;
+
+        console.log('🧪 Testing download of extracted PDF:', pdfUrl);
+
+        const response = await axios.get(pdfUrl, {
+            responseType: 'arraybuffer',
+            timeout: 15000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/pdf, */*',
+                'Referer': 'https://www.atp.gob.pa/'
+            }
+        });
+
+        res.json({
+            success: true,
+            pdfUrl: pdfUrl,
+            length: response.data.length,
+            isPDF: response.data.slice(0, 4).toString() === '%PDF',
+            message: 'Extracted PDF download successful'
+        });
+    } catch (error) {
+        res.json({
+            success: false,
+            error: error.message,
+            pdfUrl: pdfUrl
+        });
+    }
+});
+
 app.get('/api/test-pdf-download', async (req, res) => {
     try {
         const testUrl = 'https://www.atp.gob.pa/wp-content/uploads/2025/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf';
