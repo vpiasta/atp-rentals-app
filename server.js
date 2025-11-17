@@ -34,7 +34,7 @@ let CURRENT_RENTALS = [
     }
 ];
 
-let PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';  // Fallback URL if we cannot get it from the ATP website
+let PDF_URL = 'PDF URL not found';   //'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';  // don't use Fallback URL if we cannot get it from the ATP website
 let PDF_HEADING = 'Hospedajes Registrados - ATP'; // Default heading
 
 let PDF_STATUS = "Not loaded";
@@ -59,8 +59,7 @@ async function getLatestPdfUrl() {
     const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(atpUrl)}`;
 
     try {
-        console.log('🔍 Fetching ATP page via proxy...');
-
+        console.log('🔍 Fetching ATP web page via proxy...');
         const response = await axios.get(proxyUrl, {
             timeout: 15000,
             headers: {
@@ -484,13 +483,13 @@ async function parsePDFWithCoordinates() {
     try {
         console.log('Starting function parsePDFWithCoordinates()');
         // Debug: Check if pdfUrl exists anywhere
-        if (typeof pdfUrl !== 'undefined') {
+        /*if (typeof pdfUrl !== 'undefined') {
             console.error('❌ pdfUrl variable exists but should not!');
-        }
-        console.log('🔄 Finding and extracting current PDF_URL:', PDF_URL);
+        }*/
+        console.log('🔄 Loading ATP web page...');
         PDF_STATUS = "Loading ATP web page...";
 
-        // Get the latest PDF URL dynamically
+        // Get the latest PDF URL dynamically from ATP website
         // Instead of just getting the PDF URL, get both URL and heading
         const result = await getLatestPdfUrl();
         PDF_URL = result.pdfUrl;  // Update the GLOBAL PDF_URL
@@ -766,9 +765,7 @@ async function parsePDFWithCoordinates() {
 //
 async function initializePDFData() {
     try {
-        console.log('🔄 Auto-loading PDF data on startup...');
-        console.log('📝 Current PDF_URL before processing:', PDF_URL);
-
+        console.log('🔄 Initializing PDF data on startup...');
         const result = await parsePDFWithCoordinates();
         if (result.success) {
             CURRENT_RENTALS = PDF_RENTALS;
