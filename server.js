@@ -1,6 +1,5 @@
 // version 20251017 12:40  gets correct URL but does not process correctly
 // "PDF_URL":"https://www.atp.gob.pa/wp-content/uploads/2025/10/Reporte-de-Hospedajes-31-10-2025.pdf"
-// "PDF parsing failed: Request failed with status code 404"
 
 const express = require('express');
 const cors = require('cors');
@@ -18,6 +17,17 @@ app.use(express.json());
 
 // Serve static files from the 'public' directory
 app.use(express.static('public'));
+
+
+// Suppress PDF.js font warnings
+const originalConsoleWarn = console.warn;
+console.warn = function(...args) {
+    // Filter out PDF.js font warnings
+    if (args[0] && typeof args[0] === 'string' && args[0].includes('fetchStandardFontData')) {
+        return; // Suppress these warnings
+    }
+    originalConsoleWarn.apply(console, args);
+};
 
 
 // Simple data
@@ -53,43 +63,41 @@ const COLUMN_BOUNDARIES = {
 // Function to get the latest PDF URL from ATP website using proxy Service
 async function getLatestPdfUrl() {
     const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(atpUrl)}`;
+
+    // Try direct first, then proxy
+    let html;
+    const startTime = Date.now();
 
     try {
-        console.log('🔍 Fetching ATP web page via proxy...');
-
-        // AWAIT this completely before any other processing
+        console.log('🔄 Trying direct ATP website access...');
+        const response = await axios.get(atpUrl, {
+            timeout: 8000, // 8 second timeout
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'es_ES,es;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive'
+            }
+        });
+        html = response.data;
+        console.log(`✅ Direct ATP access successful: ${Date.now() - startTime}ms`);
+    } catch (directError) {
+        console.log('❌ Direct ATP access failed, trying proxy...');
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(atpUrl)}`;
         const response = await axios.get(proxyUrl, {
             timeout: 15000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
         });
-
-        const html = response.data;
-        console.log('✅ Proxy successful, HTML length:', html.length);
-
-        // NOW process the HTML synchronously
-        const result = extractPdfAndHeading(html, atpUrl);
-
-        if (result.pdfUrl) {
-            console.log('✅ Found PDF URL:', result.pdfUrl);
-            console.log('✅ Is this ATP URL?', result.pdfUrl.includes('atp.gob.pa'));
-            /* if (result.headingText) {
-                console.log('✅ Created heading text from PDF URL:', result.headingText);
-            } */
-            return result;
-        }
-
-        throw new Error('PDF link not found in Hospedajes section');
-
-    } catch (error) {
-        console.error('❌ Error fetching PDF URL:', error.message);
-        return {
-            pdfUrl: 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf',
-            headingText: 'Hospedajes Registrados - ATP'
-        };
+        html = response.data;
+        console.log(`✅ Proxy ATP access successful: ${Date.now() - startTime}ms`);
     }
+
+    // Rest of your extraction logic...
+    const result = extractPdfAndHeading(html, atpUrl);
+    return result;
 }
 
 function extractPdfAndHeading(html, baseUrl) {
