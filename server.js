@@ -59,7 +59,7 @@ async function getLatestPdfUrl() {
     const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(atpUrl)}`;
 
     try {
-        console.log('🔍 Fetching ATP web page via proxy...');
+        console.log('🔍 Fetching ATP web page via proxy...', atpUrl);
         const response = await axios.get(proxyUrl, {
             timeout: 15000,
             headers: {
@@ -77,7 +77,7 @@ async function getLatestPdfUrl() {
             console.log('✅ Found PDF URL:', result.pdfUrl);
             console.log('✅ Is this ATP URL?', result.pdfUrl.includes('atp.gob.pa'));
             if (result.headingText) {
-                console.log('✅ Found heading text:', result.headingText);
+                console.log('✅ Created heading text:', result.headingText);
             }
             return result;
         }
@@ -95,20 +95,19 @@ async function getLatestPdfUrl() {
 }
 
 function extractPdfAndHeading(html, baseUrl) {
-    console.log('🔍 Extracting PDF and heading from Hospedajes section...');
+    console.log('🔍 Extracting PDF URL from Hospedajes section...');
 
     // Method 1: Look for the specific Hospedajes section structure
     const hospedajesRegex = /<div[^>]*class="wp-block-qubely-heading[^"]*"[^>]*id="hospedaje"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<a[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
-
     const hospedajesMatch = html.match(hospedajesRegex);
     if (hospedajesMatch) {
-        console.log('✅ Found Hospedajes section with specific structure');
+        console.log('✅ Found Hospedajes button');
 
-        const headingHtml = hospedajesMatch[1];
-        const pdfUrl = new URL(hospedajesMatch[2], baseUrl).href;
+        const headingHtml = hospedajesMatch[1];   // PDF name
+        const pdfUrl = new URL(hospedajesMatch[2], baseUrl).href;  // PDF URL
 
         // Extract clean heading text from the HTML - IMPROVED VERSION
-        const headingText = extractHeadingTextImproved(html, baseUrl);
+        const headingText = html, baseUrl);
 
         return {
             pdfUrl: pdfUrl,
@@ -122,7 +121,7 @@ function extractPdfAndHeading(html, baseUrl) {
 }
 
 function extractHeadingTextImproved(html, baseUrl) {
-    console.log('🔍 Improved heading extraction...');
+    console.log('🔍 Constructing heading text from button link...');
 
     // Look for the specific structure we know exists
     // Based on your HTML snippet:
@@ -143,11 +142,11 @@ function extractHeadingTextImproved(html, baseUrl) {
 
     if (headingParts.length > 0) {
         const fullHeading = headingParts.join(' - ');
-        console.log('📝 Extracted full heading:', fullHeading);
+        //console.log('📝 Constructed heading from button:', fullHeading);
         return fullHeading;
     }
 
-    // If we can't extract specific headings, search for the context around "Hospedajes"
+    /* If we can't extract specific headings, search for the context around "Hospedajes"
     const hospedajesIndex = html.indexOf('Hospedajes');
     if (hospedajesIndex !== -1) {
         const context = html.substring(Math.max(0, hospedajesIndex - 50), hospedajesIndex + 500);
@@ -160,10 +159,10 @@ function extractHeadingTextImproved(html, baseUrl) {
             console.log('📝 Constructed heading with date:', fullHeading);
             return fullHeading;
         }
-    }
+    } */
 
     // Final fallback
-    return "Hospedajes - Registrados por la Autoridad de Turismo de Panamá (ATP)";
+    return "Hospedajes";
 }
 
 function extractHeadingText(html) {
@@ -486,7 +485,7 @@ async function parsePDFWithCoordinates() {
         /*if (typeof pdfUrl !== 'undefined') {
             console.error('❌ pdfUrl variable exists but should not!');
         }*/
-        console.log('🔄 Loading ATP web page...');
+        console.log('Starting function getLatestPdfUrl()');
         PDF_STATUS = "Loading ATP web page...";
 
         // Get the latest PDF URL dynamically from ATP website
@@ -501,7 +500,9 @@ async function parsePDFWithCoordinates() {
 
         // Use proxy for PDF download too  (latest change 20251017 19:56)
         const proxyPdfUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(PDF_URL)}`;
-        console.log('🔄 Trying to download PDF file with axios:', PDF_URL);
+        console.log('🔄 Trying to download PDF file with axios via proxy:', PDF_URL);
+        
+        // 20261117 12:45 -- downloading the file fails with status code 500
         const response = await axios.get(proxyPdfUrl, {
             responseType: 'arraybuffer',
             timeout: 30000,
