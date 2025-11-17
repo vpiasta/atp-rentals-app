@@ -1,3 +1,8 @@
+// version 20251018 16:20  gets correct URL but does not process correctly
+// /api/debug-rentals:
+// "PDF_URL":"https://www.atp.gob.pa/wp-content/uploads/2025/10/Reporte-de-Hospedajes-31-10-2025.pdf"
+// "PDF parsing failed: Request failed with status code 404"
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -212,7 +217,7 @@ function extractFormattedDate(headingText) {
 
         // Look for date patterns in the text
         const datePatterns = [
-            /Actualizado al (\d+ de [a-z]+ de \d{4})/i, // "Actualizado al 5 de septiembre de 2025"
+            /Actualizado al (\d+ de [a-z]+ de \d{4})/i, // "Actualizado al (dia) de (mes) de (año yyyy)"
             /(\d+ de [a-z]+ de \d{4})/i, // "5 de septiembre de 2025"
         ];
 
@@ -477,12 +482,13 @@ function isHeaderRow(rowText) {
 // Coordinate-based PDF parsing
 async function parsePDFWithCoordinates() {
     try {
+        console.log('Starting function parsePDFWithCoordinates()');
         // Debug: Check if pdfUrl exists anywhere
         if (typeof pdfUrl !== 'undefined') {
             console.error('❌ pdfUrl variable exists but should not!');
         }
-        console.log('🔄 Starting PDF processing, current PDF_URL:', PDF_URL);
-        PDF_STATUS = "Loading PDF...";
+        console.log('🔄 Finding and extracting current PDF_URL:', PDF_URL);
+        PDF_STATUS = "Loading ATP web page...";
 
         // Get the latest PDF URL dynamically
         // Instead of just getting the PDF URL, get both URL and heading
@@ -491,16 +497,12 @@ async function parsePDFWithCoordinates() {
         console.log('📝 Updated PDF_URL to:', PDF_URL);
         console.log('📝 Is ATP URL?', PDF_URL.includes('atp.gob.pa'));
         const headingText = result.headingText;
-
-        console.log('📄 Using PDF URL:', PDF_URL);
-        console.log('🏷️ Using heading:', headingText);
-
         // Store the heading text for use in your frontend
         PDF_HEADING = headingText;
 
         // Use proxy for PDF download too  (latest change 20251017 19:56)
         const proxyPdfUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(PDF_URL)}`;
-
+        console.log('🔄 Trying to download PDF file with axios:', PDF_URL);
         const response = await axios.get(proxyPdfUrl, {
             responseType: 'arraybuffer',
             timeout: 30000,
@@ -783,7 +785,7 @@ async function initializePDFData() {
 // Call this when server starts
 initializePDFData();
 
-// Basic endpoints
+// ****************************  Basic endpoints  ***************************
 
 // Debug endpoint to check current rentals state
 app.get('/api/debug-rentals', (req, res) => {
