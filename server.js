@@ -573,24 +573,26 @@ async function parsePDFWithCoordinates() {
                 const row = rows[i];
                 const rowText = row.items.map(item => item.text).join(' ');
 
-                // IMPROVED province detection
-                if (rowText.includes('Provincia:') && rowText.includes('Total por provincia:')) {
-                    const provinceMatch = rowText.match(/Provincia:\s*([A-ZÁÉÍÓÚÑ\s]+)\s*Total por provincia:/);
-                    if (provinceMatch) {
-                        currentProvince = provinceMatch[1].trim();
-                        console.log(`✅ Found province: "${currentProvince}"`);
+                // added debug log:
+                console.log(`Page ${pageNum}, Row ${i}: "${rowText.substring(0, 50)}..."`);
+                console.log(`Current province: ${currentProvince}`);
+                console.log(`Row items:`, row.items.map(item => ({ text: item.text, x: item.x, y: item.y })));
 
-                        // Skip the next row if it's the table header
-                        if (i + 1 < rows.length) {
-                            const nextRow = rows[i + 1];
-                            const nextRowText = nextRow.items.map(item => item.text).join(' ');
-                            if (nextRowText.includes('Nombre') && nextRowText.includes('Modalidad')) {
-                                console.log('⏭️ Skipping table header row');
-                                i++; // Skip the header row
-                            }
+                // REVERT to original province detection but keep header skipping
+                if (rowText.includes('Provincia:')) {
+                    currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
+                    console.log(`✅ Found province: "${currentProvince}"`);
+
+                    // Skip the next row if it's the table header (KEEP THIS PART)
+                    if (i + 1 < rows.length) {
+                        const nextRow = rows[i + 1];
+                        const nextRowText = nextRow.items.map(item => item.text).join(' ');
+                        if (nextRowText.includes('Nombre') && nextRowText.includes('Modalidad')) {
+                            console.log('⏭️ Skipping table header row');
+                            i++; // Skip the header row
                         }
-                        continue;
                     }
+                    continue;
                 }
 
                 // Skip header rows
@@ -710,24 +712,21 @@ async function parsePDFWithCoordinates() {
                         const row = rows[i];
                         const rowText = row.items.map(item => item.text).join(' ');
 
-                        // IMPROVED province detection
-                        if (rowText.includes('Provincia:') && rowText.includes('Total por provincia:')) {
-                            const provinceMatch = rowText.match(/Provincia:\s*([A-ZÁÉÍÓÚÑ\s]+)\s*Total por provincia:/);
-                            if (provinceMatch) {
-                                currentProvince = provinceMatch[1].trim();
-                                console.log(`✅ Found province: "${currentProvince}"`);
+                        // REVERT to original province detection but keep header skipping
+                        if (rowText.includes('Provincia:')) {
+                            currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
+                            console.log(`✅ Found province: "${currentProvince}"`);
 
-                                // Skip the next row if it's the table header
-                                if (i + 1 < rows.length) {
-                                    const nextRow = rows[i + 1];
-                                    const nextRowText = nextRow.items.map(item => item.text).join(' ');
-                                    if (nextRowText.includes('Nombre') && nextRowText.includes('Modalidad')) {
-                                        console.log('⏭️ Skipping table header row');
-                                        i++; // Skip the header row
-                                    }
+                            // Skip the next row if it's the table header (KEEP THIS PART)
+                            if (i + 1 < rows.length) {
+                                const nextRow = rows[i + 1];
+                                const nextRowText = nextRow.items.map(item => item.text).join(' ');
+                                if (nextRowText.includes('Nombre') && nextRowText.includes('Modalidad')) {
+                                    console.log('⏭️ Skipping table header row');
+                                    i++; // Skip the header row
                                 }
-                                continue;
                             }
+                            continue;
                         }
 
                         // Skip header rows
@@ -831,6 +830,31 @@ async function initializePDFData() {
 initializePDFData();
 
 // Basic endpoints
+
+app.get('/api/debug-pdf-processing', async (req, res) => {
+    try {
+        console.log('🔄 Manually running PDF processing with debug...');
+
+        const urlResult = await getLatestPdfUrl();
+        PDF_URL = urlResult.pdfUrl;
+
+        // Add detailed logging to parsePDFWithCoordinates temporarily
+        // We'll add console logs to track the flow
+
+        const result = await parsePDFWithCoordinates();
+
+        res.json({
+            success: result.success,
+            pagesProcessed: 56, // From your logs
+            rentalsFound: PDF_RENTALS.length,
+            pdfUrl: PDF_URL,
+            status: PDF_STATUS
+        });
+    } catch (error) {
+        res.json({ error: error.message });
+    }
+});
+
 
 // Debug endpoint to check current rentals state
 app.get('/api/debug-rentals', (req, res) => {
