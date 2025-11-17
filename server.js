@@ -75,9 +75,9 @@ async function getLatestPdfUrl() {
         if (result.pdfUrl) {
             console.log('✅ Found PDF URL:', result.pdfUrl);
             console.log('✅ Is this ATP URL?', result.pdfUrl.includes('atp.gob.pa'));
-            if (result.headingText) {
+            /* if (result.headingText) {
                 console.log('✅ Created heading text from PDF URL:', result.headingText);
-            }
+            } */
             return result;
         }
 
@@ -93,19 +93,22 @@ async function getLatestPdfUrl() {
 }
 
 function extractPdfAndHeading(html, baseUrl) {
-    console.log('🔍 Extracting PDF and heading from Hospedajes section...');
+    console.log('🔍 Extracting PDF URL and heading from Hospedajes section...');
+    console.log('📝 HTML length:', html.length, 'Base URL:', baseUrl);
 
     // Method 1: Look for the specific Hospedajes section structure
     const hospedajesRegex = /<div[^>]*class="wp-block-qubely-heading[^"]*"[^>]*id="hospedaje"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<a[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
-
     const hospedajesMatch = html.match(hospedajesRegex);
+    console.log('🔍 Regex match result:', hospedajesMatch ? 'FOUND' : 'NOT FOUND');
     if (hospedajesMatch) {
         console.log('✅ Found Hospedajes section with specific structure');
+        console.log('📝 Full match groups:', hospedajesMatch.length);
 
         const headingHtml = hospedajesMatch[1];
         const pdfUrl = new URL(hospedajesMatch[2], baseUrl).href;
 
         // Extract clean heading text from the HTML - IMPROVED VERSION
+        console.log('🔄 Calling extractHeadingTextImproved...');
         const headingText = extractHeadingTextImproved(html, baseUrl);
 
         return {
@@ -114,13 +117,12 @@ function extractPdfAndHeading(html, baseUrl) {
             fullMatch: true
         };
     }
-
+    console.log('❌ No match found with primary regex, trying fallback methods...');
     // Rest of your existing fallback methods...
     return { pdfUrl: null, headingText: null };
 }
 
 function extractHeadingTextImproved(html, baseUrl) {
-    console.log('🔍 Improved heading extraction...');
 
     // Look for the specific structure we know exists
     // Based on your HTML snippet:
@@ -492,8 +494,9 @@ async function parsePDFWithCoordinates() {
         console.log('📝 Updated PDF_URL to:', PDF_URL);
 
         // STEP 2: Only AFTER we have the URL, download the PDF
+        console.log('STEP 2: Downloading PDF file...');
         const proxyPdfUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(PDF_URL)}`;
-        console.log('🔄 Trying to download PDF file with axios:', PDF_URL);
+        console.log('🔄 STEP 2 Trying to download PDF file with axios:', PDF_URL);
         const response = await axios.get(proxyPdfUrl, {
             responseType: 'arraybuffer',
             timeout: 30000,
@@ -514,11 +517,14 @@ async function parsePDFWithCoordinates() {
         } else {
             // Check if it's HTML error page
             const textStart = new TextDecoder().decode(data.slice(0, 100));
-            if (textStart.includes('<html') || textStart.includes('<!DOCTYPE')) {
+            console.log('❌ Invalid PDF, starts with:', textStart.substring(0, 50));
+            throw new Error('Invalid PDF format');
+        }
+            /* if (textStart.includes('<html') || textStart.includes('<!DOCTYPE')) {
                 throw new Error('Server returned HTML instead of PDF');
             } else {
                 throw new Error('Invalid PDF format');
-            }
+            } */
         }
 
         console.log('Processing PDF...');
@@ -626,7 +632,7 @@ async function parsePDFWithCoordinates() {
         return { success: true, rentals: allRentals.length };
 
     } catch (error) {
-        console.error('PDF processing error:', error.message);
+        console.error(`❌ PDF processing failed after ${Date.now() - startTime}ms:`, error.message);
 
         // If the ATP PDF fails and we weren't already using the fallback, try the fallback
         if (PDF_URL && !PDF_URL.includes('aparthotel-boquete.com')) {
@@ -775,6 +781,44 @@ async function initializePDFData() {
 initializePDFData();
 
 // ****************************  Basic endpoints  ***************************
+
+// Timing debug endpoint
+app.get('/api/debug-timing', async (req, res) => {
+    const timingLog = [];
+    const originalLog = console.log;
+
+    // Capture all console logs
+    console.log = function(...args) {
+        timingLog.push({
+            timestamp: new Date().toISOString(),
+            message: args.join(' ')
+        });
+        originalLog.apply(console, args);
+    };
+
+    try {
+        console.log('=== STARTING DEBUG TIMING TEST ===');
+        await parsePDFWithCoordinates();
+        console.log('=== COMPLETED DEBUG TIMING TEST ===');
+
+        // Restore original console.log
+        console.log = originalLog;
+
+        res.json({
+            success: true,
+            log: timingLog,
+            totalEntries: timingLog.length
+        });
+    } catch (error) {
+        console.log = originalLog;
+        res.json({
+            success: false,
+            error: error.message,
+            log: timingLog
+        });
+    }
+});
+
 
 // Debug endpoint to check current rentals state
 app.get('/api/debug-rentals', (req, res) => {
