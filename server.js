@@ -477,11 +477,24 @@ function isHeaderRow(rowText) {
 // Coordinate-based PDF parsing
 async function parsePDFWithCoordinates() {
     try {
+        console.log('🔄 Starting PDF processing...');
+        console.log('📝 CURRENT PDF_URL:', PDF_URL);
+        console.log('📝 Is PDF_URL empty?', !PDF_URL);
+
+        // If PDF_URL is empty, get it first
+        if (!PDF_URL) {
+           console.log('⚠️ PDF_URL is empty, fetching latest URL...');
+           const urlResult = await getLatestPdfUrl();
+           PDF_URL = urlResult.pdfUrl;
+           console.log('📝 Updated PDF_URL to:', PDF_URL);
+        }
         // Debug: Check if pdfUrl exists anywhere
         if (typeof pdfUrl !== 'undefined') {
             console.error('❌ pdfUrl variable exists but should not!');
         }
+
         console.log('🔄 Starting PDF processing, current PDF_URL:', PDF_URL);
+
         PDF_STATUS = "Loading PDF...";
 
         // Get the latest PDF URL dynamically
@@ -791,11 +804,15 @@ async function parsePDFWithCoordinates() {
 async function initializePDFData() {
     try {
         console.log('🔄 Auto-loading PDF data on startup...');
-        // First get the latest PDF URL
+
+        // FIRST set PDF_URL, THEN process
         const urlResult = await getLatestPdfUrl();
         PDF_URL = urlResult.pdfUrl;
         PDF_HEADING = urlResult.headingText;
-        console.log('📝 Using PDF_URL:', PDF_URL);
+
+        console.log('📝 PDF_URL set to:', PDF_URL);
+
+        // NOW process the PDF
 
         const result = await parsePDFWithCoordinates();
         if (result.success) {
