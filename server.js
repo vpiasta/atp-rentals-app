@@ -383,14 +383,19 @@ function parseRowData(row) {
 
 // Check if a row is a continuation of the previous row
 function isContinuationRow(rowData, previousRowData) {
+    console.log(`🔍 Checking continuation for: "${rowData.name?.substring(0, 20)}" | type: "${rowData.type}"`);
+
     // 1. Check for specific multi-word type patterns
     if (previousRowData.type === 'Hostal' && rowData.type === 'Familiar') {
+        console.log('✅ Continuation: Hostal + Familiar pattern');
         return true;
     }
     if (previousRowData.type === 'Sitio de' && rowData.type === 'acampar') {
+        console.log('✅ Continuation: Sitio de + acampar pattern');
         return true;
     }
     if (!rowData.type) {
+        console.log('✅ Continuation: No type in current row');
         return true;
     }
 
@@ -398,8 +403,8 @@ function isContinuationRow(rowData, previousRowData) {
     if (previousRowData.email && rowData.email && !rowData.type ) {
         // Check if previous email is incomplete (doesn't look like a complete email)
         const isPreviousEmailComplete = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(previousRowData.email);
-
         if (!isPreviousEmailComplete) {
+            console.log('✅ Continuation: Incomplete email continues');
             return true;
         }
     }
@@ -408,15 +413,17 @@ function isContinuationRow(rowData, previousRowData) {
     if (previousRowData.phone && rowData.phone && !rowData.type) {
         // Phone continues if previous ends with hyphen (number interrupted)
         if (previousRowData.phone.endsWith('-')) {
+            console.log('✅ Continuation: Phone continues with hyphen');
             return true;
         }
         // OR if previous ends with slash AND current doesn't end with slash (second number)
         if (previousRowData.phone.endsWith('/') && !rowData.phone.endsWith('/')) {
+            console.log('✅ Continuation: Phone continues after slash');
             return true;
         }
     }
 
-    console.log(`Not a continuation: row has type "${rowData.type}"`);
+    console.log(`✅ Not a continuation: row has type "${rowData.type}"`);
     return false;
 }
 
@@ -580,8 +587,18 @@ async function parsePDFWithCoordinates() {
 
                 // Parse row data
                 const rowData = parseRowData(row);
-                console.log(`Processing row ${i}:`, rowData);
-                console.log(`Current rental:`, currentRental);
+                console.log(`Processing row ${i}:`, {
+                  name: rowData.name?.substring(0, 30) || 'empty',
+                  type: rowData.type || 'empty',
+                  email: rowData.email?.substring(0, 20) || 'empty',
+                  phone: rowData.phone || 'empty'
+                });
+                console.log(`Current rental:`, currentRental ? {
+                    name: currentRental.name?.substring(0, 30) || 'empty',
+                    type: currentRental.type || 'empty',
+                    email: currentRental.email?.substring(0, 20) || 'empty',
+                    phone: currentRental.phone || 'empty'
+                } : 'null');
 
                 // ALWAYS check for continuation first - using the "no type" criterion
                 if (currentRental && isContinuationRow(rowData, currentRental)) {
