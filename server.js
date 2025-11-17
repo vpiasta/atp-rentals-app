@@ -500,20 +500,37 @@ async function parsePDFWithCoordinates() {
         PDF_URL = result.pdfUrl;
         console.log('📝 Updated PDF_URL to:', PDF_URL);
 
-        // STEP 2: Only AFTER we have the URL, download the PDF
+        // STEP 2:  AFTER we have the URL, download the PDF  - try direct first, then proxy
         console.log('STEP 2: Downloading PDF file...');
-        const proxyPdfUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(PDF_URL)}`;
-        console.log('🔄 STEP 2 Trying to download PDF file with axios:', PDF_URL);
-        const response = await axios.get(proxyPdfUrl, {
-            responseType: 'arraybuffer',
-            timeout: 30000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'application/pdf, */*'
-            }
-        });
-        console.log(`STEP 2 COMPLETE after ${Date.now() - startTime}ms`);
-        console.log('PDF downloaded, response length:', response.data.length);
+        let response;
+
+        try {
+            console.log('🔄 Trying direct download...');
+            response = await axios.get(PDF_URL, {
+                responseType: 'arraybuffer',
+                timeout: 10000, // 10 second timeout for direct
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'application/pdf, */*',
+                    'Referer': 'https://www.atp.gob.pa/'
+                }
+            });
+            console.log('✅ Direct download successful');
+            } catch (directError) {
+              console.log('❌ Direct download failed, trying proxy...');
+              const proxyPdfUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(PDF_URL)}`;
+              console.log('🔄 STEP 2 Trying to download PDF file with axios:', PDF_URL);
+              const response = await axios.get(proxyPdfUrl, {
+              responseType: 'arraybuffer',
+              timeout: 30000,
+              headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                  'Accept': 'application/pdf, */*'
+              }
+            });
+            console.log(`STEP 2 COMPLETE after ${Date.now() - startTime}ms`);
+            console.log('PDF downloaded, response length:', response.data.length);
+          }
 
         // Check if it's actually a PDF
         const data = new Uint8Array(response.data);
