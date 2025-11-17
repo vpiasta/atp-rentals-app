@@ -337,7 +337,7 @@ function groupIntoRows(textItems) {
 
     // Convert to array and sort by Y (top to bottom)
     return Object.entries(rows)
-        .sort(([a], [b]) => parseFloat(a) - parseFloat(b))
+        .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
         .map(([y, items]) => ({
             y: parseFloat(y),
             items: items.sort((a, b) => a.x - b.x)
@@ -377,44 +377,41 @@ function parseRowData(row) {
     return rental;
 }
 
-// Check if a row is a continuation of the previous row
+// Check if a row is a continuation of the previous row (new version 20251116 21:34
 function isContinuationRow(rowData, previousRowData) {
-    // 1. Check for specific multi-word type patterns
-    if (previousRowData.type === 'Hostal' && rowData.type === 'Familiar') {
+    // Only consider as continuation if ALL of these are true:
+    // 1. Previous rental exists and has a name
+    // 2. Current row has minimal or no type data
+    // 3. Current row name looks incomplete (short, or matches pattern)
+
+    if (!previousRowData || !previousRowData.name) return false;
+
+    const hasSubstantialType = rowData.type && rowData.type.trim().length > 3;
+    const hasSubstantialEmail = rowData.email && rowData.email.includes('@');
+    const hasSubstantialPhone = rowData.phone && rowData.phone.replace(/\D/g, '').length >= 7;
+
+    // If current row has substantial data in type/email/phone, it's probably a new rental
+    if (hasSubstantialType || hasSubstantialEmail || hasSubstantialPhone) {
+        return false;
+    }
+
+    // If current row name is very short or empty, it's likely a continuation
+    if (!rowData.name || rowData.name.trim().length < 3) {
         return true;
     }
-    if (previousRowData.type === 'Sitio de' && rowData.type === 'acampar') {
+
+    // Special case: if previous email/phone looks incomplete
+    const prevEmailIncomplete = previousRowData.email && !previousRowData.email.includes('.');
+    const prevPhoneIncomplete = previousRowData.phone &&
+        (previousRowData.phone.endsWith('/') || previousRowData.phone.endsWith('-'));
+
+    if (prevEmailIncomplete || prevPhoneIncomplete) {
         return true;
     }
-    if (!rowData.type) {
-        return true;
-    }
 
-    // 2. Check for email continuation
-    if (previousRowData.email && rowData.email && !rowData.type ) {
-        // Check if previous email is incomplete (doesn't look like a complete email)
-        const isPreviousEmailComplete = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(previousRowData.email);
-
-        if (!isPreviousEmailComplete) {
-            return true;
-        }
-    }
-
-    // 3. Check for phone continuation
-    if (previousRowData.phone && rowData.phone && !rowData.type) {
-        // Phone continues if previous ends with hyphen (number interrupted)
-        if (previousRowData.phone.endsWith('-')) {
-            return true;
-        }
-        // OR if previous ends with slash AND current doesn't end with slash (second number)
-        if (previousRowData.phone.endsWith('/') && !rowData.phone.endsWith('/')) {
-            return true;
-        }
-    }
-
-    console.log(`Not a continuation: row has type "${rowData.type}"`);
     return false;
 }
+
 
 // Merge two rows that belong to the same rental
 function mergeRentalRows(previousRental, continuationRow) {
@@ -472,6 +469,87 @@ function isHeaderRow(rowText) {
     }
 
     return false;
+}
+
+// Extracted function to process PDF rows (reusable for both main and fallback)
+async function processPDFRows(rows, pageNum, currentProvince, allRentals, currentRental) {
+    const provinceChanges = [];
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const rowText = row.items.map(item => item.text).join(' ');
+
+        // IMPROVED province detection
+        if (rowText.includes('Provincia:') && rowText.includes('Total por provincia:')) {
+            // Extract province name more reliably
+            const provinceMatch = rowText.match(/Provincia:\s*([A-ZÁÉÍÓÚÑ\s]+)\s*Total por provincia:/);
+            if (provinceMatch) {
+                currentProvince = provinceMatch[1].trim();
+                console.log(`✅ Found province on page ${pageNum}: "${currentProvince}"`);
+                provinceChanges.push({ page: pageNum, province: currentProvince, row: i });
+
+                // Skip the next row if it's the table header
+                if (i + 1 < rows.length) {
+                    const nextRow = rows[i + 1];
+                    const nextRowText = nextRow.items.map(item => item.text).join(' ');
+                    if (nextRowText.includes('Nombre') && nextRowText.includes('Modalidad')) {
+                        console.log('⏭️ Skipping table header row after province');
+                        i++; // Skip the header row
+                    }
+                }
+                continue;
+            }
+        }
+
+        // Skip header rows (improved)
+        if (isHeaderRow(rowText) || !currentProvince) {
+            console.log(`Skipping header row: ${rowText.substring(0, 50)}...`);
+            continue;
+        }
+
+        // Skip summary rows
+        if (rowText.includes('Total por')) {
+            console.log(`Skipping summary row: ${rowText}`);
+            continue;
+        }
+
+        // Parse row data
+        const rowData = parseRowData(row);
+        console.log(`Processing row ${i} in ${currentProvince}:`, {
+            name: rowData.name,
+            type: rowData.type,
+            hasEmail: !!rowData.email,
+            hasPhone: !!rowData.phone
+        });
+
+        // Check for continuation
+        if (currentRental && isContinuationRow(rowData, currentRental)) {
+            console.log(`🔄 Stitching row ${i} to previous rental`);
+            currentRental = mergeRentalRows(currentRental, rowData);
+            continue;
+        }
+
+        // If we have a current rental and this row is NOT a continuation, save it
+        if (currentRental && rowData.name && rowData.name.trim() &&
+            (rowData.type || rowData.email || rowData.phone)) {
+            console.log(`💾 Saving current rental and starting new one in ${currentProvince}`);
+            allRentals.push({ ...currentRental });
+            currentRental = { ...rowData, province: currentProvince };
+        }
+        // If no current rental, start a new one if we have substantial data
+        else if (!currentRental && rowData.name && rowData.name.trim() &&
+                 (rowData.type || rowData.email || rowData.phone)) {
+            console.log(`🆕 Starting new rental in ${currentProvince}:`, rowData.name);
+            currentRental = { ...rowData, province: currentProvince };
+        }
+        // If we have minimal data but no current rental, start one cautiously
+        else if (!currentRental && rowData.name && rowData.name.trim()) {
+            console.log(`⚠️ Starting cautious rental in ${currentProvince}:`, rowData.name);
+            currentRental = { ...rowData, province: currentProvince };
+        }
+    }
+
+    return { currentProvince, currentRental, provinceChanges };
 }
 
 // Coordinate-based PDF parsing
@@ -555,70 +633,10 @@ async function parsePDFWithCoordinates() {
             const rows = groupIntoRows(textItems);
             console.log(`Page ${pageNum}: ${rows.length} rows found`);
 
-            // Process each row in this page
-            for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const rowText = row.items.map(item => item.text).join(' ');
-
-                // Detect province
-                if (rowText.includes('Provincia:')) {
-                    currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
-                    console.log(`Found province: ${currentProvince}`);
-                    continue;
-                }
-
-                // Skip header rows
-                if (isHeaderRow(rowText) || !currentProvince) {
-                    console.log(`Skipping header row: ${rowText}`);
-                    continue;
-                }
-
-                // Skip summary rows
-                if (rowText.includes('Total por')) {
-                    console.log(`Skipping summary row: ${rowText}`);
-                    continue;
-                }
-
-                // Parse row data
-                const rowData = parseRowData(row);
-                console.log(`Processing row ${i}:`, rowData);
-                console.log(`Current rental:`, currentRental);
-
-                // ALWAYS check for continuation first - using the "no type" criterion
-                if (currentRental && isContinuationRow(rowData, currentRental)) {
-                    console.log(`🔄 Stitching row ${i} to previous rental`);
-                    console.log(`Before stitch - currentRental:`, currentRental);
-                    console.log(`Row to stitch:`, rowData);
-                    currentRental = mergeRentalRows(currentRental, rowData);
-                    console.log(`After stitch - currentRental:`, currentRental);
-                    continue; // Skip the rest of the logic for this row
-                }
-
-                // If we have a current rental and this row is NOT a continuation, save it
-                // BUT only if this row looks like a legitimate new rental start
-                if (currentRental && rowData.name && rowData.name.trim() &&
-                    (rowData.type || rowData.email || rowData.phone)) {
-                    console.log(`💾 Saving current rental and starting new one:`, currentRental);
-                    allRentals.push(currentRental);
-                    currentRental = { ...rowData, province: currentProvince };
-                }
-                // If no current rental, start a new one if we have substantial data
-                else if (!currentRental && rowData.name && rowData.name.trim() &&
-                         (rowData.type || rowData.email || rowData.phone)) {
-                    console.log(`🆕 Starting new rental:`, rowData);
-                    currentRental = { ...rowData, province: currentProvince };
-                }
-                // If we have minimal data but no current rental, start one cautiously
-                else if (!currentRental && rowData.name && rowData.name.trim()) {
-                    console.log(`⚠️ Starting cautious rental:`, rowData);
-                    currentRental = { ...rowData, province: currentProvince };
-                }
-                // If we have a current rental but this row doesn't look like a new rental,
-                // just continue (don't save yet - it might be garbage data)
-                else if (currentRental) {
-                    console.log(`❓ Row doesn't look like continuation or new rental, keeping current rental`);
-                }
-            }
+            // Process rows using the extracted function
+            const processResult = await processPDFRows(rows, pageNum, currentProvince, allRentals, currentRental);
+            currentProvince = processResult.currentProvince;
+            currentRental = processResult.currentRental;
         }
 
         // Only save the final rental AFTER processing ALL pages
@@ -679,62 +697,10 @@ async function parsePDFWithCoordinates() {
                     const rows = groupIntoRows(textItems);
                     console.log(`Page ${pageNum}: ${rows.length} rows found`);
 
-                    // Process each row (same logic as above)
-                    for (let i = 0; i < rows.length; i++) {
-                        const row = rows[i];
-                        const rowText = row.items.map(item => item.text).join(' ');
-
-                        // Detect province
-                        if (rowText.includes('Provincia:')) {
-                            currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
-                            console.log(`Found province: ${currentProvince}`);
-                            continue;
-                        }
-
-                        // Skip header rows
-                        if (isHeaderRow(rowText) || !currentProvince) {
-                            console.log(`Skipping header row: ${rowText}`);
-                            continue;
-                        }
-
-                        // Skip summary rows
-                        if (rowText.includes('Total por')) {
-                            console.log(`Skipping summary row: ${rowText}`);
-                            continue;
-                        }
-
-                        // Parse row data
-                        const rowData = parseRowData(row);
-                        console.log(`Processing row ${i}:`, rowData);
-                        console.log(`Current rental:`, currentRental);
-
-                        // ALWAYS check for continuation first
-                        if (currentRental && isContinuationRow(rowData, currentRental)) {
-                            console.log(`🔄 Stitching row ${i} to previous rental`);
-                            currentRental = mergeRentalRows(currentRental, rowData);
-                            continue;
-                        }
-
-                        // If we have a current rental and this row is NOT a continuation, save it
-                        if (currentRental && rowData.name && rowData.name.trim() &&
-                            (rowData.type || rowData.email || rowData.phone)) {
-                            console.log(`💾 Saving current rental and starting new one:`, currentRental);
-                            allRentals.push(currentRental);
-                            currentRental = { ...rowData, province: currentProvince };
-                        }
-                        else if (!currentRental && rowData.name && rowData.name.trim() &&
-                                 (rowData.type || rowData.email || rowData.phone)) {
-                            console.log(`🆕 Starting new rental:`, rowData);
-                            currentRental = { ...rowData, province: currentProvince };
-                        }
-                        else if (!currentRental && rowData.name && rowData.name.trim()) {
-                            console.log(`⚠️ Starting cautious rental:`, rowData);
-                            currentRental = { ...rowData, province: currentProvince };
-                        }
-                        else if (currentRental) {
-                            console.log(`❓ Row doesn't look like continuation or new rental, keeping current rental`);
-                        }
-                    }
+                    // Process rows using the extracted function (same as main processing)
+                    const processResult = await processPDFRows(rows, pageNum, currentProvince, allRentals, currentRental);
+                    currentProvince = processResult.currentProvince;
+                    currentRental = processResult.currentRental;
                 }
 
                 // Only save the final rental AFTER processing ALL pages
