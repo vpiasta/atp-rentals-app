@@ -817,6 +817,24 @@ app.get('/api/test-heading', async (req, res) => {
     }
 });
 
+app.get('/api/test-current-pdf', async (req, res) => {
+    try {
+        console.log('🔍 Testing current PDF URL extraction...');
+        const result = await getLatestPdfUrl();
+
+        res.json({
+            extractedUrl: result.pdfUrl,
+            extractedHeading: result.headingText,
+            message: 'URL extraction successful'
+        });
+    } catch (error) {
+        res.json({
+            error: error.message,
+            fallbackUrl: 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf'
+        });
+    }
+});
+
 app.get('/api/test-pdf-download', async (req, res) => {
     try {
         const testUrl = 'https://www.atp.gob.pa/wp-content/uploads/2025/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf';
