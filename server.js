@@ -29,7 +29,7 @@ let CURRENT_RENTALS = [
     }
 ];
 
-let PDF_URL = '';  // Will be set dynamically  // Fallback URL if we cannot get it from the ATP website
+let PDF_URL = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';  // Fallback URL if we cannot get it from the ATP website
 let PDF_HEADING = 'Hospedajes Registrados - ATP'; // Default heading
 
 let PDF_STATUS = "Not loaded";
@@ -477,24 +477,11 @@ function isHeaderRow(rowText) {
 // Coordinate-based PDF parsing
 async function parsePDFWithCoordinates() {
     try {
-        console.log('🔄 Starting PDF processing...');
-        console.log('📝 CURRENT PDF_URL:', PDF_URL);
-        console.log('📝 Is PDF_URL empty?', !PDF_URL);
-
-        // If PDF_URL is empty, get it first
-        if (!PDF_URL) {
-           console.log('⚠️ PDF_URL is empty, fetching latest URL...');
-           const urlResult = await getLatestPdfUrl();
-           PDF_URL = urlResult.pdfUrl;
-           console.log('📝 Updated PDF_URL to:', PDF_URL);
-        }
         // Debug: Check if pdfUrl exists anywhere
         if (typeof pdfUrl !== 'undefined') {
             console.error('❌ pdfUrl variable exists but should not!');
         }
-
         console.log('🔄 Starting PDF processing, current PDF_URL:', PDF_URL);
-
         PDF_STATUS = "Loading PDF...";
 
         // Get the latest PDF URL dynamically
@@ -573,25 +560,10 @@ async function parsePDFWithCoordinates() {
                 const row = rows[i];
                 const rowText = row.items.map(item => item.text).join(' ');
 
-                // added debug log:
-                console.log(`Page ${pageNum}, Row ${i}: "${rowText.substring(0, 50)}..."`);
-                console.log(`Current province: ${currentProvince}`);
-                console.log(`Row items:`, row.items.map(item => ({ text: item.text, x: item.x, y: item.y })));
-
-                // REVERT to original province detection but keep header skipping
+                // Detect province
                 if (rowText.includes('Provincia:')) {
                     currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
-                    console.log(`✅ Found province: "${currentProvince}"`);
-
-                    // Skip the next row if it's the table header (KEEP THIS PART)
-                    if (i + 1 < rows.length) {
-                        const nextRow = rows[i + 1];
-                        const nextRowText = nextRow.items.map(item => item.text).join(' ');
-                        if (nextRowText.includes('Nombre') && nextRowText.includes('Modalidad')) {
-                            console.log('⏭️ Skipping table header row');
-                            i++; // Skip the header row
-                        }
-                    }
+                    console.log(`Found province: ${currentProvince}`);
                     continue;
                 }
 
@@ -712,20 +684,10 @@ async function parsePDFWithCoordinates() {
                         const row = rows[i];
                         const rowText = row.items.map(item => item.text).join(' ');
 
-                        // REVERT to original province detection but keep header skipping
+                        // Detect province
                         if (rowText.includes('Provincia:')) {
                             currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
-                            console.log(`✅ Found province: "${currentProvince}"`);
-
-                            // Skip the next row if it's the table header (KEEP THIS PART)
-                            if (i + 1 < rows.length) {
-                                const nextRow = rows[i + 1];
-                                const nextRowText = nextRow.items.map(item => item.text).join(' ');
-                                if (nextRowText.includes('Nombre') && nextRowText.includes('Modalidad')) {
-                                    console.log('⏭️ Skipping table header row');
-                                    i++; // Skip the header row
-                                }
-                            }
+                            console.log(`Found province: ${currentProvince}`);
                             continue;
                         }
 
@@ -803,15 +765,7 @@ async function parsePDFWithCoordinates() {
 async function initializePDFData() {
     try {
         console.log('🔄 Auto-loading PDF data on startup...');
-
-        // FIRST set PDF_URL, THEN process
-        const urlResult = await getLatestPdfUrl();
-        PDF_URL = urlResult.pdfUrl;
-        PDF_HEADING = urlResult.headingText;
-
-        console.log('📝 PDF_URL set to:', PDF_URL);
-
-        // NOW process the PDF
+        console.log('📝 Current PDF_URL before processing:', PDF_URL);
 
         const result = await parsePDFWithCoordinates();
         if (result.success) {
@@ -830,31 +784,6 @@ async function initializePDFData() {
 initializePDFData();
 
 // Basic endpoints
-
-app.get('/api/debug-pdf-processing', async (req, res) => {
-    try {
-        console.log('🔄 Manually running PDF processing with debug...');
-
-        const urlResult = await getLatestPdfUrl();
-        PDF_URL = urlResult.pdfUrl;
-
-        // Add detailed logging to parsePDFWithCoordinates temporarily
-        // We'll add console logs to track the flow
-
-        const result = await parsePDFWithCoordinates();
-
-        res.json({
-            success: result.success,
-            pagesProcessed: 56, // From your logs
-            rentalsFound: PDF_RENTALS.length,
-            pdfUrl: PDF_URL,
-            status: PDF_STATUS
-        });
-    } catch (error) {
-        res.json({ error: error.message });
-    }
-});
-
 
 // Debug endpoint to check current rentals state
 app.get('/api/debug-rentals', (req, res) => {
@@ -888,62 +817,9 @@ app.get('/api/test-heading', async (req, res) => {
     }
 });
 
-app.get('/api/test-current-pdf', async (req, res) => {
-    try {
-        console.log('🔍 Testing current PDF URL extraction...');
-        const result = await getLatestPdfUrl();
-
-        res.json({
-            extractedUrl: result.pdfUrl,
-            extractedHeading: result.headingText,
-            message: 'URL extraction successful'
-        });
-    } catch (error) {
-        res.json({
-            error: error.message,
-            fallbackUrl: 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf'
-        });
-    }
-});
-
-app.get('/api/test-download-extracted-pdf', async (req, res) => {
-    try {
-        // First get the current PDF URL
-        const urlResult = await getLatestPdfUrl();
-        const pdfUrl = urlResult.pdfUrl;
-
-        console.log('🧪 Testing download of extracted PDF:', pdfUrl);
-
-        const response = await axios.get(pdfUrl, {
-            responseType: 'arraybuffer',
-            timeout: 15000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'application/pdf, */*',
-                'Referer': 'https://www.atp.gob.pa/'
-            }
-        });
-
-        res.json({
-            success: true,
-            pdfUrl: pdfUrl,
-            length: response.data.length,
-            isPDF: response.data.slice(0, 4).toString() === '%PDF',
-            message: 'Extracted PDF download successful'
-        });
-    } catch (error) {
-        res.json({
-            success: false,
-            error: error.message,
-            pdfUrl: pdfUrl
-        });
-    }
-});
-
 app.get('/api/test-pdf-download', async (req, res) => {
     try {
-        const urlResult = await getLatestPdfUrl();
-        const testUrl = urlResult.pdfUrl;
+        const testUrl = 'https://www.atp.gob.pa/wp-content/uploads/2025/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf';
         console.log('🧪 Testing PDF download from:', testUrl);
 
         const response = await axios.get(testUrl, {
