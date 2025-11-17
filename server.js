@@ -525,7 +525,7 @@ async function parsePDFWithCoordinates() {
             } else {
                 throw new Error('Invalid PDF format');
             } */
-        }
+        
 
         console.log('Processing PDF...');
         const pdf = await pdfjsLib.getDocument(data).promise;
