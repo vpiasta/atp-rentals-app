@@ -480,8 +480,8 @@ function isHeaderRow(rowText) {
 
 // Coordinate-based PDF parsing
 async function parsePDFWithCoordinates() {
+    const startTime = Date.now();
     try {
-        const startTime = Date.now();
         console.log('Starting function parsePDFWithCoordinates()');
         console.log('🔄 Loading ATP web page...');
         PDF_STATUS = "Loading ATP web page...";
@@ -525,7 +525,7 @@ async function parsePDFWithCoordinates() {
             } else {
                 throw new Error('Invalid PDF format');
             } */
-        
+
 
         console.log('Processing PDF...');
         const pdf = await pdfjsLib.getDocument(data).promise;
