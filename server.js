@@ -13,6 +13,7 @@ const supabase = require('./db');   // <-- Supabase client
 const app = express();
 const PORT = process.env.PORT || 3000;
 const https = require('https');
+const http = require('http');
 
 app.use(cors());
 app.use(express.json());
@@ -212,6 +213,8 @@ async function getLatestPdfUrl() {
     const response = await axios.get(atpUrl, {
         timeout: 20000,
         maxRedirects: 10,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
         httpsAgent: new https.Agent({ rejectUnauthorized: false }),
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
