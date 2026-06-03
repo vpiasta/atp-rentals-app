@@ -1,24 +1,76 @@
 // scripts/update-listings.js
 // Runs as a GitHub Action — fetches ATP page, parses PDF, updates Supabase
-// Never runs on Hostinger — only on GitHub's servers (which ATP doesn't block)
+// Uses direct REST API calls — no Supabase JS client, no WebSocket needed
 
 const axios = require('axios');
 const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-const { createClient } = require('@supabase/supabase-js');
 
-// Supabase client (credentials injected by GitHub Action secrets)
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY,
-    {
-        realtime: {
-            params: { eventsPerSecond: 0 }
-        },
-        global: {
-            headers: { 'x-my-custom-header': 'update-script' }
-        }
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.error('❌ Missing SUPABASE_URL or SUPABASE_ANON_KEY');
+    process.exit(1);
+}
+
+// Direct REST calls — no Supabase JS client, no WebSocket issue
+const supabaseHeaders = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=minimal'
+};
+
+async function getSavedPdfMeta() {
+    const res = await axios.get(`${SUPABASE_URL}/rest/v1/pdf_meta?limit=1`, {
+        headers: { ...supabaseHeaders, 'Prefer': 'return=representation' }
+    });
+    return res.data.length > 0 ? res.data[0] : null;
+}
+
+async function savePdfMeta(pdfUrl, pdfHeading) {
+    const existing = await getSavedPdfMeta();
+    const payload = {
+        pdf_url: pdfUrl,
+        pdf_heading: pdfHeading,
+        last_updated: new Date().toISOString()
+    };
+    if (existing) {
+        await axios.patch(
+            `${SUPABASE_URL}/rest/v1/pdf_meta?id=eq.${existing.id}`,
+            payload,
+            { headers: supabaseHeaders }
+        );
+    } else {
+        await axios.post(
+            `${SUPABASE_URL}/rest/v1/pdf_meta`,
+            payload,
+            { headers: supabaseHeaders }
+        );
     }
-);
+    console.log('✅ pdf_meta saved');
+}
+
+async function saveListingsToDB(rentals) {
+    console.log(`💾 Saving ${rentals.length} listings...`);
+    // Delete all existing rows
+    await axios.delete(
+        `${SUPABASE_URL}/rest/v1/listings?id=neq.0`,
+        { headers: supabaseHeaders }
+    );
+    // Insert in batches of 500
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < rentals.length; i += BATCH_SIZE) {
+        const batch = rentals.slice(i, i + BATCH_SIZE);
+        await axios.post(
+            `${SUPABASE_URL}/rest/v1/listings`,
+            batch,
+            { headers: supabaseHeaders }
+        );
+        console.log(`  ✅ Batch ${Math.floor(i/BATCH_SIZE)+1}: rows ${i+1}–${Math.min(i+BATCH_SIZE, rentals.length)}`);
+    }
+    console.log(`✅ All ${rentals.length} listings saved`);
+}
 
 // ─── Column boundaries (same as server.js) ───────────────────────────────────
 const COLUMN_BOUNDARIES = {
@@ -53,13 +105,10 @@ async function getLatestPdfUrl() {
     if (match) {
         const pdfUrl = new URL(match[1], atpUrl).href;
         console.log('✅ PDF URL found:', pdfUrl);
-
-        // Extract heading text for the "last updated" date
         const h3Match = html.match(/<h3[^>]*>([^<]*Actualizado[^<]*)<\/h3>/i);
         const headingText = h3Match
             ? `Hospedajes - ${h3Match[1].trim()}`
             : 'Hospedajes - Registrados por la Autoridad de Turismo de Panamá (ATP)';
-
         return { pdfUrl, headingText };
     }
 
@@ -75,42 +124,7 @@ async function getLatestPdfUrl() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  STEP 2 — Check if URL has changed since last run
-// ═════════════════════════════════════════════════════════════════════════════
-async function getSavedPdfMeta() {
-    const { data, error } = await supabase
-        .from('pdf_meta')
-        .select('*')
-        .limit(1)
-        .single();
-    if (error) return null;
-    return data;
-}
-
-async function savePdfMeta(pdfUrl, pdfHeading) {
-    const existing = await getSavedPdfMeta();
-    const payload = {
-        pdf_url: pdfUrl,
-        pdf_heading: pdfHeading,
-        last_updated: new Date().toISOString()
-    };
-    if (existing) {
-        const { error } = await supabase
-            .from('pdf_meta')
-            .update(payload)
-            .eq('id', existing.id);
-        if (error) throw error;
-    } else {
-        const { error } = await supabase
-            .from('pdf_meta')
-            .insert(payload);
-        if (error) throw error;
-    }
-    console.log('✅ pdf_meta saved to Supabase');
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  STEP 3 — Download and parse the PDF
+//  STEP 2 — Download and parse the PDF
 // ═════════════════════════════════════════════════════════════════════════════
 async function downloadAndParsePdf(pdfUrl) {
     console.log('📥 Downloading PDF:', pdfUrl);
@@ -183,32 +197,6 @@ async function downloadAndParsePdf(pdfUrl) {
     if (currentRental) allRentals.push(currentRental);
     console.log(`\n✅ Parsed ${allRentals.length} listings from ${numPages} pages`);
     return allRentals;
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  STEP 4 — Save listings to Supabase
-// ═════════════════════════════════════════════════════════════════════════════
-async function saveListingsToDB(rentals) {
-    console.log(`💾 Saving ${rentals.length} listings to Supabase...`);
-
-    // Delete all existing listings
-    const { error: deleteError } = await supabase
-        .from('listings')
-        .delete()
-        .neq('id', 0);
-    if (deleteError) throw deleteError;
-
-    // Insert in batches of 500
-    const BATCH_SIZE = 500;
-    for (let i = 0; i < rentals.length; i += BATCH_SIZE) {
-        const batch = rentals.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase
-            .from('listings')
-            .insert(batch);
-        if (error) throw error;
-        console.log(`  ✅ Batch ${Math.floor(i / BATCH_SIZE) + 1}: rows ${i + 1}–${Math.min(i + BATCH_SIZE, rentals.length)}`);
-    }
-    console.log(`✅ All ${rentals.length} listings saved`);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -298,16 +286,13 @@ async function main() {
     console.log('═══════════════════════════════════════');
 
     try {
-        // Step 1: Get current PDF URL from ATP
         const { pdfUrl, headingText } = await getLatestPdfUrl();
 
-        // Step 2: Compare with saved URL
         const savedMeta = await getSavedPdfMeta();
         const savedUrl = savedMeta ? savedMeta.pdf_url : null;
 
         if (pdfUrl === savedUrl) {
             console.log('✅ PDF URL unchanged — database is already up to date');
-            console.log('   No action needed.');
             process.exit(0);
         }
 
@@ -315,27 +300,23 @@ async function main() {
         console.log('   Old:', savedUrl || '(none)');
         console.log('   New:', pdfUrl);
 
-        // Step 3: Parse the PDF
         const rentals = await downloadAndParsePdf(pdfUrl);
 
         if (rentals.length === 0) {
             throw new Error('PDF parsed but returned 0 listings — aborting to protect existing data');
         }
 
-        // Step 4: Save to Supabase
         await saveListingsToDB(rentals);
         await savePdfMeta(pdfUrl, headingText);
 
         console.log('═══════════════════════════════════════');
-        console.log(`✅ SUCCESS: ${rentals.length} listings updated in Supabase`);
+        console.log(`✅ SUCCESS: ${rentals.length} listings updated`);
         console.log('═══════════════════════════════════════');
         process.exit(0);
 
     } catch (err) {
-        console.error('═══════════════════════════════════════');
         console.error('❌ FAILED:', err.message);
-        console.error('═══════════════════════════════════════');
-        process.exit(1);  // Non-zero exit marks the Action as failed in GitHub
+        process.exit(1);
     }
 }
 
