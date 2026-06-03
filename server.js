@@ -705,7 +705,8 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
+const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
+server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
     console.log(`📍 Main page: http://localhost:${PORT}`);
     console.log(`📍 Health:    http://localhost:${PORT}/health`);
