@@ -240,19 +240,36 @@ async function getLatestPdfUrl() {
 }
 
 function extractPdfAndHeading(html, baseUrl) {
-    console.log('🔍 Extracting PDF URL and heading from Hospedajes section...');
-    console.log('📝 HTML length:', html.length, 'Base URL:', baseUrl);
+    console.log('🔍 Extracting PDF URL and heading...');
 
-    const hospedajesRegex = /<div[^>]*class="wp-block-qubely-heading[^"]*"[^>]*id="hospedaje"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<a[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
-    const hospedajesMatch = html.match(hospedajesRegex);
-    console.log('🔍 Regex match result:', hospedajesMatch ? 'FOUND' : 'NOT FOUND');
-    if (hospedajesMatch) {
-        console.log('✅ Found Hospedajes section with specific structure');
-        const pdfUrl = new URL(hospedajesMatch[2], baseUrl).href;
+    // New ATP structure: simple anchor tag with .pdf href near "Descargar PDF" text
+    // Matches: <a href="https://www.atp.gob.pa/.../something.pdf">Descargar PDF</a>
+    const pdfLinkRegex = /<a[^>]+href="([^"]*\.pdf)"[^>]*>\s*Descargar PDF\s*<\/a>/i;
+    const match = html.match(pdfLinkRegex);
+
+    if (match) {
+        const pdfUrl = new URL(match[1], baseUrl).href;
+        console.log('✅ Found PDF URL:', pdfUrl);
+
+        // Extract heading from h3 near "Registrados por"
         const headingText = extractHeadingTextImproved(html, baseUrl);
         return { pdfUrl, headingText, fullMatch: true };
     }
-    console.log('❌ No match found with primary regex, trying fallback methods...');
+
+    // Fallback: find ANY .pdf link on the page from atp.gob.pa
+    console.log('⚠️  Primary regex failed, trying fallback...');
+    const fallbackRegex = /href="(https:\/\/www\.atp\.gob\.pa\/[^"]*\.pdf)"/i;
+    const fallbackMatch = html.match(fallbackRegex);
+    if (fallbackMatch) {
+        console.log('✅ Fallback PDF URL found:', fallbackMatch[1]);
+        return {
+            pdfUrl: fallbackMatch[1],
+            headingText: extractHeadingTextImproved(html, baseUrl),
+            fullMatch: false
+        };
+    }
+
+    console.log('❌ No PDF URL found');
     return { pdfUrl: null, headingText: null };
 }
 
