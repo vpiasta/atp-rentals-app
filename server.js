@@ -1,77 +1,219 @@
-// version 20251017 12:40  gets correct URL but does not process correctly
-// "PDF_URL":"https://www.atp.gob.pa/wp-content/uploads/2025/10/Reporte-de-Hospedajes-31-10-2025.pdf"
+// TrustedPanamaStays.com - server.js
+// Updated to use Supabase database:
+//   - On startup: serve from DB immediately, check PDF URL in background
+//   - Only re-parse PDF when ATP publishes a new one (URL changes)
 
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const axios = require('axios');
 const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+const supabase = require('./db');   // <-- Supabase client
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const https = require('https');
 
-
 app.use(cors());
 app.use(express.json());
-
-// Serve static files from the 'public' directory
 app.use(express.static('public'));
-
 
 // Suppress PDF.js font warnings
 const originalConsoleWarn = console.warn;
 console.warn = function(...args) {
-    // Filter out PDF.js font warnings
     if (args[0] && typeof args[0] === 'string' && args[0].includes('fetchStandardFontData')) {
-        return; // Suppress these warnings
+        return;
     }
     originalConsoleWarn.apply(console, args);
 };
 
-
-// Simple data
-let CURRENT_RENTALS = [
-    {
-        name: "APARTHOTEL BOQUETE",
-        type: "Aparta-Hotel",
-        email: "info@aparthotel-boquete.com",
-        phone: "68916669 / 68916660",
-        province: "CHIRIQUÍ",
-        district: "Boquete",
-        source: "SAMPLE_DATA"
-    }
-];
-
-let PDF_URL = 'PDF URL not found';   //'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';  // don't use Fallback URL if we cannot get it from the ATP website
-let PDF_HEADING = 'Hospedajes Registrados - ATP'; // Default heading
-
+// ─── In-memory state (still used for fast serving) ───────────────────────────
+let CURRENT_RENTALS = [];
+let PDF_URL = 'PDF URL not found';
+let PDF_HEADING = 'Hospedajes Registrados - ATP';
 let PDF_STATUS = "Not loaded";
 let PDF_RENTALS = [];
 let DATA_SOURCE = "";
 
-
-// Column boundaries from our previous work
+// ─── Column boundaries (unchanged) ───────────────────────────────────────────
 const COLUMN_BOUNDARIES = {
-    NOMBRE: { start: 0, end: 184 },
-    MODALIDAD: { start: 184, end: 265 },
-    CORREO: { start: 265, end: 481 },
+    NOMBRE:   { start: 0,   end: 184 },
+    MODALIDAD:{ start: 184, end: 265 },
+    CORREO:   { start: 265, end: 481 },
     TELEFONO: { start: 481, end: 600 }
 };
 
 
-// Function to get the latest PDF URL from ATP website using proxy Service
+// ═════════════════════════════════════════════════════════════════════════════
+//  DATABASE HELPERS
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Load all listings from Supabase into memory
+async function loadListingsFromDB() {
+    const { data, error } = await supabase
+        .from('listings')
+        .select('*');
+    if (error) throw error;
+    return data;
+}
+
+// Save all rentals to Supabase (replaces entire table content)
+async function saveListingsToDB(rentals) {
+    console.log(`💾 Saving ${rentals.length} listings to Supabase...`);
+
+    // Delete all existing listings first
+    const { error: deleteError } = await supabase
+        .from('listings')
+        .delete()
+        .neq('id', 0);   // delete all rows
+    if (deleteError) throw deleteError;
+
+    // Insert new listings in batches of 500 (Supabase limit)
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < rentals.length; i += BATCH_SIZE) {
+        const batch = rentals.slice(i, i + BATCH_SIZE);
+        const { error: insertError } = await supabase
+            .from('listings')
+            .insert(batch);
+        if (insertError) throw insertError;
+        console.log(`  ✅ Inserted batch ${Math.floor(i/BATCH_SIZE)+1}: rows ${i+1}–${Math.min(i+BATCH_SIZE, rentals.length)}`);
+    }
+    console.log(`✅ All ${rentals.length} listings saved to Supabase`);
+}
+
+// Get the saved PDF URL from pdf_meta table
+async function getSavedPdfUrl() {
+    const { data, error } = await supabase
+        .from('pdf_meta')
+        .select('*')
+        .limit(1)
+        .single();
+    if (error) return null;
+    return data;   // { id, pdf_url, pdf_heading, last_updated }
+}
+
+// Update pdf_meta with the new URL
+async function savePdfMeta(pdfUrl, pdfHeading) {
+    // Try update first, then insert if no row exists
+    const existing = await getSavedPdfUrl();
+    if (existing) {
+        const { error } = await supabase
+            .from('pdf_meta')
+            .update({ pdf_url: pdfUrl, pdf_heading: pdfHeading, last_updated: new Date().toISOString() })
+            .eq('id', existing.id);
+        if (error) throw error;
+    } else {
+        const { error } = await supabase
+            .from('pdf_meta')
+            .insert({ pdf_url: pdfUrl, pdf_heading: pdfHeading, last_updated: new Date().toISOString() });
+        if (error) throw error;
+    }
+    console.log('✅ pdf_meta updated in Supabase');
+}
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  STARTUP LOGIC
+// ═════════════════════════════════════════════════════════════════════════════
+
+async function initializeData() {
+    console.log('🚀 Starting TrustedPanamaStays server...');
+
+    // STEP 1: Load from database immediately so the site responds fast
+    try {
+        const dbListings = await loadListingsFromDB();
+        if (dbListings && dbListings.length > 0) {
+            CURRENT_RENTALS = dbListings;
+            DATA_SOURCE = 'supabase';
+            PDF_STATUS = `Loaded ${dbListings.length} listings from database`;
+            console.log(`✅ STEP 1: Loaded ${dbListings.length} listings from Supabase — site is live`);
+
+            // Also restore the saved PDF URL and heading
+            const meta = await getSavedPdfUrl();
+            if (meta) {
+                PDF_URL = meta.pdf_url || PDF_URL;
+                PDF_HEADING = meta.pdf_heading || PDF_HEADING;
+                console.log(`✅ STEP 1: Restored PDF meta: ${PDF_URL}`);
+            }
+        } else {
+            console.log('ℹ️  STEP 1: Database is empty — will parse PDF now');
+        }
+    } catch (err) {
+        console.error('❌ STEP 1: Could not load from Supabase:', err.message);
+    }
+
+    // STEP 2: Check ATP for a new PDF in the background (don't block startup)
+    checkForPdfUpdate().catch(err =>
+        console.error('❌ Background PDF check failed:', err.message)
+    );
+}
+
+// Background check: only re-parses PDF when the URL has changed
+async function checkForPdfUpdate() {
+    console.log('🔄 STEP 2: Checking ATP for PDF updates (background)...');
+    try {
+        const atpResult = await getLatestPdfUrl();
+        const newUrl = atpResult.pdfUrl;
+
+        if (!newUrl) {
+            console.log('⚠️  Could not retrieve PDF URL from ATP — skipping update');
+            return;
+        }
+
+        // Compare with what's saved in the database
+        const meta = await getSavedPdfUrl();
+        const savedUrl = meta ? meta.pdf_url : null;
+
+        if (newUrl === savedUrl && CURRENT_RENTALS.length > 0) {
+            console.log('✅ STEP 2: PDF URL unchanged — using existing database data');
+            PDF_URL = newUrl;
+            PDF_HEADING = atpResult.headingText || PDF_HEADING;
+            return;
+        }
+
+        // URL has changed (or DB was empty) — re-parse the PDF
+        console.log(`🆕 STEP 2: New PDF detected!`);
+        console.log(`   Old: ${savedUrl}`);
+        console.log(`   New: ${newUrl}`);
+
+        // Temporarily set URL so parsePDFWithCoordinates picks it up
+        PDF_URL = newUrl;
+        PDF_HEADING = atpResult.headingText || PDF_HEADING;
+
+        const result = await parsePDFWithCoordinates();
+        if (result.success && PDF_RENTALS.length > 0) {
+            // Save to database
+            await saveListingsToDB(PDF_RENTALS);
+            await savePdfMeta(newUrl, PDF_HEADING);
+
+            // Update in-memory state
+            CURRENT_RENTALS = PDF_RENTALS;
+            DATA_SOURCE = 'atp-pdf';
+            console.log(`✅ STEP 2: Database updated with ${PDF_RENTALS.length} listings from new PDF`);
+        }
+    } catch (err) {
+        console.error('❌ STEP 2: PDF update check failed:', err.message);
+        // If we already have data from STEP 1, keep serving it — no problem
+    }
+}
+
+// Call on startup
+initializeData();
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  ATP WEBSITE & PDF FUNCTIONS  (unchanged from original)
+// ═════════════════════════════════════════════════════════════════════════════
+
 async function getLatestPdfUrl() {
     const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
-
-    // Try direct first, then proxy
     let html;
     const startTime = Date.now();
 
     try {
         console.log('🔄 Trying direct ATP website access...');
         const response = await axios.get(atpUrl, {
-            timeout: 8000, // 8 second timeout
+            timeout: 8000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -87,15 +229,12 @@ async function getLatestPdfUrl() {
         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(atpUrl)}`;
         const response = await axios.get(proxyUrl, {
             timeout: 15000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
         });
         html = response.data;
         console.log(`✅ Proxy ATP access successful: ${Date.now() - startTime}ms`);
     }
 
-    // Rest of your extraction logic...
     const result = extractPdfAndHeading(html, atpUrl);
     return result;
 }
@@ -104,130 +243,71 @@ function extractPdfAndHeading(html, baseUrl) {
     console.log('🔍 Extracting PDF URL and heading from Hospedajes section...');
     console.log('📝 HTML length:', html.length, 'Base URL:', baseUrl);
 
-    // Method 1: Look for the specific Hospedajes section structure
     const hospedajesRegex = /<div[^>]*class="wp-block-qubely-heading[^"]*"[^>]*id="hospedaje"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<a[^>]*class="[^"]*qubely-block-btn-anchor[^"]*"[^>]*href="([^"]*\.pdf)"[^>]*>/i;
     const hospedajesMatch = html.match(hospedajesRegex);
     console.log('🔍 Regex match result:', hospedajesMatch ? 'FOUND' : 'NOT FOUND');
     if (hospedajesMatch) {
         console.log('✅ Found Hospedajes section with specific structure');
-        console.log('📝 Full match groups:', hospedajesMatch.length);
-
-        const headingHtml = hospedajesMatch[1];
         const pdfUrl = new URL(hospedajesMatch[2], baseUrl).href;
-
-        // Extract clean heading text from the HTML - IMPROVED VERSION
-        console.log('🔄 Calling extractHeadingTextImproved...');
         const headingText = extractHeadingTextImproved(html, baseUrl);
-
-        return {
-            pdfUrl: pdfUrl,
-            headingText: headingText,
-            fullMatch: true
-        };
+        return { pdfUrl, headingText, fullMatch: true };
     }
     console.log('❌ No match found with primary regex, trying fallback methods...');
-    // Rest of your existing fallback methods...
     return { pdfUrl: null, headingText: null };
 }
 
 function extractHeadingTextImproved(html, baseUrl) {
-
-    // Look for the specific structure we know exists
-    // Based on your HTML snippet:
-    // <h4>Hospedajes</h4> and <h3>Registrados por la Autoridad de Turismo de Panamá (ATP). Actualizado al 5 de septiembre de 2025</h3>
-
     const h4Match = html.match(/<h4[^>]*>([^<]+)<\/h4>/i);
     const h3Match = html.match(/<h3[^>]*>([^<]+)<\/h3>/i);
-
     let headingParts = [];
-
-    if (h4Match && h4Match[1]) {
-        headingParts.push(h4Match[1].trim());
-    }
-
-    if (h3Match && h3Match[1]) {
-        headingParts.push(h3Match[1].trim());
-    }
-
+    if (h4Match && h4Match[1]) headingParts.push(h4Match[1].trim());
+    if (h3Match && h3Match[1]) headingParts.push(h3Match[1].trim());
     if (headingParts.length > 0) {
         const fullHeading = headingParts.join(' - ');
         console.log('📝 Extracted full heading:', fullHeading);
         return fullHeading;
     }
-
-    // If we can't extract specific headings, search for the context around "Hospedajes"
     const hospedajesIndex = html.indexOf('Hospedajes');
     if (hospedajesIndex !== -1) {
         const context = html.substring(Math.max(0, hospedajesIndex - 50), hospedajesIndex + 500);
-        console.log('🔍 Context around Hospedajes:', context.substring(0, 200));
-
-        // Try to extract date from context
         const dateMatch = context.match(/Actualizado al (\d+ de [a-z]+ de \d{4})/i);
         if (dateMatch) {
-            const fullHeading = `Hospedajes - Registrados por la Autoridad de Turismo de Panamá (ATP). ${dateMatch[0]}`;
-            console.log('📝 Constructed heading with date:', fullHeading);
-            return fullHeading;
+            return `Hospedajes - Registrados por la Autoridad de Turismo de Panamá (ATP). ${dateMatch[0]}`;
         }
     }
-
-    // Final fallback
     return "Hospedajes - Registrados por la Autoridad de Turismo de Panamá (ATP)";
 }
 
 function extractHeadingText(html) {
-    // Try to extract both h4 and h3 text without breaking the existing flow
     const h4Match = html.match(/<h4[^>]*>([^<]+)<\/h4>/i);
     const h3Match = html.match(/<h3[^>]*>([^<]+)<\/h3>/i);
-
     let headingText = 'Hospedajes';
-
     if (h4Match && h3Match) {
         headingText = `${h4Match[1].trim()} - ${h3Match[1].trim()}`;
     } else if (h3Match) {
         headingText = `Hospedajes - ${h3Match[1].trim()}`;
     }
-
     console.log('📝 Extracted heading text:', headingText);
     return headingText;
 }
 
 function extractHeadingTextFromContext(context) {
-    // Look for h3 and h4 tags in the context
     const h3Match = context.match(/<h3[^>]*>([^<]+)<\/h3>/);
     const h4Match = context.match(/<h4[^>]*>([^<]+)<\/h4>/);
-
     let headingParts = [];
-
-    if (h4Match && h4Match[1]) {
-        headingParts.push(h4Match[1].trim());
-    }
-
-    if (h3Match && h3Match[1]) {
-        headingParts.push(h3Match[1].trim());
-    }
-
-    if (headingParts.length > 0) {
-        const fullHeading = headingParts.join(' - ');
-        console.log('📝 Extracted full heading from context:', fullHeading);
-        return fullHeading;
-    }
-
-    // Fallback: if we can't extract specific headings, return a descriptive text
+    if (h4Match && h4Match[1]) headingParts.push(h4Match[1].trim());
+    if (h3Match && h3Match[1]) headingParts.push(h3Match[1].trim());
+    if (headingParts.length > 0) return headingParts.join(' - ');
     return "Hospedajes Registrados por la Autoridad de Turismo de Panamá (ATP)";
 }
 
-
-// Function to extract and format the date from heading text
 function extractFormattedDate(headingText) {
     try {
         console.log('📅 Extracting date from heading:', headingText);
-
-        // Look for date patterns in the text
         const datePatterns = [
-            /Actualizado al (\d+ de [a-z]+ de \d{4})/i, // "Actualizado al (dia) de (mes) de (año yyyy)"
-            /(\d+ de [a-z]+ de \d{4})/i, // "5 de septiembre de 2025"
+            /Actualizado al (\d+ de [a-z]+ de \d{4})/i,
+            /(\d+ de [a-z]+ de \d{4})/i,
         ];
-
         for (const pattern of datePatterns) {
             const match = headingText.match(pattern);
             if (match) {
@@ -236,138 +316,60 @@ function extractFormattedDate(headingText) {
                 return convertSpanishDateToUS(dateStr);
             }
         }
-
-        // If no date found, try to extract from PDF URL as fallback
         if (PDF_URL) {
             const urlDateMatch = PDF_URL.match(/\/(\d{4})\/(\d{2})\/.*?(\d{1,2})-(\d{1,2})-(\d{4})/);
             if (urlDateMatch) {
                 const [, year, month, day] = urlDateMatch;
                 const date = new Date(year, month - 1, day);
-                const formatted = date.toLocaleDateString('en-US', {
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric'
-                });
-                console.log('📅 Extracted date from PDF URL:', formatted);
-                return formatted;
+                return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
             }
         }
-
-        // Final fallback to current date
-        console.log('📅 Using current date as fallback');
         const currentDate = new Date();
-        return currentDate.toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric'
-        });
-
+        return currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     } catch (error) {
         console.error('❌ Error extracting date:', error);
-        const currentDate = new Date();
-        return currentDate.toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric'
-        });
+        return new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     }
 }
 
-// Function to convert Spanish date to US format
 function convertSpanishDateToUS(spanishDate) {
     const months = {
         'enero': 'January', 'febrero': 'February', 'marzo': 'March', 'abril': 'April',
         'mayo': 'May', 'junio': 'June', 'julio': 'July', 'agosto': 'August',
         'septiembre': 'September', 'octubre': 'October', 'noviembre': 'November', 'diciembre': 'December'
     };
-
-    // Handle "5 de septiembre de 2025" format
     const deMatch = spanishDate.match(/(\d+) de ([a-z]+) de (\d{4})/i);
     if (deMatch) {
         const [, day, monthEs, year] = deMatch;
         const monthEn = months[monthEs.toLowerCase()];
-        if (monthEn) {
-            return `${monthEn} ${parseInt(day)}, ${year}`;
-        }
+        if (monthEn) return `${monthEn} ${parseInt(day)}, ${year}`;
     }
-
-    // Handle "05/09/2025" format
     const slashMatch = spanishDate.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     if (slashMatch) {
         const [, day, month, year] = slashMatch;
         const date = new Date(year, month - 1, day);
         return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     }
-
-    // If no pattern matches, return original
-    console.log('❌ Unknown date format:', spanishDate);
     return spanishDate;
 }
 
-function extractHeadingTextFromContext(context) {
-    // Look for the h4 and h3 text in the context
-    const h4Match = context.match(/<h4[^>]*>([^<]*)<\/h4>/i);
-    const h3Match = context.match(/<h3[^>]*>([^<]*)<\/h3>/i);
-
-    let headingText = '';
-
-    if (h4Match && h4Match[1]) {
-        headingText += h4Match[1].trim();
-    }
-
-    if (h3Match && h3Match[1]) {
-        if (headingText) headingText += ' - ';
-        headingText += h3Match[1].trim();
-    }
-
-    // If no specific headings found, return generic text
-    if (!headingText) {
-        headingText = "Hospedajes Registrados por la Autoridad de Turismo de Panamá (ATP)";
-    }
-
-    console.log('📝 Context extracted heading:', headingText);
-    return headingText;
-}
-
-
-// Group text items into rows based on Y coordinates
 function groupIntoRows(textItems) {
     const rows = {};
     const Y_TOLERANCE = 1.5;
-
     textItems.forEach(item => {
         if (!item.text.trim()) return;
-
-        const existingKey = Object.keys(rows).find(y =>
-            Math.abs(parseFloat(y) - item.y) <= Y_TOLERANCE
-        );
-
+        const existingKey = Object.keys(rows).find(y => Math.abs(parseFloat(y) - item.y) <= Y_TOLERANCE);
         const rowY = existingKey || item.y.toString();
         if (!rows[rowY]) rows[rowY] = [];
         rows[rowY].push(item);
     });
-
-    // Convert to array and sort by Y (top to bottom)
     return Object.entries(rows)
         .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
-        .map(([y, items]) => ({
-            y: parseFloat(y),
-            items: items.sort((a, b) => a.x - b.x)
-        }));
-}       // end of groupIntoRows
+        .map(([y, items]) => ({ y: parseFloat(y), items: items.sort((a, b) => a.x - b.x) }));
+}
 
-//============================================================
-
-// Parse row data into columns
 function parseRowData(row) {
-    const rental = {
-        name: '',
-        type: '',
-        email: '',
-        phone: ''
-    };
-
-    // Assign items to columns based on X position
+    const rental = { name: '', type: '', email: '', phone: '' };
     row.items.forEach(item => {
         if (item.x >= COLUMN_BOUNDARIES.NOMBRE.start && item.x < COLUMN_BOUNDARIES.NOMBRE.end) {
             rental.name += (rental.name ? ' ' : '') + item.text;
@@ -379,72 +381,33 @@ function parseRowData(row) {
             rental.phone += (rental.phone ? ' ' : '') + item.text;
         }
     });
-
-    // Clean the data
     rental.name = rental.name.trim();
     rental.type = rental.type.trim();
     rental.email = rental.email.trim();
     rental.phone = rental.phone.trim();
-
     return rental;
 }
 
-// Check if a row is a continuation of the previous row
 function isContinuationRow(rowData, previousRowData) {
-    console.log(`🔍 Checking continuation for: "${rowData.name?.substring(0, 20)}" | type: "${rowData.type}"`);
-
-    // 1. Check for specific multi-word type patterns
-    if (previousRowData.type === 'Hostal' && rowData.type === 'Familiar') {
-        console.log('✅ Continuation: Hostal + Familiar pattern');
-        return true;
-    }
-    if (previousRowData.type === 'Sitio de' && rowData.type === 'acampar') {
-        console.log('✅ Continuation: Sitio de + acampar pattern');
-        return true;
-    }
-    if (!rowData.type) {
-        console.log('✅ Continuation: No type in current row');
-        return true;
-    }
-
-    // 2. Check for email continuation
-    if (previousRowData.email && rowData.email && !rowData.type ) {
-        // Check if previous email is incomplete (doesn't look like a complete email)
+    if (previousRowData.type === 'Hostal' && rowData.type === 'Familiar') return true;
+    if (previousRowData.type === 'Sitio de' && rowData.type === 'acampar') return true;
+    if (!rowData.type) return true;
+    if (previousRowData.email && rowData.email && !rowData.type) {
         const isPreviousEmailComplete = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(previousRowData.email);
-        if (!isPreviousEmailComplete) {
-            console.log('✅ Continuation: Incomplete email continues');
-            return true;
-        }
+        if (!isPreviousEmailComplete) return true;
     }
-
-    // 3. Check for phone continuation
     if (previousRowData.phone && rowData.phone && !rowData.type) {
-        // Phone continues if previous ends with hyphen (number interrupted)
-        if (previousRowData.phone.endsWith('-')) {
-            console.log('✅ Continuation: Phone continues with hyphen');
-            return true;
-        }
-        // OR if previous ends with slash AND current doesn't end with slash (second number)
-        if (previousRowData.phone.endsWith('/') && !rowData.phone.endsWith('/')) {
-            console.log('✅ Continuation: Phone continues after slash');
-            return true;
-        }
+        if (previousRowData.phone.endsWith('-')) return true;
+        if (previousRowData.phone.endsWith('/') && !rowData.phone.endsWith('/')) return true;
     }
-
-    console.log(`✅ Not a continuation: row has type "${rowData.type}"`);
     return false;
 }
 
-// Merge two rows that belong to the same rental
 function mergeRentalRows(previousRental, continuationRow) {
     const merged = { ...previousRental };
-
-    // Merge name with space
     if (continuationRow.name) {
         merged.name = (previousRental.name + ' ' + continuationRow.name).trim();
     }
-
-    // Merge type - handle special cases
     if (continuationRow.type) {
         if (previousRental.type === 'Hostal' && continuationRow.type === 'Familiar') {
             merged.type = 'Hostal Familiar';
@@ -452,13 +415,9 @@ function mergeRentalRows(previousRental, continuationRow) {
             merged.type = 'Sitio de acampar';
         }
     }
-
-    // Merge email without space
     if (continuationRow.email) {
         merged.email = (previousRental.email + continuationRow.email).trim();
     }
-
-    // Merge phone with proper formatting
     if (continuationRow.phone) {
         if (previousRental.phone.endsWith('/')) {
             merged.phone = (previousRental.phone + ' ' + continuationRow.phone).trim();
@@ -468,55 +427,36 @@ function mergeRentalRows(previousRental, continuationRow) {
             merged.phone = (previousRental.phone + ' ' + continuationRow.phone).trim();
         }
     }
-
     return merged;
 }
 
-// Function to detect if a row is a page header or table header
 function isHeaderRow(rowText) {
-    // Page headers
     if (rowText.includes('Reporte de Hospedajes vigentes') ||
         rowText.includes('Página') ||
         rowText.includes('Total por provincia') ||
         rowText.includes('rep_hos_web')) {
-        console.log(`Header detected: ${rowText}`);
         return true;
     }
-
-    // Table headers
-    if (rowText.includes('Nombre') &&
-          (rowText.includes('Modalidad') || rowText.includes('Correo'))) {
-          console.log(`Table header detected: ${rowText}`);
+    if (rowText.includes('Nombre') && (rowText.includes('Modalidad') || rowText.includes('Correo'))) {
         return true;
     }
-
     return false;
 }
 
-// Coordinate-based PDF parsing
+// PDF parsing (unchanged logic, just called from checkForPdfUpdate now)
 async function parsePDFWithCoordinates() {
     const startTime = Date.now();
     try {
-        console.log('Starting function parsePDFWithCoordinates()');
-        console.log('🔄 Loading ATP web page...');
-        PDF_STATUS = "Loading ATP web page...";
+        console.log('Starting parsePDFWithCoordinates()...');
+        PDF_STATUS = "Downloading PDF...";
 
-        // STEP 1: Get PDF URL from ATP website FIRST
-        console.log('STEP 1: Getting PDF URL from ATP website...');
-        const result = await getLatestPdfUrl();
-        console.log(`STEP 1 COMPLETE after ${Date.now() - startTime}ms`);
-        PDF_URL = result.pdfUrl;
-        console.log('📝 Updated PDF_URL to:', PDF_URL);
-
-        // STEP 2:  AFTER we have the URL, download the PDF  - try direct first, then proxy
-        console.log('STEP 2: Downloading PDF file...');
+        // Download the PDF (PDF_URL already set by checkForPdfUpdate)
         let response;
-
         try {
-            console.log('🔄 Trying direct download...');
+            console.log('🔄 Trying direct PDF download...');
             response = await axios.get(PDF_URL, {
                 responseType: 'arraybuffer',
-                timeout: 10000, // 10 second timeout for direct
+                timeout: 10000,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                     'Accept': 'application/pdf, */*',
@@ -524,57 +464,34 @@ async function parsePDFWithCoordinates() {
                 }
             });
             console.log('✅ Direct download successful');
-            } catch (directError) {
-              console.log('❌ Direct download failed, trying proxy...');
-              const proxyPdfUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(PDF_URL)}`;
-              console.log('🔄 STEP 2 Trying to download PDF file with axios:', PDF_URL);
-              const response = await axios.get(proxyPdfUrl, {
-              responseType: 'arraybuffer',
-              timeout: 30000,
-              headers: {
-                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                  'Accept': 'application/pdf, */*'
-              }
+        } catch (directError) {
+            console.log('❌ Direct download failed, trying proxy...');
+            const proxyPdfUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(PDF_URL)}`;
+            response = await axios.get(proxyPdfUrl, {
+                responseType: 'arraybuffer',
+                timeout: 30000,
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
             });
-            console.log(`STEP 2 COMPLETE after ${Date.now() - startTime}ms`);
-            console.log('PDF downloaded, response length:', response.data.length);
-          }
+            console.log('✅ Proxy download successful');
+        }
 
-        // Check if it's actually a PDF
         const data = new Uint8Array(response.data);
-
-        // Validate PDF header
-        if (data[0] === 0x25 && data[1] === 0x50 && data[2] === 0x44 && data[3] === 0x46) {
-            console.log('✅ Valid PDF header found (%PDF)');
-        } else {
-            // Check if it's HTML error page
-            const textStart = new TextDecoder().decode(data.slice(0, 100));
-            console.log('❌ Invalid PDF, starts with:', textStart.substring(0, 50));
+        if (!(data[0] === 0x25 && data[1] === 0x50 && data[2] === 0x44 && data[3] === 0x46)) {
             throw new Error('Invalid PDF format');
         }
-            /* if (textStart.includes('<html') || textStart.includes('<!DOCTYPE')) {
-                throw new Error('Server returned HTML instead of PDF');
-            } else {
-                throw new Error('Invalid PDF format');
-            } */
-
 
         console.log('Processing PDF...');
         const pdf = await pdfjsLib.getDocument(data).promise;
         const numPages = pdf.numPages;
-
         console.log(`PDF loaded with ${numPages} pages...`);
+
         const allRentals = [];
         let currentProvince = '';
         let currentRental = null;
 
-        // Process all pages
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-            console.log(`Processing page ${pageNum}...`);
             const page = await pdf.getPage(pageNum);
             const textContent = await page.getTextContent();
-
-            // Extract text with precise positioning
             const textItems = textContent.items.map(item => ({
                 text: item.str,
                 x: Math.round(item.transform[4] * 100) / 100,
@@ -582,475 +499,105 @@ async function parsePDFWithCoordinates() {
                 page: pageNum
             }));
 
-            // Group into rows
             const rows = groupIntoRows(textItems);
             console.log(`Page ${pageNum}: ${rows.length} rows found`);
 
-            // Process each row in this page
             for (let i = 0; i < rows.length; i++) {
                 const row = rows[i];
                 const rowText = row.items.map(item => item.text).join(' ');
 
-                // Detect province
                 if (rowText.includes('Provincia:')) {
                     currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
                     console.log(`Found province: ${currentProvince}`);
                     continue;
                 }
+                if (isHeaderRow(rowText) || !currentProvince) continue;
+                if (rowText.includes('Total por')) continue;
 
-                // Skip header rows
-                if (isHeaderRow(rowText) || !currentProvince) {
-                    console.log(`Skipping header row: ${rowText}`);
-                    continue;
-                }
-
-                // Skip summary rows
-                if (rowText.includes('Total por')) {
-                    console.log(`Skipping summary row: ${rowText}`);
-                    continue;
-                }
-
-                // Parse row data
                 const rowData = parseRowData(row);
-                console.log(`Processing row ${i}:`, {
-                  name: rowData.name?.substring(0, 30) || 'empty',
-                  type: rowData.type || 'empty',
-                  email: rowData.email?.substring(0, 20) || 'empty',
-                  phone: rowData.phone || 'empty'
-                });
-                console.log(`Current rental:`, currentRental ? {
-                    name: currentRental.name?.substring(0, 30) || 'empty',
-                    type: currentRental.type || 'empty',
-                    email: currentRental.email?.substring(0, 20) || 'empty',
-                    phone: currentRental.phone || 'empty'
-                } : 'null');
 
-                // ALWAYS check for continuation first - using the "no type" criterion
                 if (currentRental && isContinuationRow(rowData, currentRental)) {
-                    console.log(`🔄 Stitching row ${i} to previous rental`);
-                    console.log(`Before stitch - currentRental:`, currentRental);
-                    console.log(`Row to stitch:`, rowData);
                     currentRental = mergeRentalRows(currentRental, rowData);
-                    console.log(`After stitch - currentRental:`, currentRental);
-                    continue; // Skip the rest of the logic for this row
+                    continue;
                 }
-
-                // If we have a current rental and this row is NOT a continuation, save it
-                // BUT only if this row looks like a legitimate new rental start
                 if (currentRental && rowData.name && rowData.name.trim() &&
                     (rowData.type || rowData.email || rowData.phone)) {
-                    console.log(`💾 Saving current rental and starting new one:`, currentRental);
                     allRentals.push(currentRental);
                     currentRental = { ...rowData, province: currentProvince };
-                }
-                // If no current rental, start a new one if we have substantial data
-                else if (!currentRental && rowData.name && rowData.name.trim() &&
-                         (rowData.type || rowData.email || rowData.phone)) {
-                    console.log(`🆕 Starting new rental:`, rowData);
+                } else if (!currentRental && rowData.name && rowData.name.trim() &&
+                           (rowData.type || rowData.email || rowData.phone)) {
                     currentRental = { ...rowData, province: currentProvince };
-                }
-                // If we have minimal data but no current rental, start one cautiously
-                else if (!currentRental && rowData.name && rowData.name.trim()) {
-                    console.log(`⚠️ Starting cautious rental:`, rowData);
+                } else if (!currentRental && rowData.name && rowData.name.trim()) {
                     currentRental = { ...rowData, province: currentProvince };
-                }
-                // If we have a current rental but this row doesn't look like a new rental,
-                // just continue (don't save yet - it might be garbage data)
-                else if (currentRental) {
-                    console.log(`❓ Row doesn't look like continuation or new rental, keeping current rental`);
                 }
             }
         }
 
-        // Only save the final rental AFTER processing ALL pages
-        if (currentRental) {
-            allRentals.push(currentRental);
-        }
+        if (currentRental) allRentals.push(currentRental);
 
         PDF_RENTALS = allRentals;
         PDF_STATUS = `PDF parsed: ${allRentals.length} rentals found from ${numPages} pages`;
         console.log(`✅ ${PDF_STATUS}`);
-        console.log(`✅ PDF processing complete: ${allRentals.length} rentals extracted`);
         return { success: true, rentals: allRentals.length };
 
     } catch (error) {
-        console.error(`❌ PDF processing failed after ${Date.now() - startTime}ms:`, error.message);
-
-        // If the ATP PDF fails and we weren't already using the fallback, try the fallback
-        if (PDF_URL && !PDF_URL.includes('aparthotel-boquete.com')) {
-            console.log('🔄 ATP PDF failed, trying fallback URL...');
-            try {
-                const fallbackUrl = 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf';
-                console.log('Trying fallback URL:', fallbackUrl);
-
-                const fallbackResponse = await axios.get(fallbackUrl, {
-                    responseType: 'arraybuffer',
-                    timeout: 30000
-                });
-
-                console.log('Fallback PDF downloaded, processing...');
-                const fallbackData = new Uint8Array(fallbackResponse.data);
-                const pdf = await pdfjsLib.getDocument(fallbackData).promise;
-                const numPages = pdf.numPages;
-                console.log(`Fallback PDF loaded with ${numPages} pages`);
-
-                // Now run your existing processing logic with the fallback data
-                // You'll need to copy the processing logic from above here
-                // Or extract it into a separate function to avoid duplication
-
-                const allRentals = [];
-                let currentProvince = '';
-                let currentRental = null;
-
-                // Process all pages (same logic as above)
-                for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-                    console.log(`Processing page ${pageNum}...`);
-                    const page = await pdf.getPage(pageNum);
-                    const textContent = await page.getTextContent();
-
-                    // Extract text with precise positioning
-                    const textItems = textContent.items.map(item => ({
-                        text: item.str,
-                        x: Math.round(item.transform[4] * 100) / 100,
-                        y: Math.round(item.transform[5] * 100) / 100,
-                        page: pageNum
-                    }));
-
-                    // Group into rows
-                    const rows = groupIntoRows(textItems);
-                    console.log(`Page ${pageNum}: ${rows.length} rows found`);
-
-                    // Process each row (same logic as above)
-                    for (let i = 0; i < rows.length; i++) {
-                        const row = rows[i];
-                        const rowText = row.items.map(item => item.text).join(' ');
-
-                        // Detect province
-                        if (rowText.includes('Provincia:')) {
-                            currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
-                            console.log(`Found province: ${currentProvince}`);
-                            continue;
-                        }
-
-                        // Skip header rows
-                        if (isHeaderRow(rowText) || !currentProvince) {
-                            console.log(`Skipping header row: ${rowText}`);
-                            continue;
-                        }
-
-                        // Skip summary rows
-                        if (rowText.includes('Total por')) {
-                            console.log(`Skipping summary row: ${rowText}`);
-                            continue;
-                        }
-
-                        // Parse row data
-                        const rowData = parseRowData(row);
-                        console.log(`Processing row ${i}:`, rowData);
-                        console.log(`Current rental:`, currentRental);
-
-                        // ALWAYS check for continuation first
-                        if (currentRental && isContinuationRow(rowData, currentRental)) {
-                            console.log(`🔄 Stitching row ${i} to previous rental`);
-                            currentRental = mergeRentalRows(currentRental, rowData);
-                            continue;
-                        }
-
-                        // If we have a current rental and this row is NOT a continuation, save it
-                        if (currentRental && rowData.name && rowData.name.trim() &&
-                            (rowData.type || rowData.email || rowData.phone)) {
-                            console.log(`💾 Saving current rental and starting new one:`, currentRental);
-                            allRentals.push(currentRental);
-                            currentRental = { ...rowData, province: currentProvince };
-                        }
-                        else if (!currentRental && rowData.name && rowData.name.trim() &&
-                                 (rowData.type || rowData.email || rowData.phone)) {
-                            console.log(`🆕 Starting new rental:`, rowData);
-                            currentRental = { ...rowData, province: currentProvince };
-                        }
-                        else if (!currentRental && rowData.name && rowData.name.trim()) {
-                            console.log(`⚠️ Starting cautious rental:`, rowData);
-                            currentRental = { ...rowData, province: currentProvince };
-                        }
-                        else if (currentRental) {
-                            console.log(`❓ Row doesn't look like continuation or new rental, keeping current rental`);
-                        }
-                    }
-                }
-
-                // Only save the final rental AFTER processing ALL pages
-                if (currentRental) {
-                    allRentals.push(currentRental);
-                }
-
-                PDF_RENTALS = allRentals;
-                PDF_STATUS = `PDF parsed (fallback): ${allRentals.length} rentals found from ${numPages} pages`;
-                console.log(`✅ ${PDF_STATUS}`);
-
-                return { success: true, rentals: allRentals.length };
-
-            } catch (fallbackError) {
-                console.error('Fallback PDF also failed:', fallbackError.message);
-                PDF_STATUS = `PDF parsing failed: ${fallbackError.message}`;
-                throw fallbackError;
-            }
-        } else {
-            PDF_STATUS = `PDF parsing failed: ${error.message}`;
-            console.error('PDF error:', error);
-            throw error;
-        }
+        console.error(`❌ PDF parsing failed:`, error.message);
+        PDF_STATUS = `PDF parsing failed: ${error.message}`;
+        throw error;
     }
 }
 
-//
-async function initializePDFData() {
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  API ENDPOINTS  (unchanged, still serve from CURRENT_RENTALS in memory)
+// ═════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/stats', (req, res) => {
     try {
-        console.log('🔄 Initializing PDF data on startup...');
-        const result = await parsePDFWithCoordinates();
-        if (result.success) {
-            CURRENT_RENTALS = PDF_RENTALS;
-            DATA_SOURCE = 'atp-pdf';
-            console.log(`✅ Auto-loaded ${CURRENT_RENTALS.length} rentals from ATP PDF`);
-            console.log('📝 Final PDF_URL:', PDF_URL);
-        }
-    } catch (error) {
-        console.error('Auto-load error:', error);
-        DATA_SOURCE = 'fallback';
-    }
-}
-
-// Call this when server starts
-initializePDFData();
-
-// ****************************  Basic endpoints  ***************************
-
-// Timing debug endpoint
-app.get('/api/debug-timing', async (req, res) => {
-    const timingLog = [];
-    const originalLog = console.log;
-
-    // Capture all console logs
-    console.log = function(...args) {
-        timingLog.push({
-            timestamp: new Date().toISOString(),
-            message: args.join(' ')
-        });
-        originalLog.apply(console, args);
-    };
-
-    try {
-        console.log('=== STARTING DEBUG TIMING TEST ===');
-        await parsePDFWithCoordinates();
-        console.log('=== COMPLETED DEBUG TIMING TEST ===');
-
-        // Restore original console.log
-        console.log = originalLog;
-
         res.json({
-            success: true,
-            log: timingLog,
-            totalEntries: timingLog.length
+            total_rentals: CURRENT_RENTALS.length,
+            last_updated: new Date().toISOString(),
+            status: PDF_STATUS || "Data Loaded",
+            features: "Search by name, type, province",
+            data_source: DATA_SOURCE || 'unknown'
         });
     } catch (error) {
-        console.log = originalLog;
-        res.json({
-            success: false,
-            error: error.message,
-            log: timingLog
-        });
+        res.status(500).json({ error: 'Failed to load statistics', total_rentals: 0 });
     }
 });
 
-
-// Debug endpoint to check current rentals state
-app.get('/api/debug-rentals', (req, res) => {
-    res.json({
-        CURRENT_RENTALS_length: CURRENT_RENTALS.length,
-        PDF_RENTALS_length: PDF_RENTALS.length,
-        PDF_URL: PDF_URL,
-        PDF_HEADING: PDF_HEADING,
-        PDF_STATUS: PDF_STATUS,
-        DATA_SOURCE: DATA_SOURCE
-    });
+app.get('/api/provinces', (req, res) => {
+    const provinceCounts = CURRENT_RENTALS.reduce((acc, rental) => {
+        if (rental.province) acc[rental.province] = (acc[rental.province] || 0) + 1;
+        return acc;
+    }, {});
+    const provinces = Object.entries(provinceCounts)
+        .map(([province, count]) => ({ province, count }))
+        .sort((a, b) => a.province.localeCompare(b.province));
+    res.json(provinces);
 });
 
-// Test endpoint to check heading extraction
-app.get('/api/test-heading', async (req, res) => {
-    try {
-        const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(atpUrl)}`;
+app.get('/api/types', (req, res) => {
+    const types = [...new Set(CURRENT_RENTALS.map(r => r.type))].filter(Boolean).sort();
+    res.json(types);
+});
 
-        const response = await axios.get(proxyUrl, {
-            timeout: 15000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-        });
-
-        const result = extractPdfAndHeading(response.data, atpUrl);
-        res.json(result);
-    } catch (error) {
-        res.json({ error: error.message });
+app.get('/api/rentals', (req, res) => {
+    const { search, province, type } = req.query;
+    let filteredRentals = [...CURRENT_RENTALS];
+    if (search) {
+        const searchLower = search.toLowerCase();
+        filteredRentals = filteredRentals.filter(r =>
+            r.name.toLowerCase().includes(searchLower) ||
+            (r.email && r.email.toLowerCase().includes(searchLower)) ||
+            (r.phone && r.phone.toLowerCase().includes(searchLower)) ||
+            (r.province && r.province.toLowerCase().includes(searchLower)) ||
+            (r.type && r.type.toLowerCase().includes(searchLower))
+        );
     }
-});
-
-app.get('/api/test-pdf-download', async (req, res) => {
-    try {
-        const testUrl = 'https://www.atp.gob.pa/wp-content/uploads/2025/09/REPORTE-HOSPEDAJES-VIGENTE-5-9-2025.pdf';
-        console.log('🧪 Testing PDF download from:', testUrl);
-
-        const response = await axios.get(testUrl, {
-            responseType: 'arraybuffer',
-            timeout: 15000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'application/pdf, */*',
-                'Referer': 'https://www.atp.gob.pa/'
-            }
-        });
-
-        res.json({
-            success: true,
-            length: response.data.length,
-            isPDF: response.data.slice(0, 4).toString() === '%PDF'
-        });
-    } catch (error) {
-        res.json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// endpoint for testing
-app.get('/api/debug-pdf-url', async (req, res) => {
-    try {
-        // If we already have ATP data, return current state
-        if (DATA_SOURCE === 'atp-pdf') {
-            return res.json({
-                success: true,
-                pdfUrl: PDF_URL,
-                heading: PDF_HEADING,
-                dataSource: DATA_SOURCE,
-                rentalsCount: CURRENT_RENTALS.length,
-                message: 'Using ATP PDF data (already loaded)'
-            });
-        }
-
-        // Otherwise, try to get the latest PDF URL
-        const result = await getLatestPdfUrl();
-        res.json({
-            success: true,
-            pdfUrl: result.pdfUrl,
-            heading: result.headingText,
-            dataSource: 'atp-pdf (not yet loaded)',
-            message: 'ATP PDF URL found, but data not loaded yet. Call /api/extract-pdf to load it.'
-        });
-    } catch (error) {
-        res.json({
-            success: false,
-            error: error.message,
-            pdfUrl: 'https://aparthotel-boquete.com/hospedajes/REPORTE-HOSPEDAJES-VIGENTE.pdf',
-            dataSource: 'fallback',
-            rentalsCount: CURRENT_RENTALS.length
-        });
-    }
-});
-
-app.get('/api/test-pdf-fetch', async (req, res) => {
-    try {
-        console.log('🧪 Testing PDF URL fetch directly...');
-        const result = await getLatestPdfUrl();
-
-        res.json({
-            directResult: result,
-            currentGlobalPDF_URL: PDF_URL,
-            areTheySame: result.pdfUrl === PDF_URL,
-            isATP: result.pdfUrl.includes('atp.gob.pa')
-        });
-    } catch (error) {
-        res.json({ error: error.message });
-    }
-});
-
-// Force reload of PDF data
-app.post('/api/reload-pdf', async (req, res) => {
-    try {
-        console.log('🔄 Manually reloading PDF data...');
-        await initializePDFData();
-
-        res.json({
-            success: true,
-            dataSource: DATA_SOURCE,
-            rentalsCount: CURRENT_RENTALS.length,
-            pdfUrl: PDF_URL,
-            heading: PDF_HEADING,
-            message: DATA_SOURCE === 'atp-pdf'
-                ? `PDF data reloaded: ${CURRENT_RENTALS.length} rentals`
-                : 'Using fallback data'
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message,
-            dataSource: DATA_SOURCE
-        });
-    }
-});
-
-// Debug endpoint to see stitching results
-app.get('/api/pdf-debug-stitching', (req, res) => {
-    const stitchedExamples = PDF_RENTALS.filter(rental =>
-        rental.name.includes(' ') && rental.name.split(' ').length > 2
-    ).slice(0, 5);
-
-    res.json({
-        total_stitched_rentals: PDF_RENTALS.filter(r => r.name.includes(' ') && r.name.split(' ').length > 2).length,
-        examples: stitchedExamples,
-        total_rentals: PDF_RENTALS.length
-    });
-});
-
-// PDF extraction endpoint
-app.post('/api/extract-pdf', async (req, res) => {
-    try {
-        const result = await parsePDFWithCoordinates();
-        res.json({
-            success: result.success,
-            message: PDF_STATUS,
-            rentals_found: PDF_RENTALS.length,
-            rentals: PDF_RENTALS,
-            current_province_stats: Object.entries(PDF_RENTALS.reduce((acc, r) => {
-              acc[r.province] = (acc[r.province] || 0) + 1;
-              return acc;
-            }, {})).map(([province, count]) => `${province}: ${count}`),
-            note: 'Coordinate-based extraction'
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'PDF extraction error',
-            error: error.message
-        });
-    }
-});
-
-
-// Add endpoint to use PDF data
-app.post('/api/use-pdf-data', (req, res) => {
-    if (PDF_RENTALS.length > 0) {
-        CURRENT_RENTALS = PDF_RENTALS;
-        res.json({
-            success: true,
-            message: `Switched to PDF data: ${PDF_RENTALS.length} rentals`,
-            total_rentals: PDF_RENTALS.length
-        });
-    } else {
-        res.json({
-            success: false,
-            message: 'No PDF data available'
-        });
-    }
+    if (province) filteredRentals = filteredRentals.filter(r => r.province === province);
+    if (type) filteredRentals = filteredRentals.filter(r => r.type === type);
+    res.json(filteredRentals);
 });
 
 app.get('/api/status', (req, res) => {
@@ -1066,167 +613,64 @@ app.get('/api/status', (req, res) => {
 });
 
 app.get('/api/pdf-source', (req, res) => {
-    res.json({
-        pdfUrl: PDF_URL
-    });
-});
-
-// Web interface for testing PDF extraction
-app.get('/test-pdf', (req, res) => {
-    res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>PDF Test</title>
-            <style>
-                body { font-family: Arial; margin: 40px; }
-                button { padding: 10px 20px; font-size: 16px; margin: 10px; }
-                .result { background: #f5f5f5; padding: 20px; margin: 20px 0; }
-            </style>
-        </head>
-        <body>
-            <h1>PDF Extraction Test</h1>
-            <button onclick="testPDF()">Test PDF Extraction</button>
-            <div id="result"></div>
-
-            <script>
-                async function testPDF() {
-                    const resultDiv = document.getElementById('result');
-                    resultDiv.innerHTML = 'Testing PDF extraction...';
-
-                    try {
-                        const response = await fetch('/api/extract-pdf', {
-                            method: 'POST'
-                        });
-                        const data = await response.json();
-                        resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
-                    } catch (error) {
-                        resultDiv.innerHTML = 'Error: ' + error;
-                    }
-                }
-            </script>
-        </body>
-        </html>
-    `);
-});
-
-// Serve the main HTML page
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.json({ pdfUrl: PDF_URL });
 });
 
 app.get('/api/pdf-info', (req, res) => {
     const formattedDate = extractFormattedDate(PDF_HEADING);
-
-    res.json({
-        pdfUrl: PDF_URL,
-        heading: PDF_HEADING,
-        formattedDate: formattedDate,
-        lastUpdated: new Date().toISOString()
-    });
+    res.json({ pdfUrl: PDF_URL, heading: PDF_HEADING, formattedDate, lastUpdated: new Date().toISOString() });
 });
 
 app.get('/api/ping', (req, res) => {
-    res.json({
-        message: 'pong',
-        timestamp: new Date().toISOString()
-    });
+    res.json({ message: 'pong', timestamp: new Date().toISOString() });
 });
 
-// API endpoint for statistics
-app.get('/api/stats', (req, res) => {
-    try {
-        console.log('📊 Stats endpoint called, CURRENT_RENTALS length:', CURRENT_RENTALS ? CURRENT_RENTALS.length : 'undefined');
-
-        const stats = {
-            total_rentals: CURRENT_RENTALS.length,
-            last_updated: new Date().toISOString(),
-            status: PDF_STATUS || "PDF Data Loaded",
-            features: "Search by name, type, province",
-            data_source: DATA_SOURCE || 'unknown'
-        };
-        res.json(stats);
-    } catch (error) {
-        console.error('❌ Error in /api/stats:', error);
-        res.status(500).json({
-            error: 'Failed to load statistics',
-            total_rentals: 0,
-            status: 'Error'
-        });
-    }
-});
-
-// API endpoint for provinces with counts
-app.get('/api/provinces', (req, res) => {
-    const provinceCounts = CURRENT_RENTALS.reduce((acc, rental) => {
-        if (rental.province) {
-            acc[rental.province] = (acc[rental.province] || 0) + 1;
-        }
-        return acc;
-    }, {});
-
-    const provinces = Object.entries(provinceCounts)
-        .map(([province, count]) => ({ province, count }))
-        .sort((a, b) => a.province.localeCompare(b.province));
-
-    res.json(provinces);
-});
-
-// API endpoint for rental types
-app.get('/api/types', (req, res) => {
-    const types = [...new Set(CURRENT_RENTALS.map(rental => rental.type))].filter(Boolean).sort();
-    res.json(types);
-});
-
-// Enhanced rentals endpoint with search and filtering
-app.get('/api/rentals', (req, res) => {
-    const { search, province, type } = req.query;
-
-    let filteredRentals = [...CURRENT_RENTALS];   // creates a copy
-
-    // Apply search filter
-    if (search) {
-        const searchLower = search.toLowerCase();
-        filteredRentals = filteredRentals.filter(rental =>
-            rental.name.toLowerCase().includes(searchLower) ||
-            (rental.email && rental.email.toLowerCase().includes(searchLower)) ||
-            (rental.phone && rental.phone.toLowerCase().includes(searchLower)) ||
-            (rental.province && rental.province.toLowerCase().includes(searchLower)) ||
-            (rental.type && rental.type.toLowerCase().includes(searchLower))
-        );
-    }
-
-    // Apply province filter
-    if (province) {
-        filteredRentals = filteredRentals.filter(rental =>
-            rental.province === province
-        );
-    }
-
-    // Apply type filter
-    if (type) {
-        filteredRentals = filteredRentals.filter(rental =>
-            rental.type === type
-        );
-    }
-
-    res.json(filteredRentals);
-});
-
-// Health check endpoint
 app.get('/health', (req, res) => {
+    res.json({ status: 'OK', timestamp: new Date().toISOString(), pdf_status: PDF_STATUS, total_rentals: CURRENT_RENTALS.length });
+});
+
+// Manual trigger to force a PDF re-check (useful for admin/testing)
+app.post('/api/reload-pdf', async (req, res) => {
+    try {
+        console.log('🔄 Manual PDF reload triggered...');
+        // Force re-check by temporarily clearing saved URL
+        await supabase.from('pdf_meta').update({ pdf_url: 'force-reload' }).neq('id', 0);
+        await checkForPdfUpdate();
+        res.json({
+            success: true,
+            dataSource: DATA_SOURCE,
+            rentalsCount: CURRENT_RENTALS.length,
+            pdfUrl: PDF_URL,
+            heading: PDF_HEADING
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Debug endpoints
+app.get('/api/debug-rentals', (req, res) => {
     res.json({
-        status: 'OK',
-        timestamp: new Date().toISOString(),
-        pdf_status: PDF_STATUS,
-        total_rentals: CURRENT_RENTALS.length
+        CURRENT_RENTALS_length: CURRENT_RENTALS.length,
+        PDF_URL, PDF_HEADING, PDF_STATUS, DATA_SOURCE
     });
 });
 
+app.get('/api/test-heading', async (req, res) => {
+    try {
+        const result = await getLatestPdfUrl();
+        res.json(result);
+    } catch (error) {
+        res.json({ error: error.message });
+    }
+});
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
     console.log(`📍 Main page: http://localhost:${PORT}`);
-    console.log(`📍 Health: http://localhost:${PORT}/health`);
-    console.log(`📍 PDF Test: http://localhost:${PORT}/test-pdf`);
+    console.log(`📍 Health:    http://localhost:${PORT}/health`);
 });
