@@ -206,37 +206,25 @@ initializeData();
 // ═════════════════════════════════════════════════════════════════════════════
 
 async function getLatestPdfUrl() {
-    const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
-    let html;
-    const startTime = Date.now();
-
-    try {
-        console.log('🔄 Trying direct ATP website access...');
-        const response = await axios.get(atpUrl, {
-            timeout: 8000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'es_ES,es;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive'
-            }
-        });
-        html = response.data;
-        console.log(`✅ Direct ATP access successful: ${Date.now() - startTime}ms`);
-    } catch (directError) {
-        console.log('❌ Direct ATP access failed, trying proxy...');
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(atpUrl)}`;
-        const response = await axios.get(proxyUrl, {
-            timeout: 15000,
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-        });
-        html = response.data;
-        console.log(`✅ Proxy ATP access successful: ${Date.now() - startTime}ms`);
-    }
-
-    const result = extractPdfAndHeading(html, atpUrl);
-    return result;
+    console.log('🔄 Fetching PDF URL via PHP bridge...');
+    
+    const response = await axios.get(
+        'http://localhost:3000/extract_pdf_link.php',
+        { timeout: 20000 }
+    );
+    
+    const data = response.data;
+    if (data.error) throw new Error(data.error);
+    if (!data.pdfUrl) throw new Error('No PDF URL returned');
+    
+    console.log('✅ PDF URL:', data.pdfUrl);
+    
+    // Try to extract date from heading text returned by PHP
+    const headingText = data.linkText
+        ? `Hospedajes - ${data.linkText}`
+        : 'Hospedajes - Registrados por la Autoridad de Turismo de Panamá (ATP)';
+    
+    return { pdfUrl: data.pdfUrl, headingText };
 }
 
 function extractPdfAndHeading(html, baseUrl) {
