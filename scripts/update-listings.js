@@ -7,9 +7,13 @@ const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
 const { createClient } = require('@supabase/supabase-js');
 
 // Supabase client (credentials injected by GitHub Action secrets)
+const ws = require('ws');
 const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY
+    process.env.SUPABASE_ANON_KEY,
+    {
+        realtime: { transport: ws }
+    }
 );
 
 // ─── Column boundaries (same as server.js) ───────────────────────────────────
