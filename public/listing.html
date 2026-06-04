@@ -30,11 +30,9 @@
             gap: 0.75rem;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
-
         .header-left h1 { font-size: 1.3rem; font-weight: 700; }
         .header-left p  { font-size: 0.8rem; opacity: 0.85; }
         .header-right   { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-
         .header-btn {
             padding: 6px 14px;
             background: rgba(255,255,255,0.15);
@@ -63,23 +61,9 @@
 
         /* ── Name + badges ── */
         .name-row { padding: 1.5rem 1.5rem 0; }
-
-        .listing-name {
-            font-size: 1.8rem;
-            color: #005ca9;
-            margin-bottom: 0.6rem;
-            font-weight: 700;
-        }
-
+        .listing-name { font-size: 1.8rem; color: #005ca9; margin-bottom: 0.6rem; font-weight: 700; }
         .badges { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 1.2rem; }
-
-        .badge {
-            padding: 3px 12px;
-            border-radius: 20px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            color: white;
-        }
+        .badge { padding: 3px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; color: white; }
         .badge-type     { background: #00a859; }
         .badge-province { background: #005ca9; }
         .badge-member   { background: #a07800; }
@@ -93,7 +77,6 @@
             flex-wrap: wrap;
             border-bottom: 1px solid #e1e5e9;
         }
-
         .qbtn {
             padding: 7px 14px;
             border: 2px solid #005ca9;
@@ -118,12 +101,8 @@
         .qbtn.logout-btn:hover{ background: #cc0000; color: white; }
 
         /* ── Sections ── */
-        .section {
-            padding: 1.2rem 1.5rem;
-            border-bottom: 1px solid #e1e5e9;
-        }
+        .section { padding: 1.2rem 1.5rem; border-bottom: 1px solid #e1e5e9; }
         .section:last-child { border-bottom: none; }
-
         .section-title {
             font-size: 0.78rem;
             text-transform: uppercase;
@@ -133,23 +112,157 @@
             font-weight: 700;
         }
 
-        /* ── Info grid (phone / email / address) ── */
+        /* ── Info grid ── */
         .info-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, auto));
             gap: 0.8rem;
             align-items: start;
         }
-
         .info-item { display: flex; gap: 9px; align-items: flex-start; }
         .info-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; }
         .info-label { font-size: 0.75rem; color: #888; }
         .info-value { font-weight: 600; color: #111; font-size: 0.95rem; }
 
+        /* ── Photo gallery (VIEW mode) ── */
+        .photo-gallery {
+            width: 100%;
+            height: 340px;
+            background: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+        .photo-gallery img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+        .photo-placeholder { font-size: 5rem; opacity: 0.2; color: #888; }
+        .photo-nav { position: absolute; bottom: 10px; right: 10px; display: flex; gap: 6px; }
+        .photo-nav button {
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 34px; height: 34px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .photo-count {
+            position: absolute; bottom: 10px; left: 10px;
+            background: rgba(0,0,0,0.6);
+            color: white; padding: 3px 9px;
+            border-radius: 12px; font-size: 0.78rem;
+        }
+
+        /* ── Photo manager (EDIT mode) ── */
+        .photo-manager { display: flex; flex-direction: column; gap: 12px; }
+
+        .upload-zone {
+            border: 2px dashed #005ca9;
+            border-radius: 10px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s;
+            background: #f0f7ff;
+            position: relative;
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            background: #dceeff;
+            border-color: #004885;
+        }
+        .upload-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+        .upload-zone-icon  { font-size: 2.5rem; margin-bottom: 0.5rem; }
+        .upload-zone-text  { color: #005ca9; font-weight: 600; font-size: 0.95rem; }
+        .upload-zone-hint  { color: #888; font-size: 0.8rem; margin-top: 0.25rem; }
+
+        /* Upload progress */
+        .upload-progress {
+            display: none;
+            background: #f0f7ff;
+            border: 1px solid #c0d8f0;
+            border-radius: 8px;
+            padding: 0.8rem 1rem;
+        }
+        .progress-bar-outer {
+            background: #ddd;
+            border-radius: 4px;
+            height: 8px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+        .progress-bar-inner {
+            background: #005ca9;
+            height: 100%;
+            width: 0%;
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        /* Photo thumbnails grid */
+        .photo-thumbs {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+        }
+        .photo-thumb {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+            background: #eee;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .photo-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .photo-thumb-remove {
+            position: absolute;
+            top: 4px; right: 4px;
+            background: rgba(200,0,0,0.85);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 22px; height: 22px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .photo-thumb-remove:hover { background: #cc0000; }
+        .photo-thumb-label {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            font-size: 0.65rem;
+            padding: 2px 5px;
+            text-align: center;
+        }
+
         /* ── Editable fields ── */
         .edit-group { margin-bottom: 1.2rem; }
         .edit-group:last-child { margin-bottom: 0; }
-
         .edit-label {
             display: block;
             font-size: 0.78rem;
@@ -159,7 +272,6 @@
             font-weight: 700;
             margin-bottom: 0.4rem;
         }
-
         .edit-input, .edit-textarea {
             width: 100%;
             padding: 9px 12px;
@@ -176,62 +288,7 @@
             border-color: #005ca9;
             background: white;
         }
-
-        .edit-textarea {
-            resize: vertical;
-            min-height: 120px;
-            line-height: 1.6;
-        }
-
-        .edit-hint {
-            font-size: 0.75rem;
-            color: #aaa;
-            margin-top: 0.3rem;
-        }
-
-        /* ── Photo management ── */
-        .photo-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 0.8rem; }
-
-        .photo-entry {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .photo-entry input {
-            flex: 1;
-            padding: 8px 12px;
-            border: 2px solid #e1e5e9;
-            border-radius: 7px;
-            font-size: 0.88rem;
-            font-family: inherit;
-        }
-        .photo-entry input:focus { outline: none; border-color: #005ca9; }
-
-        .photo-remove {
-            padding: 6px 10px;
-            background: #fff0f0;
-            border: 1px solid #ffcccc;
-            border-radius: 6px;
-            color: #cc0000;
-            cursor: pointer;
-            font-size: 0.85rem;
-            flex-shrink: 0;
-        }
-        .photo-remove:hover { background: #cc0000; color: white; }
-
-        .add-photo-btn {
-            padding: 7px 14px;
-            background: #f0f7ff;
-            border: 1px dashed #005ca9;
-            border-radius: 7px;
-            color: #005ca9;
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-        .add-photo-btn:hover { background: #005ca9; color: white; border-style: solid; }
+        .edit-textarea { resize: vertical; min-height: 120px; line-height: 1.6; }
 
         /* ── Save bar ── */
         .save-bar {
@@ -246,9 +303,7 @@
             gap: 1rem;
             flex-wrap: wrap;
         }
-
         .save-bar p { font-size: 0.88rem; color: #7a5c00; }
-
         .save-btn {
             padding: 9px 24px;
             background: #005ca9;
@@ -262,7 +317,6 @@
         }
         .save-btn:hover    { background: #004885; }
         .save-btn:disabled { background: #aaa; cursor: not-allowed; }
-
         .save-message {
             font-size: 0.85rem;
             padding: 4px 10px;
@@ -272,55 +326,11 @@
         .save-message.success { background: #e8f4e8; color: #1a5c1a; display: inline-block; }
         .save-message.error   { background: #fde8e8; color: #7a0000; display: inline-block; }
 
-        /* ── Photo gallery (view mode) ── */
-        .photo-gallery {
-            width: 100%;
-            height: 320px;
-            background: linear-gradient(135deg, #e8f4f0, #d0e8f0);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            position: relative;
-        }
-        .photo-gallery img { width: 100%; height: 100%; object-fit: cover; }
-        .photo-placeholder { font-size: 5rem; opacity: 0.3; }
-
-        .photo-nav { position: absolute; bottom: 10px; right: 10px; display: flex; gap: 6px; }
-        .photo-nav button {
-            background: rgba(0,0,0,0.5);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 32px; height: 32px;
-            cursor: pointer;
-            font-size: 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .photo-count {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.5);
-            color: white;
-            padding: 3px 9px;
-            border-radius: 12px;
-            font-size: 0.78rem;
-        }
-
         /* ── Description ── */
         .description-text { color: #444; line-height: 1.8; white-space: pre-wrap; }
 
         /* ── Contact / Links ── */
-        .btn-row {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
+        .btn-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
         .action-btn {
             padding: 9px 18px;
             border: 2px solid #005ca9;
@@ -342,78 +352,44 @@
 
         /* ── Login modal ── */
         .modal-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5); z-index: 1000;
+            align-items: center; justify-content: center;
         }
         .modal-overlay.active { display: flex; }
-
         .modal {
-            background: white;
-            border-radius: 12px;
-            padding: 2rem;
-            width: 340px;
-            max-width: 90vw;
+            background: white; border-radius: 12px; padding: 2rem;
+            width: 340px; max-width: 90vw;
             box-shadow: 0 8px 40px rgba(0,0,0,0.2);
         }
         .modal h3 { font-size: 1.2rem; color: #005ca9; margin-bottom: 0.5rem; }
         .modal p  { font-size: 0.85rem; color: #666; margin-bottom: 1rem; }
-
         .modal input {
-            width: 100%;
-            padding: 10px 14px;
-            border: 2px solid #e1e5e9;
-            border-radius: 7px;
-            font-size: 1rem;
-            margin-bottom: 1rem;
-            transition: border-color 0.3s;
+            width: 100%; padding: 10px 14px;
+            border: 2px solid #e1e5e9; border-radius: 7px;
+            font-size: 1rem; margin-bottom: 1rem;
         }
         .modal input:focus { outline: none; border-color: #005ca9; }
-
-        .modal-error {
-            color: #cc0000;
-            font-size: 0.85rem;
-            margin-bottom: 0.75rem;
-            display: none;
-        }
-
+        .modal-error { color: #cc0000; font-size: 0.85rem; margin-bottom: 0.75rem; display: none; }
         .modal-buttons { display: flex; gap: 10px; }
-        .modal-btn {
-            flex: 1;
-            padding: 10px;
-            border: none;
-            border-radius: 7px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.25s;
-        }
+        .modal-btn { flex: 1; padding: 10px; border: none; border-radius: 7px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
         .modal-btn.confirm       { background: #005ca9; color: white; }
         .modal-btn.confirm:hover { background: #004885; }
         .modal-btn.cancel        { background: #f0f0f0; color: #555; }
         .modal-btn.cancel:hover  { background: #e0e0e0; }
 
-        /* ── States ── */
         .loading-state { text-align: center; padding: 4rem; color: #005ca9; font-size: 1.1rem; }
         .error-state   { text-align: center; padding: 4rem; color: #cc0000; }
 
         footer {
-            text-align: center;
-            color: #888;
-            font-size: 0.82rem;
-            padding: 1rem 0;
-            border-top: 1px solid #e1e5e9;
-            margin-top: 0.5rem;
+            text-align: center; color: #888; font-size: 0.82rem;
+            padding: 1rem 0; border-top: 1px solid #e1e5e9; margin-top: 0.5rem;
         }
 
         @media (max-width: 600px) {
             .listing-name { font-size: 1.4rem; }
             .name-row, .quick-buttons, .section { padding-left: 1rem; padding-right: 1rem; }
-            .photo-gallery { height: 200px; }
+            .photo-gallery { height: 220px; }
             .qbtn.login-btn, .qbtn.logout-btn { margin-left: 0; }
         }
     </style>
@@ -434,7 +410,7 @@
 
     <div id="save-bar" style="display:none">
         <div class="save-bar">
-            <p id="save-bar-text">You are editing your listing. Changes are saved to the database.</p>
+            <p id="save-bar-text">You are editing your listing.</p>
             <div style="display:flex;gap:10px;align-items:center;">
                 <span class="save-message" id="save-message"></span>
                 <button class="save-btn" id="save-btn" onclick="saveChanges()">💾 Save Changes</button>
@@ -468,76 +444,77 @@
 </div>
 
 <script>
-const API_BASE_URL = '';
+const API_BASE_URL  = '';
+const SUPABASE_URL  = ''; // filled below from env via api call
+const urlParams     = new URLSearchParams(window.location.search);
+const listingId     = urlParams.get('id');
+const lang          = urlParams.get('lang') || 'en';
+const isEs          = lang === 'es';
 
-// ── URL params ────────────────────────────────────────────────────────────────
-const urlParams  = new URLSearchParams(window.location.search);
-const listingId  = urlParams.get('id');
-const lang       = urlParams.get('lang') || 'en';
-const isEs       = lang === 'es';
-
-// ── Session ───────────────────────────────────────────────────────────────────
-let sessionToken = sessionStorage.getItem(`tps_token_${listingId}`) || null;
-let isLoggedIn   = false;
+let sessionToken  = sessionStorage.getItem(`tps_token_${listingId}`) || null;
+let isLoggedIn    = false;
 let currentRental = null;
+let editPhotos    = []; // working copy of photos in edit mode
 
 // ── Translations ──────────────────────────────────────────────────────────────
 const T = {
-    back:           isEs ? '← Volver'               : '← Back',
-    langToggle:     isEs ? '🇺🇸 English'             : '🇵🇦 Español',
-    subtitle:       isEs ? 'Alojamiento verificado ATP' : 'Verified ATP-Registered Accommodation',
-    phone:          isEs ? 'Teléfono'   : 'Phone',
-    email:          isEs ? 'Correo'     : 'Email',
-    address:        isEs ? 'Dirección'  : 'Address',
-    atpData:        isEs ? 'Contacto ATP' : 'ATP Contact',
-    description:    isEs ? 'Descripción' : 'Description',
-    descEn:         isEs ? 'Descripción en Inglés' : 'Description (English)',
-    descEs:         isEs ? 'Descripción en Español' : 'Description (Spanish)',
-    contact:        isEs ? 'Contacto'   : 'Contact',
-    links:          isEs ? 'Enlaces'    : 'Links',
-    photos:         isEs ? 'Fotos'      : 'Photos',
-    websiteUrl:     isEs ? 'URL del Sitio Web' : 'Website URL',
-    bookingUrl:     isEs ? 'URL de Reservas'   : 'Booking URL',
-    addressLabel:   isEs ? 'Dirección completa' : 'Full Address',
-    call:           isEs ? '📞 Llamar'  : '📞 Call',
-    emailBtn:       isEs ? '✉️ Correo'  : '✉️ Email',
-    whatsapp:       '💬 WhatsApp',
-    maps:           '📍 Google Maps',
-    website:        isEs ? '🌐 Sitio Web' : '🌐 Website',
-    booking:        isEs ? '🔗 Reservar'  : '🔗 Book Now',
-    memberLogin:    isEs ? '🔐 Acceso Miembro' : '🔐 Member Login',
-    logout:         isEs ? 'Cerrar sesión'    : 'Log Out',
-    noDesc:         isEs ? 'Sin descripción aún.' : 'No description yet.',
-    notFound:       isEs ? 'Listado no encontrado.' : 'Listing not found.',
-    addPhoto:       isEs ? '+ Agregar foto'   : '+ Add photo',
-    photoHint:      isEs ? 'URL directa a imagen (jpg, png, webp)' : 'Direct image URL (jpg, png, webp)',
-    saveChanges:    isEs ? '💾 Guardar cambios' : '💾 Save Changes',
-    saveBar:        isEs ? 'Está editando su listado. Los cambios se guardan en la base de datos.' : 'You are editing your listing. Changes are saved to the database.',
-    saved:          isEs ? '✅ Guardado'  : '✅ Saved',
-    saveError:      isEs ? '❌ Error al guardar' : '❌ Save failed',
-    wrongPassword:  isEs ? 'Contraseña incorrecta.' : 'Incorrect password.',
-    loginError:     isEs ? 'Error al iniciar sesión.' : 'Login error.',
-    modalTitle:     isEs ? '🔐 Acceso Miembro' : '🔐 Member Login',
-    modalSub:       isEs ? 'Ingrese su contraseña.' : 'Enter your password.',
-    cancel:         isEs ? 'Cancelar' : 'Cancel',
-    confirm:        isEs ? 'Ingresar' : 'Login',
-    footer:         isEs
+    back:          isEs ? '← Volver'                  : '← Back',
+    langToggle:    isEs ? '🇺🇸 English'               : '🇵🇦 Español',
+    subtitle:      isEs ? 'Alojamiento verificado ATP' : 'Verified ATP-Registered Accommodation',
+    phone:         isEs ? 'Teléfono'    : 'Phone',
+    email:         isEs ? 'Correo'      : 'Email',
+    address:       isEs ? 'Dirección'   : 'Address',
+    atpData:       isEs ? 'Contacto ATP': 'ATP Contact',
+    description:   isEs ? 'Descripción' : 'Description',
+    descEn:        isEs ? 'Descripción en Inglés' : 'Description (English)',
+    descEs:        isEs ? 'Descripción en Español': 'Description (Spanish)',
+    contact:       isEs ? 'Contacto'    : 'Contact',
+    links:         isEs ? 'Enlaces'     : 'Links',
+    photos:        isEs ? 'Fotos'       : 'Photos',
+    websiteUrl:    isEs ? 'URL del Sitio Web' : 'Website URL',
+    bookingUrl:    isEs ? 'URL de Reservas'   : 'Booking URL',
+    addressLabel:  isEs ? 'Dirección completa': 'Full Address',
+    call:          isEs ? '📞 Llamar'   : '📞 Call',
+    emailBtn:      isEs ? '✉️ Correo'   : '✉️ Email',
+    whatsapp:      '💬 WhatsApp',
+    maps:          '📍 Google Maps',
+    website:       isEs ? '🌐 Sitio Web': '🌐 Website',
+    booking:       isEs ? '🔗 Reservar' : '🔗 Book Now',
+    memberLogin:   isEs ? '🔐 Acceso Miembro' : '🔐 Member Login',
+    logout:        isEs ? 'Cerrar sesión'     : 'Log Out',
+    noDesc:        isEs ? 'Sin descripción aún.' : 'No description yet.',
+    notFound:      isEs ? 'Listado no encontrado.' : 'Listing not found.',
+    uploadClick:   isEs ? 'Haga clic o arrastre fotos aquí' : 'Click or drag photos here',
+    uploadHint:    isEs ? 'JPG, PNG, WebP · máx. 5MB por foto' : 'JPG, PNG, WebP · max 5MB per photo',
+    uploading:     isEs ? 'Subiendo...' : 'Uploading...',
+    uploadError:   isEs ? 'Error al subir foto' : 'Upload failed',
+    saveChanges:   isEs ? '💾 Guardar cambios' : '💾 Save Changes',
+    saveBar:       isEs ? 'Está editando su listado.' : 'You are editing your listing.',
+    saved:         isEs ? '✅ Guardado'  : '✅ Saved',
+    saveError:     isEs ? '❌ Error al guardar' : '❌ Save failed',
+    wrongPassword: isEs ? 'Contraseña incorrecta.' : 'Incorrect password.',
+    loginError:    isEs ? 'Error al iniciar sesión.' : 'Login error.',
+    modalTitle:    isEs ? '🔐 Acceso Miembro' : '🔐 Member Login',
+    modalSub:      isEs ? 'Ingrese su contraseña.' : 'Enter your password.',
+    cancel:        isEs ? 'Cancelar' : 'Cancel',
+    confirm:       isEs ? 'Ingresar' : 'Login',
+    footer:        isEs
         ? 'Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>'
         : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>',
 };
 
-// Apply static translations
-document.getElementById('back-link').textContent   = T.back;
-document.getElementById('back-link').href          = isEs ? 'index_es.html' : 'index.html';
-document.getElementById('lang-link').textContent   = T.langToggle;
-document.getElementById('header-subtitle').textContent = T.subtitle;
-document.getElementById('footer-text').innerHTML   = T.footer;
-document.getElementById('modal-title').textContent = T.modalTitle;
+// Static translations
+document.getElementById('back-link').textContent      = T.back;
+document.getElementById('back-link').href             = isEs ? 'index_es.html' : 'index.html';
+document.getElementById('lang-link').textContent      = T.langToggle;
+document.getElementById('header-subtitle').textContent= T.subtitle;
+document.getElementById('footer-text').innerHTML      = T.footer;
+document.getElementById('modal-title').textContent    = T.modalTitle;
 document.getElementById('modal-subtitle').textContent = T.modalSub;
-document.getElementById('modal-cancel').textContent = T.cancel;
-document.getElementById('modal-confirm').textContent = T.confirm;
-document.getElementById('save-bar-text').textContent = T.saveBar;
-document.getElementById('save-btn').textContent    = T.saveChanges;
+document.getElementById('modal-cancel').textContent   = T.cancel;
+document.getElementById('modal-confirm').textContent  = T.confirm;
+document.getElementById('save-bar-text').textContent  = T.saveBar;
+document.getElementById('save-btn').textContent       = T.saveChanges;
 document.getElementById('lang-link').addEventListener('click', e => {
     e.preventDefault();
     window.location.href = `listing.html?id=${listingId}&lang=${isEs ? 'en' : 'es'}`;
@@ -555,37 +532,154 @@ function getPhoneNumbers(phoneStr) {
     return { display, call, whatsapp };
 }
 
+// ── Image resize (client-side, before upload) ─────────────────────────────────
+function resizeImage(file, maxWidth = 1920, maxHeight = 1080, quality = 0.85) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            let { width, height } = img;
+
+            // Scale down if needed
+            if (width > maxWidth || height > maxHeight) {
+                const ratio = Math.min(maxWidth / width, maxHeight / height);
+                width  = Math.round(width  * ratio);
+                height = Math.round(height * ratio);
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width  = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob(blob => {
+                if (!blob) return reject(new Error('Canvas toBlob failed'));
+                // Keep original filename but ensure .jpg extension for resized
+                const newName = file.name.replace(/\.[^.]+$/, '') + '_resized.jpg';
+                resolve(new File([blob], newName, { type: 'image/jpeg' }));
+            }, 'image/jpeg', quality);
+        };
+        img.onerror = () => reject(new Error('Image load failed'));
+        img.src = url;
+    });
+}
+
+// ── Upload photo to Supabase Storage via server ───────────────────────────────
+async function uploadPhoto(file) {
+    // Validate type
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+        throw new Error('Only JPG, PNG or WebP images are allowed');
+    }
+
+    // Validate size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+        throw new Error('File exceeds 5MB limit');
+    }
+
+    // Resize before upload
+    const resized = await resizeImage(file);
+
+    // Upload via server endpoint (server uses service key for Supabase Storage)
+    const formData = new FormData();
+    formData.append('photo', resized);
+    formData.append('listingId', listingId);
+    formData.append('token', sessionToken);
+
+    const res  = await fetch(`${API_BASE_URL}/api/listing-photo-upload`, {
+        method: 'POST',
+        body:   formData
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data.url; // Public URL returned by server
+}
+
+// ── Handle file selection / drop ──────────────────────────────────────────────
+async function handleFiles(files) {
+    const progress = document.getElementById('upload-progress');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+
+    const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (!validFiles.length) return;
+
+    // Max 10 photos total
+    if (editPhotos.length + validFiles.length > 10) {
+        alert(isEs ? 'Máximo 10 fotos por listado.' : 'Maximum 10 photos per listing.');
+        return;
+    }
+
+    progress.style.display = 'block';
+
+    for (let i = 0; i < validFiles.length; i++) {
+        const file = validFiles[i];
+        progressText.textContent = `${T.uploading} ${i+1}/${validFiles.length}: ${file.name}`;
+        progressBar.style.width = `${Math.round((i / validFiles.length) * 100)}%`;
+
+        try {
+            const url = await uploadPhoto(file);
+            editPhotos.push(url);
+            renderPhotoThumbs();
+        } catch (err) {
+            alert(`${T.uploadError}: ${err.message}`);
+        }
+    }
+
+    progressBar.style.width = '100%';
+    setTimeout(() => { progress.style.display = 'none'; }, 800);
+}
+
+// ── Render photo thumbnails in edit mode ──────────────────────────────────────
+function renderPhotoThumbs() {
+    const container = document.getElementById('photo-thumbs');
+    if (!container) return;
+    container.innerHTML = editPhotos.map((url, i) => `
+        <div class="photo-thumb">
+            <img src="${url}" alt="Photo ${i+1}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22/>'">
+            <button class="photo-thumb-remove" onclick="removeEditPhoto(${i})" title="Remove">✕</button>
+            ${i === 0 ? `<div class="photo-thumb-label">${isEs?'Principal':'Main'}</div>` : ''}
+        </div>`).join('');
+}
+
+function removeEditPhoto(index) {
+    editPhotos.splice(index, 1);
+    renderPhotoThumbs();
+}
+
 // ── Photo gallery (view mode) ─────────────────────────────────────────────────
-let photos = [];
+let viewPhotos   = [];
 let currentPhoto = 0;
 
 function galleryHTML() {
-    if (!photos.length) {
+    if (!viewPhotos.length) {
         return `<div class="photo-gallery"><span class="photo-placeholder">🏨</span></div>`;
     }
     return `
         <div class="photo-gallery">
-            <img id="gallery-img" src="${photos[0]}" alt="Photo 1"
-                 onerror="this.style.display='none'">
-            ${photos.length > 1 ? `
+            <img id="gallery-img" src="${viewPhotos[0]}" alt="Photo 1">
+            ${viewPhotos.length > 1 ? `
             <div class="photo-nav">
                 <button onclick="changePhoto(-1)">‹</button>
                 <button onclick="changePhoto(1)">›</button>
             </div>
-            <div class="photo-count" id="photo-count">1 / ${photos.length}</div>` : ''}
+            <div class="photo-count" id="photo-count">1 / ${viewPhotos.length}</div>` : ''}
         </div>`;
 }
 
 function changePhoto(dir) {
-    currentPhoto = (currentPhoto + dir + photos.length) % photos.length;
-    document.getElementById('gallery-img').src = photos[currentPhoto];
+    currentPhoto = (currentPhoto + dir + viewPhotos.length) % viewPhotos.length;
+    document.getElementById('gallery-img').src = viewPhotos[currentPhoto];
     const c = document.getElementById('photo-count');
-    if (c) c.textContent = `${currentPhoto+1} / ${photos.length}`;
+    if (c) c.textContent = `${currentPhoto+1} / ${viewPhotos.length}`;
 }
 
 // ── Render VIEW mode ──────────────────────────────────────────────────────────
 function renderView(rental) {
-    photos = Array.isArray(rental.photos) ? rental.photos : [];
+    viewPhotos   = Array.isArray(rental.photos) ? rental.photos : [];
+    currentPhoto = 0;
     const ph      = getPhoneNumbers(rental.phone);
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
         (rental.address || rental.name) + ' ' + (rental.province||'') + ' Panama')}`;
@@ -601,8 +695,6 @@ function renderView(rental) {
 
     return `
     <div class="listing-card">
-
-        <!-- Name + badges -->
         <div class="name-row">
             <h2 class="listing-name">${rental.name}</h2>
             <div class="badges">
@@ -612,8 +704,6 @@ function renderView(rental) {
                 <span class="badge badge-atp">✅ ATP</span>
             </div>
         </div>
-
-        <!-- Quick buttons -->
         <div class="quick-buttons">
             ${ph.call      ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
             ${rental.email ? `<a href="mailto:${rental.email}" class="qbtn">${T.emailBtn}</a>` : ''}
@@ -621,43 +711,29 @@ function renderView(rental) {
             <a href="${mapsUrl}" target="_blank" class="qbtn">${T.maps}</a>
             ${loginLogoutBtn}
         </div>
-
-        <!-- ATP Contact -->
         <div class="section">
             <div class="section-title">${T.atpData}</div>
             <div class="info-grid">
                 ${ph.display ? `
-                <div class="info-item">
-                    <span class="info-icon">📞</span>
+                <div class="info-item"><span class="info-icon">📞</span>
                     <div><div class="info-label">${T.phone}</div>
-                    <div class="info-value">${ph.display}</div></div>
-                </div>` : ''}
+                    <div class="info-value">${ph.display}</div></div></div>` : ''}
                 ${rental.email ? `
-                <div class="info-item">
-                    <span class="info-icon">✉️</span>
+                <div class="info-item"><span class="info-icon">✉️</span>
                     <div><div class="info-label">${T.email}</div>
-                    <div class="info-value">${rental.email}</div></div>
-                </div>` : ''}
+                    <div class="info-value">${rental.email}</div></div></div>` : ''}
                 ${rental.address ? `
-                <div class="info-item">
-                    <span class="info-icon">🗺️</span>
+                <div class="info-item"><span class="info-icon">🗺️</span>
                     <div><div class="info-label">${T.address}</div>
-                    <div class="info-value">${rental.address}</div></div>
-                </div>` : ''}
+                    <div class="info-value">${rental.address}</div></div></div>` : ''}
             </div>
         </div>
-
-        <!-- Lead photo -->
         ${galleryHTML()}
-
-        <!-- Description -->
         ${rental.is_member ? `
         <div class="section">
             <div class="section-title">${T.description}</div>
             <p class="description-text">${description}</p>
         </div>` : ''}
-
-        <!-- Contact -->
         <div class="section">
             <div class="section-title">${T.contact}</div>
             <div class="btn-row">
@@ -667,8 +743,6 @@ function renderView(rental) {
                 <a href="${mapsUrl}" target="_blank" class="action-btn">${T.maps}</a>
             </div>
         </div>
-
-        <!-- Links -->
         ${rental.is_member && (rental.website_url || rental.booking_url) ? `
         <div class="section">
             <div class="section-title">${T.links}</div>
@@ -677,29 +751,18 @@ function renderView(rental) {
                 ${rental.booking_url ? `<a href="${rental.booking_url}" target="_blank" class="action-btn primary">${T.booking}</a>` : ''}
             </div>
         </div>` : ''}
-
     </div>`;
 }
 
-// ── Render EDIT mode (logged in) ──────────────────────────────────────────────
+// ── Render EDIT mode ──────────────────────────────────────────────────────────
 function renderEdit(rental) {
-    photos = Array.isArray(rental.photos) ? rental.photos : [];
+    editPhotos = Array.isArray(rental.photos) ? [...rental.photos] : [];
     const ph      = getPhoneNumbers(rental.phone);
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
         (rental.address || rental.name) + ' ' + (rental.province||'') + ' Panama')}`;
 
-    // Build photo inputs
-    const photoInputs = photos.map((url, i) => `
-        <div class="photo-entry" id="photo-entry-${i}">
-            <input type="text" value="${url}" placeholder="https://..." 
-                   onchange="updatePhoto(${i}, this.value)">
-            <button class="photo-remove" onclick="removePhoto(${i})">✕</button>
-        </div>`).join('');
-
     return `
     <div class="listing-card">
-
-        <!-- Name + badges (read-only always) -->
         <div class="name-row">
             <h2 class="listing-name">${rental.name}</h2>
             <div class="badges">
@@ -709,8 +772,6 @@ function renderEdit(rental) {
                 <span class="badge badge-atp">✅ ATP</span>
             </div>
         </div>
-
-        <!-- Quick buttons -->
         <div class="quick-buttons">
             ${ph.call      ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
             ${rental.email ? `<a href="mailto:${rental.email}" class="qbtn">${T.emailBtn}</a>` : ''}
@@ -719,22 +780,18 @@ function renderEdit(rental) {
             <button class="qbtn logout-btn" onclick="doLogout()">${T.logout}</button>
         </div>
 
-        <!-- ATP Contact (phone & email read-only, address editable) -->
+        <!-- ATP Contact: phone & email read-only, address editable -->
         <div class="section">
             <div class="section-title">${T.atpData}</div>
             <div class="info-grid" style="margin-bottom:1rem;">
                 ${ph.display ? `
-                <div class="info-item">
-                    <span class="info-icon">📞</span>
+                <div class="info-item"><span class="info-icon">📞</span>
                     <div><div class="info-label">${T.phone}</div>
-                    <div class="info-value">${ph.display}</div></div>
-                </div>` : ''}
+                    <div class="info-value">${ph.display}</div></div></div>` : ''}
                 ${rental.email ? `
-                <div class="info-item">
-                    <span class="info-icon">✉️</span>
+                <div class="info-item"><span class="info-icon">✉️</span>
                     <div><div class="info-label">${T.email}</div>
-                    <div class="info-value">${rental.email}</div></div>
-                </div>` : ''}
+                    <div class="info-value">${rental.email}</div></div></div>` : ''}
             </div>
             <div class="edit-group">
                 <label class="edit-label">🗺️ ${T.addressLabel}</label>
@@ -744,33 +801,47 @@ function renderEdit(rental) {
             </div>
         </div>
 
-        <!-- Photos (editable) -->
+        <!-- Photos -->
         <div class="section">
             <div class="section-title">${T.photos}</div>
-            <div class="photo-list" id="photo-list">${photoInputs}</div>
-            <button class="add-photo-btn" onclick="addPhoto()">+ ${T.addPhoto}</button>
-            <p class="edit-hint" style="margin-top:0.5rem;">${T.photoHint}</p>
+            <div class="photo-manager">
+                <!-- Upload zone -->
+                <div class="upload-zone" id="upload-zone">
+                    <input type="file" accept="image/jpeg,image/png,image/webp"
+                           multiple id="file-input">
+                    <div class="upload-zone-icon">📷</div>
+                    <div class="upload-zone-text">${T.uploadClick}</div>
+                    <div class="upload-zone-hint">${T.uploadHint} · ${isEs?'Máx. 10 fotos':'Max 10 photos'}</div>
+                </div>
+
+                <!-- Progress bar -->
+                <div class="upload-progress" id="upload-progress">
+                    <div id="progress-text" style="font-size:0.85rem;color:#005ca9;">${T.uploading}</div>
+                    <div class="progress-bar-outer">
+                        <div class="progress-bar-inner" id="progress-bar"></div>
+                    </div>
+                </div>
+
+                <!-- Thumbnails -->
+                <div class="photo-thumbs" id="photo-thumbs"></div>
+            </div>
         </div>
 
-        <!-- Description EN (editable) -->
+        <!-- Description EN -->
         <div class="section">
             <div class="section-title">${T.descEn}</div>
-            <div class="edit-group">
-                <textarea class="edit-textarea" id="edit-desc-en"
-                          placeholder="Describe your property in English...">${rental.description_en || ''}</textarea>
-            </div>
+            <textarea class="edit-textarea" id="edit-desc-en"
+                      placeholder="Describe your property in English...">${rental.description_en || ''}</textarea>
         </div>
 
-        <!-- Description ES (editable) -->
+        <!-- Description ES -->
         <div class="section">
             <div class="section-title">${T.descEs}</div>
-            <div class="edit-group">
-                <textarea class="edit-textarea" id="edit-desc-es"
-                          placeholder="Describa su propiedad en español...">${rental.description_es || ''}</textarea>
-            </div>
+            <textarea class="edit-textarea" id="edit-desc-es"
+                      placeholder="Describa su propiedad en español...">${rental.description_es || ''}</textarea>
         </div>
 
-        <!-- Website & Booking URLs (editable) -->
+        <!-- Website & Booking -->
         <div class="section">
             <div class="section-title">${T.links}</div>
             <div class="edit-group">
@@ -786,39 +857,30 @@ function renderEdit(rental) {
                        placeholder="https://booking.yourwebsite.com">
             </div>
         </div>
-
     </div>`;
 }
 
-// ── Photo management ──────────────────────────────────────────────────────────
-function addPhoto() {
-    photos.push('');
-    const list = document.getElementById('photo-list');
-    const i    = photos.length - 1;
-    const div  = document.createElement('div');
-    div.className = 'photo-entry';
-    div.id = `photo-entry-${i}`;
-    div.innerHTML = `
-        <input type="text" value="" placeholder="https://..."
-               onchange="updatePhoto(${i}, this.value)">
-        <button class="photo-remove" onclick="removePhoto(${i})">✕</button>`;
-    list.appendChild(div);
-}
+// ── Wire up upload zone after edit render ─────────────────────────────────────
+function wireUploadZone() {
+    const zone  = document.getElementById('upload-zone');
+    const input = document.getElementById('file-input');
+    if (!zone || !input) return;
 
-function updatePhoto(index, value) {
-    photos[index] = value;
-}
+    input.addEventListener('change', e => handleFiles(e.target.files));
 
-function removePhoto(index) {
-    photos.splice(index, 1);
-    // Re-render photo list
-    const list = document.getElementById('photo-list');
-    list.innerHTML = photos.map((url, i) => `
-        <div class="photo-entry" id="photo-entry-${i}">
-            <input type="text" value="${url}" placeholder="https://..."
-                   onchange="updatePhoto(${i}, this.value)">
-            <button class="photo-remove" onclick="removePhoto(${i})">✕</button>
-        </div>`).join('');
+    zone.addEventListener('dragover', e => {
+        e.preventDefault();
+        zone.classList.add('dragover');
+    });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+
+    // Render existing photos
+    renderPhotoThumbs();
 }
 
 // ── Save changes ──────────────────────────────────────────────────────────────
@@ -829,12 +891,6 @@ async function saveChanges() {
     msg.className = 'save-message';
     msg.style.display = 'none';
 
-    // Collect current photo values from inputs
-    const photoInputs = document.querySelectorAll('#photo-list .photo-entry input');
-    const currentPhotos = Array.from(photoInputs)
-        .map(inp => inp.value.trim())
-        .filter(v => v);
-
     const payload = {
         id:             listingId,
         token:          sessionToken,
@@ -843,7 +899,7 @@ async function saveChanges() {
         description_es: document.getElementById('edit-desc-es')?.value.trim() || null,
         website_url:    document.getElementById('edit-website')?.value.trim() || null,
         booking_url:    document.getElementById('edit-booking')?.value.trim() || null,
-        photos:         currentPhotos.length ? currentPhotos : null,
+        photos:         editPhotos.length ? editPhotos : null,
     };
 
     try {
@@ -853,29 +909,21 @@ async function saveChanges() {
             body:    JSON.stringify(payload)
         });
         const data = await res.json();
-
         if (res.ok && data.success) {
-            msg.textContent  = T.saved;
-            msg.className    = 'save-message success';
+            msg.textContent   = T.saved;
+            msg.className     = 'save-message success';
             msg.style.display = 'inline-block';
             // Update local rental object
-            if (currentRental) {
-                currentRental.address        = payload.address;
-                currentRental.description_en = payload.description_en;
-                currentRental.description_es = payload.description_es;
-                currentRental.website_url    = payload.website_url;
-                currentRental.booking_url    = payload.booking_url;
-                currentRental.photos         = payload.photos;
-            }
+            Object.assign(currentRental, payload);
+            delete currentRental.token;
         } else {
             throw new Error(data.error || 'Save failed');
         }
     } catch (err) {
-        msg.textContent  = T.saveError + ': ' + err.message;
-        msg.className    = 'save-message error';
+        msg.textContent   = T.saveError + ': ' + err.message;
+        msg.className     = 'save-message error';
         msg.style.display = 'inline-block';
     }
-
     btn.disabled = false;
     setTimeout(() => { msg.style.display = 'none'; }, 4000);
 }
@@ -887,11 +935,9 @@ function openLogin() {
     document.getElementById('modal-error').style.display = 'none';
     setTimeout(() => document.getElementById('password-input').focus(), 100);
 }
-
 function closeLogin() {
     document.getElementById('login-modal').classList.remove('active');
 }
-
 document.getElementById('modal-cancel').addEventListener('click', closeLogin);
 document.getElementById('login-modal').addEventListener('click', e => {
     if (e.target === document.getElementById('login-modal')) closeLogin();
@@ -905,7 +951,6 @@ async function attemptLogin() {
     const password = document.getElementById('password-input').value;
     const errorEl  = document.getElementById('modal-error');
     errorEl.style.display = 'none';
-
     try {
         const res  = await fetch(`${API_BASE_URL}/api/listing-login`, {
             method:  'POST',
@@ -913,7 +958,6 @@ async function attemptLogin() {
             body:    JSON.stringify({ id: listingId, password })
         });
         const data = await res.json();
-
         if (res.ok && data.token) {
             sessionToken = data.token;
             sessionStorage.setItem(`tps_token_${listingId}`, sessionToken);
@@ -937,12 +981,13 @@ function doLogout() {
     renderPage(currentRental);
 }
 
-// ── Render page (view or edit based on login state) ───────────────────────────
+// ── Render page ───────────────────────────────────────────────────────────────
 function renderPage(rental) {
     const saveBar = document.getElementById('save-bar');
     if (isLoggedIn && rental.is_member) {
         document.getElementById('listing-content').innerHTML = renderEdit(rental);
         saveBar.style.display = 'block';
+        wireUploadZone();
     } else {
         document.getElementById('listing-content').innerHTML = renderView(rental);
         saveBar.style.display = 'none';
@@ -956,15 +1001,11 @@ async function loadListing() {
             `<div class="error-state">${T.notFound}</div>`;
         return;
     }
-
     try {
         const res = await fetch(`${API_BASE_URL}/api/listing/${listingId}`);
         if (!res.ok) throw new Error('Not found');
         currentRental = await res.json();
-
-        // Restore session if token exists
         if (sessionToken && currentRental.is_member) isLoggedIn = true;
-
         renderPage(currentRental);
     } catch {
         document.getElementById('listing-content').innerHTML =
