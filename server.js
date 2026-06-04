@@ -54,11 +54,20 @@ const COLUMN_BOUNDARIES = {
 
 // Load all listings from Supabase into memory
 async function loadListingsFromDB() {
-    const { data, error } = await supabase
-        .from('listings')
-        .select('*');
-    if (error) throw error;
-    return data;
+    let allData = [];
+    let from = 0;
+    const BATCH = 1000;
+    while (true) {
+        const { data, error } = await supabase
+            .from('listings')
+            .select('*')
+            .range(from, from + BATCH - 1);
+        if (error) throw error;
+        allData = allData.concat(data);
+        if (data.length < BATCH) break;
+        from += BATCH;
+    }
+    return allData;
 }
 
 // Save all rentals to Supabase (replaces entire table content)
