@@ -746,3 +746,10 @@ app.get('/api/listing/:id', async (req, res) => {
     if (error || !data) return res.status(404).json({ error: 'Not found' });
     res.json(data);
 });
+
+app.get('/api/generate-hash', async (req, res) => {
+    const bcrypt = require('bcrypt');
+    const password = 'SG7HGv#p!pFG';
+    const hash = await bcrypt.hash(password, 10);
+    res.json({ hash });
+});
