@@ -1,6 +1,6 @@
 // scripts/update-listings.js
 // Runs as a GitHub Action — fetches ATP page, parses PDF, updates Supabase
-// Uses direct REST API calls — no Supabase JS client, no WebSocket needed
+// Smart merge: only updates changed fields, preserves member data
 
 const axios = require('axios');
 const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
@@ -13,18 +13,70 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
     process.exit(1);
 }
 
-// Direct REST calls — no Supabase JS client, no WebSocket issue
 const supabaseHeaders = {
     'apikey': SUPABASE_KEY,
     'Authorization': `Bearer ${SUPABASE_KEY}`,
     'Content-Type': 'application/json',
-    'Prefer': 'return=minimal'
+    'Prefer': 'return=representation'
 };
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  NORMALIZATION
+// ═════════════════════════════════════════════════════════════════════════════
+function normalize(str) {
+    if (!str) return '';
+    return str
+        .toLowerCase()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')  // remove accents
+        .replace(/[^a-z0-9\s]/g, '')       // remove special chars
+        .replace(/\s+/g, ' ');             // collapse spaces
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  SUPABASE REST HELPERS
+// ═════════════════════════════════════════════════════════════════════════════
+async function getAllListings() {
+    // Fetch all existing listings in batches of 1000
+    let allData = [];
+    let from = 0;
+    const BATCH = 1000;
+    while (true) {
+        const res = await axios.get(
+            `${SUPABASE_URL}/rest/v1/listings?select=*&offset=${from}&limit=${BATCH}`,
+            { headers: supabaseHeaders }
+        );
+        allData = allData.concat(res.data);
+        if (res.data.length < BATCH) break;
+        from += BATCH;
+    }
+    console.log(`📋 Loaded ${allData.length} existing listings from Supabase`);
+    return allData;
+}
+
+async function insertListing(listing) {
+    const res = await axios.post(
+        `${SUPABASE_URL}/rest/v1/listings`,
+        listing,
+        { headers: supabaseHeaders }
+    );
+    return res.data[0];
+}
+
+async function updateListing(id, fields) {
+    await axios.patch(
+        `${SUPABASE_URL}/rest/v1/listings?id=eq.${id}`,
+        fields,
+        { headers: { ...supabaseHeaders, 'Prefer': 'return=minimal' } }
+    );
+}
+
 async function getSavedPdfMeta() {
-    const res = await axios.get(`${SUPABASE_URL}/rest/v1/pdf_meta?limit=1`, {
-        headers: { ...supabaseHeaders, 'Prefer': 'return=representation' }
-    });
+    const res = await axios.get(
+        `${SUPABASE_URL}/rest/v1/pdf_meta?limit=1`,
+        { headers: supabaseHeaders }
+    );
     return res.data.length > 0 ? res.data[0] : null;
 }
 
@@ -39,7 +91,7 @@ async function savePdfMeta(pdfUrl, pdfHeading) {
         await axios.patch(
             `${SUPABASE_URL}/rest/v1/pdf_meta?id=eq.${existing.id}`,
             payload,
-            { headers: supabaseHeaders }
+            { headers: { ...supabaseHeaders, 'Prefer': 'return=minimal' } }
         );
     } else {
         await axios.post(
@@ -51,37 +103,140 @@ async function savePdfMeta(pdfUrl, pdfHeading) {
     console.log('✅ pdf_meta saved');
 }
 
-async function saveListingsToDB(rentals) {
-    console.log(`💾 Saving ${rentals.length} listings...`);
-    // Delete all existing rows
-    await axios.delete(
-        `${SUPABASE_URL}/rest/v1/listings?id=neq.0`,
-        { headers: supabaseHeaders }
+// ═════════════════════════════════════════════════════════════════════════════
+//  SMART MERGE LOGIC
+// ═════════════════════════════════════════════════════════════════════════════
+function findMatch(pdfRental, existingListings) {
+    const normName     = normalize(pdfRental.name);
+    const normProvince = normalize(pdfRental.province);
+    const normEmail    = normalize(pdfRental.email);
+    const normPhone    = normalize(pdfRental.phone);
+
+    // Step 1: Match by normalized name + province (strongest signal)
+    const byNameProvince = existingListings.find(e =>
+        normalize(e.name) === normName &&
+        normalize(e.province) === normProvince
     );
-    // Insert in batches of 500
-    const BATCH_SIZE = 500;
-    for (let i = 0; i < rentals.length; i += BATCH_SIZE) {
-        const batch = rentals.slice(i, i + BATCH_SIZE);
-        await axios.post(
-            `${SUPABASE_URL}/rest/v1/listings`,
-            batch,
-            { headers: supabaseHeaders }
+    if (byNameProvince) return { match: byNameProvince, method: 'name+province' };
+
+    // Step 2: Match by email (catches name changes)
+    if (normEmail) {
+        const byEmail = existingListings.find(e =>
+            e.email && normalize(e.email) === normEmail
         );
-        console.log(`  ✅ Batch ${Math.floor(i/BATCH_SIZE)+1}: rows ${i+1}–${Math.min(i+BATCH_SIZE, rentals.length)}`);
+        if (byEmail) return { match: byEmail, method: 'email' };
     }
-    console.log(`✅ All ${rentals.length} listings saved`);
+
+    // Step 3: Match by phone (catches name + email changes)
+    if (normPhone) {
+        const byPhone = existingListings.find(e =>
+            e.phone && normalize(e.phone) === normPhone
+        );
+        if (byPhone) return { match: byPhone, method: 'phone' };
+    }
+
+    return null;
 }
 
-// ─── Column boundaries (same as server.js) ───────────────────────────────────
-const COLUMN_BOUNDARIES = {
-    NOMBRE:    { start: 0,   end: 184 },
-    MODALIDAD: { start: 184, end: 265 },
-    CORREO:    { start: 265, end: 481 },
-    TELEFONO:  { start: 481, end: 600 }
-};
+async function smartMerge(pdfRentals, existingListings) {
+    const today = new Date().toISOString().split('T')[0];
+    const stats = {
+        inserted: 0,
+        updated: 0,
+        unchanged: 0,
+        deactivated: 0
+    };
+
+    // Track which existing IDs were matched
+    const matchedIds = new Set();
+
+    for (const pdfRental of pdfRentals) {
+        const result = findMatch(pdfRental, existingListings);
+
+        if (result) {
+            // Existing listing found
+            const existing = result.match;
+            matchedIds.add(existing.id);
+
+            // Compare ATP fields — only update what changed
+            const changes = {};
+            const changedFieldNames = [];
+
+            if (existing.name !== pdfRental.name) {
+                changes.name = pdfRental.name;
+                changedFieldNames.push(`name: "${existing.name}" → "${pdfRental.name}"`);
+            }
+            if (existing.rental_type !== pdfRental.rental_type) {
+                changes.rental_type = pdfRental.rental_type;
+                changedFieldNames.push(`rental_type: "${existing.rental_type}" → "${pdfRental.rental_type}"`);
+            }
+            if (existing.email !== pdfRental.email) {
+                changes.email = pdfRental.email;
+                changedFieldNames.push(`email: "${existing.email}" → "${pdfRental.email}"`);
+            }
+            if (existing.phone !== pdfRental.phone) {
+                changes.phone = pdfRental.phone;
+                changedFieldNames.push(`phone: "${existing.phone}" → "${pdfRental.phone}"`);
+            }
+            if (existing.province !== pdfRental.province) {
+                changes.province = pdfRental.province;
+                changedFieldNames.push(`province: "${existing.province}" → "${pdfRental.province}"`);
+            }
+
+            // Always update atp_last_seen and ensure atp_active = true
+            changes.atp_last_seen = today;
+            changes.atp_active = true;
+
+            if (changedFieldNames.length > 0) {
+                changes.changed_fields = changedFieldNames.join('; ');
+                console.log(`  ✏️  Updated [${result.method}]: ${existing.name} — ${changes.changed_fields}`);
+                stats.updated++;
+            } else {
+                stats.unchanged++;
+            }
+
+            await updateListing(existing.id, changes);
+
+        } else {
+            // New listing — insert it
+            const newListing = {
+                name: pdfRental.name,
+                rental_type: pdfRental.rental_type,
+                email: pdfRental.email,
+                phone: pdfRental.phone,
+                province: pdfRental.province,
+                atp_active: true,
+                atp_first_seen: today,
+                atp_last_seen: today,
+                changed_fields: null,
+                invitation_sent_at: null
+            };
+            await insertListing(newListing);
+            console.log(`  ➕ New listing: ${pdfRental.name} (${pdfRental.province})`);
+            stats.inserted++;
+        }
+    }
+
+    // Deactivate listings no longer in ATP list
+    const deactivated = existingListings.filter(e =>
+        e.atp_active && !matchedIds.has(e.id)
+    );
+
+    for (const gone of deactivated) {
+        await updateListing(gone.id, {
+            atp_active: false,
+            changed_fields: 'Removed from ATP list'
+        });
+        console.log(`  ❌ Deactivated: ${gone.name} (${gone.province})`);
+        stats.deactivated++;
+        // TODO: send "what happened?" email when email system is ready
+    }
+
+    return stats;
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  STEP 1 — Get the latest PDF URL from the ATP website
+//  ATP PAGE & PDF FUNCTIONS
 // ═════════════════════════════════════════════════════════════════════════════
 async function getLatestPdfUrl() {
     const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
@@ -99,8 +254,7 @@ async function getLatestPdfUrl() {
     const html = response.data;
     console.log(`✅ ATP page fetched (${html.length} bytes)`);
 
-    // Match the "Descargar PDF" button link
-    const pdfLinkRegex = /<a[^>]+href="([^"]*\.pdf)"[^>]*>\s*Descargar PDF\s*<\/a>/i;
+    const pdfLinkRegex = /<a[^>]+href="([^"]*\.pdf)"[^>]*>\s*Descargar\s*PDF\s*<\/a>/i;
     const match = html.match(pdfLinkRegex);
     if (match) {
         const pdfUrl = new URL(match[1], atpUrl).href;
@@ -112,20 +266,24 @@ async function getLatestPdfUrl() {
         return { pdfUrl, headingText };
     }
 
-    // Fallback: any PDF link from atp.gob.pa
-    const fallbackRegex = /href="(https:\/\/www\.atp\.gob\.pa\/[^"]*\.pdf)"/i;
+    const fallbackRegex = /href="(https?:\/\/www\.atp\.gob\.pa\/[^"]*\.pdf)"/i;
     const fallbackMatch = html.match(fallbackRegex);
     if (fallbackMatch) {
-        console.log('⚠️  Using fallback PDF URL:', fallbackMatch[1]);
+        console.log('⚠️  Fallback PDF URL:', fallbackMatch[1]);
         return { pdfUrl: fallbackMatch[1], headingText: null };
     }
 
     throw new Error('Could not find PDF URL on ATP page');
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-//  STEP 2 — Download and parse the PDF
-// ═════════════════════════════════════════════════════════════════════════════
+// ─── Column boundaries ────────────────────────────────────────────────────────
+const COLUMN_BOUNDARIES = {
+    NOMBRE:    { start: 0,   end: 184 },
+    MODALIDAD: { start: 184, end: 265 },
+    CORREO:    { start: 265, end: 481 },
+    TELEFONO:  { start: 481, end: 600 }
+};
+
 async function downloadAndParsePdf(pdfUrl) {
     console.log('📥 Downloading PDF:', pdfUrl);
     const response = await axios.get(pdfUrl, {
@@ -156,7 +314,6 @@ async function downloadAndParsePdf(pdfUrl) {
         process.stdout.write(`  Processing page ${pageNum}/${numPages}...\r`);
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
-
         const textItems = textContent.items.map(item => ({
             text: item.str,
             x: Math.round(item.transform[4] * 100) / 100,
@@ -164,10 +321,8 @@ async function downloadAndParsePdf(pdfUrl) {
         }));
 
         const rows = groupIntoRows(textItems);
-
         for (const row of rows) {
             const rowText = row.items.map(i => i.text).join(' ');
-
             if (rowText.includes('Provincia:')) {
                 currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
                 continue;
@@ -176,17 +331,16 @@ async function downloadAndParsePdf(pdfUrl) {
             if (rowText.includes('Total por')) continue;
 
             const rowData = parseRowData(row);
-
             if (currentRental && isContinuationRow(rowData, currentRental)) {
                 currentRental = mergeRentalRows(currentRental, rowData);
                 continue;
             }
             if (currentRental && rowData.name && rowData.name.trim() &&
-                (rowData.type || rowData.email || rowData.phone)) {
+                (rowData.rental_type || rowData.email || rowData.phone)) {
                 allRentals.push(currentRental);
                 currentRental = { ...rowData, province: currentProvince };
             } else if (!currentRental && rowData.name && rowData.name.trim() &&
-                       (rowData.type || rowData.email || rowData.phone)) {
+                       (rowData.rental_type || rowData.email || rowData.phone)) {
                 currentRental = { ...rowData, province: currentProvince };
             } else if (!currentRental && rowData.name && rowData.name.trim()) {
                 currentRental = { ...rowData, province: currentProvince };
@@ -199,9 +353,7 @@ async function downloadAndParsePdf(pdfUrl) {
     return allRentals;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-//  PDF PARSING HELPERS (identical to server.js)
-// ═════════════════════════════════════════════════════════════════════════════
+// ─── PDF parsing helpers ──────────────────────────────────────────────────────
 function groupIntoRows(textItems) {
     const rows = {};
     const Y_TOLERANCE = 1.5;
@@ -218,12 +370,12 @@ function groupIntoRows(textItems) {
 }
 
 function parseRowData(row) {
-    const rental = { name: '', type: '', email: '', phone: '' };
+    const rental = { name: '', rental_type: '', email: '', phone: '' };
     row.items.forEach(item => {
         if (item.x >= COLUMN_BOUNDARIES.NOMBRE.start && item.x < COLUMN_BOUNDARIES.NOMBRE.end) {
             rental.name += (rental.name ? ' ' : '') + item.text;
         } else if (item.x >= COLUMN_BOUNDARIES.MODALIDAD.start && item.x < COLUMN_BOUNDARIES.MODALIDAD.end) {
-            rental.type += (rental.type ? ' ' : '') + item.text;
+            rental.rental_type += (rental.rental_type ? ' ' : '') + item.text;
         } else if (item.x >= COLUMN_BOUNDARIES.CORREO.start && item.x < COLUMN_BOUNDARIES.CORREO.end) {
             rental.email += item.text;
         } else if (item.x >= COLUMN_BOUNDARIES.TELEFONO.start && item.x < COLUMN_BOUNDARIES.TELEFONO.end) {
@@ -231,7 +383,7 @@ function parseRowData(row) {
         }
     });
     rental.name = rental.name.trim();
-    rental.type = rental.type.trim();
+    rental.rental_type = rental.rental_type.trim();
     rental.email = rental.email.trim();
     rental.phone = rental.phone.trim();
     return rental;
@@ -246,14 +398,14 @@ function isHeaderRow(rowText) {
 }
 
 function isContinuationRow(rowData, previousRowData) {
-    if (previousRowData.type === 'Hostal' && rowData.type === 'Familiar') return true;
-    if (previousRowData.type === 'Sitio de' && rowData.type === 'acampar') return true;
-    if (!rowData.type) return true;
-    if (previousRowData.email && rowData.email && !rowData.type) {
+    if (previousRowData.rental_type === 'Hostal' && rowData.rental_type === 'Familiar') return true;
+    if (previousRowData.rental_type === 'Sitio de' && rowData.rental_type === 'acampar') return true;
+    if (!rowData.rental_type) return true;
+    if (previousRowData.email && rowData.email && !rowData.rental_type) {
         const complete = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(previousRowData.email);
         if (!complete) return true;
     }
-    if (previousRowData.phone && rowData.phone && !rowData.type) {
+    if (previousRowData.phone && rowData.phone && !rowData.rental_type) {
         if (previousRowData.phone.endsWith('-')) return true;
         if (previousRowData.phone.endsWith('/') && !rowData.phone.endsWith('/')) return true;
     }
@@ -263,9 +415,9 @@ function isContinuationRow(rowData, previousRowData) {
 function mergeRentalRows(prev, cont) {
     const merged = { ...prev };
     if (cont.name) merged.name = (prev.name + ' ' + cont.name).trim();
-    if (cont.type) {
-        if (prev.type === 'Hostal' && cont.type === 'Familiar') merged.type = 'Hostal Familiar';
-        else if (prev.type === 'Sitio de' && cont.type === 'acampar') merged.type = 'Sitio de acampar';
+    if (cont.rental_type) {
+        if (prev.rental_type === 'Hostal' && cont.rental_type === 'Familiar') merged.rental_type = 'Hostal Familiar';
+        else if (prev.rental_type === 'Sitio de' && cont.rental_type === 'acampar') merged.rental_type = 'Sitio de acampar';
     }
     if (cont.email) merged.email = (prev.email + cont.email).trim();
     if (cont.phone) {
@@ -280,19 +432,21 @@ function mergeRentalRows(prev, cont) {
 //  MAIN
 // ═════════════════════════════════════════════════════════════════════════════
 async function main() {
-    console.log('═══════════════════════════════════════');
-    console.log('  TrustedPanamaStays — Listing Updater');
+    console.log('═══════════════════════════════════════════════');
+    console.log('  TrustedPanamaStays — Smart Listing Updater');
     console.log('  ' + new Date().toISOString());
-    console.log('═══════════════════════════════════════');
+    console.log('═══════════════════════════════════════════════');
 
     try {
+        // Step 1: Get current PDF URL from ATP
         const { pdfUrl, headingText } = await getLatestPdfUrl();
 
+        // Step 2: Compare with saved URL
         const savedMeta = await getSavedPdfMeta();
         const savedUrl = savedMeta ? savedMeta.pdf_url : null;
 
         if (pdfUrl === savedUrl) {
-            console.log('✅ PDF URL unchanged — database is already up to date');
+            console.log('✅ PDF URL unchanged — no update needed');
             process.exit(0);
         }
 
@@ -300,18 +454,29 @@ async function main() {
         console.log('   Old:', savedUrl || '(none)');
         console.log('   New:', pdfUrl);
 
-        const rentals = await downloadAndParsePdf(pdfUrl);
-
-        if (rentals.length === 0) {
-            throw new Error('PDF parsed but returned 0 listings — aborting to protect existing data');
+        // Step 3: Parse the PDF
+        const pdfRentals = await downloadAndParsePdf(pdfUrl);
+        if (pdfRentals.length === 0) {
+            throw new Error('PDF parsed but returned 0 listings — aborting');
         }
 
-        await saveListingsToDB(rentals);
+        // Step 4: Load existing listings from Supabase
+        const existingListings = await getAllListings();
+
+        // Step 5: Smart merge
+        console.log('🔄 Running smart merge...');
+        const stats = await smartMerge(pdfRentals, existingListings);
+
+        // Step 6: Save PDF meta
         await savePdfMeta(pdfUrl, headingText);
 
-        console.log('═══════════════════════════════════════');
-        console.log(`✅ SUCCESS: ${rentals.length} listings updated`);
-        console.log('═══════════════════════════════════════');
+        console.log('═══════════════════════════════════════════════');
+        console.log(`✅ SUCCESS`);
+        console.log(`   ➕ Inserted:    ${stats.inserted}`);
+        console.log(`   ✏️  Updated:     ${stats.updated}`);
+        console.log(`   ✓  Unchanged:   ${stats.unchanged}`);
+        console.log(`   ❌ Deactivated: ${stats.deactivated}`);
+        console.log('═══════════════════════════════════════════════');
         process.exit(0);
 
     } catch (err) {
