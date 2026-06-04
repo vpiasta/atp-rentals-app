@@ -9,6 +9,9 @@ const path = require('path');
 const axios = require('axios');
 const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
 const supabase = require('./db');   // <-- Supabase client
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+const execFileAsync = promisify(execFile);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -207,57 +210,48 @@ initializeData();
 // ═════════════════════════════════════════════════════════════════════════════
 
 async function getLatestPdfUrl() {
-    const atpUrl = 'https://www.atp.gob.pa/industrias/hoteleros/';
-    console.log('🔄 Fetching ATP page...');
-
-    const response = await axios.get(atpUrl, {
-        timeout: 20000,
-        maxRedirects: 10,
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-        httpsAgent: new https.Agent({ rejectUnauthorized: false }),
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'es-PA,es;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0'
-        }
-    });
-
-    const html = response.data;
-    console.log(`✅ ATP page fetched (${html.length} bytes)`);
-
-    // Match "Descargar PDF" link
-    const pdfLinkRegex = /<a[^>]+href="([^"]*\.pdf)"[^>]*>\s*Descargar\s*PDF\s*<\/a>/i;
-    const match = html.match(pdfLinkRegex);
-    if (match) {
-        const pdfUrl = new URL(match[1], atpUrl).href;
-        console.log('✅ PDF URL found:', pdfUrl);
-        const h3Match = html.match(/<h3[^>]*>([^<]*Actualizado[^<]*)<\/h3>/i);
-        const headingText = h3Match
-            ? `Hospedajes - ${h3Match[1].trim()}`
-            : 'Hospedajes - Registrados por la Autoridad de Turismo de Panamá (ATP)';
-        return { pdfUrl, headingText };
+    console.log('🔄 Fetching PDF URL via PHP...');
+    
+    // Write a small PHP script to a temp file and execute it
+    const phpScript = `<?php
+$ch = curl_init();
+curl_setopt_array($ch, [
+    CURLOPT_URL => 'https://www.atp.gob.pa/industrias/hoteleros/',
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+]);
+$html = curl_exec($ch);
+curl_close($ch);
+preg_match('/<a[^>]+href="([^"]*\\.pdf)"[^>]*>\\s*Descargar PDF\\s*<\\/a>/i', $html, $matches);
+if (!empty($matches[1])) {
+    echo json_encode(['pdfUrl' => $matches[1]]);
+} else {
+    preg_match('/href="(https?:\\/\\/www\\.atp\\.gob\\.pa\\/[^"]*\\.pdf)"/i', $html, $matches2);
+    if (!empty($matches2[1])) {
+        echo json_encode(['pdfUrl' => $matches2[1]]);
+    } else {
+        echo json_encode(['error' => 'No PDF found']);
     }
-
-    // Fallback: any .pdf link from atp.gob.pa
-    const fallbackRegex = /href="(https?:\/\/www\.atp\.gob\.pa\/[^"]*\.pdf)"/i;
-    const fallbackMatch = html.match(fallbackRegex);
-    if (fallbackMatch) {
-        console.log('⚠️ Fallback PDF URL:', fallbackMatch[1]);
-        return { pdfUrl: fallbackMatch[1], headingText: null };
-    }
-
-    throw new Error('Could not find PDF URL on ATP page');
 }
+?>`;
 
+    const tmpFile = '/tmp/get_pdf_url.php';
+    require('fs').writeFileSync(tmpFile, phpScript);
+    
+    const { stdout } = await execFileAsync('php', [tmpFile], { timeout: 20000 });
+    const data = JSON.parse(stdout);
+    
+    if (data.error) throw new Error(data.error);
+    if (!data.pdfUrl) throw new Error('No PDF URL returned');
+    
+    console.log('✅ PDF URL:', data.pdfUrl);
+    return {
+        pdfUrl: data.pdfUrl,
+        headingText: 'Hospedajes - Registrados por la Autoridad de Turismo de Panamá (ATP)'
+    };
+}
 function extractPdfAndHeading(html, baseUrl) {
     console.log('🔍 Extracting PDF URL and heading...');
 
