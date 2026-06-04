@@ -399,12 +399,12 @@ function groupIntoRows(textItems) {
 }
 
 function parseRowData(row) {
-    const rental = { name: '', type: '', email: '', phone: '' };
+    const rental = { name: '', rental_type: '', email: '', phone: '' };
     row.items.forEach(item => {
         if (item.x >= COLUMN_BOUNDARIES.NOMBRE.start && item.x < COLUMN_BOUNDARIES.NOMBRE.end) {
             rental.name += (rental.name ? ' ' : '') + item.text;
         } else if (item.x >= COLUMN_BOUNDARIES.MODALIDAD.start && item.x < COLUMN_BOUNDARIES.MODALIDAD.end) {
-            rental.type += (rental.type ? ' ' : '') + item.text;
+            rental.rental_type += (rental.rental_type ? ' ' : '') + item.text;
         } else if (item.x >= COLUMN_BOUNDARIES.CORREO.start && item.x < COLUMN_BOUNDARIES.CORREO.end) {
             rental.email += item.text;
         } else if (item.x >= COLUMN_BOUNDARIES.TELEFONO.start && item.x < COLUMN_BOUNDARIES.TELEFONO.end) {
@@ -412,50 +412,39 @@ function parseRowData(row) {
         }
     });
     rental.name = rental.name.trim();
-    rental.type = rental.type.trim();
+    rental.rental_type = rental.rental_type.trim();
     rental.email = rental.email.trim();
     rental.phone = rental.phone.trim();
     return rental;
 }
 
 function isContinuationRow(rowData, previousRowData) {
-    if (previousRowData.type === 'Hostal' && rowData.type === 'Familiar') return true;
-    if (previousRowData.type === 'Sitio de' && rowData.type === 'acampar') return true;
-    if (!rowData.type) return true;
-    if (previousRowData.email && rowData.email && !rowData.type) {
-        const isPreviousEmailComplete = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(previousRowData.email);
-        if (!isPreviousEmailComplete) return true;
+    if (previousRowData.rental_type === 'Hostal' && rowData.rental_type === 'Familiar') return true;
+    if (previousRowData.rental_type === 'Sitio de' && rowData.rental_type === 'acampar') return true;
+    if (!rowData.rental_type) return true;
+    if (previousRowData.email && rowData.email && !rowData.rental_type) {
+        const complete = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(previousRowData.email);
+        if (!complete) return true;
     }
-    if (previousRowData.phone && rowData.phone && !rowData.type) {
+    if (previousRowData.phone && rowData.phone && !rowData.rental_type) {
         if (previousRowData.phone.endsWith('-')) return true;
         if (previousRowData.phone.endsWith('/') && !rowData.phone.endsWith('/')) return true;
     }
     return false;
 }
 
-function mergeRentalRows(previousRental, continuationRow) {
-    const merged = { ...previousRental };
-    if (continuationRow.name) {
-        merged.name = (previousRental.name + ' ' + continuationRow.name).trim();
+function mergeRentalRows(prev, cont) {
+    const merged = { ...prev };
+    if (cont.name) merged.name = (prev.name + ' ' + cont.name).trim();
+    if (cont.rental_type) {
+        if (prev.rental_type === 'Hostal' && cont.rental_type === 'Familiar') merged.rental_type = 'Hostal Familiar';
+        else if (prev.rental_type === 'Sitio de' && cont.rental_type === 'acampar') merged.rental_type = 'Sitio de acampar';
     }
-    if (continuationRow.type) {
-        if (previousRental.type === 'Hostal' && continuationRow.type === 'Familiar') {
-            merged.type = 'Hostal Familiar';
-        } else if (previousRental.type === 'Sitio de' && continuationRow.type === 'acampar') {
-            merged.type = 'Sitio de acampar';
-        }
-    }
-    if (continuationRow.email) {
-        merged.email = (previousRental.email + continuationRow.email).trim();
-    }
-    if (continuationRow.phone) {
-        if (previousRental.phone.endsWith('/')) {
-            merged.phone = (previousRental.phone + ' ' + continuationRow.phone).trim();
-        } else if (previousRental.phone.endsWith('-')) {
-            merged.phone = (previousRental.phone.slice(0, -1) + continuationRow.phone).trim();
-        } else {
-            merged.phone = (previousRental.phone + ' ' + continuationRow.phone).trim();
-        }
+    if (cont.email) merged.email = (prev.email + cont.email).trim();
+    if (cont.phone) {
+        if (prev.phone.endsWith('/')) merged.phone = (prev.phone + ' ' + cont.phone).trim();
+        else if (prev.phone.endsWith('-')) merged.phone = (prev.phone.slice(0, -1) + cont.phone).trim();
+        else merged.phone = (prev.phone + ' ' + cont.phone).trim();
     }
     return merged;
 }
@@ -608,7 +597,7 @@ app.get('/api/provinces', (req, res) => {
 });
 
 app.get('/api/types', (req, res) => {
-    const types = [...new Set(CURRENT_RENTALS.map(r => r.type))].filter(Boolean).sort();
+    const types = [...new Set(CURRENT_RENTALS.map(r => r.rental_type))].filter(Boolean).sort();
     res.json(types);
 });
 
@@ -626,7 +615,7 @@ app.get('/api/rentals', (req, res) => {
         );
     }
     if (province) filteredRentals = filteredRentals.filter(r => r.province === province);
-    if (type) filteredRentals = filteredRentals.filter(r => r.type === type);
+    if (type) filteredRentals = filteredRentals.filter(r => r.rental_type === type);
     res.json(filteredRentals);
 });
 
