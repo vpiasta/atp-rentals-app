@@ -144,7 +144,7 @@
         /* ATP data grid */
         .info-grid {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 0.8rem;
         }
 
@@ -507,18 +507,6 @@ function renderListing(rental) {
         <div class="section">
             <div class="section-title">${T.atpData}</div>
             <div class="info-grid">
-                ${rental.province ? `
-                <div class="info-item">
-                    <span class="info-icon">📍</span>
-                    <div><div class="info-label">${T.province}</div>
-                    <div class="info-value">${rental.province}</div></div>
-                </div>` : ''}
-                ${rental.rental_type ? `
-                <div class="info-item">
-                    <span class="info-icon">🏨</span>
-                    <div><div class="info-label">${T.type}</div>
-                    <div class="info-value">${rental.rental_type}</div></div>
-                </div>` : ''}
                 ${ph.display ? `
                 <div class="info-item">
                     <span class="info-icon">📞</span>
