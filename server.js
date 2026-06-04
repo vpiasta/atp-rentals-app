@@ -777,6 +777,28 @@ app.post('/api/listing-login', async (req, res) => {
     res.json({ token, message: 'Login successful' });
 });
 
+app.post('/api/listing-update', async (req, res) => {
+    const bcrypt = require('bcrypt');
+    const { id, token, address, description_en, description_es, 
+            website_url, booking_url, photos } = req.body;
 
+    // Verify token
+    try {
+        const decoded = Buffer.from(token, 'base64').toString();
+        const [tokenId] = decoded.split(':');
+        if (tokenId !== String(id)) return res.status(403).json({ error: 'Invalid token' });
+    } catch {
+        return res.status(403).json({ error: 'Invalid token' });
+    }
+
+    // Only allow member-owned fields — never ATP fields
+    const { error } = await supabase
+        .from('listings')
+        .update({ address, description_en, description_es, website_url, booking_url, photos })
+        .eq('id', id);
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
+});
 
 
