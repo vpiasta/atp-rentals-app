@@ -735,3 +735,14 @@ app.get('/api/debug-reload', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+app.get('/api/listing/:id', async (req, res) => {
+    const { id } = req.params;
+    const { data, error } = await supabase
+        .from('listings')
+        .select('*')
+        .eq('id', id)
+        .single();
+    if (error || !data) return res.status(404).json({ error: 'Not found' });
+    res.json(data);
+});
