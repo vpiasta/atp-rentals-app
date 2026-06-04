@@ -747,4 +747,36 @@ app.get('/api/listing/:id', async (req, res) => {
     res.json(data);
 });
 
+app.post('/api/listing-login', async (req, res) => {
+    const bcrypt = require('bcrypt');
+    const { id, password } = req.body;
+    if (!id || !password) return res.status(400).json({ error: 'Missing id or password' });
+
+    const { data, error } = await supabase
+        .from('listings')
+        .select('id, member_password, membership_paid_until, is_member')
+        .eq('id', id)
+        .single();
+
+    if (error || !data || !data.is_member) {
+        return res.status(403).json({ error: 'Not a member' });
+    }
+
+    // Check membership is still valid
+    const paidUntil = new Date(data.membership_paid_until);
+    if (paidUntil < new Date()) {
+        return res.status(403).json({ error: 'Membership expired' });
+    }
+
+    // Verify password
+    const match = await bcrypt.compare(password, data.member_password);
+    if (!match) return res.status(401).json({ error: 'Invalid password' });
+
+    // Return a simple session token (id + timestamp, signed)
+    const token = Buffer.from(`${id}:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
+    res.json({ token, message: 'Login successful' });
+});
+
+
+
 
