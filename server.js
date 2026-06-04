@@ -801,4 +801,40 @@ app.post('/api/listing-update', async (req, res) => {
     res.json({ success: true });
 });
 
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+app.post('/api/listing-photo-upload', upload.single('photo'), async (req, res) => {
+    const { listingId, token } = req.body;
+    if (!listingId || !token) return res.status(400).json({ error: 'Missing params' });
+
+    // Verify token
+    try {
+        const decoded = Buffer.from(token, 'base64').toString();
+        const [tokenId] = decoded.split(':');
+        if (tokenId !== String(listingId)) return res.status(403).json({ error: 'Invalid token' });
+    } catch {
+        return res.status(403).json({ error: 'Invalid token' });
+    }
+
+    if (!req.file) return res.status(400).json({ error: 'No file received' });
+
+    // Upload to Supabase Storage
+    const fileName = `${listingId}/${Date.now()}-${req.file.originalname}`;
+    const { error } = await supabase.storage
+        .from('listing-photos')
+        .upload(fileName, req.file.buffer, {
+            contentType: req.file.mimetype,
+            upsert: false
+        });
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    // Return public URL
+    const { data } = supabase.storage
+        .from('listing-photos')
+        .getPublicUrl(fileName);
+
+    res.json({ url: data.publicUrl });
+});
 
