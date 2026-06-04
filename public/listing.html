@@ -1,26 +1,663 @@
-app.post('/api/listing-update', async (req, res) => {
-    const bcrypt = require('bcrypt');
-    const { id, token, address, description_en, description_es,
-            website_url, booking_url, photos } = req.body;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listing Details - Trusted Panama Stays</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    if (!id || !token) return res.status(400).json({ error: 'Missing id or token' });
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #111;
+            background: #f8f9fa;
+        }
 
-    // Verify token belongs to this listing
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+        /* ── Header ── */
+        header {
+            background: linear-gradient(135deg, #005ca9, #00a859);
+            color: white;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .header-left h1 { font-size: 1.3rem; font-weight: 700; }
+        .header-left p  { font-size: 0.8rem; opacity: 0.85; }
+
+        .header-right { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+        .header-btn {
+            padding: 6px 14px;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 20px;
+            color: white;
+            text-decoration: none;
+            font-size: 0.82rem;
+            font-weight: 600;
+            transition: background 0.3s;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .header-btn:hover { background: rgba(255,255,255,0.28); }
+
+        /* ── Main card ── */
+        .listing-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+
+        /* ── Name + badges row ── */
+        .name-row {
+            padding: 1.5rem 1.5rem 0;
+        }
+
+        .listing-name {
+            font-size: 1.8rem;
+            color: #005ca9;
+            margin-bottom: 0.6rem;
+            font-weight: 700;
+        }
+
+        .badges {
+            display: flex;
+            gap: 7px;
+            flex-wrap: wrap;
+            margin-bottom: 1.2rem;
+        }
+
+        .badge {
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: white;
+        }
+        .badge-type     { background: #00a859; }
+        .badge-province { background: #005ca9; }
+        .badge-member   { background: #a07800; }
+        .badge-atp      { background: #1a7a1a; }
+
+        /* ── Quick action buttons (row 3) ── */
+        .quick-buttons {
+            padding: 0 1.5rem 1.2rem;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        .qbtn {
+            padding: 7px 14px;
+            border: 2px solid #005ca9;
+            border-radius: 7px;
+            text-decoration: none;
+            color: #005ca9;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.25s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            background: white;
+        }
+        .qbtn:hover           { background: #005ca9; color: white; }
+        .qbtn.whatsapp        { border-color: #25D366; color: #25D366; }
+        .qbtn.whatsapp:hover  { background: #25D366; color: white; }
+        .qbtn.login-btn       { border-color: #a07800; color: #a07800; background: #fffbe6; margin-left: auto; }
+        .qbtn.login-btn:hover { background: #FFD700; color: #333; border-color: #FFD700; }
+        .qbtn.logout-btn      { border-color: #cc0000; color: #cc0000; background: #fff5f5; margin-left: auto; }
+        .qbtn.logout-btn:hover{ background: #cc0000; color: white; }
+
+        /* ── Sections ── */
+        .section {
+            padding: 1.2rem 1.5rem;
+            border-bottom: 1px solid #e1e5e9;
+        }
+        .section:last-child { border-bottom: none; }
+
+        .section-title {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #888;
+            margin-bottom: 0.8rem;
+            font-weight: 700;
+        }
+
+        /* ATP data grid */
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.8rem;
+        }
+
+        .info-item { display: flex; gap: 9px; align-items: flex-start; }
+        .info-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; }
+        .info-label { font-size: 0.75rem; color: #888; }
+        .info-value { font-weight: 600; color: #111; font-size: 0.95rem; }
+
+        /* ── Photo gallery ── */
+        .photo-gallery {
+            width: 100%;
+            height: 320px;
+            background: linear-gradient(135deg, #e8f4f0, #d0e8f0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .photo-gallery img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .photo-placeholder {
+            font-size: 5rem;
+            opacity: 0.3;
+        }
+
+        .photo-nav {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            display: flex;
+            gap: 6px;
+        }
+
+        .photo-nav button {
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .photo-count {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 3px 9px;
+            border-radius: 12px;
+            font-size: 0.78rem;
+        }
+
+        /* ── Description ── */
+        .description-text {
+            color: #444;
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+
+        /* ── Contact / Links button rows ── */
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 9px 18px;
+            border: 2px solid #005ca9;
+            border-radius: 7px;
+            text-decoration: none;
+            color: #005ca9;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.25s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .action-btn:hover           { background: #005ca9; color: white; }
+        .action-btn.whatsapp        { border-color: #25D366; color: #25D366; }
+        .action-btn.whatsapp:hover  { background: #25D366; color: white; }
+        .action-btn.primary         { background: #005ca9; color: white; }
+        .action-btn.primary:hover   { background: #004885; }
+
+        /* ── Login modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            width: 340px;
+            max-width: 90vw;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+        }
+
+        .modal h3 { font-size: 1.2rem; color: #005ca9; margin-bottom: 1rem; }
+
+        .modal input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #e1e5e9;
+            border-radius: 7px;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            transition: border-color 0.3s;
+        }
+        .modal input:focus { outline: none; border-color: #005ca9; }
+
+        .modal-buttons { display: flex; gap: 10px; }
+
+        .modal-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 7px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        .modal-btn.confirm { background: #005ca9; color: white; }
+        .modal-btn.confirm:hover { background: #004885; }
+        .modal-btn.cancel  { background: #f0f0f0; color: #555; }
+        .modal-btn.cancel:hover { background: #e0e0e0; }
+
+        .modal-error {
+            color: #cc0000;
+            font-size: 0.85rem;
+            margin-bottom: 0.75rem;
+            display: none;
+        }
+
+        /* ── States ── */
+        .loading-state { text-align: center; padding: 4rem; color: #005ca9; font-size: 1.1rem; }
+        .error-state   { text-align: center; padding: 4rem; color: #cc0000; }
+
+        footer {
+            text-align: center;
+            color: #888;
+            font-size: 0.82rem;
+            padding: 1rem 0;
+            border-top: 1px solid #e1e5e9;
+            margin-top: 0.5rem;
+        }
+
+        @media (max-width: 600px) {
+            .listing-name { font-size: 1.4rem; }
+            .name-row, .quick-buttons, .section { padding-left: 1rem; padding-right: 1rem; }
+            .photo-gallery { height: 200px; }
+            .qbtn.login-btn, .qbtn.logout-btn { margin-left: 0; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- 1) Header -->
+    <header>
+        <div class="header-left">
+            <h1>Trusted Panama Stays</h1>
+            <p id="header-subtitle">Verified ATP-Registered Accommodation</p>
+        </div>
+        <div class="header-right">
+            <a id="back-link" href="index.html" class="header-btn">← Back</a>
+            <a id="lang-link" href="#" class="header-btn">🇵🇦 Español</a>
+        </div>
+    </header>
+
+    <!-- Main content injected here -->
+    <div id="listing-content">
+        <div class="loading-state">⏳ Loading...</div>
+    </div>
+
+    <footer>
+        <p id="footer-text">Data provided by the
+            <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>
+        </p>
+    </footer>
+</div>
+
+<!-- Login modal -->
+<div class="modal-overlay" id="login-modal">
+    <div class="modal">
+        <h3 id="modal-title">🔐 Member Login</h3>
+        <p id="modal-subtitle" style="font-size:0.85rem;color:#666;margin-bottom:1rem;"></p>
+        <div class="modal-error" id="modal-error"></div>
+        <input type="password" id="password-input" placeholder="Enter your password">
+        <div class="modal-buttons">
+            <button class="modal-btn cancel" id="modal-cancel">Cancel</button>
+            <button class="modal-btn confirm" id="modal-confirm">Login</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE_URL = '';
+
+// ── URL params ────────────────────────────────────────────────────────────────
+const urlParams = new URLSearchParams(window.location.search);
+const listingId = urlParams.get('id');
+const lang = urlParams.get('lang') || 'en';
+const isEs = lang === 'es';
+
+// ── Session (in-memory only, clears on page close) ────────────────────────────
+let sessionToken = sessionStorage.getItem(`tps_token_${listingId}`) || null;
+let isLoggedIn = false;
+
+// ── Translations ──────────────────────────────────────────────────────────────
+const T = {
+    back:          isEs ? '← Volver'              : '← Back',
+    langToggle:    isEs ? '🇺🇸 English'            : '🇵🇦 Español',
+    subtitle:      isEs ? 'Alojamiento verificado ATP' : 'Verified ATP-Registered Accommodation',
+    province:      isEs ? 'Provincia'  : 'Province',
+    type:          isEs ? 'Tipo'       : 'Type',
+    phone:         isEs ? 'Teléfono'   : 'Phone',
+    email:         isEs ? 'Correo'     : 'Email',
+    address:       isEs ? 'Dirección'  : 'Address',
+    atpData:       isEs ? 'Datos ATP'  : 'ATP Data',
+    description:   isEs ? 'Descripción': 'Description',
+    contact:       isEs ? 'Contacto'   : 'Contact',
+    links:         isEs ? 'Enlaces'    : 'Links',
+    call:          isEs ? '📞 Llamar'  : '📞 Call',
+    emailBtn:      isEs ? '✉️ Correo'  : '✉️ Email',
+    whatsapp:      '💬 WhatsApp',
+    maps:          '📍 Google Maps',
+    website:       isEs ? '🌐 Sitio Web' : '🌐 Website',
+    booking:       isEs ? '🔗 Reservar'  : '🔗 Book Now',
+    memberLogin:   isEs ? '🔐 Acceso Miembro' : '🔐 Member Login',
+    logout:        isEs ? 'Cerrar sesión'   : 'Log Out',
+    noDesc:        isEs ? 'Descripción no disponible aún.' : 'No description available yet.',
+    notFound:      isEs ? 'Listado no encontrado.' : 'Listing not found.',
+    footer:        isEs
+        ? 'Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>'
+        : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>',
+    modalTitle:    isEs ? '🔐 Acceso Miembro' : '🔐 Member Login',
+    modalSub:      isEs ? 'Ingrese su contraseña para acceder a su perfil.' : 'Enter your password to access your profile.',
+    wrongPassword: isEs ? 'Contraseña incorrecta.' : 'Incorrect password.',
+    loginError:    isEs ? 'Error al iniciar sesión. Intente de nuevo.' : 'Login error. Please try again.',
+    cancel:        isEs ? 'Cancelar' : 'Cancel',
+    confirm:       isEs ? 'Ingresar' : 'Login',
+};
+
+// Apply static translations
+document.getElementById('back-link').textContent = T.back;
+document.getElementById('back-link').href = isEs ? 'index_es.html' : 'index.html';
+document.getElementById('lang-link').textContent = T.langToggle;
+document.getElementById('header-subtitle').textContent = T.subtitle;
+document.getElementById('footer-text').innerHTML = T.footer;
+document.getElementById('modal-title').textContent = T.modalTitle;
+document.getElementById('modal-subtitle').textContent = T.modalSub;
+document.getElementById('modal-cancel').textContent = T.cancel;
+document.getElementById('modal-confirm').textContent = T.confirm;
+document.getElementById('lang-link').addEventListener('click', e => {
+    e.preventDefault();
+    window.location.href = `listing.html?id=${listingId}&lang=${isEs ? 'en' : 'es'}`;
+});
+
+// ── Phone helpers ─────────────────────────────────────────────────────────────
+function getPhoneNumbers(phoneStr) {
+    if (!phoneStr) return { display: '', call: null, whatsapp: null };
+    const nums = phoneStr.split('/').map(p => p.trim().replace(/\D/g,'')).filter(p => p.length >= 7);
+    const mobile = nums.filter(n => n.startsWith('6'));
+    const fixed  = nums.filter(n => !n.startsWith('6'));
+    const call   = (fixed[0] || mobile[0] || nums[0] || '').substring(0,8) || null;
+    const whatsapp = mobile[0] ? mobile[0].substring(0,8) : null;
+    const display = phoneStr.replace(/^\/+|\/+$/g,'').trim().replace(/\s*\/\s*/g,' / ');
+    return { display, call, whatsapp };
+}
+
+// ── Photo gallery ─────────────────────────────────────────────────────────────
+let photos = [];
+let currentPhoto = 0;
+
+function galleryHTML() {
+    if (!photos.length) {
+        return `<div class="photo-gallery"><span class="photo-placeholder">🏨</span></div>`;
+    }
+    return `
+        <div class="photo-gallery">
+            <img id="gallery-img" src="${photos[0]}" alt="Photo 1">
+            ${photos.length > 1 ? `
+            <div class="photo-nav">
+                <button onclick="changePhoto(-1)">‹</button>
+                <button onclick="changePhoto(1)">›</button>
+            </div>
+            <div class="photo-count" id="photo-count">1 / ${photos.length}</div>` : ''}
+        </div>`;
+}
+
+function changePhoto(dir) {
+    currentPhoto = (currentPhoto + dir + photos.length) % photos.length;
+    document.getElementById('gallery-img').src = photos[currentPhoto];
+    const c = document.getElementById('photo-count');
+    if (c) c.textContent = `${currentPhoto+1} / ${photos.length}`;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderListing(rental) {
+    photos = Array.isArray(rental.photos) ? rental.photos : [];
+    const ph = getPhoneNumbers(rental.phone);
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        (rental.address || rental.name) + ' ' + (rental.province||'') + ' Panama')}`;
+    const description = isEs
+        ? (rental.description_es || rental.description_en || T.noDesc)
+        : (rental.description_en || rental.description_es || T.noDesc);
+
+    const loginLogoutBtn = isLoggedIn
+        ? `<button class="qbtn logout-btn" onclick="doLogout()">${T.logout}</button>`
+        : (rental.is_member
+            ? `<button class="qbtn login-btn" onclick="openLogin()">${T.memberLogin}</button>`
+            : '');
+
+    return `
+    <div class="listing-card">
+
+        <!-- 2) Name + badges -->
+        <div class="name-row">
+            <h2 class="listing-name">${rental.name}</h2>
+            <div class="badges">
+                ${rental.rental_type ? `<span class="badge badge-type">${rental.rental_type}</span>` : ''}
+                ${rental.province    ? `<span class="badge badge-province">📍 ${rental.province}</span>` : ''}
+                ${rental.is_member   ? `<span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>` : ''}
+                <span class="badge badge-atp">✅ ATP</span>
+            </div>
+        </div>
+
+        <!-- 3) Quick buttons -->
+        <div class="quick-buttons">
+            ${ph.call     ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
+            ${rental.email? `<a href="mailto:${rental.email}" class="qbtn">${T.emailBtn}</a>` : ''}
+            ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
+            <a href="${mapsUrl}" target="_blank" class="qbtn">${T.maps}</a>
+            ${loginLogoutBtn}
+        </div>
+
+        <!-- 4) ATP data -->
+        <div class="section">
+            <div class="section-title">${T.atpData}</div>
+            <div class="info-grid">
+                ${rental.province ? `
+                <div class="info-item">
+                    <span class="info-icon">📍</span>
+                    <div><div class="info-label">${T.province}</div>
+                    <div class="info-value">${rental.province}</div></div>
+                </div>` : ''}
+                ${rental.rental_type ? `
+                <div class="info-item">
+                    <span class="info-icon">🏨</span>
+                    <div><div class="info-label">${T.type}</div>
+                    <div class="info-value">${rental.rental_type}</div></div>
+                </div>` : ''}
+                ${ph.display ? `
+                <div class="info-item">
+                    <span class="info-icon">📞</span>
+                    <div><div class="info-label">${T.phone}</div>
+                    <div class="info-value">${ph.display}</div></div>
+                </div>` : ''}
+                ${rental.email ? `
+                <div class="info-item">
+                    <span class="info-icon">✉️</span>
+                    <div><div class="info-label">${T.email}</div>
+                    <div class="info-value">${rental.email}</div></div>
+                </div>` : ''}
+                ${rental.address ? `
+                <div class="info-item">
+                    <span class="info-icon">🗺️</span>
+                    <div><div class="info-label">${T.address}</div>
+                    <div class="info-value">${rental.address}</div></div>
+                </div>` : ''}
+            </div>
+        </div>
+
+        <!-- 5) Lead photo -->
+        ${galleryHTML()}
+
+        <!-- 6) Description (members only) -->
+        ${rental.is_member ? `
+        <div class="section">
+            <div class="section-title">${T.description}</div>
+            <p class="description-text">${description}</p>
+        </div>` : ''}
+
+        <!-- 7) Contact buttons -->
+        <div class="section">
+            <div class="section-title">${T.contact}</div>
+            <div class="btn-row">
+                ${ph.call     ? `<a href="tel:+507${ph.call}" class="action-btn">${T.call}</a>` : ''}
+                ${rental.email? `<a href="mailto:${rental.email}" class="action-btn">${T.emailBtn}</a>` : ''}
+                ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="action-btn whatsapp">${T.whatsapp}</a>` : ''}
+                <a href="${mapsUrl}" target="_blank" class="action-btn">${T.maps}</a>
+            </div>
+        </div>
+
+        <!-- 8) Links (members only) -->
+        ${rental.is_member && (rental.website_url || rental.booking_url) ? `
+        <div class="section">
+            <div class="section-title">${T.links}</div>
+            <div class="btn-row">
+                ${rental.website_url ? `<a href="${rental.website_url}" target="_blank" class="action-btn primary">${T.website}</a>` : ''}
+                ${rental.booking_url ? `<a href="${rental.booking_url}" target="_blank" class="action-btn primary">${T.booking}</a>` : ''}
+            </div>
+        </div>` : ''}
+
+    </div>`;
+}
+
+// ── Login modal ───────────────────────────────────────────────────────────────
+function openLogin() {
+    document.getElementById('login-modal').classList.add('active');
+    document.getElementById('password-input').value = '';
+    document.getElementById('modal-error').style.display = 'none';
+    setTimeout(() => document.getElementById('password-input').focus(), 100);
+}
+
+function closeLogin() {
+    document.getElementById('login-modal').classList.remove('active');
+}
+
+document.getElementById('modal-cancel').addEventListener('click', closeLogin);
+document.getElementById('login-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('login-modal')) closeLogin();
+});
+document.getElementById('password-input').addEventListener('keypress', e => {
+    if (e.key === 'Enter') attemptLogin();
+});
+document.getElementById('modal-confirm').addEventListener('click', attemptLogin);
+
+async function attemptLogin() {
+    const password = document.getElementById('password-input').value;
+    const errorEl  = document.getElementById('modal-error');
+    errorEl.style.display = 'none';
+
     try {
-        const decoded = Buffer.from(token, 'base64').toString();
-        const [tokenId] = decoded.split(':');
-        if (tokenId !== String(id)) return res.status(403).json({ error: 'Invalid token' });
+        const res = await fetch(`${API_BASE_URL}/api/listing-login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: listingId, password })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.token) {
+            sessionToken = data.token;
+            sessionStorage.setItem(`tps_token_${listingId}`, sessionToken);
+            isLoggedIn = true;
+            closeLogin();
+            await loadListing(); // reload with member view
+        } else {
+            errorEl.textContent = data.error === 'Invalid password' ? T.wrongPassword : T.loginError;
+            errorEl.style.display = 'block';
+        }
     } catch {
-        return res.status(403).json({ error: 'Invalid token' });
+        errorEl.textContent = T.loginError;
+        errorEl.style.display = 'block';
+    }
+}
+
+function doLogout() {
+    sessionToken = null;
+    isLoggedIn = false;
+    sessionStorage.removeItem(`tps_token_${listingId}`);
+    loadListing();
+}
+
+// ── Load listing ──────────────────────────────────────────────────────────────
+async function loadListing() {
+    if (!listingId) {
+        document.getElementById('listing-content').innerHTML =
+            `<div class="error-state">${T.notFound}</div>`;
+        return;
     }
 
-    // Only update member-owned fields — never ATP fields
-    const { error } = await supabase
-        .from('listings')
-        .update({ address, description_en, description_es,
-                  website_url, booking_url, photos })
-        .eq('id', id);
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (sessionToken) headers['Authorization'] = `Bearer ${sessionToken}`;
 
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ success: true });
-});
+        const res = await fetch(`${API_BASE_URL}/api/listing/${listingId}`, { headers });
+        if (!res.ok) throw new Error('Not found');
+        const rental = await res.json();
+
+        // If we have a token, mark as logged in
+        if (sessionToken && rental.is_member) isLoggedIn = true;
+
+        document.getElementById('listing-content').innerHTML = renderListing(rental);
+    } catch {
+        document.getElementById('listing-content').innerHTML =
+            `<div class="error-state">${T.notFound}</div>`;
+    }
+}
+
+loadListing();
+</script>
+</body>
+</html>
