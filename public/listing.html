@@ -33,8 +33,7 @@
 
         .header-left h1 { font-size: 1.3rem; font-weight: 700; }
         .header-left p  { font-size: 0.8rem; opacity: 0.85; }
-
-        .header-right { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .header-right   { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
         .header-btn {
             padding: 6px 14px;
@@ -62,10 +61,8 @@
             margin-bottom: 1.5rem;
         }
 
-        /* ── Name + badges row ── */
-        .name-row {
-            padding: 1.5rem 1.5rem 0;
-        }
+        /* ── Name + badges ── */
+        .name-row { padding: 1.5rem 1.5rem 0; }
 
         .listing-name {
             font-size: 1.8rem;
@@ -74,12 +71,7 @@
             font-weight: 700;
         }
 
-        .badges {
-            display: flex;
-            gap: 7px;
-            flex-wrap: wrap;
-            margin-bottom: 1.2rem;
-        }
+        .badges { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 1.2rem; }
 
         .badge {
             padding: 3px 12px;
@@ -93,7 +85,7 @@
         .badge-member   { background: #a07800; }
         .badge-atp      { background: #1a7a1a; }
 
-        /* ── Quick action buttons (row 3) ── */
+        /* ── Quick buttons ── */
         .quick-buttons {
             padding: 0 1.5rem 1.2rem;
             display: flex;
@@ -141,11 +133,12 @@
             font-weight: 700;
         }
 
-        /* ATP data grid */
+        /* ── Info grid (phone / email / address) ── */
         .info-grid {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(140px, auto));
             gap: 0.8rem;
+            align-items: start;
         }
 
         .info-item { display: flex; gap: 9px; align-items: flex-start; }
@@ -153,7 +146,133 @@
         .info-label { font-size: 0.75rem; color: #888; }
         .info-value { font-weight: 600; color: #111; font-size: 0.95rem; }
 
-        /* ── Photo gallery ── */
+        /* ── Editable fields ── */
+        .edit-group { margin-bottom: 1.2rem; }
+        .edit-group:last-child { margin-bottom: 0; }
+
+        .edit-label {
+            display: block;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #888;
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+        }
+
+        .edit-input, .edit-textarea {
+            width: 100%;
+            padding: 9px 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 7px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: border-color 0.25s;
+            color: #111;
+            background: #fafafa;
+        }
+        .edit-input:focus, .edit-textarea:focus {
+            outline: none;
+            border-color: #005ca9;
+            background: white;
+        }
+
+        .edit-textarea {
+            resize: vertical;
+            min-height: 120px;
+            line-height: 1.6;
+        }
+
+        .edit-hint {
+            font-size: 0.75rem;
+            color: #aaa;
+            margin-top: 0.3rem;
+        }
+
+        /* ── Photo management ── */
+        .photo-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 0.8rem; }
+
+        .photo-entry {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .photo-entry input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 7px;
+            font-size: 0.88rem;
+            font-family: inherit;
+        }
+        .photo-entry input:focus { outline: none; border-color: #005ca9; }
+
+        .photo-remove {
+            padding: 6px 10px;
+            background: #fff0f0;
+            border: 1px solid #ffcccc;
+            border-radius: 6px;
+            color: #cc0000;
+            cursor: pointer;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+        .photo-remove:hover { background: #cc0000; color: white; }
+
+        .add-photo-btn {
+            padding: 7px 14px;
+            background: #f0f7ff;
+            border: 1px dashed #005ca9;
+            border-radius: 7px;
+            color: #005ca9;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .add-photo-btn:hover { background: #005ca9; color: white; border-style: solid; }
+
+        /* ── Save bar ── */
+        .save-bar {
+            background: #fffbe6;
+            border: 1px solid #FFD700;
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .save-bar p { font-size: 0.88rem; color: #7a5c00; }
+
+        .save-btn {
+            padding: 9px 24px;
+            background: #005ca9;
+            color: white;
+            border: none;
+            border-radius: 7px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.25s;
+        }
+        .save-btn:hover    { background: #004885; }
+        .save-btn:disabled { background: #aaa; cursor: not-allowed; }
+
+        .save-message {
+            font-size: 0.85rem;
+            padding: 4px 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        .save-message.success { background: #e8f4e8; color: #1a5c1a; display: inline-block; }
+        .save-message.error   { background: #fde8e8; color: #7a0000; display: inline-block; }
+
+        /* ── Photo gallery (view mode) ── */
         .photo-gallery {
             width: 100%;
             height: 320px;
@@ -164,40 +283,22 @@
             overflow: hidden;
             position: relative;
         }
+        .photo-gallery img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-placeholder { font-size: 5rem; opacity: 0.3; }
 
-        .photo-gallery img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .photo-placeholder {
-            font-size: 5rem;
-            opacity: 0.3;
-        }
-
-        .photo-nav {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            display: flex;
-            gap: 6px;
-        }
-
+        .photo-nav { position: absolute; bottom: 10px; right: 10px; display: flex; gap: 6px; }
         .photo-nav button {
             background: rgba(0,0,0,0.5);
             color: white;
             border: none;
             border-radius: 50%;
-            width: 32px;
-            height: 32px;
+            width: 32px; height: 32px;
             cursor: pointer;
             font-size: 1rem;
             display: flex;
             align-items: center;
             justify-content: center;
         }
-
         .photo-count {
             position: absolute;
             bottom: 10px;
@@ -210,17 +311,14 @@
         }
 
         /* ── Description ── */
-        .description-text {
-            color: #444;
-            line-height: 1.8;
-            white-space: pre-wrap;
-        }
+        .description-text { color: #444; line-height: 1.8; white-space: pre-wrap; }
 
-        /* ── Contact / Links button rows ── */
+        /* ── Contact / Links ── */
         .btn-row {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
+            justify-content: center;
         }
 
         .action-btn {
@@ -236,11 +334,11 @@
             align-items: center;
             gap: 6px;
         }
-        .action-btn:hover           { background: #005ca9; color: white; }
-        .action-btn.whatsapp        { border-color: #25D366; color: #25D366; }
-        .action-btn.whatsapp:hover  { background: #25D366; color: white; }
-        .action-btn.primary         { background: #005ca9; color: white; }
-        .action-btn.primary:hover   { background: #004885; }
+        .action-btn:hover          { background: #005ca9; color: white; }
+        .action-btn.whatsapp       { border-color: #25D366; color: #25D366; }
+        .action-btn.whatsapp:hover { background: #25D366; color: white; }
+        .action-btn.primary        { background: #005ca9; color: white; }
+        .action-btn.primary:hover  { background: #004885; }
 
         /* ── Login modal ── */
         .modal-overlay {
@@ -262,8 +360,8 @@
             max-width: 90vw;
             box-shadow: 0 8px 40px rgba(0,0,0,0.2);
         }
-
-        .modal h3 { font-size: 1.2rem; color: #005ca9; margin-bottom: 1rem; }
+        .modal h3 { font-size: 1.2rem; color: #005ca9; margin-bottom: 0.5rem; }
+        .modal p  { font-size: 0.85rem; color: #666; margin-bottom: 1rem; }
 
         .modal input {
             width: 100%;
@@ -276,8 +374,14 @@
         }
         .modal input:focus { outline: none; border-color: #005ca9; }
 
-        .modal-buttons { display: flex; gap: 10px; }
+        .modal-error {
+            color: #cc0000;
+            font-size: 0.85rem;
+            margin-bottom: 0.75rem;
+            display: none;
+        }
 
+        .modal-buttons { display: flex; gap: 10px; }
         .modal-btn {
             flex: 1;
             padding: 10px;
@@ -288,17 +392,10 @@
             cursor: pointer;
             transition: all 0.25s;
         }
-        .modal-btn.confirm { background: #005ca9; color: white; }
+        .modal-btn.confirm       { background: #005ca9; color: white; }
         .modal-btn.confirm:hover { background: #004885; }
-        .modal-btn.cancel  { background: #f0f0f0; color: #555; }
-        .modal-btn.cancel:hover { background: #e0e0e0; }
-
-        .modal-error {
-            color: #cc0000;
-            font-size: 0.85rem;
-            margin-bottom: 0.75rem;
-            display: none;
-        }
+        .modal-btn.cancel        { background: #f0f0f0; color: #555; }
+        .modal-btn.cancel:hover  { background: #e0e0e0; }
 
         /* ── States ── */
         .loading-state { text-align: center; padding: 4rem; color: #005ca9; font-size: 1.1rem; }
@@ -324,7 +421,6 @@
 <body>
 <div class="container">
 
-    <!-- 1) Header -->
     <header>
         <div class="header-left">
             <h1>Trusted Panama Stays</h1>
@@ -336,7 +432,16 @@
         </div>
     </header>
 
-    <!-- Main content injected here -->
+    <div id="save-bar" style="display:none">
+        <div class="save-bar">
+            <p id="save-bar-text">You are editing your listing. Changes are saved to the database.</p>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <span class="save-message" id="save-message"></span>
+                <button class="save-btn" id="save-btn" onclick="saveChanges()">💾 Save Changes</button>
+            </div>
+        </div>
+    </div>
+
     <div id="listing-content">
         <div class="loading-state">⏳ Loading...</div>
     </div>
@@ -352,9 +457,9 @@
 <div class="modal-overlay" id="login-modal">
     <div class="modal">
         <h3 id="modal-title">🔐 Member Login</h3>
-        <p id="modal-subtitle" style="font-size:0.85rem;color:#666;margin-bottom:1rem;"></p>
+        <p id="modal-subtitle">Enter your password to access your profile.</p>
         <div class="modal-error" id="modal-error"></div>
-        <input type="password" id="password-input" placeholder="Enter your password">
+        <input type="password" id="password-input" placeholder="Password">
         <div class="modal-buttons">
             <button class="modal-btn cancel" id="modal-cancel">Cancel</button>
             <button class="modal-btn confirm" id="modal-confirm">Login</button>
@@ -366,60 +471,73 @@
 const API_BASE_URL = '';
 
 // ── URL params ────────────────────────────────────────────────────────────────
-const urlParams = new URLSearchParams(window.location.search);
-const listingId = urlParams.get('id');
-const lang = urlParams.get('lang') || 'en';
-const isEs = lang === 'es';
+const urlParams  = new URLSearchParams(window.location.search);
+const listingId  = urlParams.get('id');
+const lang       = urlParams.get('lang') || 'en';
+const isEs       = lang === 'es';
 
-// ── Session (in-memory only, clears on page close) ────────────────────────────
+// ── Session ───────────────────────────────────────────────────────────────────
 let sessionToken = sessionStorage.getItem(`tps_token_${listingId}`) || null;
-let isLoggedIn = false;
+let isLoggedIn   = false;
+let currentRental = null;
 
 // ── Translations ──────────────────────────────────────────────────────────────
 const T = {
-    back:          isEs ? '← Volver'              : '← Back',
-    langToggle:    isEs ? '🇺🇸 English'            : '🇵🇦 Español',
-    subtitle:      isEs ? 'Alojamiento verificado ATP' : 'Verified ATP-Registered Accommodation',
-    province:      isEs ? 'Provincia'  : 'Province',
-    type:          isEs ? 'Tipo'       : 'Type',
-    phone:         isEs ? 'Teléfono'   : 'Phone',
-    email:         isEs ? 'Correo'     : 'Email',
-    address:       isEs ? 'Dirección'  : 'Address',
-    atpData:       isEs ? 'Datos ATP'  : 'ATP Data',
-    description:   isEs ? 'Descripción': 'Description',
-    contact:       isEs ? 'Contacto'   : 'Contact',
-    links:         isEs ? 'Enlaces'    : 'Links',
-    call:          isEs ? '📞 Llamar'  : '📞 Call',
-    emailBtn:      isEs ? '✉️ Correo'  : '✉️ Email',
-    whatsapp:      '💬 WhatsApp',
-    maps:          '📍 Google Maps',
-    website:       isEs ? '🌐 Sitio Web' : '🌐 Website',
-    booking:       isEs ? '🔗 Reservar'  : '🔗 Book Now',
-    memberLogin:   isEs ? '🔐 Acceso Miembro' : '🔐 Member Login',
-    logout:        isEs ? 'Cerrar sesión'   : 'Log Out',
-    noDesc:        isEs ? 'Descripción no disponible aún.' : 'No description available yet.',
-    notFound:      isEs ? 'Listado no encontrado.' : 'Listing not found.',
-    footer:        isEs
+    back:           isEs ? '← Volver'               : '← Back',
+    langToggle:     isEs ? '🇺🇸 English'             : '🇵🇦 Español',
+    subtitle:       isEs ? 'Alojamiento verificado ATP' : 'Verified ATP-Registered Accommodation',
+    phone:          isEs ? 'Teléfono'   : 'Phone',
+    email:          isEs ? 'Correo'     : 'Email',
+    address:        isEs ? 'Dirección'  : 'Address',
+    atpData:        isEs ? 'Contacto ATP' : 'ATP Contact',
+    description:    isEs ? 'Descripción' : 'Description',
+    descEn:         isEs ? 'Descripción en Inglés' : 'Description (English)',
+    descEs:         isEs ? 'Descripción en Español' : 'Description (Spanish)',
+    contact:        isEs ? 'Contacto'   : 'Contact',
+    links:          isEs ? 'Enlaces'    : 'Links',
+    photos:         isEs ? 'Fotos'      : 'Photos',
+    websiteUrl:     isEs ? 'URL del Sitio Web' : 'Website URL',
+    bookingUrl:     isEs ? 'URL de Reservas'   : 'Booking URL',
+    addressLabel:   isEs ? 'Dirección completa' : 'Full Address',
+    call:           isEs ? '📞 Llamar'  : '📞 Call',
+    emailBtn:       isEs ? '✉️ Correo'  : '✉️ Email',
+    whatsapp:       '💬 WhatsApp',
+    maps:           '📍 Google Maps',
+    website:        isEs ? '🌐 Sitio Web' : '🌐 Website',
+    booking:        isEs ? '🔗 Reservar'  : '🔗 Book Now',
+    memberLogin:    isEs ? '🔐 Acceso Miembro' : '🔐 Member Login',
+    logout:         isEs ? 'Cerrar sesión'    : 'Log Out',
+    noDesc:         isEs ? 'Sin descripción aún.' : 'No description yet.',
+    notFound:       isEs ? 'Listado no encontrado.' : 'Listing not found.',
+    addPhoto:       isEs ? '+ Agregar foto'   : '+ Add photo',
+    photoHint:      isEs ? 'URL directa a imagen (jpg, png, webp)' : 'Direct image URL (jpg, png, webp)',
+    saveChanges:    isEs ? '💾 Guardar cambios' : '💾 Save Changes',
+    saveBar:        isEs ? 'Está editando su listado. Los cambios se guardan en la base de datos.' : 'You are editing your listing. Changes are saved to the database.',
+    saved:          isEs ? '✅ Guardado'  : '✅ Saved',
+    saveError:      isEs ? '❌ Error al guardar' : '❌ Save failed',
+    wrongPassword:  isEs ? 'Contraseña incorrecta.' : 'Incorrect password.',
+    loginError:     isEs ? 'Error al iniciar sesión.' : 'Login error.',
+    modalTitle:     isEs ? '🔐 Acceso Miembro' : '🔐 Member Login',
+    modalSub:       isEs ? 'Ingrese su contraseña.' : 'Enter your password.',
+    cancel:         isEs ? 'Cancelar' : 'Cancel',
+    confirm:        isEs ? 'Ingresar' : 'Login',
+    footer:         isEs
         ? 'Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>'
         : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>',
-    modalTitle:    isEs ? '🔐 Acceso Miembro' : '🔐 Member Login',
-    modalSub:      isEs ? 'Ingrese su contraseña para acceder a su perfil.' : 'Enter your password to access your profile.',
-    wrongPassword: isEs ? 'Contraseña incorrecta.' : 'Incorrect password.',
-    loginError:    isEs ? 'Error al iniciar sesión. Intente de nuevo.' : 'Login error. Please try again.',
-    cancel:        isEs ? 'Cancelar' : 'Cancel',
-    confirm:       isEs ? 'Ingresar' : 'Login',
 };
 
 // Apply static translations
-document.getElementById('back-link').textContent = T.back;
-document.getElementById('back-link').href = isEs ? 'index_es.html' : 'index.html';
-document.getElementById('lang-link').textContent = T.langToggle;
+document.getElementById('back-link').textContent   = T.back;
+document.getElementById('back-link').href          = isEs ? 'index_es.html' : 'index.html';
+document.getElementById('lang-link').textContent   = T.langToggle;
 document.getElementById('header-subtitle').textContent = T.subtitle;
-document.getElementById('footer-text').innerHTML = T.footer;
+document.getElementById('footer-text').innerHTML   = T.footer;
 document.getElementById('modal-title').textContent = T.modalTitle;
 document.getElementById('modal-subtitle').textContent = T.modalSub;
 document.getElementById('modal-cancel').textContent = T.cancel;
 document.getElementById('modal-confirm').textContent = T.confirm;
+document.getElementById('save-bar-text').textContent = T.saveBar;
+document.getElementById('save-btn').textContent    = T.saveChanges;
 document.getElementById('lang-link').addEventListener('click', e => {
     e.preventDefault();
     window.location.href = `listing.html?id=${listingId}&lang=${isEs ? 'en' : 'es'}`;
@@ -428,16 +546,16 @@ document.getElementById('lang-link').addEventListener('click', e => {
 // ── Phone helpers ─────────────────────────────────────────────────────────────
 function getPhoneNumbers(phoneStr) {
     if (!phoneStr) return { display: '', call: null, whatsapp: null };
-    const nums = phoneStr.split('/').map(p => p.trim().replace(/\D/g,'')).filter(p => p.length >= 7);
-    const mobile = nums.filter(n => n.startsWith('6'));
-    const fixed  = nums.filter(n => !n.startsWith('6'));
-    const call   = (fixed[0] || mobile[0] || nums[0] || '').substring(0,8) || null;
+    const nums     = phoneStr.split('/').map(p => p.trim().replace(/\D/g,'')).filter(p => p.length >= 7);
+    const mobile   = nums.filter(n => n.startsWith('6'));
+    const fixed    = nums.filter(n => !n.startsWith('6'));
+    const call     = (fixed[0] || mobile[0] || nums[0] || '').substring(0,8) || null;
     const whatsapp = mobile[0] ? mobile[0].substring(0,8) : null;
-    const display = phoneStr.replace(/^\/+|\/+$/g,'').trim().replace(/\s*\/\s*/g,' / ');
+    const display  = phoneStr.replace(/^\/+|\/+$/g,'').trim().replace(/\s*\/\s*/g,' / ');
     return { display, call, whatsapp };
 }
 
-// ── Photo gallery ─────────────────────────────────────────────────────────────
+// ── Photo gallery (view mode) ─────────────────────────────────────────────────
 let photos = [];
 let currentPhoto = 0;
 
@@ -447,7 +565,8 @@ function galleryHTML() {
     }
     return `
         <div class="photo-gallery">
-            <img id="gallery-img" src="${photos[0]}" alt="Photo 1">
+            <img id="gallery-img" src="${photos[0]}" alt="Photo 1"
+                 onerror="this.style.display='none'">
             ${photos.length > 1 ? `
             <div class="photo-nav">
                 <button onclick="changePhoto(-1)">‹</button>
@@ -464,10 +583,10 @@ function changePhoto(dir) {
     if (c) c.textContent = `${currentPhoto+1} / ${photos.length}`;
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
-function renderListing(rental) {
+// ── Render VIEW mode ──────────────────────────────────────────────────────────
+function renderView(rental) {
     photos = Array.isArray(rental.photos) ? rental.photos : [];
-    const ph = getPhoneNumbers(rental.phone);
+    const ph      = getPhoneNumbers(rental.phone);
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
         (rental.address || rental.name) + ' ' + (rental.province||'') + ' Panama')}`;
     const description = isEs
@@ -483,7 +602,7 @@ function renderListing(rental) {
     return `
     <div class="listing-card">
 
-        <!-- 2) Name + badges -->
+        <!-- Name + badges -->
         <div class="name-row">
             <h2 class="listing-name">${rental.name}</h2>
             <div class="badges">
@@ -494,31 +613,19 @@ function renderListing(rental) {
             </div>
         </div>
 
-        <!-- 3) Quick buttons -->
+        <!-- Quick buttons -->
         <div class="quick-buttons">
-            ${ph.call     ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
-            ${rental.email? `<a href="mailto:${rental.email}" class="qbtn">${T.emailBtn}</a>` : ''}
-            ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
+            ${ph.call      ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
+            ${rental.email ? `<a href="mailto:${rental.email}" class="qbtn">${T.emailBtn}</a>` : ''}
+            ${ph.whatsapp  ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
             <a href="${mapsUrl}" target="_blank" class="qbtn">${T.maps}</a>
             ${loginLogoutBtn}
         </div>
 
-        <!-- 4) ATP data -->
+        <!-- ATP Contact -->
         <div class="section">
             <div class="section-title">${T.atpData}</div>
             <div class="info-grid">
-                ${rental.province ? `
-                <div class="info-item">
-                    <span class="info-icon">📍</span>
-                    <div><div class="info-label">${T.province}</div>
-                    <div class="info-value">${rental.province}</div></div>
-                </div>` : ''}
-                ${rental.rental_type ? `
-                <div class="info-item">
-                    <span class="info-icon">🏨</span>
-                    <div><div class="info-label">${T.type}</div>
-                    <div class="info-value">${rental.rental_type}</div></div>
-                </div>` : ''}
                 ${ph.display ? `
                 <div class="info-item">
                     <span class="info-icon">📞</span>
@@ -540,28 +647,28 @@ function renderListing(rental) {
             </div>
         </div>
 
-        <!-- 5) Lead photo -->
+        <!-- Lead photo -->
         ${galleryHTML()}
 
-        <!-- 6) Description (members only) -->
+        <!-- Description -->
         ${rental.is_member ? `
         <div class="section">
             <div class="section-title">${T.description}</div>
             <p class="description-text">${description}</p>
         </div>` : ''}
 
-        <!-- 7) Contact buttons -->
+        <!-- Contact -->
         <div class="section">
             <div class="section-title">${T.contact}</div>
             <div class="btn-row">
-                ${ph.call     ? `<a href="tel:+507${ph.call}" class="action-btn">${T.call}</a>` : ''}
-                ${rental.email? `<a href="mailto:${rental.email}" class="action-btn">${T.emailBtn}</a>` : ''}
-                ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="action-btn whatsapp">${T.whatsapp}</a>` : ''}
+                ${ph.call      ? `<a href="tel:+507${ph.call}" class="action-btn">${T.call}</a>` : ''}
+                ${rental.email ? `<a href="mailto:${rental.email}" class="action-btn">${T.emailBtn}</a>` : ''}
+                ${ph.whatsapp  ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="action-btn whatsapp">${T.whatsapp}</a>` : ''}
                 <a href="${mapsUrl}" target="_blank" class="action-btn">${T.maps}</a>
             </div>
         </div>
 
-        <!-- 8) Links (members only) -->
+        <!-- Links -->
         ${rental.is_member && (rental.website_url || rental.booking_url) ? `
         <div class="section">
             <div class="section-title">${T.links}</div>
@@ -572,6 +679,205 @@ function renderListing(rental) {
         </div>` : ''}
 
     </div>`;
+}
+
+// ── Render EDIT mode (logged in) ──────────────────────────────────────────────
+function renderEdit(rental) {
+    photos = Array.isArray(rental.photos) ? rental.photos : [];
+    const ph      = getPhoneNumbers(rental.phone);
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        (rental.address || rental.name) + ' ' + (rental.province||'') + ' Panama')}`;
+
+    // Build photo inputs
+    const photoInputs = photos.map((url, i) => `
+        <div class="photo-entry" id="photo-entry-${i}">
+            <input type="text" value="${url}" placeholder="https://..." 
+                   onchange="updatePhoto(${i}, this.value)">
+            <button class="photo-remove" onclick="removePhoto(${i})">✕</button>
+        </div>`).join('');
+
+    return `
+    <div class="listing-card">
+
+        <!-- Name + badges (read-only always) -->
+        <div class="name-row">
+            <h2 class="listing-name">${rental.name}</h2>
+            <div class="badges">
+                ${rental.rental_type ? `<span class="badge badge-type">${rental.rental_type}</span>` : ''}
+                ${rental.province    ? `<span class="badge badge-province">📍 ${rental.province}</span>` : ''}
+                <span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>
+                <span class="badge badge-atp">✅ ATP</span>
+            </div>
+        </div>
+
+        <!-- Quick buttons -->
+        <div class="quick-buttons">
+            ${ph.call      ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
+            ${rental.email ? `<a href="mailto:${rental.email}" class="qbtn">${T.emailBtn}</a>` : ''}
+            ${ph.whatsapp  ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
+            <a href="${mapsUrl}" target="_blank" class="qbtn">${T.maps}</a>
+            <button class="qbtn logout-btn" onclick="doLogout()">${T.logout}</button>
+        </div>
+
+        <!-- ATP Contact (phone & email read-only, address editable) -->
+        <div class="section">
+            <div class="section-title">${T.atpData}</div>
+            <div class="info-grid" style="margin-bottom:1rem;">
+                ${ph.display ? `
+                <div class="info-item">
+                    <span class="info-icon">📞</span>
+                    <div><div class="info-label">${T.phone}</div>
+                    <div class="info-value">${ph.display}</div></div>
+                </div>` : ''}
+                ${rental.email ? `
+                <div class="info-item">
+                    <span class="info-icon">✉️</span>
+                    <div><div class="info-label">${T.email}</div>
+                    <div class="info-value">${rental.email}</div></div>
+                </div>` : ''}
+            </div>
+            <div class="edit-group">
+                <label class="edit-label">🗺️ ${T.addressLabel}</label>
+                <input type="text" class="edit-input" id="edit-address"
+                       value="${rental.address || ''}"
+                       placeholder="Street, City, Province, Panama">
+            </div>
+        </div>
+
+        <!-- Photos (editable) -->
+        <div class="section">
+            <div class="section-title">${T.photos}</div>
+            <div class="photo-list" id="photo-list">${photoInputs}</div>
+            <button class="add-photo-btn" onclick="addPhoto()">+ ${T.addPhoto}</button>
+            <p class="edit-hint" style="margin-top:0.5rem;">${T.photoHint}</p>
+        </div>
+
+        <!-- Description EN (editable) -->
+        <div class="section">
+            <div class="section-title">${T.descEn}</div>
+            <div class="edit-group">
+                <textarea class="edit-textarea" id="edit-desc-en"
+                          placeholder="Describe your property in English...">${rental.description_en || ''}</textarea>
+            </div>
+        </div>
+
+        <!-- Description ES (editable) -->
+        <div class="section">
+            <div class="section-title">${T.descEs}</div>
+            <div class="edit-group">
+                <textarea class="edit-textarea" id="edit-desc-es"
+                          placeholder="Describa su propiedad en español...">${rental.description_es || ''}</textarea>
+            </div>
+        </div>
+
+        <!-- Website & Booking URLs (editable) -->
+        <div class="section">
+            <div class="section-title">${T.links}</div>
+            <div class="edit-group">
+                <label class="edit-label">🌐 ${T.websiteUrl}</label>
+                <input type="url" class="edit-input" id="edit-website"
+                       value="${rental.website_url || ''}"
+                       placeholder="https://yourwebsite.com">
+            </div>
+            <div class="edit-group">
+                <label class="edit-label">🔗 ${T.bookingUrl}</label>
+                <input type="url" class="edit-input" id="edit-booking"
+                       value="${rental.booking_url || ''}"
+                       placeholder="https://booking.yourwebsite.com">
+            </div>
+        </div>
+
+    </div>`;
+}
+
+// ── Photo management ──────────────────────────────────────────────────────────
+function addPhoto() {
+    photos.push('');
+    const list = document.getElementById('photo-list');
+    const i    = photos.length - 1;
+    const div  = document.createElement('div');
+    div.className = 'photo-entry';
+    div.id = `photo-entry-${i}`;
+    div.innerHTML = `
+        <input type="text" value="" placeholder="https://..."
+               onchange="updatePhoto(${i}, this.value)">
+        <button class="photo-remove" onclick="removePhoto(${i})">✕</button>`;
+    list.appendChild(div);
+}
+
+function updatePhoto(index, value) {
+    photos[index] = value;
+}
+
+function removePhoto(index) {
+    photos.splice(index, 1);
+    // Re-render photo list
+    const list = document.getElementById('photo-list');
+    list.innerHTML = photos.map((url, i) => `
+        <div class="photo-entry" id="photo-entry-${i}">
+            <input type="text" value="${url}" placeholder="https://..."
+                   onchange="updatePhoto(${i}, this.value)">
+            <button class="photo-remove" onclick="removePhoto(${i})">✕</button>
+        </div>`).join('');
+}
+
+// ── Save changes ──────────────────────────────────────────────────────────────
+async function saveChanges() {
+    const btn = document.getElementById('save-btn');
+    const msg = document.getElementById('save-message');
+    btn.disabled = true;
+    msg.className = 'save-message';
+    msg.style.display = 'none';
+
+    // Collect current photo values from inputs
+    const photoInputs = document.querySelectorAll('#photo-list .photo-entry input');
+    const currentPhotos = Array.from(photoInputs)
+        .map(inp => inp.value.trim())
+        .filter(v => v);
+
+    const payload = {
+        id:             listingId,
+        token:          sessionToken,
+        address:        document.getElementById('edit-address')?.value.trim() || null,
+        description_en: document.getElementById('edit-desc-en')?.value.trim() || null,
+        description_es: document.getElementById('edit-desc-es')?.value.trim() || null,
+        website_url:    document.getElementById('edit-website')?.value.trim() || null,
+        booking_url:    document.getElementById('edit-booking')?.value.trim() || null,
+        photos:         currentPhotos.length ? currentPhotos : null,
+    };
+
+    try {
+        const res  = await fetch(`${API_BASE_URL}/api/listing-update`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+            msg.textContent  = T.saved;
+            msg.className    = 'save-message success';
+            msg.style.display = 'inline-block';
+            // Update local rental object
+            if (currentRental) {
+                currentRental.address        = payload.address;
+                currentRental.description_en = payload.description_en;
+                currentRental.description_es = payload.description_es;
+                currentRental.website_url    = payload.website_url;
+                currentRental.booking_url    = payload.booking_url;
+                currentRental.photos         = payload.photos;
+            }
+        } else {
+            throw new Error(data.error || 'Save failed');
+        }
+    } catch (err) {
+        msg.textContent  = T.saveError + ': ' + err.message;
+        msg.className    = 'save-message error';
+        msg.style.display = 'inline-block';
+    }
+
+    btn.disabled = false;
+    setTimeout(() => { msg.style.display = 'none'; }, 4000);
 }
 
 // ── Login modal ───────────────────────────────────────────────────────────────
@@ -601,10 +907,10 @@ async function attemptLogin() {
     errorEl.style.display = 'none';
 
     try {
-        const res = await fetch(`${API_BASE_URL}/api/listing-login`, {
-            method: 'POST',
+        const res  = await fetch(`${API_BASE_URL}/api/listing-login`, {
+            method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: listingId, password })
+            body:    JSON.stringify({ id: listingId, password })
         });
         const data = await res.json();
 
@@ -613,22 +919,34 @@ async function attemptLogin() {
             sessionStorage.setItem(`tps_token_${listingId}`, sessionToken);
             isLoggedIn = true;
             closeLogin();
-            await loadListing(); // reload with member view
+            renderPage(currentRental);
         } else {
-            errorEl.textContent = data.error === 'Invalid password' ? T.wrongPassword : T.loginError;
+            errorEl.textContent   = data.error === 'Invalid password' ? T.wrongPassword : T.loginError;
             errorEl.style.display = 'block';
         }
     } catch {
-        errorEl.textContent = T.loginError;
+        errorEl.textContent   = T.loginError;
         errorEl.style.display = 'block';
     }
 }
 
 function doLogout() {
     sessionToken = null;
-    isLoggedIn = false;
+    isLoggedIn   = false;
     sessionStorage.removeItem(`tps_token_${listingId}`);
-    loadListing();
+    renderPage(currentRental);
+}
+
+// ── Render page (view or edit based on login state) ───────────────────────────
+function renderPage(rental) {
+    const saveBar = document.getElementById('save-bar');
+    if (isLoggedIn && rental.is_member) {
+        document.getElementById('listing-content').innerHTML = renderEdit(rental);
+        saveBar.style.display = 'block';
+    } else {
+        document.getElementById('listing-content').innerHTML = renderView(rental);
+        saveBar.style.display = 'none';
+    }
 }
 
 // ── Load listing ──────────────────────────────────────────────────────────────
@@ -640,17 +958,14 @@ async function loadListing() {
     }
 
     try {
-        const headers = { 'Content-Type': 'application/json' };
-        if (sessionToken) headers['Authorization'] = `Bearer ${sessionToken}`;
-
-        const res = await fetch(`${API_BASE_URL}/api/listing/${listingId}`, { headers });
+        const res = await fetch(`${API_BASE_URL}/api/listing/${listingId}`);
         if (!res.ok) throw new Error('Not found');
-        const rental = await res.json();
+        currentRental = await res.json();
 
-        // If we have a token, mark as logged in
-        if (sessionToken && rental.is_member) isLoggedIn = true;
+        // Restore session if token exists
+        if (sessionToken && currentRental.is_member) isLoggedIn = true;
 
-        document.getElementById('listing-content').innerHTML = renderListing(rental);
+        renderPage(currentRental);
     } catch {
         document.getElementById('listing-content').innerHTML =
             `<div class="error-state">${T.notFound}</div>`;
