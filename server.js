@@ -705,3 +705,35 @@ server.listen(PORT, () => {
     console.log(`📍 Main page: http://localhost:${PORT}`);
     console.log(`📍 Health:    http://localhost:${PORT}/health`);
 });
+
+app.get('/api/debug-reload', async (req, res) => {
+    try {
+        console.log('🔄 Debug reload starting...');
+        const { pdfUrl, headingText } = await getLatestPdfUrl();
+        console.log('PDF URL:', pdfUrl);
+        
+        PDF_URL = pdfUrl;
+        PDF_HEADING = headingText;
+        
+        const result = await parsePDFWithCoordinates();
+        console.log('Parse result:', result);
+        console.log('PDF_RENTALS length:', PDF_RENTALS.length);
+        
+        if (PDF_RENTALS.length > 0) {
+            await saveListingsToDB(PDF_RENTALS);
+            await savePdfMeta(pdfUrl, headingText);
+            CURRENT_RENTALS = [...PDF_RENTALS];
+            DATA_SOURCE = 'atp-pdf';
+            console.log('✅ CURRENT_RENTALS set to:', CURRENT_RENTALS.length);
+        }
+        
+        res.json({
+            parseResult: result,
+            PDF_RENTALS_length: PDF_RENTALS.length,
+            CURRENT_RENTALS_length: CURRENT_RENTALS.length,
+            pdfUrl
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
