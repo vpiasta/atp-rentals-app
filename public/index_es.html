@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trusted Panama Stays - Registered Tourist Rentals</title>
+    <title>Trusted Panama Stays - Hospedajes Turísticos Registrados</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -27,7 +27,6 @@
             position: relative;
         }
 
-        /* Language toggle */
         .lang-toggle {
             position: absolute;
             top: 1rem;
@@ -52,11 +51,7 @@
         .subtitle { font-size: 1.1rem; opacity: 0.9; }
         .subtitle2 { font-size: 0.8rem; opacity: 0.9; }
 
-        header a {
-            color: #FFD700;
-            text-decoration: none;
-            transition: color 0.3s ease;
-        }
+        header a { color: #FFD700; text-decoration: none; transition: color 0.3s ease; }
         header a:hover { color: #FFA500; }
         header a:visited { color: #FFFFFF; }
 
@@ -93,7 +88,6 @@
         #searchButton:hover { background: #004885; }
 
         .filters { display: flex; gap: 15px; flex-wrap: wrap; }
-
         .filter-group { flex: 1; min-width: 200px; }
         .filter-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #555; }
         .filter-group select {
@@ -114,19 +108,9 @@
             transition: transform 0.3s, box-shadow 0.3s;
         }
         .result-card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .result-card.is-member { border-left: 4px solid #FFD700; }
 
-        /* Member card highlight */
-        .result-card.is-member {
-            border-left: 4px solid #FFD700;
-        }
-
-        .result-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: start;
-            margin-bottom: 1rem;
-        }
-
+        .result-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem; }
         .result-title { font-size: 1.3rem; color: #005ca9; margin-bottom: 0.5rem; }
 
         .result-category {
@@ -163,16 +147,9 @@
             gap: 5px;
         }
         .contact-button:hover { background: #005ca9; color: white; }
-
         .whatsapp-button { border-color: #25D366; color: #25D366; }
         .whatsapp-button:hover { background: #25D366; color: white; }
-
-        /* See More button */
-        .seemore-button {
-            border-color: #FFD700;
-            color: #a07800;
-            background: #fffbe6;
-        }
+        .seemore-button { border-color: #FFD700; color: #a07800; background: #fffbe6; }
         .seemore-button:hover { background: #FFD700; color: #333; border-color: #FFD700; }
 
         .no-results { text-align: center; padding: 3rem; color: #666; }
@@ -207,36 +184,36 @@
 <body>
     <div class="container">
         <header>
-            <a href="index_es.html" class="lang-toggle">
-                <span class="lang-flag">🇵🇦</span> Español
+            <a href="index.html" class="lang-toggle">
+                <span class="lang-flag">🇺🇸</span> English
             </a>
-            <h1>Registered Tourist Rentals in Panama</h1>
-            <p class="subtitle">Short-term Rentals registered with the Tourism Authority of Panama (ATP)</p>
-            <p id="last-update-header">Last updated: <span id="formatted-date">Loading...</span></p>
-            <p class="subtitle2">We recommend renting only legally registered tourist rentals</p>
-            <p class="subtitle2">This application is made publicly available by <a href="https://aparthotel-boquete.com/en">Aparthotel Boquete</a></p>
+            <h1>Hospedajes Turísticos Registrados en Panamá</h1>
+            <p class="subtitle">Alquileres a corto plazo registrados ante la Autoridad de Turismo de Panamá (ATP)</p>
+            <p id="last-update-header">Última actualización: <span id="formatted-date">Cargando...</span></p>
+            <p class="subtitle2">Recomendamos hospedarse únicamente en alojamientos turísticos legalmente registrados</p>
+            <p class="subtitle2">Esta aplicación es ofrecida al público por <a href="https://aparthotel-boquete.com/es">Aparthotel Boquete</a></p>
         </header>
 
         <div class="stats" id="statsPanel">
-            <div class="loading">Loading statistics...</div>
+            <div class="loading">Cargando estadísticas...</div>
         </div>
 
         <section class="search-section">
             <div class="search-box">
-                <input type="text" id="searchInput" placeholder="Search by name, location, rental type...">
-                <button id="searchButton">Search</button>
+                <input type="text" id="searchInput" placeholder="Buscar por nombre, ubicación, tipo de hospedaje...">
+                <button id="searchButton">Buscar</button>
             </div>
             <div class="filters">
                 <div class="filter-group">
-                    <label for="provinceFilter">Province</label>
+                    <label for="provinceFilter">Provincia</label>
                     <select id="provinceFilter">
-                        <option value="">All Provinces</option>
+                        <option value="">Todas las Provincias</option>
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label for="typeFilter">Hospitality Type</label>
+                    <label for="typeFilter">Tipo de Hospedaje</label>
                     <select id="typeFilter">
-                        <option value="">All Types</option>
+                        <option value="">Todos los Tipos</option>
                     </select>
                 </div>
             </div>
@@ -244,29 +221,26 @@
 
         <section class="results-section" id="resultsContainer">
             <div class="no-results">
-                <p>Enter a search term to find registered tourist rentals</p>
+                <p>Ingrese un término de búsqueda para encontrar hospedajes registrados</p>
             </div>
         </section>
 
         <footer>
             <div id="visitorCounter" style="width: min-content; margin: 10px auto; text-align: center; padding: 10px; background: lightblue; font-size: 20px; font-weight: 700; border: 2px solid black; white-space: nowrap; border-radius: 5px;">
-                You are visitor n. <span id="visitorCount">000000</span>
+                Usted es el visitante n. <span id="visitorCount">000000</span>
             </div>
-            <p>Data provided by the "Autoridad de Turismo de Panamá" (ATP)
-                <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank"><b>HERE</b></a>
+            <p>Datos proporcionados por la Autoridad de Turismo de Panamá (ATP)
+                <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank"><b>AQUÍ</b></a>
             </p>
-            <p>PDF Source: <a id="pdfSourceLink" href="#" target="_blank">Loading...</a></p>
-            <p>Last update: <span id="footer-date">Loading...</span></p>
-            <p>This application is made publicly available by <a href="https://aparthotel-boquete.com/en">Aparthotel Boquete</a></p>
+            <p>Fuente PDF: <a id="pdfSourceLink" href="#" target="_blank">Cargando...</a></p>
+            <p>Última actualización: <span id="footer-date">Cargando...</span></p>
+            <p>Esta aplicación es ofrecida al público por <a href="https://aparthotel-boquete.com/es">Aparthotel Boquete</a></p>
         </footer>
     </div>
 
 <script>
 const API_BASE_URL = '';
-let LAST_DATE_EXTRACTION = null;
-let CACHED_FORMATTED_DATE = null;
 
-// DOM elements
 const searchInput = document.getElementById('searchInput');
 const searchButton = document.getElementById('searchButton');
 const provinceFilter = document.getElementById('provinceFilter');
@@ -276,14 +250,12 @@ const statsPanel = document.getElementById('statsPanel');
 
 let isShowingSearchResults = false;
 
-// ── Initialization ────────────────────────────────────────────────────────────
 async function loadInitialData() {
     await loadStats();
     await loadFilters();
     showDefaultView();
 }
 
-// ── Date handling ─────────────────────────────────────────────────────────────
 function updatePageDates() {
     fetch(`${API_BASE_URL}/api/pdf-info`)
         .then(r => r.json())
@@ -293,10 +265,9 @@ function updatePageDates() {
                 const f = document.getElementById('footer-date');
                 if (h) h.textContent = data.formattedDate;
                 if (f) f.textContent = data.formattedDate;
-                console.log('✅ Dates updated to:', data.formattedDate);
             }
         })
-        .catch(err => console.error('Error fetching date:', err));
+        .catch(err => console.error('Error:', err));
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -305,13 +276,12 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePdfSource();
 });
 
-// ── Default view ──────────────────────────────────────────────────────────────
 function showDefaultView() {
     isShowingSearchResults = false;
     resultsContainer.innerHTML = `
         <div style="text-align: center; padding: 5px; color: #666;">
-            <p>Use the search or filters to find specific rentals</p>
-            <p><small>Example rental (member listing):</small></p>
+            <p>Use la búsqueda o los filtros para encontrar hospedajes específicos</p>
+            <p><small>Ejemplo de hospedaje (listado de miembro):</small></p>
         </div>
         <div class="result-card is-member">
             <div class="result-header">
@@ -326,44 +296,40 @@ function showDefaultView() {
             <div class="result-details">
                 <div class="detail-item">
                     <i>📍</i>
-                    <div><strong>Province:</strong> CHIRIQUÍ</div>
+                    <div><strong>Provincia:</strong> CHIRIQUÍ</div>
                 </div>
                 <div class="detail-item">
                     <i>📞</i>
                     <div>
-                        <strong>Phone:</strong> 68916669 / 68916660<br>
-                        <strong>Email:</strong> info@aparthotel-boquete.com
+                        <strong>Teléfono:</strong> 68916669 / 68916660<br>
+                        <strong>Correo:</strong> info@aparthotel-boquete.com
                     </div>
                 </div>
             </div>
             <div class="contact-buttons">
-                <a href="tel:+50768916669" class="contact-button">📞 Call</a>
-                <a href="mailto:info@aparthotel-boquete.com" class="contact-button">✉️ Email</a>
+                <a href="tel:+50768916669" class="contact-button">📞 Llamar</a>
+                <a href="mailto:info@aparthotel-boquete.com" class="contact-button">✉️ Correo</a>
                 <a href="https://wa.me/50768916669" target="_blank" class="contact-button whatsapp-button">💬 WhatsApp</a>
                 <a href="https://www.google.com/maps/search/?api=1&query=APARTHOTEL+BOQUETE+CHIRIQUÍ+Panama" target="_blank" class="contact-button">📍 Google Maps</a>
-                <a href="listing.html?id=aparthotel-boquete&lang=en" class="contact-button seemore-button">⭐ See More</a>
+                <a href="listing.html?id=aparthotel-boquete&lang=es" class="contact-button seemore-button">⭐ Ver Más</a>
             </div>
         </div>`;
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
 async function loadStats() {
     try {
         const response = await fetch(`${API_BASE_URL}/api/stats`);
         const stats = await response.json();
-        console.log('Got Stats:', stats);
         statsPanel.innerHTML = `
             <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 10px;">
-                <div><strong>Total rentals found:</strong> ${stats.total_rentals}</div>
-                <div id="selectedCount"><strong>(None Selected)</strong></div>
+                <div><strong>Total de hospedajes encontrados:</strong> ${stats.total_rentals}</div>
+                <div id="selectedCount"><strong>(Ninguno seleccionado)</strong></div>
             </div>`;
     } catch (error) {
-        console.error('Error loading stats:', error);
-        statsPanel.innerHTML = '<div style="color: #FF0000; font-size: 18px">Error loading statistics - please find the link to the ATP page at the bottom while we are working on it</div>';
+        statsPanel.innerHTML = '<div style="color: #FF0000; font-size: 18px">Error al cargar estadísticas</div>';
     }
 }
 
-// ── Filters ───────────────────────────────────────────────────────────────────
 async function loadFilters() {
     try {
         const [provincesResponse, typesResponse] = await Promise.all([
@@ -376,7 +342,7 @@ async function loadFilters() {
         provinces.forEach(({ province, count }) => {
             const option = document.createElement('option');
             option.value = province;
-            option.textContent = `${province}: ${count} rentals`;
+            option.textContent = `${province}: ${count} hospedajes`;
             provinceFilter.appendChild(option);
         });
 
@@ -391,7 +357,6 @@ async function loadFilters() {
     }
 }
 
-// ── Search ────────────────────────────────────────────────────────────────────
 async function performSearch() {
     const searchTerm = searchInput.value;
     const selectedProvince = provinceFilter.value;
@@ -409,20 +374,18 @@ async function performSearch() {
     if (selectedType) params.append('type', selectedType);
 
     try {
-        resultsContainer.innerHTML = '<div class="loading">Searching rentals...</div>';
+        resultsContainer.innerHTML = '<div class="loading">Buscando hospedajes...</div>';
         isShowingSearchResults = true;
         const response = await fetch(`${API_BASE_URL}/api/rentals?${params}`);
         const rentals = await response.json();
         updateSelectedCount(rentals.length);
         displayResults(rentals);
     } catch (error) {
-        console.error('Error searching:', error);
-        resultsContainer.innerHTML = '<div class="no-results"><p>Error searching rentals. Please try again.</p></div>';
+        resultsContainer.innerHTML = '<div class="no-results"><p>Error al buscar. Por favor intente de nuevo.</p></div>';
         updateSelectedCount(0);
     }
 }
 
-// ── Phone helpers ─────────────────────────────────────────────────────────────
 function cleanPhoneNumber(phoneStr) {
     if (!phoneStr) return '';
     return phoneStr.replace(/^\/+|\/+$/g, '').trim().replace(/\s*\/\s*/g, ' / ');
@@ -443,15 +406,14 @@ function getPhoneNumbers(phoneStr) {
     return { display: cleanPhoneNumber(phoneStr), call: callNumber, whatsapp: whatsappNumber };
 }
 
-// ── Display results ───────────────────────────────────────────────────────────
 function displayResults(rentals) {
     resultsContainer.innerHTML = '';
 
     if (rentals.length === 0) {
         resultsContainer.innerHTML = `
             <div class="no-results">
-                <p>No rentals found matching your search.</p>
-                <p>Try terms like "Boquete", "Chiriquí", or "Hotel"</p>
+                <p>No se encontraron hospedajes que coincidan con su búsqueda.</p>
+                <p>Pruebe términos como "Boquete", "Chiriquí" o "Hotel"</p>
             </div>`;
         return;
     }
@@ -465,7 +427,7 @@ function displayResults(rentals) {
         const whatsappUrl = phoneData.whatsapp ? `https://wa.me/507${phoneData.whatsapp}` : '#';
         const emailUrl = rental.email ? `mailto:${rental.email}` : '#';
         const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name + ' ' + (rental.province || '') + ' Panama')}`;
-        const listingUrl = `listing.html?id=${rental.id}&lang=en`;
+        const listingUrl = `listing.html?id=${rental.id}&lang=es`;
 
         card.innerHTML = `
             <div class="result-header">
@@ -474,7 +436,7 @@ function displayResults(rentals) {
                     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                         ${rental.rental_type ? `<span class="result-category">${rental.rental_type}</span>` : ''}
                         ${rental.province ? `<span class="result-category" style="background: #005ca9;">${rental.province}</span>` : ''}
-                        ${rental.is_member ? `<span class="result-category" style="background: #a07800;">⭐ Member</span>` : ''}
+                        ${rental.is_member ? `<span class="result-category" style="background: #a07800;">⭐ Miembro</span>` : ''}
                     </div>
                 </div>
             </div>
@@ -482,36 +444,35 @@ function displayResults(rentals) {
                 ${rental.province ? `
                 <div class="detail-item">
                     <i>📍</i>
-                    <div><strong>Province:</strong> ${rental.province}</div>
+                    <div><strong>Provincia:</strong> ${rental.province}</div>
                 </div>` : ''}
                 ${phoneData.display || rental.email ? `
                 <div class="detail-item">
                     <i>📞</i>
                     <div>
-                        ${phoneData.display ? `<strong>Phone:</strong> ${phoneData.display}<br>` : ''}
-                        ${rental.email ? `<strong>Email:</strong> ${rental.email}` : ''}
+                        ${phoneData.display ? `<strong>Teléfono:</strong> ${phoneData.display}<br>` : ''}
+                        ${rental.email ? `<strong>Correo:</strong> ${rental.email}` : ''}
                     </div>
                 </div>` : ''}
             </div>
             <div class="contact-buttons">
-                ${phoneData.call ? `<a href="${phoneUrl}" class="contact-button">📞 Call</a>` : ''}
-                ${rental.email ? `<a href="${emailUrl}" class="contact-button">✉️ Email</a>` : ''}
+                ${phoneData.call ? `<a href="${phoneUrl}" class="contact-button">📞 Llamar</a>` : ''}
+                ${rental.email ? `<a href="${emailUrl}" class="contact-button">✉️ Correo</a>` : ''}
                 ${phoneData.whatsapp ? `<a href="${whatsappUrl}" target="_blank" class="contact-button whatsapp-button">💬 WhatsApp</a>` : ''}
                 <a href="${mapsUrl}" target="_blank" class="contact-button">📍 Google Maps</a>
-                ${rental.is_member ? `<a href="${listingUrl}" class="contact-button seemore-button">⭐ See More</a>` : ''}
+                ${rental.is_member ? `<a href="${listingUrl}" class="contact-button seemore-button">⭐ Ver Más</a>` : ''}
             </div>`;
 
         resultsContainer.appendChild(card);
     });
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function updateSelectedCount(count) {
     const el = document.getElementById('selectedCount');
     if (el) {
         el.innerHTML = count === null
-            ? '<strong>(None Selected)</strong>'
-            : `<strong>(${count} Selected)</strong>`;
+            ? '<strong>(Ninguno seleccionado)</strong>'
+            : `<strong>(${count} seleccionados)</strong>`;
     }
 }
 
@@ -530,7 +491,6 @@ async function updatePdfSource() {
     }
 }
 
-// ── Event listeners ───────────────────────────────────────────────────────────
 searchButton.addEventListener('click', performSearch);
 searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') performSearch(); });
 provinceFilter.addEventListener('change', performSearch);
@@ -538,20 +498,15 @@ typeFilter.addEventListener('change', performSearch);
 
 loadInitialData();
 
-// ── Visitor counter ───────────────────────────────────────────────────────────
+// Visitor counter
 function getUrlParameter(name) {
     return new URLSearchParams(window.location.search).get(name);
 }
-
 let retryCount = 0;
-const maxRetries = 20;
-const retryDelay = 500;
-
 function loadVisitorCount() {
     const urlPass = getUrlParameter('pass');
     let phpUrl = 'https://aparthotel-boquete.com/atp-rentals/visitors.php';
     if (urlPass) phpUrl += '?pass=' + encodeURIComponent(urlPass);
-
     fetch(phpUrl)
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
         .then(data => {
@@ -560,13 +515,9 @@ function loadVisitorCount() {
         })
         .catch(() => {
             retryCount++;
-            if (retryCount < maxRetries) {
-                const delay = Math.min(retryDelay * Math.pow(1.2, retryCount), 2000);
-                setTimeout(loadVisitorCount, delay);
-            }
+            if (retryCount < 20) setTimeout(loadVisitorCount, Math.min(500 * Math.pow(1.2, retryCount), 2000));
         });
 }
-
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', loadVisitorCount);
 } else {
