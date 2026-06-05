@@ -819,9 +819,16 @@ app.post('/api/listing-photo-upload', upload.single('photo'), async (req, res) =
 
     if (!req.file) return res.status(400).json({ error: 'No file received' });
 
-    // Upload to Supabase Storage
-    const fileName = `${listingId}/${Date.now()}-${req.file.originalname}`;
-    const { error } = await supabase.storage
+        // Upload to Supabase Storage
+        // Sanitize filename: remove accents, spaces, special chars
+        const safeName = req.file.originalname
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')   // remove accents
+        .replace(/[^a-zA-Z0-9._-]/g, '_') // replace special chars with underscore
+        .replace(/_+/g, '_')               // collapse multiple underscores
+        .toLowerCase();
+        const fileName = `${listingId}/${Date.now()}-${safeName}`;
+        const { error } = await supabase.storage
         .from('listing-photos')
         .upload(fileName, req.file.buffer, {
             contentType: req.file.mimetype,
