@@ -447,7 +447,7 @@
 const API_BASE_URL  = '';
 const SUPABASE_URL  = ''; // filled below from env via api call
 const urlParams     = new URLSearchParams(window.location.search);
-const listingId     = urlParams.get('id');
+let listingId       = urlParams.get('id');
 const lang          = urlParams.get('lang') || 'en';
 const isEs          = lang === 'es';
 
@@ -999,15 +999,25 @@ function renderPage(rental) {
 
 // ── Load listing ──────────────────────────────────────────────────────────────
 async function loadListing() {
-    if (!listingId) {
+    const id = urlParams.get('id');
+    const slug = urlParams.get('slug');
+    
+    if (!id && !slug) {
         document.getElementById('listing-content').innerHTML =
             `<div class="error-state">${T.notFound}</div>`;
         return;
     }
+
     try {
-        const res = await fetch(`${API_BASE_URL}/api/listing/${listingId}`);
+        const endpoint = slug 
+            ? `${API_BASE_URL}/api/listing/slug/${slug}`
+            : `${API_BASE_URL}/api/listing/${id}`;
+            
+        const res = await fetch(endpoint);
         if (!res.ok) throw new Error('Not found');
         currentRental = await res.json();
+        // Use the actual ID from the returned data for login/save operations
+        listingId = currentRental.id;
         if (sessionToken && currentRental.is_member) isLoggedIn = true;
         renderPage(currentRental);
     } catch {
