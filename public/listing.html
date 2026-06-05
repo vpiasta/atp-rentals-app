@@ -4,60 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Listing Details - Trusted Panama Stays</title>
+    <!-- Quill rich text editor -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #111;
-            background: #f8f9fa;
-        }
-
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #111; background: #f8f9fa; }
         .container { max-width: 900px; margin: 0 auto; padding: 20px; }
 
         /* ── Header ── */
         header {
             background: linear-gradient(135deg, #005ca9, #00a859);
-            color: white;
-            padding: 1.2rem 1.5rem;
-            border-radius: 10px;
-            margin-bottom: 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 0.75rem;
+            color: white; padding: 1.2rem 1.5rem; border-radius: 10px;
+            margin-bottom: 1.5rem; display: flex; justify-content: space-between;
+            align-items: center; flex-wrap: wrap; gap: 0.75rem;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .header-left h1 { font-size: 1.3rem; font-weight: 700; }
         .header-left p  { font-size: 0.8rem; opacity: 0.85; }
         .header-right   { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         .header-btn {
-            padding: 6px 14px;
-            background: rgba(255,255,255,0.15);
-            border: 1px solid rgba(255,255,255,0.4);
-            border-radius: 20px;
-            color: white;
-            text-decoration: none;
-            font-size: 0.82rem;
-            font-weight: 600;
-            transition: background 0.3s;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
+            padding: 6px 14px; background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.4); border-radius: 20px;
+            color: white; text-decoration: none; font-size: 0.82rem; font-weight: 600;
+            transition: background 0.3s; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
         }
         .header-btn:hover { background: rgba(255,255,255,0.28); }
 
         /* ── Main card ── */
-        .listing-card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-            overflow: hidden;
-            margin-bottom: 1.5rem;
-        }
+        .listing-card { background: white; border-radius: 12px; box-shadow: 0 2px 20px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 1.5rem; }
 
         /* ── Name + badges ── */
         .name-row { padding: 1.5rem 1.5rem 0; }
@@ -71,26 +46,14 @@
 
         /* ── Quick buttons ── */
         .quick-buttons {
-            padding: 0 1.5rem 1.2rem;
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            border-bottom: 1px solid #e1e5e9;
+            padding: 0 1.5rem 1.2rem; display: flex; gap: 8px;
+            flex-wrap: wrap; border-bottom: 1px solid #e1e5e9;
         }
         .qbtn {
-            padding: 7px 14px;
-            border: 2px solid #005ca9;
-            border-radius: 7px;
-            text-decoration: none;
-            color: #005ca9;
-            font-weight: 600;
-            font-size: 0.85rem;
-            transition: all 0.25s;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            cursor: pointer;
-            background: white;
+            padding: 7px 14px; border: 2px solid #005ca9; border-radius: 7px;
+            text-decoration: none; color: #005ca9; font-weight: 600; font-size: 0.85rem;
+            transition: all 0.25s; display: inline-flex; align-items: center; gap: 5px;
+            cursor: pointer; background: white;
         }
         .qbtn:hover           { background: #005ca9; color: white; }
         .qbtn.whatsapp        { border-color: #25D366; color: #25D366; }
@@ -99,298 +62,166 @@
         .qbtn.login-btn:hover { background: #FFD700; color: #333; border-color: #FFD700; }
         .qbtn.logout-btn      { border-color: #cc0000; color: #cc0000; background: #fff5f5; margin-left: auto; }
         .qbtn.logout-btn:hover{ background: #cc0000; color: white; }
+        .qbtn.custom          { border-color: #666; color: #444; }
+        .qbtn.custom:hover    { background: #444; color: white; border-color: #444; }
 
         /* ── Sections ── */
         .section { padding: 1.2rem 1.5rem; border-bottom: 1px solid #e1e5e9; }
         .section:last-child { border-bottom: none; }
-        .section-title {
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: #888;
-            margin-bottom: 0.8rem;
-            font-weight: 700;
-        }
+        .section-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-bottom: 0.8rem; font-weight: 700; }
 
         /* ── Info grid ── */
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, auto));
-            gap: 0.8rem;
-            align-items: start;
-        }
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, auto)); gap: 0.8rem; align-items: start; }
         .info-item { display: flex; gap: 9px; align-items: flex-start; }
         .info-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; }
         .info-label { font-size: 0.75rem; color: #888; }
         .info-value { font-weight: 600; color: #111; font-size: 0.95rem; }
 
-        /* ── Photo gallery (VIEW mode) ── */
+        /* ── Photo gallery VIEW ── */
         .photo-gallery {
-            width: 100%;
-            height: 340px;
-            background: #111;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            position: relative;
+            width: 100%; background: transparent;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden; position: relative; padding: 12px;
         }
         .photo-gallery img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            display: block;
+            max-width: 100%; max-height: 340px;
+            object-fit: contain; display: block;
+            border: 8px solid #222; border-radius: 10px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.18);
         }
-        .photo-placeholder { font-size: 5rem; opacity: 0.2; color: #888; }
-        .photo-nav { position: absolute; bottom: 10px; right: 10px; display: flex; gap: 6px; }
+        .photo-placeholder { font-size: 5rem; opacity: 0.2; color: #888; padding: 3rem; }
+        .photo-nav { position: absolute; bottom: 18px; right: 18px; display: flex; gap: 6px; }
         .photo-nav button {
-            background: rgba(0,0,0,0.6);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 34px; height: 34px;
-            cursor: pointer;
-            font-size: 1.1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            background: rgba(0,0,0,0.55); color: white; border: none; border-radius: 50%;
+            width: 34px; height: 34px; cursor: pointer; font-size: 1.1rem;
+            display: flex; align-items: center; justify-content: center;
         }
-        .photo-count {
-            position: absolute; bottom: 10px; left: 10px;
-            background: rgba(0,0,0,0.6);
-            color: white; padding: 3px 9px;
-            border-radius: 12px; font-size: 0.78rem;
-        }
+        .photo-count { position: absolute; bottom: 18px; left: 18px; background: rgba(0,0,0,0.55); color: white; padding: 3px 9px; border-radius: 12px; font-size: 0.78rem; }
 
-        /* ── Photo manager (EDIT mode) ── */
+        /* ── Photo manager EDIT ── */
         .photo-manager { display: flex; flex-direction: column; gap: 12px; }
-
         .upload-zone {
-            border: 2px dashed #005ca9;
-            border-radius: 10px;
-            padding: 2rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.25s;
-            background: #f0f7ff;
-            position: relative;
+            border: 2px dashed #005ca9; border-radius: 10px; padding: 1.5rem;
+            text-align: center; cursor: pointer; transition: all 0.25s;
+            background: #f0f7ff; position: relative;
         }
-        .upload-zone:hover, .upload-zone.dragover {
-            background: #dceeff;
-            border-color: #004885;
-        }
-        .upload-zone input[type="file"] {
-            position: absolute;
-            inset: 0;
-            opacity: 0;
-            cursor: pointer;
-            width: 100%;
-            height: 100%;
-        }
-        .upload-zone-icon  { font-size: 2.5rem; margin-bottom: 0.5rem; }
-        .upload-zone-text  { color: #005ca9; font-weight: 600; font-size: 0.95rem; }
-        .upload-zone-hint  { color: #888; font-size: 0.8rem; margin-top: 0.25rem; }
+        .upload-zone:hover, .upload-zone.dragover { background: #dceeff; border-color: #004885; }
+        .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+        .upload-zone-icon  { font-size: 2rem; margin-bottom: 0.4rem; }
+        .upload-zone-text  { color: #005ca9; font-weight: 600; font-size: 0.92rem; }
+        .upload-zone-hint  { color: #888; font-size: 0.78rem; margin-top: 0.2rem; }
+        .upload-progress { display: none; background: #f0f7ff; border: 1px solid #c0d8f0; border-radius: 8px; padding: 0.8rem 1rem; }
+        .progress-bar-outer { background: #ddd; border-radius: 4px; height: 8px; margin-top: 6px; overflow: hidden; }
+        .progress-bar-inner { background: #005ca9; height: 100%; width: 0%; border-radius: 4px; transition: width 0.3s; }
 
-        /* Upload progress */
-        .upload-progress {
-            display: none;
-            background: #f0f7ff;
-            border: 1px solid #c0d8f0;
-            border-radius: 8px;
-            padding: 0.8rem 1rem;
-        }
-        .progress-bar-outer {
-            background: #ddd;
-            border-radius: 4px;
-            height: 8px;
-            margin-top: 6px;
-            overflow: hidden;
-        }
-        .progress-bar-inner {
-            background: #005ca9;
-            height: 100%;
-            width: 0%;
-            border-radius: 4px;
-            transition: width 0.3s;
-        }
-
-        /* Photo thumbnails grid */
-        .photo-thumbs {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 10px;
-        }
-        .photo-thumb {
-            position: relative;
-            border-radius: 8px;
-            overflow: hidden;
-            aspect-ratio: 4/3;
-            background: #eee;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-        }
-        .photo-thumb img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
+        /* Photo thumbs grid */
+        .photo-thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+        .photo-thumb { position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 4/3; background: #eee; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+        .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .photo-thumb-remove {
-            position: absolute;
-            top: 4px; right: 4px;
-            background: rgba(200,0,0,0.85);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 22px; height: 22px;
-            cursor: pointer;
-            font-size: 0.75rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 1;
+            position: absolute; top: 4px; right: 4px;
+            background: rgba(200,0,0,0.85); color: white; border: none;
+            border-radius: 50%; width: 22px; height: 22px; cursor: pointer;
+            font-size: 0.75rem; display: flex; align-items: center; justify-content: center;
         }
         .photo-thumb-remove:hover { background: #cc0000; }
+        .photo-thumb-controls {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: rgba(0,0,0,0.55); display: flex; justify-content: center; gap: 4px; padding: 4px;
+        }
+        .photo-ctrl-btn {
+            background: rgba(255,255,255,0.2); color: white; border: none;
+            border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem;
+            transition: background 0.2s;
+        }
+        .photo-ctrl-btn:hover { background: rgba(255,255,255,0.4); }
+        .photo-ctrl-btn.star { color: #FFD700; }
         .photo-thumb-label {
-            position: absolute;
-            bottom: 0; left: 0; right: 0;
-            background: rgba(0,0,0,0.5);
-            color: white;
-            font-size: 0.65rem;
-            padding: 2px 5px;
-            text-align: center;
+            position: absolute; top: 4px; left: 4px;
+            background: rgba(0,0,0,0.6); color: #FFD700;
+            font-size: 0.65rem; padding: 2px 6px; border-radius: 8px; font-weight: 700;
         }
 
         /* ── Editable fields ── */
         .edit-group { margin-bottom: 1.2rem; }
         .edit-group:last-child { margin-bottom: 0; }
-        .edit-label {
-            display: block;
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: #888;
-            font-weight: 700;
-            margin-bottom: 0.4rem;
+        .edit-label { display: block; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: #888; font-weight: 700; margin-bottom: 0.4rem; }
+        .edit-input {
+            width: 100%; padding: 9px 12px; border: 2px solid #e1e5e9; border-radius: 7px;
+            font-size: 0.95rem; font-family: inherit; transition: border-color 0.25s; color: #111; background: #fafafa;
         }
-        .edit-input, .edit-textarea {
-            width: 100%;
-            padding: 9px 12px;
-            border: 2px solid #e1e5e9;
-            border-radius: 7px;
-            font-size: 0.95rem;
-            font-family: inherit;
-            transition: border-color 0.25s;
-            color: #111;
-            background: #fafafa;
-        }
-        .edit-input:focus, .edit-textarea:focus {
-            outline: none;
-            border-color: #005ca9;
-            background: white;
-        }
-        .edit-textarea { resize: vertical; min-height: 120px; line-height: 1.6; }
+        .edit-input:focus { outline: none; border-color: #005ca9; background: white; }
+
+        /* ── Quill editor ── */
+        .quill-wrapper { border: 2px solid #e1e5e9; border-radius: 7px; overflow: hidden; background: #fafafa; }
+        .quill-wrapper:focus-within { border-color: #005ca9; background: white; }
+        .ql-toolbar { border: none !important; border-bottom: 1px solid #e1e5e9 !important; background: #f5f5f5; }
+        .ql-container { border: none !important; font-size: 0.95rem; min-height: 120px; }
+        .ql-editor { min-height: 120px; }
+
+        /* ── Description view ── */
+        .description-text { color: #444; line-height: 1.8; }
+        .description-text a { color: #005ca9; text-decoration: underline; }
+        .description-text ul, .description-text ol { padding-left: 1.5rem; }
+
+        /* ── Custom links ── */
+        .custom-link-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 1rem; }
+        .custom-link-row { display: grid; grid-template-columns: 60px 1fr 1fr auto; gap: 8px; align-items: center; }
+        .custom-link-row input { padding: 7px 10px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 0.88rem; font-family: inherit; }
+        .custom-link-row input:focus { outline: none; border-color: #005ca9; }
+        .custom-link-remove { padding: 6px 10px; background: #fff0f0; border: 1px solid #ffcccc; border-radius: 6px; color: #cc0000; cursor: pointer; font-size: 0.85rem; }
+        .custom-link-remove:hover { background: #cc0000; color: white; }
+        .add-link-btn { padding: 7px 14px; background: #f0f7ff; border: 1px dashed #005ca9; border-radius: 7px; color: #005ca9; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.2s; }
+        .add-link-btn:hover { background: #005ca9; color: white; border-style: solid; }
+        .custom-link-hint { font-size: 0.75rem; color: #aaa; margin-top: 0.3rem; }
 
         /* ── Save bar ── */
         .save-bar {
-            background: #fffbe6;
-            border: 1px solid #FFD700;
-            border-radius: 8px;
-            padding: 1rem 1.5rem;
-            margin-bottom: 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 1rem;
-            flex-wrap: wrap;
+            background: #fffbe6; border: 1px solid #FFD700; border-radius: 8px;
+            padding: 1rem 1.5rem; margin-bottom: 1.5rem;
+            display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
         }
         .save-bar p { font-size: 0.88rem; color: #7a5c00; }
-        .save-btn {
-            padding: 9px 24px;
-            background: #005ca9;
-            color: white;
-            border: none;
-            border-radius: 7px;
-            font-size: 0.95rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.25s;
-        }
+        .save-btn { padding: 9px 24px; background: #005ca9; color: white; border: none; border-radius: 7px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background 0.25s; }
         .save-btn:hover    { background: #004885; }
         .save-btn:disabled { background: #aaa; cursor: not-allowed; }
-        .save-message {
-            font-size: 0.85rem;
-            padding: 4px 10px;
-            border-radius: 5px;
-            display: none;
-        }
+        .save-message { font-size: 0.85rem; padding: 4px 10px; border-radius: 5px; display: none; }
         .save-message.success { background: #e8f4e8; color: #1a5c1a; display: inline-block; }
         .save-message.error   { background: #fde8e8; color: #7a0000; display: inline-block; }
 
-        /* ── Description ── */
-        .description-text { color: #444; line-height: 1.8; white-space: pre-wrap; }
-
-        /* ── Contact / Links ── */
-        .btn-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-        .action-btn {
-            padding: 9px 18px;
-            border: 2px solid #005ca9;
-            border-radius: 7px;
-            text-decoration: none;
-            color: #005ca9;
-            font-weight: 600;
-            font-size: 0.9rem;
-            transition: all 0.25s;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
+        /* ── Footer ── */
+        footer {
+            background: #2c3e50; color: #ccc; border-radius: 10px;
+            padding: 1.2rem 1.5rem; margin-top: 0.5rem; text-align: center; font-size: 0.85rem;
         }
-        .action-btn:hover          { background: #005ca9; color: white; }
-        .action-btn.whatsapp       { border-color: #25D366; color: #25D366; }
-        .action-btn.whatsapp:hover { background: #25D366; color: white; }
-        .action-btn.primary        { background: #005ca9; color: white; }
-        .action-btn.primary:hover  { background: #004885; }
+        footer a { color: #7ec8e3; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
 
         /* ── Login modal ── */
-        .modal-overlay {
-            display: none; position: fixed; inset: 0;
-            background: rgba(0,0,0,0.5); z-index: 1000;
-            align-items: center; justify-content: center;
-        }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
         .modal-overlay.active { display: flex; }
-        .modal {
-            background: white; border-radius: 12px; padding: 2rem;
-            width: 340px; max-width: 90vw;
-            box-shadow: 0 8px 40px rgba(0,0,0,0.2);
-        }
+        .modal { background: white; border-radius: 12px; padding: 2rem; width: 340px; max-width: 90vw; box-shadow: 0 8px 40px rgba(0,0,0,0.2); }
         .modal h3 { font-size: 1.2rem; color: #005ca9; margin-bottom: 0.5rem; }
         .modal p  { font-size: 0.85rem; color: #666; margin-bottom: 1rem; }
-        .modal input {
-            width: 100%; padding: 10px 14px;
-            border: 2px solid #e1e5e9; border-radius: 7px;
-            font-size: 1rem; margin-bottom: 1rem;
-        }
+        .modal input { width: 100%; padding: 10px 14px; border: 2px solid #e1e5e9; border-radius: 7px; font-size: 1rem; margin-bottom: 1rem; }
         .modal input:focus { outline: none; border-color: #005ca9; }
         .modal-error { color: #cc0000; font-size: 0.85rem; margin-bottom: 0.75rem; display: none; }
         .modal-buttons { display: flex; gap: 10px; }
         .modal-btn { flex: 1; padding: 10px; border: none; border-radius: 7px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
-        .modal-btn.confirm       { background: #005ca9; color: white; }
+        .modal-btn.confirm { background: #005ca9; color: white; }
         .modal-btn.confirm:hover { background: #004885; }
-        .modal-btn.cancel        { background: #f0f0f0; color: #555; }
-        .modal-btn.cancel:hover  { background: #e0e0e0; }
+        .modal-btn.cancel  { background: #f0f0f0; color: #555; }
+        .modal-btn.cancel:hover { background: #e0e0e0; }
 
         .loading-state { text-align: center; padding: 4rem; color: #005ca9; font-size: 1.1rem; }
         .error-state   { text-align: center; padding: 4rem; color: #cc0000; }
 
-        footer {
-            text-align: center; color: #888; font-size: 0.82rem;
-            padding: 1rem 0; border-top: 1px solid #e1e5e9; margin-top: 0.5rem;
-        }
-
         @media (max-width: 600px) {
             .listing-name { font-size: 1.4rem; }
             .name-row, .quick-buttons, .section { padding-left: 1rem; padding-right: 1rem; }
-            .photo-gallery { height: 220px; }
             .qbtn.login-btn, .qbtn.logout-btn { margin-left: 0; }
+            .custom-link-row { grid-template-columns: 50px 1fr; }
+            .custom-link-row input:nth-child(3) { display: none; }
         }
     </style>
 </head>
@@ -404,7 +235,7 @@
         </div>
         <div class="header-right">
             <a id="back-link" href="index.html" class="header-btn">← Back</a>
-            <a id="lang-link" href="#" class="header-btn">🇵🇦 Español</a>
+            <a id="lang-link" href="#" class="header-btn"></a>
         </div>
     </header>
 
@@ -413,7 +244,7 @@
             <p id="save-bar-text">You are editing your listing.</p>
             <div style="display:flex;gap:10px;align-items:center;">
                 <span class="save-message" id="save-message"></span>
-                <button class="save-btn" id="save-btn" onclick="saveChanges()">💾 Save Changes</button>
+                <button class="save-btn" id="save-btn" onclick="saveChanges()">💾 Save</button>
             </div>
         </div>
     </div>
@@ -423,9 +254,7 @@
     </div>
 
     <footer>
-        <p id="footer-text">Data provided by the
-            <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>
-        </p>
+        <p id="footer-text"></p>
     </footer>
 </div>
 
@@ -433,28 +262,31 @@
 <div class="modal-overlay" id="login-modal">
     <div class="modal">
         <h3 id="modal-title">🔐 Member Login</h3>
-        <p id="modal-subtitle">Enter your password to access your profile.</p>
+        <p id="modal-subtitle"></p>
         <div class="modal-error" id="modal-error"></div>
         <input type="password" id="password-input" placeholder="Password">
         <div class="modal-buttons">
-            <button class="modal-btn cancel" id="modal-cancel">Cancel</button>
-            <button class="modal-btn confirm" id="modal-confirm">Login</button>
+            <button class="modal-btn cancel" id="modal-cancel"></button>
+            <button class="modal-btn confirm" id="modal-confirm"></button>
         </div>
     </div>
 </div>
 
 <script>
-const API_BASE_URL  = '';
-const SUPABASE_URL  = ''; // filled below from env via api call
-const urlParams     = new URLSearchParams(window.location.search);
-let listingId       = urlParams.get('id');
-const lang          = urlParams.get('lang') || 'en';
-const isEs          = lang === 'es';
+const API_BASE_URL = '';
+const urlParams  = new URLSearchParams(window.location.search);
+const lang       = urlParams.get('lang') || 'en';
+const isEs       = lang === 'es';
 
-let sessionToken  = sessionStorage.getItem(`tps_token_${listingId}`) || null;
-let isLoggedIn    = false;
+let listingId    = urlParams.get('id');
+const slugParam  = urlParams.get('slug');
+let sessionToken = null;
+let isLoggedIn   = false;
 let currentRental = null;
-let editPhotos    = []; // working copy of photos in edit mode
+let editPhotos   = [];
+let quillEn      = null;
+let quillEs      = null;
+let customLinks  = [];
 
 // ── Translations ──────────────────────────────────────────────────────────────
 const T = {
@@ -464,40 +296,49 @@ const T = {
     phone:         isEs ? 'Teléfono'    : 'Phone',
     email:         isEs ? 'Correo'      : 'Email',
     address:       isEs ? 'Dirección'   : 'Address',
-    atpData:       isEs ? 'Contacto ATP': 'ATP Contact',
+    contact:       isEs ? 'Contacto'    : 'Contact',
     description:   isEs ? 'Descripción' : 'Description',
     descEn:        isEs ? 'Descripción en Inglés' : 'Description (English)',
     descEs:        isEs ? 'Descripción en Español': 'Description (Spanish)',
-    contact:       isEs ? 'Contacto'    : 'Contact',
     links:         isEs ? 'Enlaces'     : 'Links',
     photos:        isEs ? 'Fotos'       : 'Photos',
-    websiteUrl:    isEs ? 'URL del Sitio Web' : 'Website URL',
-    bookingUrl:    isEs ? 'URL de Reservas'   : 'Booking URL',
-    addressLabel:  isEs ? 'Dirección completa': 'Full Address',
+    websiteUrl:    isEs ? 'URL Sitio Web'   : 'Website URL',
+    bookingUrl:    isEs ? 'URL Reservas'    : 'Booking URL',
+    addressLabel:  isEs ? 'Dirección completa' : 'Full Address',
+    phoneLabel:    isEs ? 'Teléfono (miembro)' : 'Phone (member)',
+    emailLabel:    isEs ? 'Correo (miembro)'   : 'Email (member)',
     call:          isEs ? '📞 Llamar'   : '📞 Call',
     emailBtn:      isEs ? '✉️ Correo'   : '✉️ Email',
     whatsapp:      '💬 WhatsApp',
     maps:          '📍 Google Maps',
     website:       isEs ? '🌐 Sitio Web': '🌐 Website',
     booking:       isEs ? '🔗 Reservar' : '🔗 Book Now',
-    memberLogin:   isEs ? '🔐 Acceso Miembro' : '🔐 Member Login',
-    logout:        isEs ? 'Cerrar sesión'     : 'Log Out',
+    memberLogin:   isEs ? '🔐 Acceso'   : '🔐 Login',
+    logout:        isEs ? 'Salir'        : 'Log Out',
     noDesc:        isEs ? 'Sin descripción aún.' : 'No description yet.',
     notFound:      isEs ? 'Listado no encontrado.' : 'Listing not found.',
-    uploadClick:   isEs ? 'Haga clic o arrastre fotos aquí' : 'Click or drag photos here',
-    uploadHint:    isEs ? 'JPG, PNG, WebP · máx. 5MB por foto' : 'JPG, PNG, WebP · max 5MB per photo',
+    uploadClick:   isEs ? 'Clic o arrastre fotos aquí' : 'Click or drag photos here',
+    uploadHint:    isEs ? 'JPG, PNG, WebP · máx. 5MB · máx. 20 fotos' : 'JPG, PNG, WebP · max 5MB · max 20 photos',
     uploading:     isEs ? 'Subiendo...' : 'Uploading...',
-    uploadError:   isEs ? 'Error al subir foto' : 'Upload failed',
-    saveChanges:   isEs ? '💾 Guardar cambios' : '💾 Save Changes',
-    saveBar:       isEs ? 'Está editando su listado.' : 'You are editing your listing.',
-    saved:         isEs ? '✅ Guardado'  : '✅ Saved',
-    saveError:     isEs ? '❌ Error al guardar' : '❌ Save failed',
+    uploadError:   isEs ? 'Error al subir' : 'Upload failed',
+    saveChanges:   isEs ? '💾 Guardar'  : '💾 Save',
+    saveBar:       isEs ? 'Editando su listado.' : 'Editing your listing.',
+    saved:         isEs ? '✅ Guardado' : '✅ Saved',
+    saveError:     isEs ? '❌ Error'    : '❌ Error',
     wrongPassword: isEs ? 'Contraseña incorrecta.' : 'Incorrect password.',
-    loginError:    isEs ? 'Error al iniciar sesión.' : 'Login error.',
+    loginError:    isEs ? 'Error al ingresar.' : 'Login error.',
     modalTitle:    isEs ? '🔐 Acceso Miembro' : '🔐 Member Login',
     modalSub:      isEs ? 'Ingrese su contraseña.' : 'Enter your password.',
     cancel:        isEs ? 'Cancelar' : 'Cancel',
     confirm:       isEs ? 'Ingresar' : 'Login',
+    setMain:       isEs ? '⭐ Principal' : '⭐ Main',
+    moveUp:        '↑',
+    moveDown:      '↓',
+    addLink:       isEs ? '+ Nuevo enlace' : '+ New link',
+    linkEmoji:     isEs ? 'Ícono' : 'Icon',
+    linkLabel:     isEs ? 'Nombre' : 'Label',
+    linkUrl:       'URL',
+    linkHint:      isEs ? 'Ej: 📸 Instagram https://instagram.com/...' : 'E.g: 📸 Instagram https://instagram.com/...',
     footer:        isEs
         ? 'Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>'
         : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>',
@@ -517,8 +358,16 @@ document.getElementById('save-bar-text').textContent  = T.saveBar;
 document.getElementById('save-btn').textContent       = T.saveChanges;
 document.getElementById('lang-link').addEventListener('click', e => {
     e.preventDefault();
-    window.location.href = `listing.html?id=${listingId}&lang=${isEs ? 'en' : 'es'}`;
+    const newLang = isEs ? 'en' : 'es';
+    const param = slugParam ? `slug=${slugParam}` : `id=${listingId}`;
+    window.location.href = `listing.html?${param}&lang=${newLang}`;
 });
+
+// ── Session (restored from sessionStorage) ────────────────────────────────────
+function restoreSession(id) {
+    const token = sessionStorage.getItem(`tps_token_${id}`);
+    if (token) { sessionToken = token; isLoggedIn = true; }
+}
 
 // ── Phone helpers ─────────────────────────────────────────────────────────────
 function getPhoneNumbers(phoneStr) {
@@ -532,124 +381,40 @@ function getPhoneNumbers(phoneStr) {
     return { display, call, whatsapp };
 }
 
-// ── Image resize (client-side, before upload) ─────────────────────────────────
-function resizeImage(file, maxWidth = 1920, maxHeight = 1080, quality = 0.85) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload = () => {
-            URL.revokeObjectURL(url);
-            let { width, height } = img;
-
-            // Scale down if needed
-            if (width > maxWidth || height > maxHeight) {
-                const ratio = Math.min(maxWidth / width, maxHeight / height);
-                width  = Math.round(width  * ratio);
-                height = Math.round(height * ratio);
-            }
-
-            const canvas = document.createElement('canvas');
-            canvas.width  = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-
-            canvas.toBlob(blob => {
-                if (!blob) return reject(new Error('Canvas toBlob failed'));
-                // Keep original filename but ensure .jpg extension for resized
-                const newName = file.name.replace(/\.[^.]+$/, '') + '_resized.jpg';
-                resolve(new File([blob], newName, { type: 'image/jpeg' }));
-            }, 'image/jpeg', quality);
-        };
-        img.onerror = () => reject(new Error('Image load failed'));
-        img.src = url;
-    });
+// ── Maps URL ──────────────────────────────────────────────────────────────────
+function mapsUrl(rental) {
+    const query = [rental.name, rental.address || rental.province, 'Panama']
+        .filter(Boolean).join(' ');
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
-// ── Upload photo to Supabase Storage via server ───────────────────────────────
-async function uploadPhoto(file) {
-    // Validate type
-    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowed.includes(file.type)) {
-        throw new Error('Only JPG, PNG or WebP images are allowed');
-    }
+// ── Build quick buttons ───────────────────────────────────────────────────────
+function buildQuickButtons(rental, editMode) {
+    const ph = getPhoneNumbers(rental.phone_member || rental.phone);
+    const em = rental.email_member || rental.email;
+    const url = mapsUrl(rental);
+    const links = Array.isArray(rental.custom_links) ? rental.custom_links : [];
 
-    // Validate size (5MB)
-    if (file.size > 5 * 1024 * 1024) {
-        throw new Error('File exceeds 5MB limit');
-    }
+    const loginLogout = editMode
+        ? `<button class="qbtn logout-btn" onclick="doLogout()">${T.logout}</button>`
+        : (rental.is_member
+            ? `<button class="qbtn login-btn" onclick="openLogin()">${T.memberLogin}</button>`
+            : '');
 
-    // Resize before upload
-    const resized = await resizeImage(file);
+    const customBtns = links.map(l =>
+        `<a href="${l.url}" target="_blank" class="qbtn custom">${l.emoji || ''} ${l.label}</a>`
+    ).join('');
 
-    // Upload via server endpoint (server uses service key for Supabase Storage)
-    const formData = new FormData();
-    formData.append('photo', resized);
-    formData.append('listingId', listingId);
-    formData.append('token', sessionToken);
-
-    const res  = await fetch(`${API_BASE_URL}/api/listing-photo-upload`, {
-        method: 'POST',
-        body:   formData
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Upload failed');
-    return data.url; // Public URL returned by server
+    return `
+        ${ph.call      ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
+        ${em           ? `<a href="mailto:${em}" class="qbtn">${T.emailBtn}</a>` : ''}
+        ${ph.whatsapp  ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
+        <a href="${url}" target="_blank" class="qbtn">${T.maps}</a>
+        ${customBtns}
+        ${loginLogout}`;
 }
 
-// ── Handle file selection / drop ──────────────────────────────────────────────
-async function handleFiles(files) {
-    const progress = document.getElementById('upload-progress');
-    const progressBar = document.getElementById('progress-bar');
-    const progressText = document.getElementById('progress-text');
-
-    const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
-    if (!validFiles.length) return;
-
-    // Max 20 photos total
-    if (editPhotos.length + validFiles.length > 20) {
-        alert(isEs ? 'Máximo 20 fotos por listado.' : 'Maximum 20 photos per listing.');
-        return;
-    }
-
-    progress.style.display = 'block';
-
-    for (let i = 0; i < validFiles.length; i++) {
-        const file = validFiles[i];
-        progressText.textContent = `${T.uploading} ${i+1}/${validFiles.length}: ${file.name}`;
-        progressBar.style.width = `${Math.round((i / validFiles.length) * 100)}%`;
-
-        try {
-            const url = await uploadPhoto(file);
-            editPhotos.push(url);
-            renderPhotoThumbs();
-        } catch (err) {
-            alert(`${T.uploadError}: ${err.message}`);
-        }
-    }
-
-    progressBar.style.width = '100%';
-    setTimeout(() => { progress.style.display = 'none'; }, 800);
-}
-
-// ── Render photo thumbnails in edit mode ──────────────────────────────────────
-function renderPhotoThumbs() {
-    const container = document.getElementById('photo-thumbs');
-    if (!container) return;
-    container.innerHTML = editPhotos.map((url, i) => `
-        <div class="photo-thumb">
-            <img src="${url}" alt="Photo ${i+1}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22/>'">
-            <button class="photo-thumb-remove" onclick="removeEditPhoto(${i})" title="Remove">✕</button>
-            ${i === 0 ? `<div class="photo-thumb-label">${isEs?'Principal':'Main'}</div>` : ''}
-        </div>`).join('');
-}
-
-function removeEditPhoto(index) {
-    editPhotos.splice(index, 1);
-    renderPhotoThumbs();
-}
-
-// ── Photo gallery (view mode) ─────────────────────────────────────────────────
+// ── Photo gallery VIEW ────────────────────────────────────────────────────────
 let viewPhotos   = [];
 let currentPhoto = 0;
 
@@ -676,22 +441,169 @@ function changePhoto(dir) {
     if (c) c.textContent = `${currentPhoto+1} / ${viewPhotos.length}`;
 }
 
-// ── Render VIEW mode ──────────────────────────────────────────────────────────
+// ── Photo thumbs EDIT ─────────────────────────────────────────────────────────
+function renderPhotoThumbs() {
+    const container = document.getElementById('photo-thumbs');
+    if (!container) return;
+    container.innerHTML = editPhotos.map((url, i) => `
+        <div class="photo-thumb">
+            <img src="${url}" alt="Photo ${i+1}">
+            ${i === 0 ? `<div class="photo-thumb-label">${T.setMain.replace('⭐ ','')}</div>` : ''}
+            <button class="photo-thumb-remove" onclick="removeEditPhoto(${i})" title="Remove">✕</button>
+            <div class="photo-thumb-controls">
+                ${i > 0 ? `<button class="photo-ctrl-btn star" onclick="setMainPhoto(${i})" title="${T.setMain}">⭐</button>` : ''}
+                ${i > 0 ? `<button class="photo-ctrl-btn" onclick="movePhoto(${i},-1)">${T.moveUp}</button>` : ''}
+                ${i < editPhotos.length-1 ? `<button class="photo-ctrl-btn" onclick="movePhoto(${i},1)">${T.moveDown}</button>` : ''}
+            </div>
+        </div>`).join('');
+}
+
+function setMainPhoto(index) {
+    const [photo] = editPhotos.splice(index, 1);
+    editPhotos.unshift(photo);
+    renderPhotoThumbs();
+}
+
+function movePhoto(index, dir) {
+    const newIndex = index + dir;
+    if (newIndex < 0 || newIndex >= editPhotos.length) return;
+    [editPhotos[index], editPhotos[newIndex]] = [editPhotos[newIndex], editPhotos[index]];
+    renderPhotoThumbs();
+}
+
+function removeEditPhoto(index) {
+    editPhotos.splice(index, 1);
+    renderPhotoThumbs();
+}
+
+// ── Custom links EDIT ─────────────────────────────────────────────────────────
+function renderCustomLinks() {
+    const container = document.getElementById('custom-link-list');
+    if (!container) return;
+    container.innerHTML = customLinks.map((l, i) => `
+        <div class="custom-link-row">
+            <input type="text" value="${l.emoji||''}" placeholder="📸"
+                   onchange="customLinks[${i}].emoji=this.value" maxlength="4">
+            <input type="text" value="${l.label||''}" placeholder="${T.linkLabel}"
+                   onchange="customLinks[${i}].label=this.value">
+            <input type="url" value="${l.url||''}" placeholder="https://..."
+                   onchange="customLinks[${i}].url=this.value">
+            <button class="custom-link-remove" onclick="removeCustomLink(${i})">✕</button>
+        </div>`).join('');
+}
+
+function addCustomLink() {
+    if (customLinks.length >= 4) return;
+    customLinks.push({ emoji: '', label: '', url: '' });
+    renderCustomLinks();
+}
+
+function removeCustomLink(index) {
+    customLinks.splice(index, 1);
+    renderCustomLinks();
+}
+
+// ── Image resize ──────────────────────────────────────────────────────────────
+function resizeImage(file, maxWidth=1920, maxHeight=1080, quality=0.85) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            let { width, height } = img;
+            if (width > maxWidth || height > maxHeight) {
+                const ratio = Math.min(maxWidth/width, maxHeight/height);
+                width  = Math.round(width  * ratio);
+                height = Math.round(height * ratio);
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width; canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            canvas.toBlob(blob => {
+                if (!blob) return reject(new Error('Canvas toBlob failed'));
+                const newName = file.name.replace(/\.[^.]+$/,'') + '_resized.jpg';
+                resolve(new File([blob], newName, { type: 'image/jpeg' }));
+            }, 'image/jpeg', quality);
+        };
+        img.onerror = () => reject(new Error('Image load failed'));
+        img.src = url;
+    });
+}
+
+async function uploadPhoto(file) {
+    if (!['image/jpeg','image/png','image/webp'].includes(file.type))
+        throw new Error('Only JPG, PNG or WebP images allowed');
+    if (file.size > 5*1024*1024) throw new Error('File exceeds 5MB');
+    const resized = await resizeImage(file);
+    const formData = new FormData();
+    formData.append('photo', resized);
+    formData.append('listingId', listingId);
+    formData.append('token', sessionToken);
+    const res  = await fetch(`${API_BASE_URL}/api/listing-photo-upload`, { method:'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data.url;
+}
+
+async function handleFiles(files) {
+    const progress    = document.getElementById('upload-progress');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText= document.getElementById('progress-text');
+    const validFiles  = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (!validFiles.length) return;
+    if (editPhotos.length + validFiles.length > 20) {
+        alert(isEs ? 'Máximo 20 fotos.' : 'Maximum 20 photos.'); return;
+    }
+    progress.style.display = 'block';
+    for (let i = 0; i < validFiles.length; i++) {
+        const file = validFiles[i];
+        progressText.textContent = `${T.uploading} ${i+1}/${validFiles.length}: ${file.name}`;
+        progressBar.style.width = `${Math.round((i/validFiles.length)*100)}%`;
+        try {
+            const url = await uploadPhoto(file);
+            editPhotos.push(url);
+            renderPhotoThumbs();
+        } catch (err) { alert(`${T.uploadError}: ${err.message}`); }
+    }
+    progressBar.style.width = '100%';
+    setTimeout(() => { progress.style.display = 'none'; progressBar.style.width = '0%'; }, 800);
+}
+
+function wireUploadZone() {
+    const zone  = document.getElementById('upload-zone');
+    const input = document.getElementById('file-input');
+    if (!zone || !input) return;
+    input.addEventListener('change', e => { handleFiles(e.target.files); e.target.value=''; });
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+    renderPhotoThumbs();
+}
+
+// ── Init Quill editors ────────────────────────────────────────────────────────
+function initQuill(rental) {
+    const toolbarOptions = [
+        ['bold', 'italic', 'underline'],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        ['link'],
+        ['clean']
+    ];
+    quillEn = new Quill('#quill-en', { theme: 'snow', modules: { toolbar: toolbarOptions } });
+    quillEs = new Quill('#quill-es', { theme: 'snow', modules: { toolbar: toolbarOptions } });
+    if (rental.description_en) quillEn.root.innerHTML = rental.description_en;
+    if (rental.description_es) quillEs.root.innerHTML = rental.description_es;
+}
+
+// ── Render VIEW ───────────────────────────────────────────────────────────────
 function renderView(rental) {
     viewPhotos   = Array.isArray(rental.photos) ? rental.photos : [];
     currentPhoto = 0;
-    const ph      = getPhoneNumbers(rental.phone);
-    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-        (rental.address || rental.name) + ' ' + (rental.province||'') + ' Panama')}`;
     const description = isEs
         ? (rental.description_es || rental.description_en || T.noDesc)
         : (rental.description_en || rental.description_es || T.noDesc);
-
-    const loginLogoutBtn = isLoggedIn
-        ? `<button class="qbtn logout-btn" onclick="doLogout()">${T.logout}</button>`
-        : (rental.is_member
-            ? `<button class="qbtn login-btn" onclick="openLogin()">${T.memberLogin}</button>`
-            : '');
+    const ph = getPhoneNumbers(rental.phone_member || rental.phone);
+    const em = rental.email_member || rental.email;
+    const links = Array.isArray(rental.custom_links) ? rental.custom_links : [];
 
     return `
     <div class="listing-card">
@@ -704,62 +616,53 @@ function renderView(rental) {
                 <span class="badge badge-atp">✅ ATP</span>
             </div>
         </div>
-        <div class="quick-buttons">
-            ${ph.call      ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
-            ${rental.email ? `<a href="mailto:${rental.email}" class="qbtn">${T.emailBtn}</a>` : ''}
-            ${ph.whatsapp  ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
-            <a href="${mapsUrl}" target="_blank" class="qbtn">${T.maps}</a>
-            ${loginLogoutBtn}
-        </div>
+
+        <div class="quick-buttons">${buildQuickButtons(rental, false)}</div>
+
         <div class="section">
-            <div class="section-title">${T.atpData}</div>
+            <div class="section-title">${T.contact}</div>
             <div class="info-grid">
                 ${ph.display ? `
                 <div class="info-item"><span class="info-icon">📞</span>
                     <div><div class="info-label">${T.phone}</div>
                     <div class="info-value">${ph.display}</div></div></div>` : ''}
-                ${rental.email ? `
+                ${em ? `
                 <div class="info-item"><span class="info-icon">✉️</span>
                     <div><div class="info-label">${T.email}</div>
-                    <div class="info-value">${rental.email}</div></div></div>` : ''}
+                    <div class="info-value">${em}</div></div></div>` : ''}
                 ${rental.address ? `
                 <div class="info-item"><span class="info-icon">🗺️</span>
                     <div><div class="info-label">${T.address}</div>
                     <div class="info-value">${rental.address}</div></div></div>` : ''}
             </div>
         </div>
+
         ${galleryHTML()}
-        ${rental.is_member ? `
+
+        ${rental.is_member && description !== T.noDesc ? `
         <div class="section">
             <div class="section-title">${T.description}</div>
-            <p class="description-text">${description}</p>
+            <div class="description-text">${description}</div>
         </div>` : ''}
-        <div class="section">
-            <div class="section-title">${T.contact}</div>
-            <div class="btn-row">
-                ${ph.call      ? `<a href="tel:+507${ph.call}" class="action-btn">${T.call}</a>` : ''}
-                ${rental.email ? `<a href="mailto:${rental.email}" class="action-btn">${T.emailBtn}</a>` : ''}
-                ${ph.whatsapp  ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="action-btn whatsapp">${T.whatsapp}</a>` : ''}
-                <a href="${mapsUrl}" target="_blank" class="action-btn">${T.maps}</a>
-            </div>
-        </div>
-        ${rental.is_member && (rental.website_url || rental.booking_url) ? `
+
+        ${rental.is_member && (rental.website_url || rental.booking_url || links.length) ? `
         <div class="section">
             <div class="section-title">${T.links}</div>
-            <div class="btn-row">
-                ${rental.website_url ? `<a href="${rental.website_url}" target="_blank" class="action-btn primary">${T.website}</a>` : ''}
-                ${rental.booking_url ? `<a href="${rental.booking_url}" target="_blank" class="action-btn primary">${T.booking}</a>` : ''}
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+                ${rental.website_url ? `<a href="${rental.website_url}" target="_blank" class="qbtn">${T.website}</a>` : ''}
+                ${rental.booking_url ? `<a href="${rental.booking_url}" target="_blank" class="qbtn">${T.booking}</a>` : ''}
+                ${links.map(l=>`<a href="${l.url}" target="_blank" class="qbtn custom">${l.emoji||''} ${l.label}</a>`).join('')}
             </div>
         </div>` : ''}
     </div>`;
 }
 
-// ── Render EDIT mode ──────────────────────────────────────────────────────────
+// ── Render EDIT ───────────────────────────────────────────────────────────────
 function renderEdit(rental) {
-    editPhotos = Array.isArray(rental.photos) ? [...rental.photos] : [];
-    const ph      = getPhoneNumbers(rental.phone);
-    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-        (rental.address || rental.name) + ' ' + (rental.province||'') + ' Panama')}`;
+    editPhotos  = Array.isArray(rental.photos) ? [...rental.photos] : [];
+    customLinks = Array.isArray(rental.custom_links) ? [...rental.custom_links] : [];
+    const ph = getPhoneNumbers(rental.phone_member || rental.phone);
+    const em = rental.email_member || rental.email;
 
     return `
     <div class="listing-card">
@@ -772,32 +675,29 @@ function renderEdit(rental) {
                 <span class="badge badge-atp">✅ ATP</span>
             </div>
         </div>
-        <div class="quick-buttons">
-            ${ph.call      ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
-            ${rental.email ? `<a href="mailto:${rental.email}" class="qbtn">${T.emailBtn}</a>` : ''}
-            ${ph.whatsapp  ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
-            <a href="${mapsUrl}" target="_blank" class="qbtn">${T.maps}</a>
-            <button class="qbtn logout-btn" onclick="doLogout()">${T.logout}</button>
-        </div>
 
-        <!-- ATP Contact: phone & email read-only, address editable -->
+        <div class="quick-buttons">${buildQuickButtons(rental, true)}</div>
+
+        <!-- Contact (editable) -->
         <div class="section">
-            <div class="section-title">${T.atpData}</div>
-            <div class="info-grid" style="margin-bottom:1rem;">
-                ${ph.display ? `
-                <div class="info-item"><span class="info-icon">📞</span>
-                    <div><div class="info-label">${T.phone}</div>
-                    <div class="info-value">${ph.display}</div></div></div>` : ''}
-                ${rental.email ? `
-                <div class="info-item"><span class="info-icon">✉️</span>
-                    <div><div class="info-label">${T.email}</div>
-                    <div class="info-value">${rental.email}</div></div></div>` : ''}
+            <div class="section-title">${T.contact}</div>
+            <div class="edit-group">
+                <label class="edit-label">📞 ${T.phoneLabel}</label>
+                <input type="text" class="edit-input" id="edit-phone"
+                       value="${rental.phone_member || rental.phone || ''}"
+                       placeholder="${rental.phone || ''}">
+            </div>
+            <div class="edit-group">
+                <label class="edit-label">✉️ ${T.emailLabel}</label>
+                <input type="email" class="edit-input" id="edit-email"
+                       value="${rental.email_member || rental.email || ''}"
+                       placeholder="${rental.email || ''}">
             </div>
             <div class="edit-group">
                 <label class="edit-label">🗺️ ${T.addressLabel}</label>
                 <input type="text" class="edit-input" id="edit-address"
                        value="${rental.address || ''}"
-                       placeholder="Street, City, Province, Panama">
+                       placeholder="Street / area, City, Province, Panama">
             </div>
         </div>
 
@@ -805,23 +705,16 @@ function renderEdit(rental) {
         <div class="section">
             <div class="section-title">${T.photos}</div>
             <div class="photo-manager">
-                <!-- Upload zone -->
                 <div class="upload-zone" id="upload-zone">
                     <input type="file" accept="image/*" multiple id="file-input">
                     <div class="upload-zone-icon">📷</div>
                     <div class="upload-zone-text">${T.uploadClick}</div>
-                    <div class="upload-zone-hint">${T.uploadHint} · ${isEs?'Máx. 10 fotos':'Max 10 photos'}</div>
+                    <div class="upload-zone-hint">${T.uploadHint}</div>
                 </div>
-
-                <!-- Progress bar -->
                 <div class="upload-progress" id="upload-progress">
                     <div id="progress-text" style="font-size:0.85rem;color:#005ca9;">${T.uploading}</div>
-                    <div class="progress-bar-outer">
-                        <div class="progress-bar-inner" id="progress-bar"></div>
-                    </div>
+                    <div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar"></div></div>
                 </div>
-
-                <!-- Thumbnails -->
                 <div class="photo-thumbs" id="photo-thumbs"></div>
             </div>
         </div>
@@ -829,125 +722,96 @@ function renderEdit(rental) {
         <!-- Description EN -->
         <div class="section">
             <div class="section-title">${T.descEn}</div>
-            <textarea class="edit-textarea" id="edit-desc-en"
-                      placeholder="Describe your property in English...">${rental.description_en || ''}</textarea>
+            <div class="quill-wrapper"><div id="quill-en"></div></div>
         </div>
 
         <!-- Description ES -->
         <div class="section">
             <div class="section-title">${T.descEs}</div>
-            <textarea class="edit-textarea" id="edit-desc-es"
-                      placeholder="Describa su propiedad en español...">${rental.description_es || ''}</textarea>
+            <div class="quill-wrapper"><div id="quill-es"></div></div>
         </div>
 
-        <!-- Website & Booking -->
+        <!-- Links -->
         <div class="section">
             <div class="section-title">${T.links}</div>
             <div class="edit-group">
                 <label class="edit-label">🌐 ${T.websiteUrl}</label>
                 <input type="url" class="edit-input" id="edit-website"
-                       value="${rental.website_url || ''}"
-                       placeholder="https://yourwebsite.com">
+                       value="${rental.website_url || ''}" placeholder="https://...">
             </div>
             <div class="edit-group">
                 <label class="edit-label">🔗 ${T.bookingUrl}</label>
                 <input type="url" class="edit-input" id="edit-booking"
-                       value="${rental.booking_url || ''}"
-                       placeholder="https://booking.yourwebsite.com">
+                       value="${rental.booking_url || ''}" placeholder="https://...">
+            </div>
+            <div class="edit-group">
+                <label class="edit-label">${isEs?'Botones adicionales':'Additional buttons'} (${isEs?'máx':'max'} 4)</label>
+                <div class="custom-link-list" id="custom-link-list"></div>
+                ${customLinks.length < 4
+                    ? `<button class="add-link-btn" onclick="addCustomLink()">+ ${T.addLink}</button>`
+                    : ''}
+                <p class="custom-link-hint">${T.linkHint}</p>
             </div>
         </div>
     </div>`;
 }
 
-// ── Wire up upload zone after edit render ─────────────────────────────────────
-function wireUploadZone() {
-    const zone  = document.getElementById('upload-zone');
-    const input = document.getElementById('file-input');
-    if (!zone || !input) return;
-
-    input.addEventListener('change', e => handleFiles(e.target.files));
-    input.addEventListener('change', e => {
-        handleFiles(e.target.files);
-        e.target.value = ''; // ← add this line so same file can be selected again
-    });
-
-    zone.addEventListener('dragover', e => {
-        e.preventDefault();
-        zone.classList.add('dragover');
-    });
-    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-    zone.addEventListener('drop', e => {
-        e.preventDefault();
-        zone.classList.remove('dragover');
-        handleFiles(e.dataTransfer.files);
-    });
-
-    // Render existing photos
-    renderPhotoThumbs();
-}
-
-// ── Save changes ──────────────────────────────────────────────────────────────
+// ── Save ──────────────────────────────────────────────────────────────────────
 async function saveChanges() {
     const btn = document.getElementById('save-btn');
     const msg = document.getElementById('save-message');
     btn.disabled = true;
-    msg.className = 'save-message';
-    msg.style.display = 'none';
+    msg.className = 'save-message'; msg.style.display = 'none';
+
+    // Collect custom links from DOM inputs
+    const linkRows = document.querySelectorAll('#custom-link-list .custom-link-row');
+    const savedLinks = Array.from(linkRows).map(row => {
+        const inputs = row.querySelectorAll('input');
+        return { emoji: inputs[0].value.trim(), label: inputs[1].value.trim(), url: inputs[2].value.trim() };
+    }).filter(l => l.label && l.url);
 
     const payload = {
         id:             listingId,
         token:          sessionToken,
+        phone_member:   document.getElementById('edit-phone')?.value.trim() || null,
+        email_member:   document.getElementById('edit-email')?.value.trim() || null,
         address:        document.getElementById('edit-address')?.value.trim() || null,
-        description_en: document.getElementById('edit-desc-en')?.value.trim() || null,
-        description_es: document.getElementById('edit-desc-es')?.value.trim() || null,
+        description_en: quillEn ? quillEn.root.innerHTML : null,
+        description_es: quillEs ? quillEs.root.innerHTML : null,
         website_url:    document.getElementById('edit-website')?.value.trim() || null,
         booking_url:    document.getElementById('edit-booking')?.value.trim() || null,
         photos:         editPhotos.length ? editPhotos : null,
+        custom_links:   savedLinks.length ? savedLinks : null,
     };
 
     try {
         const res  = await fetch(`${API_BASE_URL}/api/listing-update`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify(payload)
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (res.ok && data.success) {
-            msg.textContent   = T.saved;
-            msg.className     = 'save-message success';
-            msg.style.display = 'inline-block';
-            // Update local rental object
-            Object.assign(currentRental, payload);
-            delete currentRental.token;
-        } else {
-            throw new Error(data.error || 'Save failed');
-        }
+            msg.textContent = T.saved; msg.className = 'save-message success'; msg.style.display = 'inline-block';
+            Object.assign(currentRental, payload); delete currentRental.token;
+        } else throw new Error(data.error || 'Save failed');
     } catch (err) {
-        msg.textContent   = T.saveError + ': ' + err.message;
-        msg.className     = 'save-message error';
-        msg.style.display = 'inline-block';
+        msg.textContent = `${T.saveError}: ${err.message}`; msg.className = 'save-message error'; msg.style.display = 'inline-block';
     }
     btn.disabled = false;
     setTimeout(() => { msg.style.display = 'none'; }, 4000);
 }
 
-// ── Login modal ───────────────────────────────────────────────────────────────
+// ── Login ─────────────────────────────────────────────────────────────────────
 function openLogin() {
     document.getElementById('login-modal').classList.add('active');
     document.getElementById('password-input').value = '';
     document.getElementById('modal-error').style.display = 'none';
     setTimeout(() => document.getElementById('password-input').focus(), 100);
 }
-function closeLogin() {
-    document.getElementById('login-modal').classList.remove('active');
-}
+function closeLogin() { document.getElementById('login-modal').classList.remove('active'); }
 document.getElementById('modal-cancel').addEventListener('click', closeLogin);
-document.getElementById('login-modal').addEventListener('click', e => {
-    if (e.target === document.getElementById('login-modal')) closeLogin();
-});
-document.getElementById('password-input').addEventListener('keypress', e => {
-    if (e.key === 'Enter') attemptLogin();
-});
+document.getElementById('login-modal').addEventListener('click', e => { if (e.target === document.getElementById('login-modal')) closeLogin(); });
+document.getElementById('password-input').addEventListener('keypress', e => { if (e.key === 'Enter') attemptLogin(); });
 document.getElementById('modal-confirm').addEventListener('click', attemptLogin);
 
 async function attemptLogin() {
@@ -956,9 +820,8 @@ async function attemptLogin() {
     errorEl.style.display = 'none';
     try {
         const res  = await fetch(`${API_BASE_URL}/api/listing-login`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ id: listingId, password })
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: listingId, password })
         });
         const data = await res.json();
         if (res.ok && data.token) {
@@ -968,19 +831,16 @@ async function attemptLogin() {
             closeLogin();
             renderPage(currentRental);
         } else {
-            errorEl.textContent   = data.error === 'Invalid password' ? T.wrongPassword : T.loginError;
+            errorEl.textContent = data.error === 'Invalid password' ? T.wrongPassword : T.loginError;
             errorEl.style.display = 'block';
         }
-    } catch {
-        errorEl.textContent   = T.loginError;
-        errorEl.style.display = 'block';
-    }
+    } catch { errorEl.textContent = T.loginError; errorEl.style.display = 'block'; }
 }
 
 function doLogout() {
-    sessionToken = null;
-    isLoggedIn   = false;
+    sessionToken = null; isLoggedIn = false;
     sessionStorage.removeItem(`tps_token_${listingId}`);
+    quillEn = null; quillEs = null;
     renderPage(currentRental);
 }
 
@@ -991,6 +851,8 @@ function renderPage(rental) {
         document.getElementById('listing-content').innerHTML = renderEdit(rental);
         saveBar.style.display = 'block';
         wireUploadZone();
+        renderCustomLinks();
+        setTimeout(() => initQuill(rental), 100);
     } else {
         document.getElementById('listing-content').innerHTML = renderView(rental);
         saveBar.style.display = 'none';
@@ -999,30 +861,22 @@ function renderPage(rental) {
 
 // ── Load listing ──────────────────────────────────────────────────────────────
 async function loadListing() {
-    const id = urlParams.get('id');
-    const slug = urlParams.get('slug');
-    
-    if (!id && !slug) {
-        document.getElementById('listing-content').innerHTML =
-            `<div class="error-state">${T.notFound}</div>`;
+    if (!listingId && !slugParam) {
+        document.getElementById('listing-content').innerHTML = `<div class="error-state">${T.notFound}</div>`;
         return;
     }
-
     try {
-        const endpoint = slug 
-            ? `${API_BASE_URL}/api/listing/slug/${slug}`
-            : `${API_BASE_URL}/api/listing/${id}`;
-            
+        const endpoint = slugParam
+            ? `${API_BASE_URL}/api/listing/slug/${slugParam}`
+            : `${API_BASE_URL}/api/listing/${listingId}`;
         const res = await fetch(endpoint);
         if (!res.ok) throw new Error('Not found');
         currentRental = await res.json();
-        // Use the actual ID from the returned data for login/save operations
         listingId = currentRental.id;
-        if (sessionToken && currentRental.is_member) isLoggedIn = true;
+        restoreSession(listingId);
         renderPage(currentRental);
     } catch {
-        document.getElementById('listing-content').innerHTML =
-            `<div class="error-state">${T.notFound}</div>`;
+        document.getElementById('listing-content').innerHTML = `<div class="error-state">${T.notFound}</div>`;
     }
 }
 
