@@ -680,6 +680,18 @@ app.get('/', (req, res) => {
 
 // The /api/debug-reload endpoint was removed because it could rewrite the database unintentionally
 
+// Slug endpoint to find record with slug and ID
+app.get('/api/listing/slug/:slug', async (req, res) => {
+    const { slug } = req.params;
+    const { data, error } = await supabase
+        .from('listings')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug')
+        .eq('slug', slug)
+        .single();
+    if (error || !data) return res.status(404).json({ error: 'Not found' });
+    res.json(data);
+});
+
 app.get('/api/listing/:id', async (req, res) => {
     const { id } = req.params;
     const { data, error } = await supabase
