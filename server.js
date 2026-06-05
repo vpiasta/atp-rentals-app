@@ -12,6 +12,8 @@ const supabase = require('./db');   // <-- Supabase client
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -697,13 +699,6 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
-server.listen(PORT, () => {
-    console.log(`✅ Server running on port ${PORT}`);
-    console.log(`📍 Main page: http://localhost:${PORT}`);
-    console.log(`📍 Health:    http://localhost:${PORT}/health`);
-});
-
 app.get('/api/debug-reload', async (req, res) => {
     try {
         console.log('🔄 Debug reload starting...');
@@ -801,9 +796,6 @@ app.post('/api/listing-update', async (req, res) => {
     res.json({ success: true });
 });
 
-const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-
 app.post('/api/listing-photo-upload', upload.single('photo'), async (req, res) => {
     const { listingId, token } = req.body;
     if (!listingId || !token) return res.status(400).json({ error: 'Missing params' });
@@ -843,5 +835,12 @@ app.post('/api/listing-photo-upload', upload.single('photo'), async (req, res) =
         .getPublicUrl(fileName);
 
     res.json({ url: data.publicUrl });
+});
+
+const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
+server.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`📍 Main page: http://localhost:${PORT}`);
+    console.log(`📍 Health:    http://localhost:${PORT}/health`);
 });
 
