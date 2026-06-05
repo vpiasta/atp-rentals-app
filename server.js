@@ -73,28 +73,7 @@ async function loadListingsFromDB() {
 }
 
 // Save all rentals to Supabase (replaces entire table content)
-async function saveListingsToDB(rentals) {
-    console.log(`💾 Saving ${rentals.length} listings to Supabase...`);
-
-    // Delete all existing listings first
-    const { error: deleteError } = await supabase
-        .from('listings')
-        .delete()
-        .neq('id', 0);   // delete all rows
-    if (deleteError) throw deleteError;
-
-    // Insert new listings in batches of 500 (Supabase limit)
-    const BATCH_SIZE = 500;
-    for (let i = 0; i < rentals.length; i += BATCH_SIZE) {
-        const batch = rentals.slice(i, i + BATCH_SIZE);
-        const { error: insertError } = await supabase
-            .from('listings')
-            .insert(batch);
-        if (insertError) throw insertError;
-        console.log(`  ✅ Inserted batch ${Math.floor(i/BATCH_SIZE)+1}: rows ${i+1}–${Math.min(i+BATCH_SIZE, rentals.length)}`);
-    }
-    console.log(`✅ All ${rentals.length} listings saved to Supabase`);
-}
+// This function was deleted because it erases all previous records
 
 // Get the saved PDF URL from pdf_meta table
 async function getSavedPdfUrl() {
@@ -699,37 +678,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/api/debug-reload', async (req, res) => {
-    try {
-        console.log('🔄 Debug reload starting...');
-        const { pdfUrl, headingText } = await getLatestPdfUrl();
-        console.log('PDF URL:', pdfUrl);
-        
-        PDF_URL = pdfUrl;
-        PDF_HEADING = headingText;
-        
-        const result = await parsePDFWithCoordinates();
-        console.log('Parse result:', result);
-        console.log('PDF_RENTALS length:', PDF_RENTALS.length);
-        
-        if (PDF_RENTALS.length > 0) {
-            await saveListingsToDB(PDF_RENTALS);
-            await savePdfMeta(pdfUrl, headingText);
-            CURRENT_RENTALS = [...PDF_RENTALS];
-            DATA_SOURCE = 'atp-pdf';
-            console.log('✅ CURRENT_RENTALS set to:', CURRENT_RENTALS.length);
-        }
-        
-        res.json({
-            parseResult: result,
-            PDF_RENTALS_length: PDF_RENTALS.length,
-            CURRENT_RENTALS_length: CURRENT_RENTALS.length,
-            pdfUrl
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+// The /api/debug-reload endpoint was removed because it could rewrite the database unintentionally
 
 app.get('/api/listing/:id', async (req, res) => {
     const { id } = req.params;
