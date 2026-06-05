@@ -498,11 +498,6 @@ function renderCustomLinks() {
 function addCustomLink() {
     if (customLinks.length >= 4) return;
     customLinks.push({ emoji: '', label: '', url: '' });
-    <p class="custom-link-hint" style="margin-bottom:0.5rem;">
-        ${isEs 
-            ? 'Ícono: pegue un emoji (Windows: tecla ⊞+punto · Mac: Ctrl+Cmd+Espacio)'
-            : 'Icon: paste an emoji (Windows: ⊞+period · Mac: Ctrl+Cmd+Space)'}
-    </p>
     renderCustomLinks();
 }
 
@@ -775,6 +770,11 @@ function renderEdit(rental) {
             </div>
             <div class="edit-group">
                 <label class="edit-label">${isEs?'Botones adicionales':'Additional buttons'} (${isEs?'máx':'max'} 4)</label>
+                <p class="custom-link-hint" style="margin-bottom:0.5rem;">
+                    ${isEs 
+                        ? 'Ícono: pegue un emoji (Windows: tecla ⊞+punto · Mac: Ctrl+Cmd+Espacio)'
+                        : 'Icon: paste an emoji (Windows: ⊞+period · Mac: Ctrl+Cmd+Space)'}
+                </p>
                 <div class="custom-link-list" id="custom-link-list"></div>
                 ${customLinks.length < 4
                     ? `<button class="add-link-btn" onclick="addCustomLink()">+ ${T.addLink}</button>`
