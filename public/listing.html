@@ -86,7 +86,7 @@
         .photo-gallery img {
             max-width: 100%; max-height: 340px;
             object-fit: contain; display: block;
-            border: 8px solid #222; border-radius: 10px;
+            border: 1px solid #222; border-radius: 10px;
             box-shadow: 0 4px 16px rgba(0,0,0,0.18);
         }
         .photo-placeholder { font-size: 5rem; opacity: 0.2; color: #888; padding: 3rem; }
@@ -158,6 +158,7 @@
         .ql-toolbar { border: none !important; border-bottom: 1px solid #e1e5e9 !important; background: #f5f5f5; }
         .ql-container { border: none !important; font-size: 0.95rem; min-height: 120px; }
         .ql-editor { min-height: 120px; }
+        .ql-toolbar.ql-snow + .ql-toolbar.ql-snow { display: none; }
 
         /* ── Description view ── */
         .description-text { color: #444; line-height: 1.8; }
@@ -347,7 +348,7 @@ const T = {
 // Static translations
 document.getElementById('back-link').textContent      = T.back;
 document.getElementById('back-link').href             = isEs ? 'index_es.html' : 'index.html';
-document.getElementById('lang-link').textContent      = T.langToggle;
+document.getElementById('lang-link').innerHTML        = T.langToggle;
 document.getElementById('header-subtitle').textContent= T.subtitle;
 document.getElementById('footer-text').innerHTML      = T.footer;
 document.getElementById('modal-title').textContent    = T.modalTitle;
@@ -482,8 +483,10 @@ function renderCustomLinks() {
     if (!container) return;
     container.innerHTML = customLinks.map((l, i) => `
         <div class="custom-link-row">
-            <input type="text" value="${l.emoji||''}" placeholder="📸"
-                   onchange="customLinks[${i}].emoji=this.value" maxlength="4">
+            <input type="text" value="${l.emoji||''}" 
+            placeholder="📸" 
+            title="${isEs ? 'Pegue un emoji aquí (ej: 📸 🌐 🎥)' : 'Paste an emoji here (e.g: 📸 🌐 🎥)'}"
+       onchange="customLinks[${i}].emoji=this.value" maxlength="4">
             <input type="text" value="${l.label||''}" placeholder="${T.linkLabel}"
                    onchange="customLinks[${i}].label=this.value">
             <input type="url" value="${l.url||''}" placeholder="https://..."
@@ -495,6 +498,11 @@ function renderCustomLinks() {
 function addCustomLink() {
     if (customLinks.length >= 4) return;
     customLinks.push({ emoji: '', label: '', url: '' });
+    <p class="custom-link-hint" style="margin-bottom:0.5rem;">
+        ${isEs 
+            ? 'Ícono: pegue un emoji (Windows: tecla ⊞+punto · Mac: Ctrl+Cmd+Espacio)'
+            : 'Icon: paste an emoji (Windows: ⊞+period · Mac: Ctrl+Cmd+Space)'}
+    </p>
     renderCustomLinks();
 }
 
@@ -580,6 +588,24 @@ function wireUploadZone() {
     renderPhotoThumbs();
 }
 
+function addQuillTooltips(quill, containerId) {
+    const tooltips = {
+        'ql-bold':   isEs ? 'Negrita' : 'Bold',
+        'ql-italic': isEs ? 'Cursiva' : 'Italic',
+        'ql-underline': isEs ? 'Subrayado' : 'Underline',
+        'ql-link':   isEs ? 'Insertar enlace: seleccione texto, luego haga clic aquí y pegue la URL (sobrescribir text en el campo)' : 'Insert link: select text, then click here and paste the URL (overwrite text in the field)',
+        'ql-clean':  isEs ? 'Eliminar todo el formato y enlaces del texto seleccionado' : 'Remove all formatting and links from selected text',
+        'ql-list':   isEs ? 'Lista' : 'List',
+    };
+    const toolbar = document.querySelector(`#${containerId}`)
+        ?.closest('.quill-wrapper')
+        ?.querySelector('.ql-toolbar');
+    if (!toolbar) return;
+    Object.entries(tooltips).forEach(([cls, tip]) => {
+        toolbar.querySelectorAll(`.${cls}`).forEach(btn => btn.title = tip);
+    });
+}
+
 // ── Init Quill editors ────────────────────────────────────────────────────────
 function initQuill(rental) {
     const toolbarOptions = [
@@ -592,7 +618,10 @@ function initQuill(rental) {
     quillEs = new Quill('#quill-es', { theme: 'snow', modules: { toolbar: toolbarOptions } });
     if (rental.description_en) quillEn.root.innerHTML = rental.description_en;
     if (rental.description_es) quillEs.root.innerHTML = rental.description_es;
+    addQuillTooltips('quill-en');
+    addQuillTooltips('quill-es');
 }
+
 
 // ── Render VIEW ───────────────────────────────────────────────────────────────
 function renderView(rental) {
