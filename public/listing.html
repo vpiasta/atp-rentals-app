@@ -606,9 +606,9 @@ async function handleFiles(files) {
     const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
     if (!validFiles.length) return;
 
-    // Max 10 photos total
-    if (editPhotos.length + validFiles.length > 10) {
-        alert(isEs ? 'Máximo 10 fotos por listado.' : 'Maximum 10 photos per listing.');
+    // Max 20 photos total
+    if (editPhotos.length + validFiles.length > 20) {
+        alert(isEs ? 'Máximo 20 fotos por listado.' : 'Maximum 20 photos per listing.');
         return;
     }
 
@@ -807,8 +807,7 @@ function renderEdit(rental) {
             <div class="photo-manager">
                 <!-- Upload zone -->
                 <div class="upload-zone" id="upload-zone">
-                    <input type="file" accept="image/jpeg,image/png,image/webp"
-                           multiple id="file-input">
+                    <input type="file" accept="image/*" multiple id="file-input">
                     <div class="upload-zone-icon">📷</div>
                     <div class="upload-zone-text">${T.uploadClick}</div>
                     <div class="upload-zone-hint">${T.uploadHint} · ${isEs?'Máx. 10 fotos':'Max 10 photos'}</div>
@@ -867,6 +866,10 @@ function wireUploadZone() {
     if (!zone || !input) return;
 
     input.addEventListener('change', e => handleFiles(e.target.files));
+    input.addEventListener('change', e => {
+        handleFiles(e.target.files);
+        e.target.value = ''; // ← add this line so same file can be selected again
+    });
 
     zone.addEventListener('dragover', e => {
         e.preventDefault();
