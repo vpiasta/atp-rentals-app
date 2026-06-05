@@ -735,8 +735,8 @@ app.post('/api/listing-login', async (req, res) => {
 
 app.post('/api/listing-update', async (req, res) => {
     const bcrypt = require('bcrypt');
-    const { id, token, address, description_en, description_es, 
-            website_url, booking_url, photos } = req.body;
+    const { id, token, address, phone_member, email_member, description_en, 
+        description_es, website_url, booking_url, photos, custom_links } = req.body;
 
     // Verify token
     try {
@@ -750,7 +750,7 @@ app.post('/api/listing-update', async (req, res) => {
     // Only allow member-owned fields — never ATP fields
     const { error } = await supabase
         .from('listings')
-        .update({ address, description_en, description_es, website_url, booking_url, photos })
+        .update({ address, phone_member, email_member, description_en, description_es, website_url, booking_url, photos, custom_links })
         .eq('id', id);
 
     if (error) return res.status(500).json({ error: error.message });
