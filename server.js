@@ -798,6 +798,144 @@ app.post('/api/listing-photo-upload', upload.single('photo'), async (req, res) =
     res.json({ url: data.publicUrl });
 });
 
+// ── Update admin IP (call this from phone/PC daily) ───────────────────────────
+app.get('/api/update-admin-ip', async (req, res) => {
+    const { secret } = req.query;
+    if (secret !== process.env.ADMIN_SECRET) return res.status(403).send('Denied');
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim()
+             || req.socket.remoteAddress;
+    const { error } = await supabase
+        .from('settings')
+        .upsert({ key: 'admin_ip', value: ip, updated_at: new Date().toISOString() });
+    if (error) return res.status(500).send('Error: ' + error.message);
+    console.log(`✅ Admin IP updated to: ${ip}`);
+    res.send(`✅ Admin IP updated: ${ip}`);
+});
+
+// ── Check admin IP helper ─────────────────────────────────────────────────────
+async function getAdminIP() {
+    const { data } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'admin_ip')
+        .single();
+    return data ? data.value : null;
+}
+
+// ── Admin login (IP + password) ───────────────────────────────────────────────
+app.post('/api/admin-login', async (req, res) => {
+    const { password } = req.body;
+    const visitorIP = req.headers['x-forwarded-for']?.split(',')[0].trim()
+                    || req.socket.remoteAddress;
+    const adminIP = await getAdminIP();
+
+    if (visitorIP !== adminIP) {
+        console.log(`❌ Admin login blocked: IP ${visitorIP} !== ${adminIP}`);
+        return res.status(403).json({ error: 'Access denied: wrong IP address' });
+    }
+    if (password !== process.env.ADMIN_PASSWORD) {
+        return res.status(401).json({ error: 'Wrong password' });
+    }
+
+    // Generate admin session token
+    const token = Buffer.from(`admin:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
+    console.log(`✅ Admin login from ${visitorIP}`);
+    res.json({ token });
+});
+
+// ── Admin auth middleware ──────────────────────────────────────────────────────
+async function requireAdmin(req, res, next) {
+    const token = req.headers['authorization']?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'No token' });
+
+    // Verify token structure
+    try {
+        const decoded = Buffer.from(token, 'base64').toString();
+        const [role, timestamp] = decoded.split(':');
+        if (role !== 'admin') return res.status(403).json({ error: 'Not admin' });
+
+        // Token expires after 4 hours
+        if (Date.now() - parseInt(timestamp) > 4 * 60 * 60 * 1000) {
+            return res.status(401).json({ error: 'Session expired' });
+        }
+
+        // Also verify current IP
+        const visitorIP = req.headers['x-forwarded-for']?.split(',')[0].trim()
+                        || req.socket.remoteAddress;
+        const adminIP = await getAdminIP();
+        if (visitorIP !== adminIP) return res.status(403).json({ error: 'IP changed' });
+
+        next();
+    } catch {
+        return res.status(403).json({ error: 'Invalid token' });
+    }
+}
+
+// ── Admin API: get all members ────────────────────────────────────────────────
+app.get('/api/admin/members', requireAdmin, async (req, res) => {
+    const { data, error } = await supabase
+        .from('listings')
+        .select('id, name, email, phone, province, rental_type, is_member, membership_paid_until, invitation_sent_at, atp_active, slug, contact_name')
+        .order('name');
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+// ── Admin API: update member ──────────────────────────────────────────────────
+app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
+    const { id, is_member, membership_paid_until, contact_name, slug, notes } = req.body;
+    if (!id) return res.status(400).json({ error: 'Missing id' });
+    const { error } = await supabase
+        .from('listings')
+        .update({ is_member, membership_paid_until, contact_name, slug })
+        .eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+
+    // Log the action
+    await logEvent('admin_update_member', { id, is_member, membership_paid_until, contact_name });
+    res.json({ success: true });
+});
+
+// ── Admin API: set member password ────────────────────────────────────────────
+app.post('/api/admin/set-password', requireAdmin, async (req, res) => {
+    const bcrypt = require('bcrypt');
+    const { id, password } = req.body;
+    if (!id || !password) return res.status(400).json({ error: 'Missing fields' });
+    const hash = await bcrypt.hash(password, 10);
+    const { error } = await supabase
+        .from('listings')
+        .update({ member_password: hash })
+        .eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('admin_set_password', { id });
+    res.json({ success: true });
+});
+
+// ── Admin API: mark invitation sent ──────────────────────────────────────────
+app.post('/api/admin/mark-invited', requireAdmin, async (req, res) => {
+    const { id } = req.body;
+    const { error } = await supabase
+        .from('listings')
+        .update({ invitation_sent_at: new Date().toISOString() })
+        .eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('invitation_sent', { id });
+    res.json({ success: true });
+});
+
+// ── Event logger ──────────────────────────────────────────────────────────────
+async function logEvent(type, data) {
+    try {
+        await supabase.from('event_log').insert({
+            event_type: type,
+            event_data: data,
+            created_at: new Date().toISOString()
+        });
+    } catch (err) {
+        console.error('Log error:', err.message);
+    }
+}
+
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
