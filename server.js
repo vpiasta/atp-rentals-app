@@ -967,6 +967,17 @@ app.get('/api/my-ip', (req, res) => {
     });
 });
 
+app.get('/api/check-env', async (req, res) => {
+    const { secret } = req.query;
+    if (secret !== process.env.ADMIN_SECRET) return res.status(403).send('No');
+    res.json({
+        ADMIN_PASSWORD_exists: !!process.env.ADMIN_PASSWORD,
+        ADMIN_PASSWORD_length: process.env.ADMIN_PASSWORD?.length,
+        ADMIN_PASSWORD_first2: process.env.ADMIN_PASSWORD?.substring(0, 2),
+        ADMIN_SECRET_exists:   !!process.env.ADMIN_SECRET,
+    });
+});
+
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
