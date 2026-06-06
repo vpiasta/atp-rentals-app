@@ -887,7 +887,7 @@ app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
     if (!id) return res.status(400).json({ error: 'Missing id' });
     const { error } = await supabase
         .from('listings')
-        .update({ is_member, membership_paid_until, contact_name, slug })
+        .update({ is_member, membership_paid_until, contact_name, slug, notes })
         .eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
 
@@ -936,6 +936,25 @@ async function logEvent(type, data) {
     }
 }
 
+// ── Admin: get log entries ────────────────────────────────────────────────────
+app.get('/api/admin/log', requireAdmin, async (req, res) => {
+    const limit = parseInt(req.query.limit) || 100;
+    const { data, error } = await supabase
+        .from('event_log')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+// ── Admin: IP info ────────────────────────────────────────────────────────────
+app.get('/api/admin/ip-info', requireAdmin, async (req, res) => {
+    const yourIP = req.headers['x-forwarded-for']?.split(',')[0].trim()
+                 || req.socket.remoteAddress;
+    const adminIP = await getAdminIP();
+    res.json({ adminIP, yourIP });
+});
 
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
