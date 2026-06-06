@@ -9,176 +9,140 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a2a3a; color: #eee; min-height: 100vh; }
 
-        /* ── Login screen ── */
-        .login-screen {
-            display: flex; align-items: center; justify-content: center;
-            min-height: 100vh; padding: 2rem;
-        }
-        .login-card {
-            background: #2c3e50; border-radius: 12px; padding: 2.5rem;
-            width: 360px; max-width: 100%; box-shadow: 0 8px 40px rgba(0,0,0,0.4);
-        }
+        /* ── Login ── */
+        .login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; }
+        .login-card { background: #2c3e50; border-radius: 12px; padding: 2.5rem; width: 360px; max-width: 100%; box-shadow: 0 8px 40px rgba(0,0,0,0.4); }
         .login-card h1 { font-size: 1.4rem; margin-bottom: 0.3rem; color: white; }
         .login-card p  { font-size: 0.82rem; color: #aaa; margin-bottom: 1.5rem; }
-        .login-input {
-            width: 100%; padding: 10px 14px; border: 2px solid #3d5166;
-            border-radius: 7px; font-size: 0.95rem; background: #1a2a3a;
-            color: white; margin-bottom: 1rem; font-family: inherit;
-        }
+        .login-input { width: 100%; padding: 10px 14px; border: 2px solid #3d5166; border-radius: 7px; font-size: 0.95rem; background: #1a2a3a; color: white; margin-bottom: 1rem; font-family: inherit; }
         .login-input:focus { outline: none; border-color: #005ca9; }
-        .login-btn {
-            width: 100%; padding: 11px; background: #005ca9; color: white;
-            border: none; border-radius: 7px; font-size: 1rem; font-weight: 700;
-            cursor: pointer; transition: background 0.25s;
-        }
+        .login-btn { width: 100%; padding: 11px; background: #005ca9; color: white; border: none; border-radius: 7px; font-size: 1rem; font-weight: 700; cursor: pointer; }
         .login-btn:hover { background: #004885; }
         .login-error { color: #ff7070; font-size: 0.85rem; margin-bottom: 0.8rem; display: none; }
 
         /* ── Admin layout ── */
         .admin-screen { display: none; }
-
-        header {
-            background: linear-gradient(135deg, #005ca9, #00a859);
-            padding: 1rem 1.5rem; display: flex; align-items: center;
-            justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
-        }
+        header { background: linear-gradient(135deg, #005ca9, #00a859); padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
         .header-left { display: flex; align-items: center; gap: 12px; }
         .header-logo { width: 40px; height: 40px; }
         header h1 { font-size: 1.2rem; font-weight: 700; color: white; }
         header p   { font-size: 0.78rem; color: rgba(255,255,255,0.8); }
-
-        .header-right { display: flex; gap: 8px; align-items: center; }
-        .hbtn {
-            padding: 6px 14px; border-radius: 20px; font-size: 0.82rem;
-            font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.4);
-            background: rgba(255,255,255,0.12); color: white; transition: background 0.2s;
-        }
+        .header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .hbtn { padding: 6px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.12); color: white; transition: background 0.2s; }
         .hbtn:hover { background: rgba(255,255,255,0.25); }
         .hbtn.danger { border-color: #ff7070; color: #ff7070; }
         .hbtn.danger:hover { background: #cc0000; color: white; border-color: #cc0000; }
 
         .main { padding: 1.5rem; max-width: 1400px; margin: 0 auto; }
 
+        /* ── Stats ── */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: #2c3e50; border-radius: 10px; padding: 1.2rem; text-align: center; cursor: pointer; transition: background 0.2s; }
+        .stat-card:hover { background: #3d5166; }
+        .stat-number { font-size: 2rem; font-weight: 700; color: #FFD700; }
+        .stat-label  { font-size: 0.78rem; color: #aaa; margin-top: 0.3rem; }
+
         /* ── Tabs ── */
         .tabs { display: flex; gap: 4px; margin-bottom: 1.5rem; flex-wrap: wrap; }
-        .tab {
-            padding: 8px 18px; border-radius: 6px; cursor: pointer;
-            font-size: 0.88rem; font-weight: 600; background: #2c3e50;
-            color: #aaa; border: none; transition: all 0.2s;
-        }
+        .tab { padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 0.88rem; font-weight: 600; background: #2c3e50; color: #aaa; border: none; transition: all 0.2s; }
         .tab.active { background: #005ca9; color: white; }
         .tab:hover:not(.active) { background: #3d5166; color: #eee; }
-
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        /* ── Stats cards ── */
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-        .stat-card { background: #2c3e50; border-radius: 10px; padding: 1.2rem; text-align: center; }
-        .stat-number { font-size: 2rem; font-weight: 700; color: #FFD700; }
-        .stat-label  { font-size: 0.8rem; color: #aaa; margin-top: 0.3rem; }
-
-        /* ── Search + filter bar ── */
+        /* ── Toolbar ── */
         .toolbar { display: flex; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap; }
-        .toolbar input, .toolbar select {
-            padding: 8px 12px; border: 2px solid #3d5166; border-radius: 7px;
-            background: #2c3e50; color: white; font-size: 0.88rem; font-family: inherit;
-        }
+        .toolbar input, .toolbar select { padding: 8px 12px; border: 2px solid #3d5166; border-radius: 7px; background: #2c3e50; color: white; font-size: 0.88rem; font-family: inherit; }
         .toolbar input { flex: 1; min-width: 200px; }
         .toolbar input:focus, .toolbar select:focus { outline: none; border-color: #005ca9; }
-        .tbtn {
-            padding: 8px 16px; border-radius: 7px; border: none; cursor: pointer;
-            font-size: 0.85rem; font-weight: 600; transition: all 0.2s;
-        }
+        .tbtn { padding: 8px 16px; border-radius: 7px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.2s; }
         .tbtn.primary { background: #005ca9; color: white; }
         .tbtn.primary:hover { background: #004885; }
-        .tbtn.success { background: #00a859; color: white; }
-        .tbtn.success:hover { background: #007a3d; }
 
-        /* ── Members table ── */
+        /* ── Table ── */
         .table-wrap { background: #2c3e50; border-radius: 10px; overflow: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-        th { background: #1a2a3a; padding: 10px 12px; text-align: left; color: #aaa; font-weight: 600; white-space: nowrap; }
-        td { padding: 10px 12px; border-bottom: 1px solid #3d5166; vertical-align: middle; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th { background: #1a2a3a; padding: 10px 12px; text-align: left; color: #aaa; font-weight: 600; white-space: nowrap; position: sticky; top: 0; }
+        td { padding: 8px 12px; border-bottom: 1px solid #3d5166; vertical-align: middle; }
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: rgba(0,92,169,0.1); }
 
-        .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; }
-        .badge-member   { background: #b8860b; color: white; }
-        .badge-inactive { background: #555; color: #aaa; }
-        .badge-expired  { background: #7a0000; color: #ffaaaa; }
-        .badge-atp      { background: #1a7a1a; color: white; }
-        .badge-no-atp   { background: #555; color: #aaa; }
-
-        .action-btn {
-            padding: 4px 10px; border-radius: 5px; border: none; cursor: pointer;
-            font-size: 0.75rem; font-weight: 600; margin: 2px; transition: all 0.2s;
+        /* ── Status badges ── */
+        .status-badge {
+            display: inline-block; padding: 3px 10px; border-radius: 12px;
+            font-size: 0.72rem; font-weight: 700; cursor: pointer;
+            transition: opacity 0.2s; white-space: nowrap;
         }
-        .action-btn.edit   { background: #005ca9; color: white; }
+        .status-badge:hover { opacity: 0.8; }
+        .s-not-invited  { background: #1a5c1a; color: #adf5ad; }
+        .s-invited      { background: #7a5c00; color: #FFD700; }
+        .s-no-response  { background: #7a0000; color: white; }
+        .s-refused      { background: #444; color: #aaa; }
+        .s-member       { background: #005ca9; color: white; }
+        .s-unpaid       { background: #7a0000; color: #ffaaaa; }
+        .s-unregistered { background: #333; color: #888; }
+        .s-atp          { background: #1a7a1a; color: white; font-size: 0.65rem; }
+        .s-no-atp       { background: #444; color: #888; font-size: 0.65rem; }
+
+        /* ── Action buttons ── */
+        .action-btn { padding: 3px 8px; border-radius: 5px; border: none; cursor: pointer; font-size: 0.72rem; font-weight: 600; margin: 1px; transition: all 0.2s; }
+        .action-btn.edit  { background: #005ca9; color: white; }
         .action-btn.edit:hover { background: #004885; }
-        .action-btn.pwd    { background: #a07800; color: white; }
+        .action-btn.pwd   { background: #a07800; color: white; }
         .action-btn.pwd:hover { background: #7a5c00; }
-        .action-btn.invite { background: #00a859; color: white; }
-        .action-btn.invite:hover { background: #007a3d; }
-        .action-btn.wa     { background: #25D366; color: white; }
+        .action-btn.wa    { background: #25D366; color: white; }
         .action-btn.wa:hover { background: #1da84e; }
 
-        /* ── Member edit panel ── */
-        .edit-panel {
-            background: #2c3e50; border-radius: 10px; padding: 1.5rem;
-            margin-bottom: 1.5rem; display: none; border: 2px solid #005ca9;
-        }
-        .edit-panel.active { display: block; }
-        .edit-panel h3 { font-size: 1rem; color: #FFD700; margin-bottom: 1rem; }
-        .edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
-        .field-group label { display: block; font-size: 0.75rem; color: #aaa; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
-        .field-group input, .field-group select, .field-group textarea {
-            width: 100%; padding: 8px 10px; border: 2px solid #3d5166; border-radius: 6px;
-            background: #1a2a3a; color: white; font-size: 0.88rem; font-family: inherit;
-        }
+        /* ── Panels ── */
+        .panel { background: #2c3e50; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; display: none; }
+        .panel.active { display: block; }
+        .panel.edit-panel { border: 2px solid #005ca9; }
+        .panel.pwd-panel  { border: 2px solid #a07800; }
+        .panel.wa-panel   { border: 2px solid #25D366; }
+        .panel h3 { font-size: 1rem; color: #FFD700; margin-bottom: 1rem; }
+        .edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .field-group label { display: block; font-size: 0.72rem; color: #aaa; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .field-group input, .field-group select, .field-group textarea { width: 100%; padding: 8px 10px; border: 2px solid #3d5166; border-radius: 6px; background: #1a2a3a; color: white; font-size: 0.88rem; font-family: inherit; }
         .field-group input:focus, .field-group select:focus, .field-group textarea:focus { outline: none; border-color: #005ca9; }
         .field-group textarea { resize: vertical; min-height: 70px; }
-        .panel-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-        .panel-btn {
-            padding: 9px 20px; border-radius: 7px; border: none; cursor: pointer;
-            font-size: 0.9rem; font-weight: 700; transition: all 0.2s;
-        }
+        .field-group input[readonly] { opacity: 0.5; }
+        .panel-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .panel-btn { padding: 9px 20px; border-radius: 7px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 700; transition: all 0.2s; }
         .panel-btn.save   { background: #005ca9; color: white; }
         .panel-btn.save:hover { background: #004885; }
         .panel-btn.cancel { background: #3d5166; color: #eee; }
         .panel-btn.cancel:hover { background: #4d6176; }
-        .panel-msg { font-size: 0.82rem; padding: 4px 10px; border-radius: 5px; display: none; margin-left: auto; }
+        .panel-btn.wa     { background: #25D366; color: white; }
+        .panel-btn.wa:hover { background: #1da84e; }
+        .panel-msg { font-size: 0.82rem; padding: 4px 10px; border-radius: 5px; display: none; }
         .panel-msg.ok  { background: #1a5c1a; color: #adf5ad; display: inline-block; }
         .panel-msg.err { background: #7a0000; color: #ffaaaa; display: inline-block; }
 
-        /* ── Password panel ── */
-        .pwd-panel {
-            background: #2c3e50; border-radius: 10px; padding: 1.5rem;
-            margin-bottom: 1.5rem; display: none; border: 2px solid #a07800;
-        }
-        .pwd-panel.active { display: block; }
-        .pwd-panel h3 { font-size: 1rem; color: #FFD700; margin-bottom: 1rem; }
-        .pwd-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
-        .pwd-row .field-group { flex: 1; min-width: 200px; }
+        /* ── WhatsApp message box ── */
+        .wa-message { width: 100%; padding: 12px; border: 2px solid #25D366; border-radius: 7px; background: #1a2a3a; color: #eee; font-family: inherit; font-size: 0.88rem; line-height: 1.6; resize: vertical; min-height: 160px; }
+        .wa-lang-toggle { display: flex; gap: 8px; margin-bottom: 0.8rem; }
+        .wa-lang-btn { padding: 5px 14px; border-radius: 20px; border: 1px solid #3d5166; background: #1a2a3a; color: #aaa; cursor: pointer; font-size: 0.82rem; }
+        .wa-lang-btn.active { background: #25D366; color: white; border-color: #25D366; }
 
-        /* ── Log tab ── */
-        .log-entry { background: #2c3e50; border-radius: 6px; padding: 0.7rem 1rem; margin-bottom: 6px; display: flex; gap: 1rem; align-items: flex-start; font-size: 0.82rem; }
-        .log-time  { color: #aaa; white-space: nowrap; flex-shrink: 0; }
-        .log-type  { font-weight: 700; color: #7ec8e3; flex-shrink: 0; min-width: 160px; }
-        .log-data  { color: #ccc; word-break: break-all; }
+        /* ── Log ── */
+        .log-entry { background: #2c3e50; border-radius: 6px; padding: 0.7rem 1rem; margin-bottom: 6px; display: flex; gap: 1rem; align-items: flex-start; font-size: 0.8rem; }
+        .log-time { color: #aaa; white-space: nowrap; flex-shrink: 0; }
+        .log-type { font-weight: 700; color: #7ec8e3; flex-shrink: 0; min-width: 180px; }
+        .log-data { color: #ccc; word-break: break-all; }
 
-        /* ── IP tab ── */
+        /* ── IP card ── */
         .ip-card { background: #2c3e50; border-radius: 10px; padding: 1.5rem; max-width: 500px; }
-        .ip-card h3 { font-size: 1rem; color: #FFD700; margin-bottom: 1rem; }
-        .ip-display { font-size: 1.4rem; font-weight: 700; color: #7ec8e3; margin-bottom: 1rem; font-family: monospace; }
+        .ip-card h3 { color: #FFD700; margin-bottom: 1rem; }
+        .ip-display { font-size: 1.4rem; font-weight: 700; color: #7ec8e3; font-family: monospace; margin-bottom: 0.5rem; }
 
         .loading-row td { text-align: center; padding: 2rem; color: #aaa; }
         .no-results { text-align: center; padding: 2rem; color: #aaa; }
+        .row-count { font-size: 0.78rem; color: #aaa; margin-top: 0.5rem; }
     </style>
 </head>
 <body>
 
-<!-- ══ LOGIN SCREEN ══ -->
+<!-- ── Login ── -->
 <div class="login-screen" id="login-screen">
     <div class="login-card">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.5rem;">
@@ -187,28 +151,19 @@
                 <rect x="130" y="130" width="100" height="62" fill="#cc0000"/>
                 <rect x="30" y="192" width="100" height="62" fill="#1a3a6b"/>
                 <rect x="130" y="192" width="100" height="62" fill="white"/>
-                <rect x="30" y="130" width="200" height="124" fill="none" stroke="white" stroke-width="2"/>
-                <polygon points="80,147 82.5,155 91,155 84,160 86.5,168 80,163 73.5,168 76,160 69,155 77.5,155" fill="#1a3a6b"/>
-                <polygon points="180,209 182.5,217 191,217 184,222 186.5,230 180,225 173.5,230 176,222 169,217 177.5,217" fill="#cc0000"/>
                 <polyline points="5,128 130,16 255,128" fill="none" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M54,138 L98,246 L218,26" fill="none" stroke="#FFD700" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <div>
-                <h1>Admin Panel</h1>
-                <p>Trusted Panama Stays</p>
-            </div>
+            <div><h1>Admin Panel</h1><p>Trusted Panama Stays</p></div>
         </div>
         <div class="login-error" id="login-error"></div>
-        <input type="password" class="login-input" id="admin-password"
-               placeholder="Admin password" autocomplete="current-password">
+        <input type="password" class="login-input" id="admin-password" placeholder="Admin password" autocomplete="current-password">
         <button class="login-btn" onclick="doLogin()">🔐 Login</button>
-        <p style="font-size:0.75rem;color:#666;margin-top:1rem;text-align:center;">
-            Access restricted by IP address + password
-        </p>
+        <p style="font-size:0.75rem;color:#555;margin-top:1rem;text-align:center;">IP + password required</p>
     </div>
 </div>
 
-<!-- ══ ADMIN SCREEN ══ -->
+<!-- ── Admin ── -->
 <div class="admin-screen" id="admin-screen">
     <header>
         <div class="header-left">
@@ -220,38 +175,58 @@
                 <polyline points="5,128 130,16 255,128" fill="none" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M54,138 L98,246 L218,26" fill="none" stroke="#FFD700" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <div>
-                <h1>Admin Panel</h1>
-                <p id="session-info">Session active</p>
-            </div>
+            <div><h1>Admin Panel</h1><p id="session-info">Session active</p></div>
         </div>
         <div class="header-right">
-            <button class="hbtn" onclick="loadTab('members')">👥 Members</button>
-            <button class="hbtn" onclick="loadTab('log')">📋 Log</button>
-            <button class="hbtn" onclick="loadTab('ip')">🌐 IP</button>
+            <button class="hbtn" onclick="showTab('members')">👥 Members</button>
+            <button class="hbtn" onclick="showTab('log')">📋 Log</button>
+            <button class="hbtn" onclick="showTab('ip')">🌐 IP</button>
             <button class="hbtn danger" onclick="doLogout()">Log Out</button>
         </div>
     </header>
 
     <div class="main">
 
-        <!-- ── Stats ── -->
-        <div class="stats-grid" id="stats-grid">
-            <div class="stat-card"><div class="stat-number" id="stat-total">—</div><div class="stat-label">Total Listings</div></div>
-            <div class="stat-card"><div class="stat-number" id="stat-members">—</div><div class="stat-label">Active Members</div></div>
-            <div class="stat-card"><div class="stat-number" id="stat-expired">—</div><div class="stat-label">Expired</div></div>
-            <div class="stat-card"><div class="stat-number" id="stat-invited">—</div><div class="stat-label">Invited</div></div>
-            <div class="stat-card"><div class="stat-number" id="stat-not-invited">—</div><div class="stat-label">Not Yet Invited</div></div>
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card" onclick="applyFilter('all')">
+                <div class="stat-number" id="stat-total">—</div>
+                <div class="stat-label">Total Listings</div>
+            </div>
+            <div class="stat-card" onclick="applyFilter('members')">
+                <div class="stat-number" id="stat-members">—</div>
+                <div class="stat-label">Active Members</div>
+            </div>
+            <div class="stat-card" onclick="applyFilter('expired')">
+                <div class="stat-number" id="stat-expired">—</div>
+                <div class="stat-label">Expired</div>
+            </div>
+            <div class="stat-card" onclick="applyFilter('not-invited')">
+                <div class="stat-number" id="stat-not-invited">—</div>
+                <div class="stat-label">Not Invited</div>
+            </div>
+            <div class="stat-card" onclick="applyFilter('invited')">
+                <div class="stat-number" id="stat-invited">—</div>
+                <div class="stat-label">Invited</div>
+            </div>
+            <div class="stat-card" onclick="applyFilter('no-response')">
+                <div class="stat-number" id="stat-no-response">—</div>
+                <div class="stat-label">No Response</div>
+            </div>
+            <div class="stat-card" onclick="applyFilter('refused')">
+                <div class="stat-number" id="stat-refused">—</div>
+                <div class="stat-label">Refused</div>
+            </div>
         </div>
 
-        <!-- ── Edit panel ── -->
-        <div class="edit-panel" id="edit-panel">
+        <!-- Edit panel -->
+        <div class="panel edit-panel" id="edit-panel">
             <h3 id="edit-panel-title">Edit Member</h3>
             <input type="hidden" id="edit-id">
             <div class="edit-grid">
                 <div class="field-group">
                     <label>Name (ATP — read only)</label>
-                    <input type="text" id="edit-name" readonly style="opacity:0.5;">
+                    <input type="text" id="edit-name" readonly>
                 </div>
                 <div class="field-group">
                     <label>Contact Name</label>
@@ -269,57 +244,89 @@
                     <input type="date" id="edit-paid-until">
                 </div>
                 <div class="field-group">
+                    <label>Invitation Status</label>
+                    <select id="edit-inv-status">
+                        <option value="not_invited">Not invited</option>
+                        <option value="invited">Invited</option>
+                        <option value="no_response">No response</option>
+                        <option value="refused">Refused</option>
+                    </select>
+                </div>
+                <div class="field-group">
                     <label>Slug (URL identifier)</label>
                     <input type="text" id="edit-slug" placeholder="e.g. aparthotel-boquete">
                 </div>
-                <div class="field-group">
+                <div class="field-group" style="grid-column: 1/-1;">
                     <label>Notes (internal)</label>
                     <textarea id="edit-notes" placeholder="Internal notes..."></textarea>
                 </div>
             </div>
             <div class="panel-actions">
                 <button class="panel-btn save" onclick="saveMember()">💾 Save</button>
-                <button class="panel-btn cancel" onclick="closeEditPanel()">Cancel</button>
+                <button class="panel-btn cancel" onclick="closePanel('edit-panel')">Cancel</button>
                 <span class="panel-msg" id="edit-msg"></span>
             </div>
         </div>
 
-        <!-- ── Password panel ── -->
-        <div class="pwd-panel" id="pwd-panel">
+        <!-- Password panel -->
+        <div class="panel pwd-panel" id="pwd-panel">
             <h3 id="pwd-panel-title">Set Password</h3>
             <input type="hidden" id="pwd-id">
-            <div class="pwd-row">
-                <div class="field-group">
-                    <label>New Password</label>
-                    <input type="text" id="new-password" placeholder="Enter new password for member">
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+                <div class="field-group" style="flex:1;min-width:200px;">
+                    <label>New Password for Member</label>
+                    <input type="text" id="new-password" placeholder="Enter new password">
                 </div>
                 <button class="panel-btn save" onclick="setPassword()">🔑 Set Password</button>
-                <button class="panel-btn cancel" onclick="closePwdPanel()">Cancel</button>
+                <button class="panel-btn cancel" onclick="closePanel('pwd-panel')">Cancel</button>
                 <span class="panel-msg" id="pwd-msg"></span>
             </div>
             <p style="font-size:0.75rem;color:#aaa;margin-top:0.8rem;">
-                ⚠️ Copy this password and send it to the member — it cannot be retrieved after saving.
+                ⚠️ Copy and send this password to the member — it cannot be retrieved after saving.
             </p>
         </div>
 
-        <!-- ── Tabs ── -->
+        <!-- WhatsApp panel -->
+        <div class="panel wa-panel" id="wa-panel">
+            <h3 id="wa-panel-title">💬 Send WhatsApp Invitation</h3>
+            <input type="hidden" id="wa-id">
+            <input type="hidden" id="wa-phone">
+            <div class="wa-lang-toggle">
+                <button class="wa-lang-btn active" onclick="setWaLang('es')" id="wa-btn-es">🇵🇦 Español</button>
+                <button class="wa-lang-btn" onclick="setWaLang('en')" id="wa-btn-en">🇺🇸 English</button>
+            </div>
+            <textarea class="wa-message" id="wa-message" rows="8"></textarea>
+            <div class="panel-actions" style="margin-top:1rem;">
+                <a id="wa-send-link" href="#" target="_blank" class="panel-btn wa" onclick="markInvitedFromWa()">
+                    💬 Open WhatsApp
+                </a>
+                <button class="panel-btn cancel" onclick="closePanel('wa-panel')">Cancel</button>
+                <span style="font-size:0.75rem;color:#aaa;">Opens WhatsApp with pre-written message. Clicking marks as Invited.</span>
+            </div>
+        </div>
+
+        <!-- Tabs -->
         <div class="tabs">
             <button class="tab active" onclick="showTab('members')" id="tab-members">👥 Members</button>
             <button class="tab" onclick="showTab('log')" id="tab-log">📋 Event Log</button>
-            <button class="tab" onclick="showTab('ip')" id="tab-ip">🌐 IP Management</button>
+            <button class="tab" onclick="showTab('ip')" id="tab-ip">🌐 IP</button>
         </div>
 
-        <!-- ── Members tab ── -->
+        <!-- Members tab -->
         <div class="tab-content active" id="content-members">
             <div class="toolbar">
-                <input type="text" id="member-search" placeholder="Search by name, province, email..."
+                <input type="text" id="member-search" placeholder="Search name, province, email, contact..."
                        oninput="filterMembers()">
                 <select id="member-filter" onchange="filterMembers()">
                     <option value="all">All listings</option>
-                    <option value="members">Members only</option>
-                    <option value="expired">Expired</option>
+                    <option value="members">Active members</option>
+                    <option value="expired">Expired membership</option>
                     <option value="not-invited">Not yet invited</option>
+                    <option value="invited">Invited</option>
+                    <option value="no-response">No response (30+ days)</option>
+                    <option value="refused">Refused</option>
                     <option value="no-email">No email</option>
+                    <option value="no-atp">Not in ATP list</option>
                 </select>
                 <button class="tbtn primary" onclick="loadMembers()">🔄 Refresh</button>
             </div>
@@ -328,77 +335,65 @@
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Name</th>
+                            <th>Name / Contact</th>
                             <th>Province</th>
                             <th>Type</th>
-                            <th>Email</th>
-                            <th>Phone</th>
+                            <th>Email / Phone</th>
                             <th>Status</th>
                             <th>Paid Until</th>
-                            <th>Invited</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="members-tbody">
-                        <tr class="loading-row"><td colspan="10">Loading...</td></tr>
+                        <tr class="loading-row"><td colspan="8">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
-            <div style="font-size:0.78rem;color:#aaa;margin-top:0.5rem;">
-                Showing <span id="showing-count">0</span> of <span id="total-count">0</span> listings
-            </div>
+            <div class="row-count">Showing <span id="showing-count">0</span> of <span id="total-count">0</span> listings</div>
         </div>
 
-        <!-- ── Log tab ── -->
+        <!-- Log tab -->
         <div class="tab-content" id="content-log">
             <div class="toolbar">
                 <button class="tbtn primary" onclick="loadLog()">🔄 Refresh</button>
                 <select id="log-filter" onchange="filterLog()">
                     <option value="all">All events</option>
                     <option value="admin">Admin actions</option>
-                    <option value="member">Member access</option>
+                    <option value="invitation">Invitations</option>
                     <option value="error">Errors</option>
                 </select>
             </div>
-            <div id="log-container">
-                <div class="no-results">Click Refresh to load logs</div>
-            </div>
+            <div id="log-container"><div class="no-results">Click Refresh to load logs</div></div>
         </div>
 
-        <!-- ── IP tab ── -->
+        <!-- IP tab -->
         <div class="tab-content" id="content-ip">
             <div class="ip-card">
-                <h3>IP Address Management</h3>
-                <p style="font-size:0.82rem;color:#aaa;margin-bottom:1rem;">
-                    Your registered admin IP. Update this when your IP changes.
-                </p>
+                <h3>🌐 IP Address Management</h3>
+                <p style="font-size:0.82rem;color:#aaa;margin-bottom:1rem;">Registered admin IP — must match your current IP to access admin functions.</p>
                 <div class="ip-display" id="current-admin-ip">Loading...</div>
-                <p style="font-size:0.78rem;color:#aaa;margin-bottom:1rem;">
-                    Your current IP (as seen by server): <strong id="your-current-ip">Loading...</strong>
-                </p>
-                <button class="tbtn success" onclick="updateAdminIP()" style="margin-bottom:1rem;">
-                    📍 Update to My Current IP
-                </button>
-                <p style="font-size:0.75rem;color:#666;">
-                    Or call from your phone:<br>
-                    <code style="color:#7ec8e3;">https://trustedpanamastays.com/api/update-admin-ip?secret=YOUR_SECRET</code>
+                <p style="font-size:0.8rem;color:#aaa;margin-bottom:1rem;">Your current IP: <strong id="your-current-ip" style="color:#7ec8e3;">Loading...</strong></p>
+                <button class="tbtn primary" onclick="updateAdminIP()" style="margin-bottom:1rem;">📍 Update to My Current IP</button>
+                <p style="font-size:0.75rem;color:#555;margin-top:0.5rem;">
+                    From phone/remote:<br>
+                    <code style="color:#7ec8e3;font-size:0.72rem;">https://trustedpanamastays.com/api/update-admin-ip?secret=ADMIN_SECRET</code>
                 </p>
             </div>
         </div>
 
-    </div><!-- /main -->
-</div><!-- /admin-screen -->
+    </div>
+</div>
 
 <script>
 const API = '';
 let adminToken = sessionStorage.getItem('admin_token') || null;
 let allMembers = [];
 let allLogs    = [];
+let waLang     = 'es';
+let currentWaMember = null;
 
 // ── Login ─────────────────────────────────────────────────────────────────────
-document.getElementById('admin-password').addEventListener('keypress', e => {
-    if (e.key === 'Enter') doLogin();
-});
+document.getElementById('admin-password').addEventListener('keypress', e => { if (e.key==='Enter') doLogin(); });
 
 async function doLogin() {
     const password = document.getElementById('admin-password').value;
@@ -406,8 +401,7 @@ async function doLogin() {
     errorEl.style.display = 'none';
     try {
         const res  = await fetch(`${API}/api/admin-login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify({ password })
         });
         const data = await res.json();
@@ -434,28 +428,20 @@ function doLogout() {
 }
 
 // ── API helper ────────────────────────────────────────────────────────────────
-async function adminFetch(url, options = {}) {
+async function adminFetch(url, options={}) {
     const res = await fetch(`${API}${url}`, {
         ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${adminToken}`,
-            ...(options.headers || {})
-        }
+        headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${adminToken}`, ...(options.headers||{}) }
     });
-    if (res.status === 401 || res.status === 403) {
-        doLogout();
-        throw new Error('Session expired or IP changed — please log in again');
-    }
+    if (res.status === 401 || res.status === 403) { doLogout(); throw new Error('Session expired — please log in again'); }
     return res;
 }
 
-// ── Show admin screen ─────────────────────────────────────────────────────────
+// ── Show admin ────────────────────────────────────────────────────────────────
 function showAdminScreen() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('admin-screen').style.display = 'block';
-    document.getElementById('session-info').textContent =
-        'Session active — ' + new Date().toLocaleTimeString();
+    document.getElementById('session-info').textContent = 'Session active · ' + new Date().toLocaleTimeString();
     loadMembers();
     loadIPInfo();
 }
@@ -464,94 +450,80 @@ function showAdminScreen() {
 function showTab(name) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.getElementById('tab-' + name).classList.add('active');
-    document.getElementById('content-' + name).classList.add('active');
+    document.getElementById('tab-'+name).classList.add('active');
+    document.getElementById('content-'+name).classList.add('active');
     if (name === 'log') loadLog();
-    if (name === 'ip') loadIPInfo();
+    if (name === 'ip')  loadIPInfo();
+}
+
+// ── Status helpers ────────────────────────────────────────────────────────────
+function getInvitationStatus(m) {
+    const today = new Date();
+    // Member — invitation status irrelevant
+    if (m.is_member && m.membership_paid_until >= today.toISOString().split('T')[0])
+        return { key: 'member', label: 'MEMBER', cls: 's-member' };
+    // Expired member
+    if (m.is_member && m.membership_paid_until < today.toISOString().split('T')[0])
+        return { key: 'expired', label: 'UNPAID', cls: 's-unpaid' };
+    // Not in ATP list
+    if (!m.atp_active)
+        return { key: 'unregistered', label: 'UNREGISTERED', cls: 's-unregistered' };
+    // Refused
+    if (m.invitation_status === 'refused')
+        return { key: 'refused', label: 'REFUSED', cls: 's-refused' };
+    // Invited — check if 30+ days without response
+    if (m.invitation_status === 'invited' || m.invitation_sent_at) {
+        const sentAt = new Date(m.invitation_sent_at);
+        const daysSince = (today - sentAt) / (1000*60*60*24);
+        if (daysSince >= 30)
+            return { key: 'no_response', label: 'NO RESPONSE', cls: 's-no-response' };
+        return { key: 'invited', label: 'INVITED', cls: 's-invited', date: sentAt.toLocaleDateString() };
+    }
+    // Default: not invited
+    return { key: 'not_invited', label: 'INVITE', cls: 's-not-invited' };
 }
 
 // ── Load members ──────────────────────────────────────────────────────────────
 async function loadMembers() {
     document.getElementById('members-tbody').innerHTML =
-        '<tr class="loading-row"><td colspan="10">Loading...</td></tr>';
+        '<tr class="loading-row"><td colspan="8">Loading...</td></tr>';
     try {
         const res  = await adminFetch('/api/admin/members');
-        const data = await res.json();
-        allMembers = data;
-        updateStats(data);
-        renderMembers(data);
+        allMembers = await res.json();
+        updateStats(allMembers);
+        renderMembers(allMembers);
     } catch (err) {
         document.getElementById('members-tbody').innerHTML =
-            `<tr class="loading-row"><td colspan="10" style="color:#ff7070;">Error: ${err.message}</td></tr>`;
+            `<tr class="loading-row"><td colspan="8" style="color:#ff7070;">Error: ${err.message}</td></tr>`;
     }
 }
 
 function updateStats(members) {
     const today = new Date().toISOString().split('T')[0];
-    const active   = members.filter(m => m.is_member && m.membership_paid_until >= today);
-    const expired  = members.filter(m => m.is_member && m.membership_paid_until < today);
-    const invited  = members.filter(m => m.invitation_sent_at);
-    const notInvited = members.filter(m => !m.invitation_sent_at);
-    document.getElementById('stat-total').textContent     = members.length;
-    document.getElementById('stat-members').textContent   = active.length;
-    document.getElementById('stat-expired').textContent   = expired.length;
-    document.getElementById('stat-invited').textContent   = invited.length;
-    document.getElementById('stat-not-invited').textContent = notInvited.length;
+    let counts = { total:0, members:0, expired:0, notInvited:0, invited:0, noResponse:0, refused:0 };
+    members.forEach(m => {
+        counts.total++;
+        const s = getInvitationStatus(m);
+        if (s.key === 'member')      counts.members++;
+        if (s.key === 'expired')     counts.expired++;
+        if (s.key === 'not_invited') counts.notInvited++;
+        if (s.key === 'invited')     counts.invited++;
+        if (s.key === 'no_response') counts.noResponse++;
+        if (s.key === 'refused')     counts.refused++;
+    });
+    document.getElementById('stat-total').textContent       = counts.total;
+    document.getElementById('stat-members').textContent     = counts.members;
+    document.getElementById('stat-expired').textContent     = counts.expired;
+    document.getElementById('stat-not-invited').textContent = counts.notInvited;
+    document.getElementById('stat-invited').textContent     = counts.invited;
+    document.getElementById('stat-no-response').textContent = counts.noResponse;
+    document.getElementById('stat-refused').textContent     = counts.refused;
 }
 
-function renderMembers(members) {
-    const tbody = document.getElementById('members-tbody');
-    document.getElementById('showing-count').textContent = members.length;
-    document.getElementById('total-count').textContent   = allMembers.length;
-
-    if (!members.length) {
-        tbody.innerHTML = '<tr class="loading-row"><td colspan="10">No results</td></tr>';
-        return;
-    }
-
-    const today = new Date().toISOString().split('T')[0];
-    tbody.innerHTML = members.map(m => {
-        const isExpired  = m.is_member && m.membership_paid_until < today;
-        const statusBadge = m.is_member
-            ? (isExpired
-                ? `<span class="badge badge-expired">Expired</span>`
-                : `<span class="badge badge-member">Member</span>`)
-            : `<span class="badge badge-inactive">—</span>`;
-
-        const atpBadge = m.atp_active
-            ? `<span class="badge badge-atp">ATP</span>`
-            : `<span class="badge badge-no-atp">Inactive</span>`;
-
-        const invitedText = m.invitation_sent_at
-            ? new Date(m.invitation_sent_at).toLocaleDateString()
-            : '<span style="color:#aaa;">—</span>';
-
-        const paidUntil = m.membership_paid_until
-            ? `<span style="color:${isExpired?'#ff7070':'#adf5ad'}">${m.membership_paid_until}</span>`
-            : '<span style="color:#aaa;">—</span>';
-
-        // WhatsApp link (use first phone number)
-        const phone = m.phone ? m.phone.split('/')[0].trim().replace(/\D/g,'') : '';
-        const waLink = phone ? `<a href="https://wa.me/507${phone.substring(0,8)}" target="_blank" class="action-btn wa" title="WhatsApp">💬</a>` : '';
-
-        return `<tr>
-            <td style="color:#aaa;font-size:0.75rem;">${m.id}</td>
-            <td><strong>${m.name}</strong>${m.contact_name ? `<br><span style="color:#aaa;font-size:0.75rem;">${m.contact_name}</span>` : ''}</td>
-            <td style="font-size:0.8rem;">${m.province || '—'}</td>
-            <td style="font-size:0.8rem;">${m.rental_type || '—'}</td>
-            <td style="font-size:0.8rem;">${m.email ? `<a href="mailto:${m.email}" style="color:#7ec8e3;">${m.email}</a>` : '<span style="color:#ff7070;">none</span>'}</td>
-            <td style="font-size:0.8rem;">${m.phone || '—'}</td>
-            <td>${statusBadge} ${atpBadge}</td>
-            <td>${paidUntil}</td>
-            <td style="font-size:0.78rem;">${invitedText}</td>
-            <td style="white-space:nowrap;">
-                <button class="action-btn edit" onclick="openEditPanel(${m.id})">✏️ Edit</button>
-                <button class="action-btn pwd" onclick="openPwdPanel(${m.id}, '${m.name.replace(/'/g,"\\'")}')">🔑 Pwd</button>
-                ${!m.invitation_sent_at ? `<button class="action-btn invite" onclick="markInvited(${m.id})">📨 Invited</button>` : ''}
-                ${waLink}
-            </td>
-        </tr>`;
-    }).join('');
+function applyFilter(filter) {
+    document.getElementById('member-filter').value = filter;
+    filterMembers();
+    showTab('members');
 }
 
 function filterMembers() {
@@ -564,17 +536,113 @@ function filterMembers() {
             m.name.toLowerCase().includes(search) ||
             (m.province||'').toLowerCase().includes(search) ||
             (m.email||'').toLowerCase().includes(search) ||
-            (m.contact_name||'').toLowerCase().includes(search);
+            (m.contact_name||'').toLowerCase().includes(search) ||
+            (m.rental_type||'').toLowerCase().includes(search);
         if (!matchSearch) return false;
+
+        const s = getInvitationStatus(m);
         switch (filter) {
-            case 'members':     return m.is_member && m.membership_paid_until >= today;
-            case 'expired':     return m.is_member && m.membership_paid_until < today;
-            case 'not-invited': return !m.invitation_sent_at;
+            case 'members':     return s.key === 'member';
+            case 'expired':     return s.key === 'expired';
+            case 'not-invited': return s.key === 'not_invited';
+            case 'invited':     return s.key === 'invited';
+            case 'no-response': return s.key === 'no_response';
+            case 'refused':     return s.key === 'refused';
             case 'no-email':    return !m.email;
+            case 'no-atp':      return !m.atp_active;
             default:            return true;
         }
     });
     renderMembers(filtered);
+}
+
+function renderMembers(members) {
+    document.getElementById('showing-count').textContent = members.length;
+    document.getElementById('total-count').textContent   = allMembers.length;
+    const tbody = document.getElementById('members-tbody');
+    if (!members.length) {
+        tbody.innerHTML = '<tr class="loading-row"><td colspan="8">No results</td></tr>';
+        return;
+    }
+    const today = new Date().toISOString().split('T')[0];
+    tbody.innerHTML = members.map(m => {
+        const s = getInvitationStatus(m);
+        const atpBadge = m.atp_active
+            ? `<span class="status-badge s-atp">ATP</span>`
+            : `<span class="status-badge s-no-atp">NO ATP</span>`;
+
+        // Status badge — clickable to cycle through states
+        const statusBadge = `<span class="status-badge ${s.cls}" onclick="cycleStatus(${m.id})"
+            title="${s.date ? 'Invited: '+s.date : ''}">${s.label}</span>`;
+
+        const paidUntil = m.membership_paid_until
+            ? `<span style="color:${m.membership_paid_until<today?'#ff7070':'#adf5ad'};font-size:0.78rem;">${m.membership_paid_until}</span>`
+            : '<span style="color:#555;">—</span>';
+
+        // Phone for WhatsApp
+        const phone = m.phone ? m.phone.replace(/[^\d]/g,'').substring(0,8) : '';
+        const waBtn = phone
+            ? `<button class="action-btn wa" onclick="openWaPanel(${m.id})" title="WhatsApp invitation">💬</button>`
+            : '';
+
+        return `<tr>
+            <td style="color:#555;font-size:0.72rem;">${m.id}</td>
+            <td>
+                <strong style="font-size:0.85rem;">${m.name}</strong>
+                ${m.contact_name ? `<br><span style="color:#aaa;font-size:0.72rem;">${m.contact_name}</span>` : ''}
+                ${m.slug ? `<br><span style="color:#555;font-size:0.68rem;">${m.slug}</span>` : ''}
+            </td>
+            <td style="font-size:0.78rem;">${m.province||'—'}</td>
+            <td style="font-size:0.75rem;">${m.rental_type||'—'}</td>
+            <td style="font-size:0.78rem;">
+                ${m.email ? `<a href="mailto:${m.email}" style="color:#7ec8e3;">${m.email}</a>` : '<span style="color:#ff7070;font-size:0.72rem;">no email</span>'}
+                ${m.phone ? `<br><span style="color:#aaa;">${m.phone.replace(/^\/+|\/+$/g,'').trim()}</span>` : ''}
+            </td>
+            <td>${statusBadge}<br>${atpBadge}</td>
+            <td>${paidUntil}</td>
+            <td style="white-space:nowrap;">
+                <button class="action-btn edit" onclick="openEditPanel(${m.id})">✏️</button>
+                <button class="action-btn pwd"  onclick="openPwdPanel(${m.id}, '${m.name.replace(/'/g,"\\'")}')">🔑</button>
+                ${waBtn}
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// ── Cycle status (click on badge) ─────────────────────────────────────────────
+async function cycleStatus(id) {
+    const m = allMembers.find(x => x.id === id);
+    if (!m) return;
+    const s = getInvitationStatus(m);
+
+    // Define cycle: not_invited → invited → no_response → refused → not_invited
+    // Members/expired handled by edit panel
+    if (s.key === 'member' || s.key === 'expired' || s.key === 'unregistered') {
+        openEditPanel(id); return;
+    }
+
+    const nextStatus = {
+        'not_invited': 'invited',
+        'invited':     'no_response',
+        'no_response': 'refused',
+        'refused':     'not_invited'
+    }[s.key] || 'not_invited';
+
+    if (!confirm(`Change status to: ${nextStatus.replace('_',' ').toUpperCase()}?`)) return;
+
+    try {
+        const res = await adminFetch('/api/admin/set-invitation-status', {
+            method: 'POST', body: JSON.stringify({ id, status: nextStatus })
+        });
+        if (res.ok) {
+            // Update local data
+            m.invitation_status = nextStatus;
+            if (nextStatus === 'invited') m.invitation_sent_at = new Date().toISOString();
+            if (nextStatus === 'not_invited') m.invitation_sent_at = null;
+            updateStats(allMembers);
+            filterMembers();
+        }
+    } catch (err) { alert('Error: ' + err.message); }
 }
 
 // ── Edit panel ────────────────────────────────────────────────────────────────
@@ -586,39 +654,48 @@ function openEditPanel(id) {
     document.getElementById('edit-contact-name').value = m.contact_name || '';
     document.getElementById('edit-is-member').value    = m.is_member ? 'true' : 'false';
     document.getElementById('edit-paid-until').value   = m.membership_paid_until || '';
+    document.getElementById('edit-inv-status').value   = m.invitation_status || 'not_invited';
     document.getElementById('edit-slug').value         = m.slug || '';
     document.getElementById('edit-notes').value        = m.notes || '';
     document.getElementById('edit-panel-title').textContent = `Edit: ${m.name}`;
     document.getElementById('edit-msg').style.display  = 'none';
+    closePanel('pwd-panel'); closePanel('wa-panel');
     document.getElementById('edit-panel').classList.add('active');
-    document.getElementById('pwd-panel').classList.remove('active');
-    document.getElementById('edit-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function closeEditPanel() {
-    document.getElementById('edit-panel').classList.remove('active');
+    document.getElementById('edit-panel').scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 async function saveMember() {
-    const id = document.getElementById('edit-id').value;
+    const id  = document.getElementById('edit-id').value;
     const msg = document.getElementById('edit-msg');
     msg.style.display = 'none';
+    const invStatus = document.getElementById('edit-inv-status').value;
     const payload = {
-        id:                   parseInt(id),
-        is_member:            document.getElementById('edit-is-member').value === 'true',
-        membership_paid_until:document.getElementById('edit-paid-until').value || null,
-        contact_name:         document.getElementById('edit-contact-name').value.trim() || null,
-        slug:                 document.getElementById('edit-slug').value.trim() || null,
-        notes:                document.getElementById('edit-notes').value.trim() || null,
+        id:                    parseInt(id),
+        is_member:             document.getElementById('edit-is-member').value === 'true',
+        membership_paid_until: document.getElementById('edit-paid-until').value || null,
+        contact_name:          document.getElementById('edit-contact-name').value.trim() || null,
+        slug:                  document.getElementById('edit-slug').value.trim() || null,
+        notes:                 document.getElementById('edit-notes').value.trim() || null,
     };
     try {
-        const res  = await adminFetch('/api/admin/update-member', { method: 'POST', body: JSON.stringify(payload) });
+        const res  = await adminFetch('/api/admin/update-member', { method:'POST', body: JSON.stringify(payload) });
         const data = await res.json();
-        if (res.ok && data.success) {
-            msg.textContent = '✅ Saved'; msg.className = 'panel-msg ok'; msg.style.display = 'inline-block';
-            await loadMembers();
-            setTimeout(() => closeEditPanel(), 1500);
-        } else throw new Error(data.error || 'Save failed');
+        if (!res.ok) throw new Error(data.error || 'Save failed');
+
+        // Also update invitation status if changed
+        const m = allMembers.find(x => x.id === parseInt(id));
+        if (m && invStatus !== (m.invitation_status || 'not_invited')) {
+            await adminFetch('/api/admin/set-invitation-status', {
+                method: 'POST', body: JSON.stringify({ id: parseInt(id), status: invStatus })
+            });
+            m.invitation_status = invStatus;
+            if (invStatus === 'invited') m.invitation_sent_at = new Date().toISOString();
+        }
+
+        msg.textContent = '✅ Saved'; msg.className = 'panel-msg ok'; msg.style.display = 'inline-block';
+        Object.assign(m, payload);
+        updateStats(allMembers); filterMembers();
+        setTimeout(() => closePanel('edit-panel'), 1500);
     } catch (err) {
         msg.textContent = '❌ ' + err.message; msg.className = 'panel-msg err'; msg.style.display = 'inline-block';
     }
@@ -630,25 +707,21 @@ function openPwdPanel(id, name) {
     document.getElementById('new-password').value = '';
     document.getElementById('pwd-panel-title').textContent = `Set Password: ${name}`;
     document.getElementById('pwd-msg').style.display = 'none';
+    closePanel('edit-panel'); closePanel('wa-panel');
     document.getElementById('pwd-panel').classList.add('active');
-    document.getElementById('edit-panel').classList.remove('active');
-    document.getElementById('pwd-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function closePwdPanel() {
-    document.getElementById('pwd-panel').classList.remove('active');
+    document.getElementById('pwd-panel').scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 async function setPassword() {
     const id  = document.getElementById('pwd-id').value;
     const pwd = document.getElementById('new-password').value;
     const msg = document.getElementById('pwd-msg');
-    if (!pwd) { msg.textContent = '❌ Enter a password'; msg.className = 'panel-msg err'; msg.style.display = 'inline-block'; return; }
+    if (!pwd) { msg.textContent='❌ Enter a password'; msg.className='panel-msg err'; msg.style.display='inline-block'; return; }
     try {
-        const res  = await adminFetch('/api/admin/set-password', { method: 'POST', body: JSON.stringify({ id: parseInt(id), password: pwd }) });
+        const res  = await adminFetch('/api/admin/set-password', { method:'POST', body: JSON.stringify({ id: parseInt(id), password: pwd }) });
         const data = await res.json();
         if (res.ok && data.success) {
-            msg.textContent = '✅ Password set — copy it now!';
+            msg.textContent = '✅ Password set — copy it now and send to member!';
             msg.className = 'panel-msg ok'; msg.style.display = 'inline-block';
         } else throw new Error(data.error || 'Failed');
     } catch (err) {
@@ -656,23 +729,89 @@ async function setPassword() {
     }
 }
 
-// ── Mark invited ──────────────────────────────────────────────────────────────
-async function markInvited(id) {
-    if (!confirm('Mark this listing as invited?')) return;
-    try {
-        const res = await adminFetch('/api/admin/mark-invited', { method: 'POST', body: JSON.stringify({ id }) });
-        if (res.ok) await loadMembers();
-    } catch (err) { alert('Error: ' + err.message); }
+// ── WhatsApp panel ────────────────────────────────────────────────────────────
+function openWaPanel(id) {
+    const m = allMembers.find(x => x.id === id);
+    if (!m) return;
+    currentWaMember = m;
+    document.getElementById('wa-id').value    = m.id;
+    const phone = m.phone ? m.phone.replace(/[^\d]/g,'').substring(0,8) : '';
+    document.getElementById('wa-phone').value = phone;
+    document.getElementById('wa-panel-title').textContent = `💬 Invite: ${m.name}`;
+    closePanel('edit-panel'); closePanel('pwd-panel');
+    setWaLang(waLang);
+    document.getElementById('wa-panel').classList.add('active');
+    document.getElementById('wa-panel').scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
-// ── Log tab ───────────────────────────────────────────────────────────────────
+function setWaLang(lang) {
+    waLang = lang;
+    document.getElementById('wa-btn-es').classList.toggle('active', lang==='es');
+    document.getElementById('wa-btn-en').classList.toggle('active', lang==='en');
+    if (!currentWaMember) return;
+    const m = currentWaMember;
+    const listingUrl = m.slug
+        ? `https://trustedpanamastays.com/listing.html?slug=${m.slug}&lang=${lang}`
+        : `https://trustedpanamastays.com/listing.html?id=${m.id}&lang=${lang}`;
+
+    const msgEs = `Hola! Su hospedaje *${m.name}* aparece en *Trusted Panama Stays*, el directorio oficial de hospedajes registrados ante la ATP en Panamá.
+
+Con una membresía anual de solo $24 puede agregar fotos, descripción completa, dirección y enlaces de reserva a su perfil.
+
+Más información: https://trustedpanamastays.com/about.html?lang=es
+
+Ver su listado actual: ${listingUrl}
+
+¿Le interesa? Con gusto le ayudamos a configurar su perfil.`;
+
+    const msgEn = `Hello! Your property *${m.name}* is listed on *Trusted Panama Stays*, the official directory of ATP-registered accommodations in Panama.
+
+For just $24/year you can add photos, a full description, address and booking links to your profile.
+
+More info: https://trustedpanamastays.com/about.html
+
+View your current listing: ${listingUrl}
+
+Interested? We're happy to help you set up your profile.`;
+
+    const msg = lang === 'es' ? msgEs : msgEn;
+    document.getElementById('wa-message').value = msg;
+
+    // Build WhatsApp link
+    const phone = document.getElementById('wa-phone').value;
+    if (phone) {
+        const encoded = encodeURIComponent(msg);
+        document.getElementById('wa-send-link').href = `https://wa.me/507${phone}?text=${encoded}`;
+    }
+}
+
+function markInvitedFromWa() {
+    const id = parseInt(document.getElementById('wa-id').value);
+    const m  = allMembers.find(x => x.id === id);
+    if (!m) return;
+    // Mark as invited via API
+    adminFetch('/api/admin/set-invitation-status', {
+        method: 'POST', body: JSON.stringify({ id, status: 'invited' })
+    }).then(() => {
+        m.invitation_status = 'invited';
+        m.invitation_sent_at = new Date().toISOString();
+        updateStats(allMembers);
+        filterMembers();
+    }).catch(() => {});
+}
+
+// ── Close panel helper ────────────────────────────────────────────────────────
+function closePanel(id) {
+    document.getElementById(id).classList.remove('active');
+}
+
+// ── Log ───────────────────────────────────────────────────────────────────────
 async function loadLog() {
     document.getElementById('log-container').innerHTML = '<div class="no-results">Loading...</div>';
     try {
-        const res  = await adminFetch('/api/admin/log?limit=200');
-        const data = await res.json();
-        allLogs = data;
-        renderLog(data);
+        const res = await adminFetch('/api/admin/log?limit=200');
+        allLogs = await res.json();
+        renderLog(allLogs);
     } catch (err) {
         document.getElementById('log-container').innerHTML =
             `<div class="no-results" style="color:#ff7070;">Error: ${err.message}</div>`;
@@ -681,7 +820,7 @@ async function loadLog() {
 
 function renderLog(logs) {
     const container = document.getElementById('log-container');
-    if (!logs.length) { container.innerHTML = '<div class="no-results">No log entries</div>'; return; }
+    if (!logs.length) { container.innerHTML = '<div class="no-results">No log entries yet</div>'; return; }
     container.innerHTML = logs.map(l => `
         <div class="log-entry">
             <span class="log-time">${new Date(l.created_at).toLocaleString()}</span>
@@ -691,46 +830,41 @@ function renderLog(logs) {
 }
 
 function filterLog() {
-    const filter = document.getElementById('log-filter').value;
-    if (filter === 'all') { renderLog(allLogs); return; }
-    const filtered = allLogs.filter(l => {
-        if (filter === 'admin')  return l.event_type.startsWith('admin');
-        if (filter === 'member') return l.event_type.startsWith('member') || l.event_type.startsWith('listing');
-        if (filter === 'error')  return l.event_type.startsWith('error');
+    const f = document.getElementById('log-filter').value;
+    const filtered = f === 'all' ? allLogs : allLogs.filter(l => {
+        if (f === 'admin')      return l.event_type.startsWith('admin');
+        if (f === 'invitation') return l.event_type.includes('invitation');
+        if (f === 'error')      return l.event_type.includes('error');
         return true;
     });
     renderLog(filtered);
 }
 
-// ── IP management ─────────────────────────────────────────────────────────────
+// ── IP ────────────────────────────────────────────────────────────────────────
 async function loadIPInfo() {
     try {
         const res  = await adminFetch('/api/admin/ip-info');
         const data = await res.json();
-        document.getElementById('current-admin-ip').textContent  = data.adminIP || '—';
-        document.getElementById('your-current-ip').textContent   = data.yourIP  || '—';
+        document.getElementById('current-admin-ip').textContent = data.adminIP || '—';
+        document.getElementById('your-current-ip').textContent  = data.yourIP  || '—';
     } catch (err) {
-        document.getElementById('current-admin-ip').textContent = 'Error: ' + err.message;
+        document.getElementById('current-admin-ip').textContent = 'Error';
     }
 }
 
 async function updateAdminIP() {
-    const secret = prompt('Enter ADMIN_SECRET to confirm IP update:');
-    if (!secret) return;
+    if (!confirm('Update registered admin IP to your current IP?')) return;
     try {
-        const res = await fetch(`${API}/api/update-admin-ip?secret=${encodeURIComponent(secret)}`);
-        const text = await res.text();
-        alert(text);
-        loadIPInfo();
+        const res  = await adminFetch('/api/admin/update-ip', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) { alert('✅ IP updated to: ' + data.ip); loadIPInfo(); }
+        else alert('❌ Error: ' + data.error);
     } catch (err) { alert('Error: ' + err.message); }
 }
 
 // ── Auto-login if token exists ────────────────────────────────────────────────
-if (adminToken) {
-    showAdminScreen();
-} else {
-    document.getElementById('login-screen').style.display = 'flex';
-}
+if (adminToken) showAdminScreen();
+else document.getElementById('login-screen').style.display = 'flex';
 </script>
 </body>
 </html>

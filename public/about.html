@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About — Trusted Panama Stays</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8f9fa; color: #111; line-height: 1.7; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+
+        header {
+            background: linear-gradient(135deg, #005ca9, #00a859);
+            color: white; padding: 1.2rem 1.8rem; border-radius: 10px;
+            margin-bottom: 2rem; display: flex; align-items: center;
+            justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-logo { width: 52px; height: 52px; }
+        .header-left h1 { font-size: 1.4rem; font-weight: 700; }
+        .header-left p  { font-size: 0.82rem; opacity: 0.85; }
+        .header-right { display: flex; gap: 8px; align-items: center; }
+
+        .lang-toggle {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 20px; padding: 5px 14px; text-decoration: none;
+            color: white; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+        }
+        .lang-toggle:hover { background: rgba(255,255,255,0.28); }
+
+        .back-link {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 20px; padding: 5px 14px; text-decoration: none;
+            color: white; font-size: 0.82rem; font-weight: 600;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.28); }
+
+        .content {
+            background: white; border-radius: 12px;
+            padding: 2.5rem; box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+            margin-bottom: 1.5rem;
+        }
+
+        .placeholder-notice {
+            background: #fffbe6; border: 2px dashed #b8860b;
+            border-radius: 8px; padding: 1rem 1.5rem;
+            margin-bottom: 2rem; font-size: 0.88rem; color: #7a5c00;
+        }
+
+        h2 { font-size: 1.6rem; color: #005ca9; margin-bottom: 1rem; }
+        h3 { font-size: 1.1rem; color: #005ca9; margin: 1.5rem 0 0.5rem; }
+        p  { margin-bottom: 1rem; color: #444; }
+        ul { padding-left: 1.5rem; margin-bottom: 1rem; color: #444; }
+        ul li { margin-bottom: 0.4rem; }
+
+        .highlight {
+            background: #e8f4e8; border-left: 4px solid #00a859;
+            padding: 1rem 1.5rem; border-radius: 0 8px 8px 0;
+            margin: 1.5rem 0;
+        }
+
+        .price-box {
+            background: #005ca9; color: white; border-radius: 10px;
+            padding: 1.5rem; text-align: center; margin: 1.5rem 0;
+        }
+        .price-box .price { font-size: 2.5rem; font-weight: 700; color: #FFD700; }
+        .price-box .period { font-size: 0.9rem; opacity: 0.85; }
+
+        footer {
+            background: #2c3e50; color: #ccc; border-radius: 10px;
+            padding: 1.2rem 1.5rem; text-align: center;
+            font-size: 0.85rem; line-height: 1.8;
+        }
+        footer a { color: #7ec8e3; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div class="header-left">
+            <svg class="header-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260">
+                <rect x="30" y="130" width="100" height="62" fill="white"/>
+                <rect x="130" y="130" width="100" height="62" fill="#cc0000"/>
+                <rect x="30" y="192" width="100" height="62" fill="#1a3a6b"/>
+                <rect x="130" y="192" width="100" height="62" fill="white"/>
+                <rect x="30" y="130" width="200" height="124" fill="none" stroke="white" stroke-width="2"/>
+                <polygon points="80,147 82.5,155 91,155 84,160 86.5,168 80,163 73.5,168 76,160 69,155 77.5,155" fill="#1a3a6b"/>
+                <polygon points="180,209 182.5,217 191,217 184,222 186.5,230 180,225 173.5,230 176,222 169,217 177.5,217" fill="#cc0000"/>
+                <polyline points="5,128 130,16 255,128" fill="none" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M54,138 L98,246 L218,26" fill="none" stroke="#FFD700" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div>
+                <h1 id="page-title">About Us</h1>
+                <p id="page-subtitle">Trusted Panama Stays</p>
+            </div>
+        </div>
+        <div class="header-right">
+            <a id="back-link" href="index.html" class="back-link">← Back</a>
+            <a id="lang-toggle" href="#" class="lang-toggle" onclick="toggleLang(event)">
+                <svg width="20" height="14" viewBox="0 0 20 14" id="lang-flag"></svg>
+                <span id="lang-text">Español</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- English content -->
+    <div id="content-en" class="content">
+        <div class="placeholder-notice">
+            ✏️ <strong>Content placeholder</strong> — This page will be updated with the full description. For now it contains sample text.
+        </div>
+
+        <h2>What is Trusted Panama Stays?</h2>
+        <p>
+            Trusted Panama Stays is the only online directory exclusively listing short-term tourist accommodations
+            that are officially registered with Panama's Tourism Authority (ATP) and legally authorized to operate.
+        </p>
+
+        <div class="highlight">
+            <strong>✅ Every listing on this site has been verified against the official ATP registry.</strong>
+            We recommend tourists book only registered accommodations — it protects you legally and ensures
+            quality standards are met.
+        </div>
+
+        <h3>Why does registration matter?</h3>
+        <p>
+            In Panama, short-term tourist rentals are required by law to be registered with the ATP.
+            Registered properties meet safety and quality standards, pay their taxes, and operate legally.
+            Booking an unregistered rental puts you at risk with no legal protection.
+        </p>
+
+        <h3>For accommodation owners</h3>
+        <p>
+            Your property is already listed here if it appears in the ATP registry. With a membership,
+            you can enhance your listing with photos, a description, your address, and links to your
+            website and booking page.
+        </p>
+
+        <div class="price-box">
+            <div class="price">$24</div>
+            <div class="period">per year — less than $2/month</div>
+            <p style="margin-top:0.8rem;margin-bottom:0;font-size:0.88rem;opacity:0.9;">
+                Includes full profile with photos, description, and booking links
+            </p>
+        </div>
+
+        <h3>Contact us</h3>
+        <p>
+            Questions? Write to us at
+            <a href="mailto:info@trustedpanamastays.com" style="color:#005ca9;">info@trustedpanamastays.com</a>
+        </p>
+    </div>
+
+    <!-- Spanish content -->
+    <div id="content-es" class="content" style="display:none;">
+        <div class="placeholder-notice">
+            ✏️ <strong>Contenido provisional</strong> — Esta página será actualizada con la descripción completa. Por ahora contiene texto de ejemplo.
+        </div>
+
+        <h2>¿Qué es Trusted Panama Stays?</h2>
+        <p>
+            Trusted Panama Stays es el único directorio en línea que lista exclusivamente alojamientos turísticos
+            a corto plazo registrados oficialmente ante la Autoridad de Turismo de Panamá (ATP) y autorizados
+            legalmente para operar.
+        </p>
+
+        <div class="highlight">
+            <strong>✅ Cada listado en este sitio ha sido verificado contra el registro oficial de la ATP.</strong>
+            Recomendamos a los turistas reservar únicamente en alojamientos registrados — esto los protege
+            legalmente y garantiza estándares de calidad.
+        </div>
+
+        <h3>¿Por qué importa el registro?</h3>
+        <p>
+            En Panamá, los alquileres turísticos a corto plazo están obligados por ley a estar registrados
+            ante la ATP. Las propiedades registradas cumplen estándares de seguridad y calidad, pagan sus
+            impuestos y operan legalmente. Reservar en un alojamiento no registrado lo deja sin protección legal.
+        </p>
+
+        <h3>Para propietarios de alojamientos</h3>
+        <p>
+            Su propiedad ya aparece aquí si figura en el registro de la ATP. Con una membresía, puede
+            mejorar su perfil con fotos, descripción, dirección completa y enlaces a su sitio web
+            y página de reservas.
+        </p>
+
+        <div class="price-box">
+            <div class="price">$24</div>
+            <div class="period">por año — menos de $2 al mes</div>
+            <p style="margin-top:0.8rem;margin-bottom:0;font-size:0.88rem;opacity:0.9;">
+                Incluye perfil completo con fotos, descripción y enlaces de reserva
+            </p>
+        </div>
+
+        <h3>Contáctenos</h3>
+        <p>
+            ¿Preguntas? Escríbanos a
+            <a href="mailto:info@trustedpanamastays.com" style="color:#005ca9;">info@trustedpanamastays.com</a>
+        </p>
+    </div>
+
+    <footer>
+        <p style="font-size:0.8rem;" id="footer-atp"></p>
+        <p style="margin-top:0.8rem;">
+            Trusted Panama Stays is owned and copyrighted by Tuscany Real Estates SA<br>
+            RUC 1401220-1-627960 DV21<br>
+            <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a>
+        </p>
+    </footer>
+</div>
+
+<script>
+const urlParams = new URLSearchParams(window.location.search);
+let lang = urlParams.get('lang') || 'en';
+
+function applyLang() {
+    const isEs = lang === 'es';
+    document.documentElement.lang = lang;
+    document.getElementById('content-en').style.display = isEs ? 'none' : 'block';
+    document.getElementById('content-es').style.display = isEs ? 'block' : 'none';
+    document.getElementById('page-title').textContent   = isEs ? 'Quiénes somos' : 'About Us';
+    document.getElementById('back-link').textContent    = isEs ? '← Volver' : '← Back';
+    document.getElementById('back-link').href           = isEs ? 'index_es.html' : 'index.html';
+    document.getElementById('lang-text').textContent    = isEs ? 'English' : 'Español';
+    document.getElementById('footer-atp').innerHTML     = isEs
+        ? 'Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>'
+        : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>';
+
+    // Set flag SVG
+    const flagEl = document.getElementById('lang-flag');
+    if (isEs) {
+        // Show US flag (switching TO English)
+        flagEl.innerHTML = `<rect x="0" y="0" width="20" height="14" fill="#B22234"/>
+            <rect x="0" y="2" width="20" height="2" fill="white"/>
+            <rect x="0" y="6" width="20" height="2" fill="white"/>
+            <rect x="0" y="10" width="20" height="2" fill="white"/>
+            <rect x="0" y="0" width="8" height="8" fill="#3C3B6E"/>`;
+    } else {
+        // Show Panama flag (switching TO Spanish)
+        flagEl.innerHTML = `<rect x="0" y="0" width="10" height="7" fill="white"/>
+            <rect x="10" y="0" width="10" height="7" fill="#cc0000"/>
+            <rect x="0" y="7" width="10" height="7" fill="#1a3a6b"/>
+            <rect x="10" y="7" width="10" height="7" fill="white"/>`;
+    }
+}
+
+function toggleLang(e) {
+    e.preventDefault();
+    lang = lang === 'en' ? 'es' : 'en';
+    const url = new URL(window.location);
+    url.searchParams.set('lang', lang);
+    window.history.replaceState({}, '', url);
+    applyLang();
+}
+
+applyLang();
+</script>
+</body>
+</html>
