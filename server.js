@@ -812,6 +812,17 @@ app.get('/api/update-admin-ip', async (req, res) => {
     res.send(`✅ Admin IP updated: ${ip}`);
 });
 
+app.post('/api/admin/update-ip', requireAdmin, async (req, res) => {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim()
+             || req.socket.remoteAddress;
+    const { error } = await supabase
+        .from('settings')
+        .upsert({ key: 'admin_ip', value: ip, updated_at: new Date().toISOString() });
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('admin_update_ip', { ip });
+    res.json({ success: true, ip });
+});
+
 // ── Check admin IP helper ─────────────────────────────────────────────────────
 async function getAdminIP() {
     const { data } = await supabase
@@ -929,6 +940,23 @@ app.post('/api/admin/mark-invited', requireAdmin, async (req, res) => {
         .eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
     await logEvent('invitation_sent', { id });
+    res.json({ success: true });
+});
+
+app.post('/api/admin/set-invitation-status', requireAdmin, async (req, res) => {
+    const { id, status } = req.body;
+    if (!id || !status) return res.status(400).json({ error: 'Missing fields' });
+    const validStatuses = ['not_invited', 'invited', 'no_response', 'refused'];
+    if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    const updates = { invitation_status: status };
+    if (status === 'invited') updates.invitation_sent_at = new Date().toISOString();
+    if (status === 'refused') updates.refused_at = new Date().toISOString();
+    const { error } = await supabase
+        .from('listings')
+        .update(updates)
+        .eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('invitation_status_changed', { id, status });
     res.json({ success: true });
 });
 
