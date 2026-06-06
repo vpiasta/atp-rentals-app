@@ -1,9 +1,0 @@
-[build]
-builder = "nixpacks"
-
-[deploy]
-startCommand = "npm start"
-
-[[services]]
-name = "web"
-httpPort = 3000
