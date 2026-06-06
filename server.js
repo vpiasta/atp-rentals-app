@@ -936,13 +936,6 @@ async function logEvent(type, data) {
     }
 }
 
-app.get('/api/generate-hash', async (req, res) => {
-    const bcrypt = require('bcrypt');
-    const { p } = req.query;
-    if (!p) return res.status(400).json({ error: 'Provide ?p=yourpassword' });
-    const hash = await bcrypt.hash(p, 10);
-    res.json({ hash });
-});
 
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
