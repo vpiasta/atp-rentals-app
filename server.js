@@ -956,6 +956,17 @@ app.get('/api/admin/ip-info', requireAdmin, async (req, res) => {
     res.json({ adminIP, yourIP });
 });
 
+app.get('/api/my-ip', (req, res) => {
+    const forwarded = req.headers['x-forwarded-for'];
+    const remote    = req.socket.remoteAddress;
+    res.json({
+        'x-forwarded-for': forwarded,
+        'remote-address':  remote,
+        'first-forwarded': forwarded?.split(',')[0].trim(),
+        'all-headers':     req.headers
+    });
+});
+
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
