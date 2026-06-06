@@ -6,8 +6,7 @@
     <title>Listing Details - Trusted Panama Stays</title>
     <meta name="description" content="Find only trusted and publicly registered hotels, apartments, and airbnb in Panamá">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">    
-    <!-- Quill rich text editor -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js"></script>
     <style>
@@ -23,6 +22,8 @@
             align-items: center; flex-wrap: wrap; gap: 0.75rem;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-logo { width: 48px; height: 48px; flex-shrink: 0; }
         .header-left h1 { font-size: 1.3rem; font-weight: 700; }
         .header-left p  { font-size: 0.8rem; opacity: 0.85; }
         .header-right   { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -30,7 +31,7 @@
             padding: 6px 14px; background: rgba(255,255,255,0.15);
             border: 1px solid rgba(255,255,255,0.4); border-radius: 20px;
             color: white; text-decoration: none; font-size: 0.82rem; font-weight: 600;
-            transition: background 0.3s; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+            transition: background 0.3s; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
         }
         .header-btn:hover { background: rgba(255,255,255,0.28); }
 
@@ -42,22 +43,12 @@
         .listing-name { font-size: 1.8rem; color: #005ca9; margin-bottom: 0.6rem; font-weight: 700; }
         .badges { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 1.2rem; }
         .badge { padding: 3px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; color: white; }
-        .badge-type     { background: #00a859; }
-        .badge-province { background: #005ca9; }
-        .badge-member   { background: #a07800; }
-        .badge-atp      { background: #1a7a1a; }
+        .badge-type { background: #00a859; } .badge-province { background: #005ca9; }
+        .badge-member { background: #a07800; } .badge-atp { background: #1a7a1a; }
 
         /* ── Quick buttons ── */
-        .quick-buttons {
-            padding: 0 1.5rem 1.2rem; display: flex; gap: 8px;
-            flex-wrap: wrap; border-bottom: 1px solid #e1e5e9;
-        }
-        .qbtn {
-            padding: 7px 14px; border: 2px solid #005ca9; border-radius: 7px;
-            text-decoration: none; color: #005ca9; font-weight: 600; font-size: 0.85rem;
-            transition: all 0.25s; display: inline-flex; align-items: center; gap: 5px;
-            cursor: pointer; background: white;
-        }
+        .quick-buttons { padding: 0 1.5rem 1.2rem; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid #e1e5e9; }
+        .qbtn { padding: 7px 14px; border: 2px solid #005ca9; border-radius: 7px; text-decoration: none; color: #005ca9; font-weight: 600; font-size: 0.85rem; transition: all 0.25s; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; background: white; }
         .qbtn:hover           { background: #005ca9; color: white; }
         .qbtn.whatsapp        { border-color: #25D366; color: #25D366; }
         .qbtn.whatsapp:hover  { background: #25D366; color: white; }
@@ -81,84 +72,46 @@
         .info-value { font-weight: 600; color: #111; font-size: 0.95rem; }
 
         /* ── Photo gallery VIEW ── */
-        .photo-gallery {
-            width: 100%; background: transparent;
-            display: flex; align-items: center; justify-content: center;
-            overflow: hidden; position: relative; padding: 12px;
-        }
-        .photo-gallery img {
-            max-width: 100%; max-height: 340px;
-            object-fit: contain; display: block;
-            border: 1px solid #222; border-radius: 10px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.18);
-        }
+        .photo-gallery { width: 100%; background: transparent; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; padding: 12px; }
+        .photo-gallery img { max-width: 100%; max-height: 340px; object-fit: contain; display: block; border: 1px solid #333; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
         .photo-placeholder { font-size: 5rem; opacity: 0.2; color: #888; padding: 3rem; }
         .photo-nav { position: absolute; bottom: 18px; right: 18px; display: flex; gap: 6px; }
-        .photo-nav button {
-            background: rgba(0,0,0,0.55); color: white; border: none; border-radius: 50%;
-            width: 34px; height: 34px; cursor: pointer; font-size: 1.1rem;
-            display: flex; align-items: center; justify-content: center;
-        }
+        .photo-nav button { background: rgba(0,0,0,0.55); color: white; border: none; border-radius: 50%; width: 34px; height: 34px; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; }
         .photo-count { position: absolute; bottom: 18px; left: 18px; background: rgba(0,0,0,0.55); color: white; padding: 3px 9px; border-radius: 12px; font-size: 0.78rem; }
 
         /* ── Photo manager EDIT ── */
         .photo-manager { display: flex; flex-direction: column; gap: 12px; }
-        .upload-zone {
-            border: 2px dashed #005ca9; border-radius: 10px; padding: 1.5rem;
-            text-align: center; cursor: pointer; transition: all 0.25s;
-            background: #f0f7ff; position: relative;
-        }
+        .upload-zone { border: 2px dashed #005ca9; border-radius: 10px; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.25s; background: #f0f7ff; position: relative; }
         .upload-zone:hover, .upload-zone.dragover { background: #dceeff; border-color: #004885; }
         .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-        .upload-zone-icon  { font-size: 2rem; margin-bottom: 0.4rem; }
-        .upload-zone-text  { color: #005ca9; font-weight: 600; font-size: 0.92rem; }
-        .upload-zone-hint  { color: #888; font-size: 0.78rem; margin-top: 0.2rem; }
+        .upload-zone-icon { font-size: 2rem; margin-bottom: 0.4rem; }
+        .upload-zone-text { color: #005ca9; font-weight: 600; font-size: 0.92rem; }
+        .upload-zone-hint { color: #888; font-size: 0.78rem; margin-top: 0.2rem; }
         .upload-progress { display: none; background: #f0f7ff; border: 1px solid #c0d8f0; border-radius: 8px; padding: 0.8rem 1rem; }
         .progress-bar-outer { background: #ddd; border-radius: 4px; height: 8px; margin-top: 6px; overflow: hidden; }
         .progress-bar-inner { background: #005ca9; height: 100%; width: 0%; border-radius: 4px; transition: width 0.3s; }
-
-        /* Photo thumbs grid */
         .photo-thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
         .photo-thumb { position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 4/3; background: #eee; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
         .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .photo-thumb-remove {
-            position: absolute; top: 4px; right: 4px;
-            background: rgba(200,0,0,0.85); color: white; border: none;
-            border-radius: 50%; width: 22px; height: 22px; cursor: pointer;
-            font-size: 0.75rem; display: flex; align-items: center; justify-content: center;
-        }
+        .photo-thumb-remove { position: absolute; top: 4px; right: 4px; background: rgba(200,0,0,0.85); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; }
         .photo-thumb-remove:hover { background: #cc0000; }
-        .photo-thumb-controls {
-            position: absolute; bottom: 0; left: 0; right: 0;
-            background: rgba(0,0,0,0.55); display: flex; justify-content: center; gap: 4px; padding: 4px;
-        }
-        .photo-ctrl-btn {
-            background: rgba(255,255,255,0.2); color: white; border: none;
-            border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem;
-            transition: background 0.2s;
-        }
+        .photo-thumb-controls { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.55); display: flex; justify-content: center; gap: 4px; padding: 4px; }
+        .photo-ctrl-btn { background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; transition: background 0.2s; }
         .photo-ctrl-btn:hover { background: rgba(255,255,255,0.4); }
         .photo-ctrl-btn.star { color: #FFD700; }
-        .photo-thumb-label {
-            position: absolute; top: 4px; left: 4px;
-            background: rgba(0,0,0,0.6); color: #FFD700;
-            font-size: 0.65rem; padding: 2px 6px; border-radius: 8px; font-weight: 700;
-        }
+        .photo-thumb-label { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.6); color: #FFD700; font-size: 0.65rem; padding: 2px 6px; border-radius: 8px; font-weight: 700; }
 
         /* ── Editable fields ── */
         .edit-group { margin-bottom: 1.2rem; }
         .edit-group:last-child { margin-bottom: 0; }
         .edit-label { display: block; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: #888; font-weight: 700; margin-bottom: 0.4rem; }
-        .edit-input {
-            width: 100%; padding: 9px 12px; border: 2px solid #e1e5e9; border-radius: 7px;
-            font-size: 0.95rem; font-family: inherit; transition: border-color 0.25s; color: #111; background: #fafafa;
-        }
+        .edit-input { width: 100%; padding: 9px 12px; border: 2px solid #e1e5e9; border-radius: 7px; font-size: 0.95rem; font-family: inherit; transition: border-color 0.25s; color: #111; background: #fafafa; }
         .edit-input:focus { outline: none; border-color: #005ca9; background: white; }
 
         /* ── Quill editor ── */
-        .quill-wrapper { border: 2px solid #e1e5e9; border-radius: 7px; overflow: hidden; background: #fafafa; }
+        .quill-wrapper { border: 2px solid #e1e5e9; border-radius: 7px; overflow: visible; background: #fafafa; }
         .quill-wrapper:focus-within { border-color: #005ca9; background: white; }
-        .ql-toolbar { border: none !important; border-bottom: 1px solid #e1e5e9 !important; background: #f5f5f5; }
+        .ql-toolbar { border: none !important; border-bottom: 1px solid #e1e5e9 !important; background: #f5f5f5; border-radius: 7px 7px 0 0; }
         .ql-container { border: none !important; font-size: 0.95rem; min-height: 120px; }
         .ql-editor { min-height: 120px; }
         .ql-toolbar.ql-snow + .ql-toolbar.ql-snow { display: none; }
@@ -180,30 +133,16 @@
         .custom-link-hint { font-size: 0.75rem; color: #aaa; margin-top: 0.3rem; }
 
         /* ── Save bar ── */
-        .save-bar {
-            background: #fffbe6; border: 1px solid #FFD700; border-radius: 8px;
-            padding: 1rem 1.5rem; margin-bottom: 1.5rem;
-            display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
-        }
+        .save-bar { background: #fffbe6; border: 1px solid #FFD700; border-radius: 8px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
         .save-bar p { font-size: 0.88rem; color: #7a5c00; }
         .save-btn { padding: 9px 24px; background: #005ca9; color: white; border: none; border-radius: 7px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background 0.25s; }
-        .save-btn:hover    { background: #004885; }
-        .save-btn:disabled { background: #aaa; cursor: not-allowed; }
+        .save-btn:hover { background: #004885; } .save-btn:disabled { background: #aaa; cursor: not-allowed; }
         .save-message { font-size: 0.85rem; padding: 4px 10px; border-radius: 5px; display: none; }
         .save-message.success { background: #e8f4e8; color: #1a5c1a; display: inline-block; }
         .save-message.error   { background: #fde8e8; color: #7a0000; display: inline-block; }
 
         /* ── Footer ── */
-        footer {
-            background: #2c3e50;
-            color: #ccc;
-            border-radius: 10px;
-            padding: 1.2rem 1.5rem;
-            margin-top: 1.5rem;
-            text-align: center;
-            font-size: 0.85rem;
-            line-height: 1.8;
-        }
+        footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
         footer a { color: #7ec8e3; text-decoration: none; }
         footer a:hover { text-decoration: underline; }
 
@@ -218,10 +157,8 @@
         .modal-error { color: #cc0000; font-size: 0.85rem; margin-bottom: 0.75rem; display: none; }
         .modal-buttons { display: flex; gap: 10px; }
         .modal-btn { flex: 1; padding: 10px; border: none; border-radius: 7px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
-        .modal-btn.confirm { background: #005ca9; color: white; }
-        .modal-btn.confirm:hover { background: #004885; }
-        .modal-btn.cancel  { background: #f0f0f0; color: #555; }
-        .modal-btn.cancel:hover { background: #e0e0e0; }
+        .modal-btn.confirm { background: #005ca9; color: white; } .modal-btn.confirm:hover { background: #004885; }
+        .modal-btn.cancel  { background: #f0f0f0; color: #555; } .modal-btn.cancel:hover  { background: #e0e0e0; }
 
         .loading-state { text-align: center; padding: 4rem; color: #005ca9; font-size: 1.1rem; }
         .error-state   { text-align: center; padding: 4rem; color: #cc0000; }
@@ -240,8 +177,22 @@
 
     <header>
         <div class="header-left">
-            <h1>Trusted Panama Stays</h1>
-            <p id="header-subtitle">Verified ATP-Registered Accommodation</p>
+            <!-- Logo -->
+            <svg class="header-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260" role="img" aria-label="Trusted Panama Stays logo">
+                <rect x="30" y="130" width="100" height="62" fill="white"/>
+                <rect x="130" y="130" width="100" height="62" fill="#cc0000"/>
+                <rect x="30" y="192" width="100" height="62" fill="#1a3a6b"/>
+                <rect x="130" y="192" width="100" height="62" fill="white"/>
+                <rect x="30" y="130" width="200" height="124" fill="none" stroke="white" stroke-width="2"/>
+                <polygon points="80,147 82.5,155 91,155 84,160 86.5,168 80,163 73.5,168 76,160 69,155 77.5,155" fill="#1a3a6b"/>
+                <polygon points="180,209 182.5,217 191,217 184,222 186.5,230 180,225 173.5,230 176,222 169,217 177.5,217" fill="#cc0000"/>
+                <polyline points="5,128 130,16 255,128" fill="none" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M54,138 L98,246 L218,26" fill="none" stroke="#FFD700" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div>
+                <h1>Trusted Panama Stays</h1>
+                <p id="header-subtitle">Verified ATP-Registered Accommodation</p>
+            </div>
         </div>
         <div class="header-right">
             <a id="back-link" href="index.html" class="header-btn">← Back</a>
@@ -263,7 +214,7 @@
         <div class="loading-state">⏳ Loading...</div>
     </div>
 
-   <footer>
+    <footer>
         <p style="font-size:0.8rem;" id="footer-text"></p>
         <p style="margin-top:0.8rem;">
             Trusted Panama Stays is owned and copyrighted by Tuscany Real Estates SA<br>
@@ -279,8 +230,10 @@
         <h3 id="modal-title">🔐 Member Login</h3>
         <p id="modal-subtitle"></p>
         <div class="modal-error" id="modal-error"></div>
-        <input type="password" id="password-input" placeholder="Password">
-        <div class="modal-buttons">
+        <form onsubmit="return false;">
+            <input type="password" id="password-input" placeholder="Password" autocomplete="current-password">
+        </form>
+        <div class="modal-buttons" style="margin-top:1rem;">
             <button class="modal-btn cancel" id="modal-cancel"></button>
             <button class="modal-btn confirm" id="modal-confirm"></button>
         </div>
@@ -288,10 +241,10 @@
 </div>
 
 <script>
-const API_BASE_URL = '';
-const urlParams  = new URLSearchParams(window.location.search);
-const lang       = urlParams.get('lang') || 'en';
-const isEs       = lang === 'es';
+const API_BASE_URL  = '';
+const urlParams     = new URLSearchParams(window.location.search);
+const lang          = urlParams.get('lang') || 'en';
+const isEs          = lang === 'es';
 
 let listingId    = urlParams.get('id');
 const slugParam  = urlParams.get('slug');
@@ -302,11 +255,11 @@ let editPhotos   = [];
 let quillEn      = null;
 let quillEs      = null;
 let customLinks  = [];
+let hasUnsavedChanges = false;
 
 // ── Translations ──────────────────────────────────────────────────────────────
 const T = {
     back:          isEs ? '← Volver'                  : '← Back',
-    langToggle:    isEs ? '🇺🇸 English'               : '🇵🇦 Español',
     subtitle:      isEs ? 'Alojamiento verificado ATP' : 'Verified ATP-Registered Accommodation',
     phone:         isEs ? 'Teléfono'    : 'Phone',
     email:         isEs ? 'Correo'      : 'Email',
@@ -317,8 +270,8 @@ const T = {
     descEs:        isEs ? 'Descripción en Español': 'Description (Spanish)',
     links:         isEs ? 'Enlaces'     : 'Links',
     photos:        isEs ? 'Fotos'       : 'Photos',
-    websiteUrl:    isEs ? 'URL Sitio Web'   : 'Website URL',
-    bookingUrl:    isEs ? 'URL Reservas'    : 'Booking URL',
+    websiteUrl:    isEs ? 'URL Sitio Web'      : 'Website URL',
+    bookingUrl:    isEs ? 'URL Reservas'       : 'Booking URL',
     addressLabel:  isEs ? 'Dirección completa' : 'Full Address',
     phoneLabel:    isEs ? 'Teléfono (miembro)' : 'Phone (member)',
     emailLabel:    isEs ? 'Correo (miembro)'   : 'Email (member)',
@@ -329,7 +282,7 @@ const T = {
     website:       isEs ? '🌐 Sitio Web': '🌐 Website',
     booking:       isEs ? '🔗 Reservar' : '🔗 Book Now',
     memberLogin:   isEs ? '🔐 Acceso'   : '🔐 Login',
-    logout:        isEs ? 'Salir'        : 'Log Out',
+    logout:        isEs ? 'Salir'       : 'Log Out',
     noDesc:        isEs ? 'Sin descripción aún.' : 'No description yet.',
     notFound:      isEs ? 'Listado no encontrado.' : 'Listing not found.',
     uploadClick:   isEs ? 'Clic o arrastre fotos aquí' : 'Click or drag photos here',
@@ -347,38 +300,60 @@ const T = {
     cancel:        isEs ? 'Cancelar' : 'Cancel',
     confirm:       isEs ? 'Ingresar' : 'Login',
     setMain:       isEs ? '⭐ Principal' : '⭐ Main',
-    moveUp:        '↑',
-    moveDown:      '↓',
-    addLink:       isEs ? '+ Nuevo enlace' : '+ New link',
-    linkEmoji:     isEs ? 'Ícono' : 'Icon',
+    moveUp:        '↑', moveDown: '↓',
+    addLink:       isEs ? 'Nuevo enlace' : 'New link',
     linkLabel:     isEs ? 'Nombre' : 'Label',
-    linkUrl:       'URL',
     linkHint:      isEs ? 'Ej: 📸 Instagram https://instagram.com/...' : 'E.g: 📸 Instagram https://instagram.com/...',
-    footer:        isEs
+    unsavedWarning: isEs
+        ? '¿Tiene cambios sin guardar. ¿Desea guardarlos antes de salir?'
+        : 'You have unsaved changes. Save before logging out?',
+    saveAndLogout:  isEs ? 'Guardar y salir' : 'Save & Log Out',
+    discardLogout:  isEs ? 'Descartar y salir' : 'Discard & Log Out',
+    footer: isEs
         ? 'Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>con datos adicionales proporcionados por nuestros miembros'
-        : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br> with additional data provided by our members',
+        : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>with additional data provided by our members',
 };
 
-// Static translations
-document.getElementById('back-link').textContent      = T.back;
-document.getElementById('back-link').href             = isEs ? 'index_es.html' : 'index.html';
-document.getElementById('lang-link').innerHTML        = T.langToggle;
-document.getElementById('header-subtitle').textContent= T.subtitle;
-document.getElementById('footer-text').innerHTML      = T.footer;
-document.getElementById('modal-title').textContent    = T.modalTitle;
-document.getElementById('modal-subtitle').textContent = T.modalSub;
-document.getElementById('modal-cancel').textContent   = T.cancel;
-document.getElementById('modal-confirm').textContent  = T.confirm;
-document.getElementById('save-bar-text').textContent  = T.saveBar;
-document.getElementById('save-btn').textContent       = T.saveChanges;
-document.getElementById('lang-link').addEventListener('click', e => {
+// ── Static translations ───────────────────────────────────────────────────────
+document.getElementById('back-link').textContent       = T.back;
+document.getElementById('back-link').href              = isEs ? 'index_es.html' : 'index.html';
+document.getElementById('header-subtitle').textContent = T.subtitle;
+document.getElementById('footer-text').innerHTML       = T.footer;
+document.getElementById('modal-title').textContent     = T.modalTitle;
+document.getElementById('modal-subtitle').textContent  = T.modalSub;
+document.getElementById('modal-cancel').textContent    = T.cancel;
+document.getElementById('modal-confirm').textContent   = T.confirm;
+document.getElementById('save-bar-text').textContent   = T.saveBar;
+document.getElementById('save-btn').textContent        = T.saveChanges;
+
+// Language button — inline SVG flag, no emoji
+const langLink = document.getElementById('lang-link');
+if (isEs) {
+    langLink.href = '#';
+    langLink.innerHTML = `<svg width="20" height="14" viewBox="0 0 20 14" style="flex-shrink:0;">
+        <rect x="0" y="0" width="20" height="14" fill="#B22234"/>
+        <rect x="0" y="2" width="20" height="2" fill="white"/>
+        <rect x="0" y="6" width="20" height="2" fill="white"/>
+        <rect x="0" y="10" width="20" height="2" fill="white"/>
+        <rect x="0" y="0" width="8" height="8" fill="#3C3B6E"/>
+    </svg> English`;
+} else {
+    langLink.href = '#';
+    langLink.innerHTML = `<svg width="20" height="14" viewBox="0 0 20 14" style="border:1px solid rgba(255,255,255,0.4);flex-shrink:0;">
+        <rect x="0" y="0" width="10" height="7" fill="white"/>
+        <rect x="10" y="0" width="10" height="7" fill="#cc0000"/>
+        <rect x="0" y="7" width="10" height="7" fill="#1a3a6b"/>
+        <rect x="10" y="7" width="10" height="7" fill="white"/>
+    </svg> Español`;
+}
+langLink.addEventListener('click', e => {
     e.preventDefault();
     const newLang = isEs ? 'en' : 'es';
     const param = slugParam ? `slug=${slugParam}` : `id=${listingId}`;
     window.location.href = `listing.html?${param}&lang=${newLang}`;
 });
 
-// ── Session (restored from sessionStorage) ────────────────────────────────────
+// ── Session ───────────────────────────────────────────────────────────────────
 function restoreSession(id) {
     const token = sessionStorage.getItem(`tps_token_${id}`);
     if (token) { sessionToken = token; isLoggedIn = true; }
@@ -396,58 +371,43 @@ function getPhoneNumbers(phoneStr) {
     return { display, call, whatsapp };
 }
 
-// ── Maps URL ──────────────────────────────────────────────────────────────────
 function mapsUrl(rental) {
-    const query = [rental.name, rental.address || rental.province, 'Panama']
-        .filter(Boolean).join(' ');
+    const query = [rental.name, rental.address || rental.province, 'Panama'].filter(Boolean).join(' ');
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
-// ── Build quick buttons ───────────────────────────────────────────────────────
+// ── Quick buttons (standard only — no custom links here) ──────────────────────
 function buildQuickButtons(rental, editMode) {
-    const ph = getPhoneNumbers(rental.phone_member || rental.phone);
-    const em = rental.email_member || rental.email;
+    const ph  = getPhoneNumbers(rental.phone_member || rental.phone);
+    const em  = rental.email_member || rental.email;
     const url = mapsUrl(rental);
-    const links = Array.isArray(rental.custom_links) ? rental.custom_links : [];
-
     const loginLogout = editMode
         ? `<button class="qbtn logout-btn" onclick="doLogout()">${T.logout}</button>`
         : (rental.is_member
             ? `<button class="qbtn login-btn" onclick="openLogin()">${T.memberLogin}</button>`
             : '');
-
-    const customBtns = links.map(l =>
-        `<a href="${l.url}" target="_blank" class="qbtn custom">${l.emoji || ''} ${l.label}</a>`
-    ).join('');
-
     return `
-        ${ph.call      ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
-        ${em           ? `<a href="mailto:${em}" class="qbtn">${T.emailBtn}</a>` : ''}
-        ${ph.whatsapp  ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
+        ${ph.call ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
+        ${em      ? `<a href="mailto:${em}" class="qbtn">${T.emailBtn}</a>` : ''}
+        ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
         <a href="${url}" target="_blank" class="qbtn">${T.maps}</a>
         ${loginLogout}`;
 }
 
 // ── Photo gallery VIEW ────────────────────────────────────────────────────────
-let viewPhotos   = [];
-let currentPhoto = 0;
-
+let viewPhotos = [], currentPhoto = 0;
 function galleryHTML() {
-    if (!viewPhotos.length) {
-        return `<div class="photo-gallery"><span class="photo-placeholder">🏨</span></div>`;
-    }
-    return `
-        <div class="photo-gallery">
-            <img id="gallery-img" src="${viewPhotos[0]}" alt="Photo 1">
-            ${viewPhotos.length > 1 ? `
-            <div class="photo-nav">
-                <button onclick="changePhoto(-1)">‹</button>
-                <button onclick="changePhoto(1)">›</button>
-            </div>
-            <div class="photo-count" id="photo-count">1 / ${viewPhotos.length}</div>` : ''}
-        </div>`;
+    if (!viewPhotos.length) return `<div class="photo-gallery"><span class="photo-placeholder">🏨</span></div>`;
+    return `<div class="photo-gallery">
+        <img id="gallery-img" src="${viewPhotos[0]}" alt="Photo 1">
+        ${viewPhotos.length > 1 ? `
+        <div class="photo-nav">
+            <button onclick="changePhoto(-1)">‹</button>
+            <button onclick="changePhoto(1)">›</button>
+        </div>
+        <div class="photo-count" id="photo-count">1 / ${viewPhotos.length}</div>` : ''}
+    </div>`;
 }
-
 function changePhoto(dir) {
     currentPhoto = (currentPhoto + dir + viewPhotos.length) % viewPhotos.length;
     document.getElementById('gallery-img').src = viewPhotos[currentPhoto];
@@ -463,32 +423,22 @@ function renderPhotoThumbs() {
         <div class="photo-thumb">
             <img src="${url}" alt="Photo ${i+1}">
             ${i === 0 ? `<div class="photo-thumb-label">${T.setMain.replace('⭐ ','')}</div>` : ''}
-            <button class="photo-thumb-remove" onclick="removeEditPhoto(${i})" title="Remove">✕</button>
+            <button class="photo-thumb-remove" onclick="removeEditPhoto(${i})">✕</button>
             <div class="photo-thumb-controls">
-                ${i > 0 ? `<button class="photo-ctrl-btn star" onclick="setMainPhoto(${i})" title="${T.setMain}">⭐</button>` : ''}
+                ${i > 0 ? `<button class="photo-ctrl-btn star" onclick="setMainPhoto(${i})">⭐</button>` : ''}
                 ${i > 0 ? `<button class="photo-ctrl-btn" onclick="movePhoto(${i},-1)">${T.moveUp}</button>` : ''}
                 ${i < editPhotos.length-1 ? `<button class="photo-ctrl-btn" onclick="movePhoto(${i},1)">${T.moveDown}</button>` : ''}
             </div>
         </div>`).join('');
 }
-
-function setMainPhoto(index) {
-    const [photo] = editPhotos.splice(index, 1);
-    editPhotos.unshift(photo);
-    renderPhotoThumbs();
+function setMainPhoto(i) { const [p] = editPhotos.splice(i,1); editPhotos.unshift(p); renderPhotoThumbs(); markUnsaved(); }
+function movePhoto(i, dir) {
+    const n = i + dir;
+    if (n < 0 || n >= editPhotos.length) return;
+    [editPhotos[i], editPhotos[n]] = [editPhotos[n], editPhotos[i]];
+    renderPhotoThumbs(); markUnsaved();
 }
-
-function movePhoto(index, dir) {
-    const newIndex = index + dir;
-    if (newIndex < 0 || newIndex >= editPhotos.length) return;
-    [editPhotos[index], editPhotos[newIndex]] = [editPhotos[newIndex], editPhotos[index]];
-    renderPhotoThumbs();
-}
-
-function removeEditPhoto(index) {
-    editPhotos.splice(index, 1);
-    renderPhotoThumbs();
-}
+function removeEditPhoto(i) { editPhotos.splice(i,1); renderPhotoThumbs(); markUnsaved(); }
 
 // ── Custom links EDIT ─────────────────────────────────────────────────────────
 function renderCustomLinks() {
@@ -496,30 +446,23 @@ function renderCustomLinks() {
     if (!container) return;
     container.innerHTML = customLinks.map((l, i) => `
         <div class="custom-link-row">
-            <input type="text" value="${l.emoji||''}" 
-            placeholder="📸" 
-            title="${isEs ? 'Pegue un emoji aquí (ej: 📸 🌐 🎥)' : 'Paste an emoji here (e.g: 📸 🌐 🎥)'}"
-       onchange="customLinks[${i}].emoji=this.value" maxlength="4">
+            <input type="text" value="${l.emoji||''}" placeholder="📸"
+                   title="${isEs ? 'Pegue un emoji aquí (ej: 📸 🌐 🎥)' : 'Paste an emoji here (e.g: 📸 🌐 🎥)'}"
+                   onchange="customLinks[${i}].emoji=this.value; markUnsaved();" maxlength="4">
             <input type="text" value="${l.label||''}" placeholder="${T.linkLabel}"
-                   onchange="customLinks[${i}].label=this.value">
+                   onchange="customLinks[${i}].label=this.value; markUnsaved();">
             <input type="url" value="${l.url||''}" placeholder="https://..."
-                   onchange="customLinks[${i}].url=this.value">
+                   onchange="customLinks[${i}].url=this.value; markUnsaved();">
             <button class="custom-link-remove" onclick="removeCustomLink(${i})">✕</button>
         </div>`).join('');
 }
+function addCustomLink() { if (customLinks.length >= 4) return; customLinks.push({emoji:'',label:'',url:''}); renderCustomLinks(); markUnsaved(); }
+function removeCustomLink(i) { customLinks.splice(i,1); renderCustomLinks(); markUnsaved(); }
 
-function addCustomLink() {
-    if (customLinks.length >= 4) return;
-    customLinks.push({ emoji: '', label: '', url: '' });
-    renderCustomLinks();
-}
+// ── Unsaved changes tracking ──────────────────────────────────────────────────
+function markUnsaved() { hasUnsavedChanges = true; }
 
-function removeCustomLink(index) {
-    customLinks.splice(index, 1);
-    renderCustomLinks();
-}
-
-// ── Image resize ──────────────────────────────────────────────────────────────
+// ── Image resize + upload ─────────────────────────────────────────────────────
 function resizeImage(file, maxWidth=1920, maxHeight=1080, quality=0.85) {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -529,16 +472,14 @@ function resizeImage(file, maxWidth=1920, maxHeight=1080, quality=0.85) {
             let { width, height } = img;
             if (width > maxWidth || height > maxHeight) {
                 const ratio = Math.min(maxWidth/width, maxHeight/height);
-                width  = Math.round(width  * ratio);
-                height = Math.round(height * ratio);
+                width = Math.round(width*ratio); height = Math.round(height*ratio);
             }
             const canvas = document.createElement('canvas');
             canvas.width = width; canvas.height = height;
             canvas.getContext('2d').drawImage(img, 0, 0, width, height);
             canvas.toBlob(blob => {
                 if (!blob) return reject(new Error('Canvas toBlob failed'));
-                const newName = file.name.replace(/\.[^.]+$/,'') + '_resized.jpg';
-                resolve(new File([blob], newName, { type: 'image/jpeg' }));
+                resolve(new File([blob], file.name.replace(/\.[^.]+$/,'')+'_resized.jpg', { type: 'image/jpeg' }));
             }, 'image/jpeg', quality);
         };
         img.onerror = () => reject(new Error('Image load failed'));
@@ -547,8 +488,7 @@ function resizeImage(file, maxWidth=1920, maxHeight=1080, quality=0.85) {
 }
 
 async function uploadPhoto(file) {
-    if (!['image/jpeg','image/png','image/webp'].includes(file.type))
-        throw new Error('Only JPG, PNG or WebP images allowed');
+    if (!['image/jpeg','image/png','image/webp'].includes(file.type)) throw new Error('Only JPG, PNG or WebP allowed');
     if (file.size > 5*1024*1024) throw new Error('File exceeds 5MB');
     const resized = await resizeImage(file);
     const formData = new FormData();
@@ -562,31 +502,25 @@ async function uploadPhoto(file) {
 }
 
 async function handleFiles(files) {
-    const progress    = document.getElementById('upload-progress');
+    const progress = document.getElementById('upload-progress');
     const progressBar = document.getElementById('progress-bar');
-    const progressText= document.getElementById('progress-text');
-    const validFiles  = Array.from(files).filter(f => f.type.startsWith('image/'));
+    const progressText = document.getElementById('progress-text');
+    const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
     if (!validFiles.length) return;
-    if (editPhotos.length + validFiles.length > 20) {
-        alert(isEs ? 'Máximo 20 fotos.' : 'Maximum 20 photos.'); return;
-    }
+    if (editPhotos.length + validFiles.length > 20) { alert(isEs ? 'Máximo 20 fotos.' : 'Maximum 20 photos.'); return; }
     progress.style.display = 'block';
     for (let i = 0; i < validFiles.length; i++) {
-        const file = validFiles[i];
-        progressText.textContent = `${T.uploading} ${i+1}/${validFiles.length}: ${file.name}`;
+        progressText.textContent = `${T.uploading} ${i+1}/${validFiles.length}: ${validFiles[i].name}`;
         progressBar.style.width = `${Math.round((i/validFiles.length)*100)}%`;
-        try {
-            const url = await uploadPhoto(file);
-            editPhotos.push(url);
-            renderPhotoThumbs();
-        } catch (err) { alert(`${T.uploadError}: ${err.message}`); }
+        try { const url = await uploadPhoto(validFiles[i]); editPhotos.push(url); renderPhotoThumbs(); markUnsaved(); }
+        catch (err) { alert(`${T.uploadError}: ${err.message}`); }
     }
     progressBar.style.width = '100%';
     setTimeout(() => { progress.style.display = 'none'; progressBar.style.width = '0%'; }, 800);
 }
 
 function wireUploadZone() {
-    const zone  = document.getElementById('upload-zone');
+    const zone = document.getElementById('upload-zone');
     const input = document.getElementById('file-input');
     if (!zone || !input) return;
     input.addEventListener('change', e => { handleFiles(e.target.files); e.target.value=''; });
@@ -596,25 +530,26 @@ function wireUploadZone() {
     renderPhotoThumbs();
 }
 
-function addQuillTooltips(quill, containerId) {
+// ── Quill tooltips ────────────────────────────────────────────────────────────
+function addQuillTooltips(containerId) {
     const tooltips = {
-        'ql-bold':   isEs ? 'Negrita' : 'Bold',
-        'ql-italic': isEs ? 'Cursiva' : 'Italic',
+        'ql-bold':      isEs ? 'Negrita' : 'Bold',
+        'ql-italic':    isEs ? 'Cursiva' : 'Italic',
         'ql-underline': isEs ? 'Subrayado' : 'Underline',
-        'ql-link':   isEs ? 'Insertar enlace: seleccione texto, luego haga clic aquí y pegue la URL (sobrescribir text en el campo)' : 'Insert link: select text, then click here and paste the URL (overwrite text in the field)',
-        'ql-clean':  isEs ? 'Eliminar todo el formato y enlaces del texto seleccionado' : 'Remove all formatting and links from selected text',
-        'ql-list':   isEs ? 'Lista' : 'List',
+        'ql-link':      isEs
+            ? 'Enlace: seleccione texto, luego clic aquí y pegue la URL en el campo'
+            : 'Link: select text first, then click here and paste the URL in the field',
+        'ql-clean':     isEs
+            ? 'Eliminar todo el formato y enlaces del texto seleccionado'
+            : 'Remove all formatting and links from selected text',
     };
-    const toolbar = document.querySelector(`#${containerId}`)
-        ?.closest('.quill-wrapper')
-        ?.querySelector('.ql-toolbar');
-    if (!toolbar) return;
+    const wrapper = document.getElementById(containerId)?.closest('.quill-wrapper');
+    if (!wrapper) return;
     Object.entries(tooltips).forEach(([cls, tip]) => {
-        toolbar.querySelectorAll(`.${cls}`).forEach(btn => btn.title = tip);
+        wrapper.querySelectorAll(`.${cls}`).forEach(btn => btn.title = tip);
     });
 }
 
-// ── Init Quill editors ────────────────────────────────────────────────────────
 function initQuill(rental) {
     const toolbarOptions = [
         ['bold', 'italic', 'underline'],
@@ -626,22 +561,22 @@ function initQuill(rental) {
     quillEs = new Quill('#quill-es', { theme: 'snow', modules: { toolbar: toolbarOptions } });
     if (rental.description_en) quillEn.root.innerHTML = rental.description_en;
     if (rental.description_es) quillEs.root.innerHTML = rental.description_es;
+    // Track changes in Quill editors
+    quillEn.on('text-change', markUnsaved);
+    quillEs.on('text-change', markUnsaved);
     addQuillTooltips('quill-en');
     addQuillTooltips('quill-es');
 }
 
-
 // ── Render VIEW ───────────────────────────────────────────────────────────────
 function renderView(rental) {
-    viewPhotos   = Array.isArray(rental.photos) ? rental.photos : [];
-    currentPhoto = 0;
+    viewPhotos = Array.isArray(rental.photos) ? rental.photos : []; currentPhoto = 0;
     const description = isEs
         ? (rental.description_es || rental.description_en || T.noDesc)
         : (rental.description_en || rental.description_es || T.noDesc);
     const ph = getPhoneNumbers(rental.phone_member || rental.phone);
     const em = rental.email_member || rental.email;
     const links = Array.isArray(rental.custom_links) ? rental.custom_links : [];
-
     return `
     <div class="listing-card">
         <div class="name-row">
@@ -653,35 +588,21 @@ function renderView(rental) {
                 <span class="badge badge-atp">✅ ATP</span>
             </div>
         </div>
-
         <div class="quick-buttons">${buildQuickButtons(rental, false)}</div>
-
         <div class="section">
             <div class="section-title">${T.contact}</div>
             <div class="info-grid">
-                ${ph.display ? `
-                <div class="info-item"><span class="info-icon">📞</span>
-                    <div><div class="info-label">${T.phone}</div>
-                    <div class="info-value">${ph.display}</div></div></div>` : ''}
-                ${em ? `
-                <div class="info-item"><span class="info-icon">✉️</span>
-                    <div><div class="info-label">${T.email}</div>
-                    <div class="info-value">${em}</div></div></div>` : ''}
-                ${rental.address ? `
-                <div class="info-item"><span class="info-icon">🗺️</span>
-                    <div><div class="info-label">${T.address}</div>
-                    <div class="info-value">${rental.address}</div></div></div>` : ''}
+                ${ph.display ? `<div class="info-item"><span class="info-icon">📞</span><div><div class="info-label">${T.phone}</div><div class="info-value">${ph.display}</div></div></div>` : ''}
+                ${em ? `<div class="info-item"><span class="info-icon">✉️</span><div><div class="info-label">${T.email}</div><div class="info-value">${em}</div></div></div>` : ''}
+                ${rental.address ? `<div class="info-item"><span class="info-icon">🗺️</span><div><div class="info-label">${T.address}</div><div class="info-value">${rental.address}</div></div></div>` : ''}
             </div>
         </div>
-
         ${galleryHTML()}
-
         ${rental.is_member && description !== T.noDesc ? `
         <div class="section">
             <div class="section-title">${T.description}</div>
             <div class="description-text">${description}</div>
         </div>` : ''}
-
         ${rental.is_member && (rental.website_url || rental.booking_url || links.length) ? `
         <div class="section">
             <div class="section-title">${T.links}</div>
@@ -700,7 +621,6 @@ function renderEdit(rental) {
     customLinks = Array.isArray(rental.custom_links) ? [...rental.custom_links] : [];
     const ph = getPhoneNumbers(rental.phone_member || rental.phone);
     const em = rental.email_member || rental.email;
-
     return `
     <div class="listing-card">
         <div class="name-row">
@@ -712,33 +632,22 @@ function renderEdit(rental) {
                 <span class="badge badge-atp">✅ ATP</span>
             </div>
         </div>
-
         <div class="quick-buttons">${buildQuickButtons(rental, true)}</div>
-
-        <!-- Contact (editable) -->
         <div class="section">
             <div class="section-title">${T.contact}</div>
             <div class="edit-group">
                 <label class="edit-label">📞 ${T.phoneLabel}</label>
-                <input type="text" class="edit-input" id="edit-phone"
-                       value="${rental.phone_member || rental.phone || ''}"
-                       placeholder="${rental.phone || ''}">
+                <input type="text" class="edit-input" id="edit-phone" value="${rental.phone_member || rental.phone || ''}" oninput="markUnsaved()">
             </div>
             <div class="edit-group">
                 <label class="edit-label">✉️ ${T.emailLabel}</label>
-                <input type="email" class="edit-input" id="edit-email"
-                       value="${rental.email_member || rental.email || ''}"
-                       placeholder="${rental.email || ''}">
+                <input type="email" class="edit-input" id="edit-email" value="${rental.email_member || rental.email || ''}" oninput="markUnsaved()">
             </div>
             <div class="edit-group">
                 <label class="edit-label">🗺️ ${T.addressLabel}</label>
-                <input type="text" class="edit-input" id="edit-address"
-                       value="${rental.address || ''}"
-                       placeholder="Street / area, City, Province, Panama">
+                <input type="text" class="edit-input" id="edit-address" value="${rental.address || ''}" oninput="markUnsaved()">
             </div>
         </div>
-
-        <!-- Photos -->
         <div class="section">
             <div class="section-title">${T.photos}</div>
             <div class="photo-manager">
@@ -755,43 +664,33 @@ function renderEdit(rental) {
                 <div class="photo-thumbs" id="photo-thumbs"></div>
             </div>
         </div>
-
-        <!-- Description EN -->
         <div class="section">
             <div class="section-title">${T.descEn}</div>
             <div class="quill-wrapper"><div id="quill-en"></div></div>
         </div>
-
-        <!-- Description ES -->
         <div class="section">
             <div class="section-title">${T.descEs}</div>
             <div class="quill-wrapper"><div id="quill-es"></div></div>
         </div>
-
-        <!-- Links -->
         <div class="section">
             <div class="section-title">${T.links}</div>
             <div class="edit-group">
                 <label class="edit-label">🌐 ${T.websiteUrl}</label>
-                <input type="url" class="edit-input" id="edit-website"
-                       value="${rental.website_url || ''}" placeholder="https://...">
+                <input type="url" class="edit-input" id="edit-website" value="${rental.website_url || ''}" oninput="markUnsaved()">
             </div>
             <div class="edit-group">
                 <label class="edit-label">🔗 ${T.bookingUrl}</label>
-                <input type="url" class="edit-input" id="edit-booking"
-                       value="${rental.booking_url || ''}" placeholder="https://...">
+                <input type="url" class="edit-input" id="edit-booking" value="${rental.booking_url || ''}" oninput="markUnsaved()">
             </div>
             <div class="edit-group">
                 <label class="edit-label">${isEs?'Botones adicionales':'Additional buttons'} (${isEs?'máx':'max'} 4)</label>
                 <p class="custom-link-hint" style="margin-bottom:0.5rem;">
-                    ${isEs 
+                    ${isEs
                         ? 'Ícono: pegue un emoji (Windows: tecla ⊞+punto · Mac: Ctrl+Cmd+Espacio)'
                         : 'Icon: paste an emoji (Windows: ⊞+period · Mac: Ctrl+Cmd+Space)'}
                 </p>
                 <div class="custom-link-list" id="custom-link-list"></div>
-                ${customLinks.length < 4
-                    ? `<button class="add-link-btn" onclick="addCustomLink()">+ ${T.addLink}</button>`
-                    : ''}
+                ${customLinks.length < 4 ? `<button class="add-link-btn" onclick="addCustomLink()">+ ${T.addLink}</button>` : ''}
                 <p class="custom-link-hint">${T.linkHint}</p>
             </div>
         </div>
@@ -802,19 +701,14 @@ function renderEdit(rental) {
 async function saveChanges() {
     const btn = document.getElementById('save-btn');
     const msg = document.getElementById('save-message');
-    btn.disabled = true;
-    msg.className = 'save-message'; msg.style.display = 'none';
-
-    // Collect custom links from DOM inputs
+    btn.disabled = true; msg.className = 'save-message'; msg.style.display = 'none';
     const linkRows = document.querySelectorAll('#custom-link-list .custom-link-row');
     const savedLinks = Array.from(linkRows).map(row => {
         const inputs = row.querySelectorAll('input');
         return { emoji: inputs[0].value.trim(), label: inputs[1].value.trim(), url: inputs[2].value.trim() };
     }).filter(l => l.label && l.url);
-
     const payload = {
-        id:             listingId,
-        token:          sessionToken,
+        id:             listingId, token: sessionToken,
         phone_member:   document.getElementById('edit-phone')?.value.trim() || null,
         email_member:   document.getElementById('edit-email')?.value.trim() || null,
         address:        document.getElementById('edit-address')?.value.trim() || null,
@@ -825,22 +719,20 @@ async function saveChanges() {
         photos:         editPhotos.length ? editPhotos : null,
         custom_links:   savedLinks.length ? savedLinks : null,
     };
-
     try {
-        const res  = await fetch(`${API_BASE_URL}/api/listing-update`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+        const res  = await fetch(`${API_BASE_URL}/api/listing-update`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
         const data = await res.json();
         if (res.ok && data.success) {
             msg.textContent = T.saved; msg.className = 'save-message success'; msg.style.display = 'inline-block';
             Object.assign(currentRental, payload); delete currentRental.token;
+            hasUnsavedChanges = false;
         } else throw new Error(data.error || 'Save failed');
     } catch (err) {
         msg.textContent = `${T.saveError}: ${err.message}`; msg.className = 'save-message error'; msg.style.display = 'inline-block';
     }
     btn.disabled = false;
     setTimeout(() => { msg.style.display = 'none'; }, 4000);
+    return true;
 }
 
 // ── Login ─────────────────────────────────────────────────────────────────────
@@ -861,17 +753,13 @@ async function attemptLogin() {
     const errorEl  = document.getElementById('modal-error');
     errorEl.style.display = 'none';
     try {
-        const res  = await fetch(`${API_BASE_URL}/api/listing-login`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: listingId, password })
-        });
+        const res  = await fetch(`${API_BASE_URL}/api/listing-login`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: listingId, password }) });
         const data = await res.json();
         if (res.ok && data.token) {
             sessionToken = data.token;
             sessionStorage.setItem(`tps_token_${listingId}`, sessionToken);
-            isLoggedIn = true;
-            closeLogin();
-            renderPage(currentRental);
+            isLoggedIn = true; hasUnsavedChanges = false;
+            closeLogin(); renderPage(currentRental);
         } else {
             errorEl.textContent = data.error === 'Invalid password' ? T.wrongPassword : T.loginError;
             errorEl.style.display = 'block';
@@ -879,8 +767,29 @@ async function attemptLogin() {
     } catch { errorEl.textContent = T.loginError; errorEl.style.display = 'block'; }
 }
 
-function doLogout() {
-    sessionToken = null; isLoggedIn = false;
+// ── Logout with unsaved changes warning ───────────────────────────────────────
+async function doLogout() {
+    if (hasUnsavedChanges) {
+        // Show inline warning in save bar
+        const saveBar = document.querySelector('.save-bar');
+        const existing = document.getElementById('logout-warning');
+        if (!existing) {
+            const warning = document.createElement('div');
+            warning.id = 'logout-warning';
+            warning.style.cssText = 'width:100%;background:#fde8e8;border:1px solid #ffaaaa;border-radius:6px;padding:0.8rem 1rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap;';
+            warning.innerHTML = `
+                <span style="flex:1;font-size:0.88rem;color:#7a0000;">${T.unsavedWarning}</span>
+                <button onclick="saveChanges().then(()=>performLogout())" style="padding:6px 14px;background:#005ca9;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.85rem;">${T.saveAndLogout}</button>
+                <button onclick="performLogout()" style="padding:6px 14px;background:#cc0000;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.85rem;">${T.discardLogout}</button>`;
+            saveBar.appendChild(warning);
+            return;
+        }
+    }
+    performLogout();
+}
+
+function performLogout() {
+    sessionToken = null; isLoggedIn = false; hasUnsavedChanges = false;
     sessionStorage.removeItem(`tps_token_${listingId}`);
     quillEn = null; quillEs = null;
     renderPage(currentRental);
@@ -892,8 +801,7 @@ function renderPage(rental) {
     if (isLoggedIn && rental.is_member) {
         document.getElementById('listing-content').innerHTML = renderEdit(rental);
         saveBar.style.display = 'block';
-        wireUploadZone();
-        renderCustomLinks();
+        wireUploadZone(); renderCustomLinks();
         setTimeout(() => initQuill(rental), 100);
     } else {
         document.getElementById('listing-content').innerHTML = renderView(rental);
