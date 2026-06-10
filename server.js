@@ -1003,13 +1003,16 @@ app.get('/api/test-anthropic', async (req, res) => {
     });
 });
 
-app.get('/api/env-check', (req, res) => {
+app.get('/api/test-anthropic', async (req, res) => {
+    const { secret } = req.query;
+    if (secret !== process.env.ADMIN_SECRET) return res.status(403).json({ 
+        error: 'No',
+        received_length: secret?.length,
+        expected_length: process.env.ADMIN_SECRET?.length
+    });
     res.json({
-        keys_present: Object.keys(process.env).filter(k => 
-            ['ADMIN_SECRET','ADMIN_PASSWORD','SUPABASE_URL','SUPABASE_ANON_KEY','ANTHROPIC_API_KEY']
-            .includes(k)
-        ),
-        total_env_vars: Object.keys(process.env).length
+        key_exists: !!process.env.ANTHROPIC_API_KEY,
+        key_prefix: process.env.ANTHROPIC_API_KEY?.substring(0, 10) + '...'
     });
 });
 
