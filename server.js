@@ -993,6 +993,14 @@ app.get('/api/admin/ip-info', requireAdmin, async (req, res) => {
     res.json({ adminIP, yourIP });
 });
 
+app.get('/api/test-anthropic', async (req, res) => {
+    const { secret } = req.query;
+    if (secret !== process.env.ADMIN_SECRET) return res.status(403).send('No');
+    res.json({
+        key_exists: !!process.env.ANTHROPIC_API_KEY,
+        key_prefix: process.env.ANTHROPIC_API_KEY?.substring(0, 10) + '...'
+    });
+});
 
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
