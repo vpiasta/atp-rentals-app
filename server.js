@@ -2,6 +2,7 @@
 // Updated to use Supabase database:
 //   - On startup: serve from DB immediately, check PDF URL in background
 //   - Only re-parse PDF when ATP publishes a new one (URL changes)
+// env refresh June 2026
 
 const express = require('express');
 const cors = require('cors');
