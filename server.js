@@ -1003,6 +1003,16 @@ app.get('/api/test-anthropic', async (req, res) => {
     });
 });
 
+app.get('/api/env-check', (req, res) => {
+    res.json({
+        keys_present: Object.keys(process.env).filter(k => 
+            ['ADMIN_SECRET','ADMIN_PASSWORD','SUPABASE_URL','SUPABASE_ANON_KEY','ANTHROPIC_API_KEY']
+            .includes(k)
+        ),
+        total_env_vars: Object.keys(process.env).length
+    });
+});
+
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
