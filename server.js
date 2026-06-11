@@ -1017,6 +1017,19 @@ app.get('/api/env-check', (req, res) => {
     });
 });
 
+app.get('/api/secret-debug', (req, res) => {
+    const { secret } = req.query;
+    const stored = process.env.ADMIN_SECRET;
+    res.json({
+        received:          secret,
+        stored_first_char: stored?.charCodeAt(0),
+        stored_last_char:  stored?.charCodeAt(stored.length-1),
+        received_first:    secret?.charCodeAt(0),
+        received_last:     secret?.charCodeAt(secret.length-1),
+        match:             secret === stored
+    });
+});
+
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
