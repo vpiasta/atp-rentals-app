@@ -43,12 +43,12 @@ try {
     $mail->CharSet  = 'UTF-8';
     $mail->Encoding = 'base64';
     $mail->isSMTP();
-    $mail->Host       = env('SMTP_HOST');
+    $mail->Host       = env('SMTP_TPS_HOST');
     $mail->SMTPAuth   = true;
-    $mail->Username   = env('SMTP_USERNAME');
-    $mail->Password   = env('SMTP_PASSWORD');
-    $mail->SMTPSecure = 'tls';
-    $mail->Port       = env('SMTP_PORT');
+    $mail->Username   = env('SMTP_TPS_USERNAME');
+    $mail->Password   = env('SMTP_TPS_PASSWORD');
+    $mail->SMTPSecure = 'ssl';
+    $mail->Port       = env('SMTP_TPS_PORT');
     $mail->SMTPDebug  = 0;
 
     $mail->setFrom('info@trustedpanamastays.com', 'Trusted Panama Stays');
