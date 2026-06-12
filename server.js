@@ -1211,6 +1211,23 @@ app.post('/api/membership-apply',
     }
 });
 
+app.get('/api/test-notify', async (req, res) => {
+    const { secret } = req.query;
+    if (secret !== process.env.ADMIN_SECRET) return res.status(403).send('No');
+    const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    try {
+        const { stdout, stderr } = await execFileAsync('php', [
+            notifyPath,
+            'Test notification',
+            '<p>This is a test email from TrustedPanamaStays</p>',
+            'info@trustedpanamastays.com'
+        ], { timeout: 15000 });
+        res.json({ success: true, stdout, stderr });
+    } catch (err) {
+        res.json({ error: err.message, stdout: err.stdout, stderr: err.stderr });
+    }
+});
+
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
