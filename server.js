@@ -1030,6 +1030,187 @@ app.get('/api/secret-debug', (req, res) => {
     });
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  MEMBERSHIP APPLICATION ENDPOINT
+//  Add this to server.js before the server.listen() line
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ── Multer config for membership docs (10MB limit) ────────────────────────────
+const uploadDocs = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }  // 10MB
+});
+
+// ── POST /api/membership-apply ────────────────────────────────────────────────
+app.post('/api/membership-apply',
+    uploadDocs.fields([
+        { name: 'file_aviso',  maxCount: 1 },
+        { name: 'file_cedula', maxCount: 1 },
+        { name: 'file_pago',   maxCount: 1 }
+    ]),
+    async (req, res) => {
+
+    const {
+        property_name, province, contact_name, contact_email,
+        contact_phone, how_found, membership_type,
+        duration_months, payment_method
+    } = req.body;
+
+    // Basic validation
+    if (!property_name || !contact_name || !contact_email || !contact_phone) {
+        return res.status(400).json({ error: 'Faltan campos obligatorios' });
+    }
+
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim()
+             || req.socket.remoteAddress;
+
+    try {
+        // ── 1. Upload documents to Supabase Storage ───────────────────────────
+        const documents = [];
+        const fileFields = [
+            { key: 'file_aviso',  type: 'aviso_operacion' },
+            { key: 'file_cedula', type: 'cedula' },
+            { key: 'file_pago',   type: 'comprobante_pago' }
+        ];
+
+        for (const { key, type } of fileFields) {
+            const file = req.files?.[key]?.[0];
+            if (!file) continue;
+
+            // Sanitize filename
+            const safeName = file.originalname
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-zA-Z0-9._-]/g, '_')
+                .replace(/_+/g, '_').toLowerCase();
+
+            const fileName = `applications/${Date.now()}-${type}-${safeName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('member-documents')
+                .upload(fileName, file.buffer, {
+                    contentType: file.mimetype,
+                    upsert: false
+                });
+
+            if (uploadError) {
+                console.error(`Upload error for ${type}:`, uploadError.message);
+                // Continue — don't fail the whole application for one file
+            } else {
+                documents.push({
+                    type,
+                    path:     fileName,
+                    uploaded: new Date().toISOString(),
+                    mime:     file.mimetype,
+                    size:     file.size
+                });
+            }
+        }
+
+        // ── 2. Try to find matching listing in database ───────────────────────
+        let listingId = null;
+        const { data: matchingListings } = await supabase
+            .from('listings')
+            .select('id, name')
+            .ilike('name', `%${property_name.trim()}%`)
+            .eq('province', province)
+            .limit(1);
+
+        if (matchingListings && matchingListings.length > 0) {
+            listingId = matchingListings[0].id;
+        }
+
+        // ── 3. Save application to database ──────────────────────────────────
+        const { data: application, error: insertError } = await supabase
+            .from('membership_applications')
+            .insert({
+                listing_id:      listingId,
+                property_name:   property_name.trim(),
+                province,
+                contact_name:    contact_name.trim(),
+                contact_email:   contact_email.trim().toLowerCase(),
+                contact_phone:   contact_phone.trim(),
+                membership_type,
+                duration_months: parseInt(duration_months) || 0,
+                payment_method,
+                documents:       documents.length ? documents : null,
+                notes:           how_found ? `Cómo nos conoció: ${how_found}` : null,
+                ip_address:      ip,
+                status:          'pending'
+            })
+            .select()
+            .single();
+
+        if (insertError) throw new Error(insertError.message);
+
+        // ── 4. Log the event ──────────────────────────────────────────────────
+        await logEvent('membership_application_received', {
+            application_id: application.id,
+            property_name,
+            membership_type,
+            listing_id: listingId
+        });
+
+        // ── 5. Send email notification via notify.php ─────────────────────────
+        const planText = membership_type === 'trial'
+            ? 'Prueba gratuita 30 días'
+            : (duration_months == 24 ? '2 años ($45)' : '1 año ($24)');
+
+        const subject = `Nueva solicitud de membresía: ${property_name}`;
+        const message = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#005ca9;">Nueva Solicitud de Membresía</h2>
+<table style="border-collapse:collapse;width:100%;max-width:500px;">
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Hospedaje:</td><td style="padding:6px;">${property_name}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Provincia:</td><td style="padding:6px;">${province}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Contacto:</td><td style="padding:6px;">${contact_name}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Correo:</td><td style="padding:6px;">${contact_email}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Teléfono:</td><td style="padding:6px;">${contact_phone}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Plan:</td><td style="padding:6px;">${planText}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Pago:</td><td style="padding:6px;">${payment_method || 'N/A'}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Documentos:</td><td style="padding:6px;">${documents.length} archivo(s) recibido(s)</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Listado ATP:</td><td style="padding:6px;">${listingId ? 'Encontrado (ID: '+listingId+')' : 'No encontrado automáticamente'}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">ID Solicitud:</td><td style="padding:6px;">${application.id}</td></tr>
+</table>
+<p style="margin-top:1rem;">
+    <a href="https://trustedpanamastays.com/admin.html" style="background:#005ca9;color:white;padding:8px 16px;text-decoration:none;border-radius:5px;">
+        Ver en Panel de Admin
+    </a>
+</p>
+<p style="color:#888;font-size:12px;margin-top:1rem;">
+    Trusted Panama Stays · info@trustedpanamastays.com
+</p>
+</body></html>`;
+
+        // Call notify.php via execFile
+        const notifyPath = path.join(__dirname, 'public', 'notify.php');
+        try {
+            await execFileAsync('php', [notifyPath, subject, message, 'info@trustedpanamastays.com'], {
+                timeout: 15000
+            });
+            console.log(`✅ Notification email sent for application ${application.id}`);
+        } catch (emailErr) {
+            // Don't fail the application if email fails
+            console.error('❌ Email notification failed:', emailErr.message);
+            await logEvent('notification_email_failed', {
+                application_id: application.id,
+                error: emailErr.message
+            });
+        }
+
+        // ── 6. Return success ─────────────────────────────────────────────────
+        res.json({
+            success:        true,
+            application_id: application.id,
+            listing_found:  !!listingId
+        });
+
+    } catch (err) {
+        console.error('❌ Membership application error:', err.message);
+        await logEvent('membership_application_error', { error: err.message, property_name });
+        res.status(500).json({ error: 'Error al procesar la solicitud: ' + err.message });
+    }
+});
+
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
