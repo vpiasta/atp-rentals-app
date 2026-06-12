@@ -135,6 +135,80 @@
         .ip-card h3 { color: #FFD700; margin-bottom: 1rem; }
         .ip-display { font-size: 1.4rem; font-weight: 700; color: #7ec8e3; font-family: monospace; margin-bottom: 0.5rem; }
 
+        /* ── Applications tab ── */
+        .app-card {
+            background: #2c3e50; border-radius: 10px; padding: 1.2rem;
+            margin-bottom: 1rem; border-left: 4px solid #555;
+            transition: border-color 0.2s;
+        }
+        .app-card.pending  { border-color: #FFD700; }
+        .app-card.approved { border-color: #00a859; }
+        .app-card.rejected { border-color: #cc0000; }
+        
+        .app-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.8rem; }
+        .app-name   { font-size: 1rem; font-weight: 700; color: white; }
+        .app-meta   { font-size: 0.78rem; color: #aaa; margin-top: 0.2rem; }
+        .app-status { padding: 3px 10px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; }
+        .app-status.pending  { background: #7a5c00; color: #FFD700; }
+        .app-status.approved { background: #1a5c1a; color: #adf5ad; }
+        .app-status.rejected { background: #7a0000; color: #ffaaaa; }
+        
+        .app-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.82rem; }
+        .app-detail-item { color: #ccc; }
+        .app-detail-item strong { color: #7ec8e3; }
+        
+        .app-docs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
+        .doc-btn {
+            padding: 5px 12px; border-radius: 6px; border: 1px solid #3d5166;
+            background: #1a2a3a; color: #7ec8e3; cursor: pointer;
+            font-size: 0.78rem; text-decoration: none; display: inline-flex; align-items: center; gap: 5px;
+            transition: all 0.2s;
+        }
+        .doc-btn:hover { background: #005ca9; color: white; border-color: #005ca9; }
+        
+        .app-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .app-btn { padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.82rem; font-weight: 600; transition: all 0.2s; }
+        .app-btn.ai      { background: #6b46c1; color: white; }
+        .app-btn.ai:hover { background: #553c9a; }
+        .app-btn.approve { background: #00a859; color: white; }
+        .app-btn.approve:hover { background: #007a3d; }
+        .app-btn.reject  { background: #7a0000; color: #ffaaaa; border: 1px solid #cc0000; }
+        .app-btn.reject:hover { background: #cc0000; color: white; }
+        
+        .verify-result {
+            background: #1a2a3a; border-radius: 8px; padding: 1rem;
+            margin-top: 0.8rem; font-size: 0.82rem; display: none;
+        }
+        .verify-result.visible { display: block; }
+        .verify-row { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; border-bottom: 1px solid #2c3e50; }
+        .verify-row:last-child { border-bottom: none; }
+        .verify-icon { flex-shrink: 0; font-size: 1rem; }
+        .verify-label { color: #aaa; min-width: 140px; }
+        .verify-value { color: white; flex: 1; }
+        .verify-pass { color: #adf5ad; }
+        .verify-fail { color: #ff7070; }
+        .verify-warn { color: #FFD700; }
+        
+        .reject-form { background: #1a2a3a; border-radius: 8px; padding: 1rem; margin-top: 0.8rem; display: none; }
+        .reject-form.visible { display: block; }
+        .reject-form select, .reject-form textarea {
+            width: 100%; padding: 8px 10px; border: 2px solid #3d5166; border-radius: 6px;
+            background: #2c3e50; color: white; font-family: inherit; font-size: 0.85rem;
+            margin-bottom: 0.8rem;
+        }
+        .reject-form textarea { resize: vertical; min-height: 70px; }
+        
+        .approve-result { background: #1a3a1a; border: 1px solid #00a859; border-radius: 8px; padding: 1rem; margin-top: 0.8rem; display: none; }
+        .approve-result.visible { display: block; }
+        
+        .invoice-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .invoice-table th { background: #1a2a3a; padding: 8px 10px; text-align: left; color: #aaa; }
+        .invoice-table td { padding: 8px 10px; border-bottom: 1px solid #3d5166; }
+        
+        .filter-tabs { display: flex; gap: 4px; margin-bottom: 1rem; flex-wrap: wrap; }
+        .filter-tab { padding: 5px 14px; border-radius: 20px; border: 1px solid #3d5166; background: #1a2a3a; color: #aaa; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
+        .filter-tab.active { background: #005ca9; color: white; border-color: #005ca9; }
+        
         .loading-row td { text-align: center; padding: 2rem; color: #aaa; }
         .no-results { text-align: center; padding: 2rem; color: #aaa; }
         .row-count { font-size: 0.78rem; color: #aaa; margin-top: 0.5rem; }
@@ -308,6 +382,8 @@
         <!-- Tabs -->
         <div class="tabs">
             <button class="tab active" onclick="showTab('members')" id="tab-members">👥 Members</button>
+            <button class="tab" onclick="showTab('applications')" id="tab-applications">📨 Applications</button>
+            <button class="tab" onclick="showTab('invoices')" id="tab-invoices">🧾 Invoices</button>
             <button class="tab" onclick="showTab('log')" id="tab-log">📋 Event Log</button>
             <button class="tab" onclick="showTab('ip')" id="tab-ip">🌐 IP</button>
         </div>
@@ -380,7 +456,49 @@
                 </p>
             </div>
         </div>
-
+        <div class="tab-content" id="content-applications">
+            <div class="filter-tabs">
+                <button class="filter-tab active" onclick="filterApps('all')" id="ftab-all">All</button>
+                <button class="filter-tab" onclick="filterApps('pending')" id="ftab-pending">⏳ Pending</button>
+                <button class="filter-tab" onclick="filterApps('approved')" id="ftab-approved">✅ Approved</button>
+                <button class="filter-tab" onclick="filterApps('rejected')" id="ftab-rejected">❌ Rejected</button>
+            </div>
+            <div class="toolbar">
+                <button class="tbtn primary" onclick="loadApplications()">🔄 Refresh</button>
+                <span id="app-count" style="font-size:0.82rem;color:#aaa;align-self:center;"></span>
+            </div>
+            <div id="applications-container">
+                <div class="no-results">Click Refresh to load applications</div>
+            </div>
+        </div>
+        <!-- Invoices tab -->
+        <div class="tab-content" id="content-invoices">
+            <div class="toolbar">
+                <button class="tbtn primary" onclick="loadInvoiceLog()">🔄 Refresh</button>
+                <button class="tbtn primary" onclick="exportInvoiceCSV()" style="background:#00a859;">📥 Export CSV</button>
+            </div>
+            <div class="table-wrap" style="margin-top:1rem;">
+                <table class="invoice-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Property</th>
+                            <th>Contact</th>
+                            <th>Email</th>
+                            <th>RUC</th>
+                            <th>Plan</th>
+                            <th>Amount</th>
+                            <th>ITBMS</th>
+                            <th>Total</th>
+                            <th>Payment</th>
+                        </tr>
+                    </thead>
+                    <tbody id="invoice-tbody">
+                        <tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem;">Click Refresh to load</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -865,6 +983,353 @@ async function updateAdminIP() {
 // ── Auto-login if token exists ────────────────────────────────────────────────
 if (adminToken) showAdminScreen();
 else document.getElementById('login-screen').style.display = 'flex';
+
+// ── Applications ──────────────────────────────────────────────────────────────
+let allApplications = [];
+let currentAppFilter = 'all';
+
+async function loadApplications() {
+    document.getElementById('applications-container').innerHTML =
+        '<div class="no-results">Loading...</div>';
+    try {
+        const res  = await adminFetch('/api/admin/applications');
+        allApplications = await res.json();
+        renderApplications(allApplications);
+    } catch (err) {
+        document.getElementById('applications-container').innerHTML =
+            `<div class="no-results" style="color:#ff7070;">Error: ${err.message}</div>`;
+    }
+}
+
+function filterApps(status) {
+    currentAppFilter = status;
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('ftab-' + status).classList.add('active');
+    const filtered = status === 'all'
+        ? allApplications
+        : allApplications.filter(a => a.status === status);
+    renderApplications(filtered);
+}
+
+function renderApplications(apps) {
+    const container = document.getElementById('applications-container');
+    document.getElementById('app-count').textContent = `${apps.length} application${apps.length !== 1 ? 's' : ''}`;
+    if (!apps.length) {
+        container.innerHTML = '<div class="no-results">No applications found</div>';
+        return;
+    }
+    container.innerHTML = apps.map(app => {
+        const docButtons = (app.documents || []).map(doc => `
+            <a href="#" class="doc-btn" onclick="viewDocument('${doc.path}', '${doc.type}'); return false;">
+                ${doc.type === 'aviso_operacion' ? '📋' : doc.type === 'cedula' ? '🪪' : '💳'}
+                ${doc.type.replace(/_/g,' ')}
+            </a>`).join('');
+
+        const planText = app.membership_type === 'trial'
+            ? '30 días gratis'
+            : (app.duration_months === 24 ? '2 años ($45)' : '1 año ($24)');
+
+        const isPending = app.status === 'pending';
+
+        return `
+        <div class="app-card ${app.status}" id="app-card-${app.id}">
+            <div class="app-header">
+                <div>
+                    <div class="app-name">${app.property_name}</div>
+                    <div class="app-meta">
+                        ${app.province} · ${new Date(app.created_at).toLocaleDateString()} ·
+                        ID: ${app.id}
+                        ${app.listing_id ? ` · <span style="color:#adf5ad;">ATP match: ${app.listing_id}</span>` : ' · <span style="color:#ff7070;">No ATP match</span>'}
+                    </div>
+                </div>
+                <span class="app-status ${app.status}">${app.status.toUpperCase()}</span>
+            </div>
+
+            <div class="app-details">
+                <div class="app-detail-item"><strong>Contacto:</strong> ${app.contact_name}</div>
+                <div class="app-detail-item"><strong>Email:</strong> ${app.contact_email}</div>
+                <div class="app-detail-item"><strong>Teléfono:</strong> ${app.contact_phone}</div>
+                <div class="app-detail-item"><strong>Plan:</strong> ${planText}</div>
+                <div class="app-detail-item"><strong>Pago:</strong> ${app.payment_method || 'N/A'}</div>
+                <div class="app-detail-item"><strong>Cómo nos conoció:</strong> ${app.notes || '—'}</div>
+            </div>
+
+            ${docButtons ? `<div class="app-docs">${docButtons}</div>` : ''}
+
+            ${isPending ? `
+            <div class="app-actions">
+                ${process.env?.ANTHROPIC_API_KEY !== undefined ? `
+                <button class="app-btn ai" onclick="verifyDocuments(${app.id})">🤖 AI Verify</button>` : ''}
+                <button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve</button>
+                <button class="app-btn reject" onclick="showRejectForm(${app.id})">❌ Reject</button>
+            </div>
+
+            <div class="verify-result" id="verify-${app.id}"></div>
+            <div class="approve-result" id="approve-${app.id}"></div>
+            <div class="reject-form" id="reject-form-${app.id}">
+                <select id="reject-reason-${app.id}">
+                    <option value="">Seleccione razón...</option>
+                    <option>Documentos ilegibles — envíe escaneos más claros</option>
+                    <option>Nombre no coincide con los documentos</option>
+                    <option>Aviso de Operación vencido</option>
+                    <option>Comprobante de pago inválido o ilegible</option>
+                    <option>Hospedaje no encontrado en el registro ATP</option>
+                    <option>Cédula no corresponde al representante legal</option>
+                </select>
+                <textarea id="reject-note-${app.id}" placeholder="Nota adicional (opcional)..."></textarea>
+                <div style="display:flex;gap:8px;">
+                    <button class="app-btn reject" onclick="confirmReject(${app.id})">Enviar rechazo</button>
+                    <button class="app-btn" style="background:#3d5166;color:#eee;" onclick="document.getElementById('reject-form-${app.id}').classList.remove('visible')">Cancelar</button>
+                </div>
+            </div>` : `
+            <div style="font-size:0.78rem;color:#aaa;">
+                Reviewed: ${app.reviewed_at ? new Date(app.reviewed_at).toLocaleString() : '—'}
+                ${app.notes ? `<br>Notes: ${app.notes}` : ''}
+            </div>`}
+        </div>`;
+    }).join('');
+}
+
+async function viewDocument(docPath, docType) {
+    try {
+        const res  = await adminFetch(`/api/admin/document-url?path=${encodeURIComponent(docPath)}`);
+        const data = await res.json();
+        if (data.url) window.open(data.url, '_blank');
+        else alert('Could not get document URL');
+    } catch (err) { alert('Error: ' + err.message); }
+}
+
+async function verifyDocuments(appId) {
+    const resultEl = document.getElementById('verify-' + appId);
+    resultEl.innerHTML = '🤖 AI is reading documents...';
+    resultEl.classList.add('visible');
+    try {
+        const res  = await adminFetch('/api/admin/verify-documents', {
+            method: 'POST', body: JSON.stringify({ application_id: appId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        const v = data.verification;
+        const ov = v.verification;
+        const resultColor = ov.overall_result === 'PASS' ? 'verify-pass'
+            : ov.overall_result === 'FAIL' ? 'verify-fail' : 'verify-warn';
+
+        resultEl.innerHTML = `
+            <div style="font-weight:700;color:#7ec8e3;margin-bottom:0.8rem;">🤖 AI Verification Report</div>
+            ${v.aviso_operacion ? `
+            <div class="verify-row">
+                <span class="verify-icon">📋</span>
+                <span class="verify-label">Aviso de Operación</span>
+                <span class="verify-value">
+                    ${v.aviso_operacion.business_name || '—'}<br>
+                    <span style="color:#aaa;font-size:0.75rem;">RUC: ${v.aviso_operacion.ruc || '—'} · Rep: ${v.aviso_operacion.legal_rep || '—'}</span>
+                </span>
+            </div>` : ''}
+            ${v.cedula ? `
+            <div class="verify-row">
+                <span class="verify-icon">🪪</span>
+                <span class="verify-label">Cédula</span>
+                <span class="verify-value">${v.cedula.id_holder_name || '—'}</span>
+            </div>` : ''}
+            ${v.payment ? `
+            <div class="verify-row">
+                <span class="verify-icon">💳</span>
+                <span class="verify-label">Comprobante de pago</span>
+                <span class="verify-value">${v.payment.amount || '—'} · ${v.payment.date || '—'}</span>
+            </div>` : ''}
+            <div class="verify-row">
+                <span class="verify-icon">${ov.names_match ? '✅' : '❌'}</span>
+                <span class="verify-label">Nombres coinciden</span>
+                <span class="verify-value ${ov.names_match ? 'verify-pass' : 'verify-fail'}">${ov.names_match_detail || '—'}</span>
+            </div>
+            <div class="verify-row">
+                <span class="verify-icon">${ov.payment_matches ? '✅' : '⚠️'}</span>
+                <span class="verify-label">Pago correcto</span>
+                <span class="verify-value ${ov.payment_matches ? 'verify-pass' : 'verify-warn'}">${ov.payment_match_detail || '—'}</span>
+            </div>
+            <div class="verify-row" style="background:rgba(0,0,0,0.2);border-radius:4px;padding:6px;">
+                <span class="verify-icon">🎯</span>
+                <span class="verify-label">Resultado</span>
+                <span class="verify-value ${resultColor}" style="font-weight:700;">${ov.overall_result} — ${ov.overall_notes || ''}</span>
+            </div>`;
+    } catch (err) {
+        resultEl.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`;
+    }
+}
+
+async function approveApplication(appId) {
+    if (!confirm('Approve this application and send welcome email with password?')) return;
+    const resultEl = document.getElementById('approve-' + appId);
+    resultEl.innerHTML = '⏳ Processing...';
+    resultEl.classList.add('visible');
+    try {
+        const res  = await adminFetch('/api/admin/approve-application', {
+            method: 'POST', body: JSON.stringify({ application_id: appId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        resultEl.innerHTML = `
+            <div style="color:#adf5ad;font-weight:700;margin-bottom:0.5rem;">✅ Application approved!</div>
+            <div style="font-size:0.82rem;color:#ccc;">
+                Password sent to member: <code style="background:#2c3e50;padding:2px 6px;border-radius:4px;">${data.password}</code><br>
+                Membership until: <strong>${data.paid_until}</strong><br>
+                ${data.listing_id ? `Listing ID: ${data.listing_id}` : 'No ATP listing linked'}
+            </div>`;
+
+        // Update card status
+        const card = document.getElementById('app-card-' + appId);
+        if (card) {
+            card.classList.remove('pending');
+            card.classList.add('approved');
+            card.querySelector('.app-status').textContent = 'APPROVED';
+            card.querySelector('.app-status').className = 'app-status approved';
+            card.querySelector('.app-actions')?.remove();
+            card.querySelector('.verify-result')?.remove();
+            card.querySelector('.reject-form')?.remove();
+        }
+
+        // Refresh stats
+        await loadMembers();
+    } catch (err) {
+        resultEl.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`;
+    }
+}
+
+function showRejectForm(appId) {
+    document.getElementById('reject-form-' + appId).classList.add('visible');
+    document.getElementById('verify-' + appId).classList.remove('visible');
+}
+
+async function confirmReject(appId) {
+    const reason = document.getElementById('reject-reason-' + appId).value;
+    const note   = document.getElementById('reject-note-' + appId).value;
+    if (!reason) { alert('Please select a rejection reason'); return; }
+    if (!confirm('Send rejection email to applicant?')) return;
+    try {
+        const res = await adminFetch('/api/admin/reject-application', {
+            method: 'POST',
+            body: JSON.stringify({ application_id: appId, reason, custom_note: note })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        const card = document.getElementById('app-card-' + appId);
+        if (card) {
+            card.classList.remove('pending'); card.classList.add('rejected');
+            card.querySelector('.app-status').textContent = 'REJECTED';
+            card.querySelector('.app-status').className = 'app-status rejected';
+            card.querySelector('.app-actions')?.remove();
+            card.querySelector('.reject-form')?.remove();
+            card.querySelector('.verify-result')?.remove();
+        }
+        alert('Rejection email sent.');
+    } catch (err) { alert('Error: ' + err.message); }
+}
+
+// ── Invoice log ───────────────────────────────────────────────────────────────
+let allInvoices = [];
+
+async function loadInvoiceLog() {
+    try {
+        const res  = await adminFetch('/api/admin/invoice-log');
+        allInvoices = await res.json();
+        renderInvoiceLog(allInvoices);
+    } catch (err) {
+        document.getElementById('invoice-tbody').innerHTML =
+            `<tr><td colspan="10" style="color:#ff7070;text-align:center;">Error: ${err.message}</td></tr>`;
+    }
+}
+
+function renderInvoiceLog(invoices) {
+    const tbody = document.getElementById('invoice-tbody');
+    if (!invoices.length) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem;">No invoices yet</td></tr>';
+        return;
+    }
+    tbody.innerHTML = invoices.map(inv => {
+        const d = inv.event_data;
+        return `<tr>
+            <td>${new Date(inv.created_at).toLocaleDateString()}</td>
+            <td>${d.property_name || '—'}</td>
+            <td>${d.contact_name || '—'}</td>
+            <td style="font-size:0.75rem;">${d.contact_email || '—'}</td>
+            <td style="font-family:monospace;">${d.ruc || '—'}</td>
+            <td>${d.plan || '—'}</td>
+            <td>$${d.amount || '—'}</td>
+            <td>$${d.itbms || '—'}</td>
+            <td><strong>$${d.total || '—'}</strong></td>
+            <td>${d.payment_method || '—'}</td>
+        </tr>`;
+    }).join('');
+}
+
+function exportInvoiceCSV() {
+    if (!allInvoices.length) { alert('No invoices to export'); return; }
+    const headers = ['Date','Property','Contact','Email','RUC','Plan','Amount','ITBMS','Total','Payment'];
+    const rows = allInvoices.map(inv => {
+        const d = inv.event_data;
+        return [
+            new Date(inv.created_at).toLocaleDateString(),
+            d.property_name, d.contact_name, d.contact_email,
+            d.ruc || '', d.plan, d.amount, d.itbms, d.total, d.payment_method
+        ].map(v => `"${v || ''}"`).join(',');
+    });
+    const csv  = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `tps-invoices-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+}
+
+// ── Update showTab to handle new tabs ────────────────────────────────────────
+// Replace the existing showTab function with this one:
+// (Find "function showTab(name)" and replace the entire function)
+function showTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tab-'+name).classList.add('active');
+    document.getElementById('content-'+name).classList.add('active');
+    if (name === 'log')          loadLog();
+    if (name === 'ip')           loadIPInfo();
+    if (name === 'applications') loadApplications();
+    if (name === 'invoices')     loadInvoiceLog();
+}
+```
+
+## STEP 5: Update stat card pending applications
+Add to the stats grid:
+```html
+<div class="stat-card" onclick="showTab('applications');filterApps('pending')">
+    <div class="stat-number" id="stat-pending-apps">—</div>
+    <div class="stat-label">Pending Applications</div>
+</div>
+```
+
+And add to the showAdminScreen() function call loadApplicationCount():
+```javascript
+async function loadApplicationCount() {
+    try {
+        const res  = await adminFetch('/api/admin/applications');
+        const apps = await res.json();
+        const pending = apps.filter(a => a.status === 'pending').length;
+        document.getElementById('stat-pending-apps').textContent = pending;
+        if (pending > 0) {
+            document.getElementById('tab-applications').textContent = `📨 Applications (${pending})`;
+        }
+    } catch {}
+}
+```
+
+Call it in showAdminScreen():
+```javascript
+function showAdminScreen() {
+    ...existing code...
+    loadApplicationCount();  // ADD THIS LINE
+}
+
 </script>
 </body>
 </html>
