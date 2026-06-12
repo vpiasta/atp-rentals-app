@@ -1211,6 +1211,388 @@ app.post('/api/membership-apply',
     }
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  APPLICATIONS ENDPOINTS — add to server.js before server.listen()
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ── Get all applications ──────────────────────────────────────────────────────
+app.get('/api/admin/applications', requireAdmin, async (req, res) => {
+    const { data, error } = await supabase
+        .from('membership_applications')
+        .select('*')
+        .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+// ── Get single application ────────────────────────────────────────────────────
+app.get('/api/admin/application/:id', requireAdmin, async (req, res) => {
+    const { data, error } = await supabase
+        .from('membership_applications')
+        .select('*')
+        .eq('id', req.params.id)
+        .single();
+    if (error || !data) return res.status(404).json({ error: 'Not found' });
+    res.json(data);
+});
+
+// ── Update application status ─────────────────────────────────────────────────
+app.post('/api/admin/application-status', requireAdmin, async (req, res) => {
+    const { id, status, notes } = req.body;
+    if (!id || !status) return res.status(400).json({ error: 'Missing fields' });
+    const { error } = await supabase
+        .from('membership_applications')
+        .update({ status, notes, reviewed_at: new Date().toISOString(), reviewed_by: 'admin' })
+        .eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('application_status_changed', { id, status });
+    res.json({ success: true });
+});
+
+// ── AI verify documents ───────────────────────────────────────────────────────
+app.post('/api/admin/verify-documents', requireAdmin, async (req, res) => {
+    const { application_id } = req.body;
+    if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
+
+    // Get application
+    const { data: app, error: appError } = await supabase
+        .from('membership_applications')
+        .select('*')
+        .eq('id', application_id)
+        .single();
+    if (appError || !app) return res.status(404).json({ error: 'Application not found' });
+    if (!app.documents || !app.documents.length)
+        return res.status(400).json({ error: 'No documents to verify' });
+
+    try {
+        const imageContents = [];
+
+        // Download each document from Supabase Storage
+        for (const doc of app.documents) {
+            const { data: fileData, error: dlError } = await supabase.storage
+                .from('member-documents')
+                .download(doc.path);
+            if (dlError) continue;
+
+            const arrayBuffer = await fileData.arrayBuffer();
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+            // Only send images to vision (skip PDFs for now — Claude Vision handles jpg/png/webp/gif)
+            const isPdf = doc.mime === 'application/pdf';
+            if (!isPdf) {
+                imageContents.push({
+                    type: 'image',
+                    source: { type: 'base64', media_type: doc.mime, data: base64 }
+                });
+                imageContents.push({
+                    type: 'text',
+                    text: `The above image is the: ${doc.type.replace(/_/g,' ').toUpperCase()}`
+                });
+            }
+        }
+
+        if (!imageContents.length) {
+            return res.status(400).json({ error: 'No image documents available for AI verification. PDF documents must be reviewed manually.' });
+        }
+
+        // Build verification prompt
+        const prompt = `You are verifying membership application documents for a Panama tourism rental directory.
+
+Application details:
+- Property name: ${app.property_name}
+- Contact/representative name: ${app.contact_name}
+- Province: ${app.province}
+- Plan: ${app.membership_type === 'trial' ? 'Free trial' : app.duration_months + ' months paid'}
+- Payment method: ${app.payment_method || 'none'}
+- Amount expected: ${app.duration_months === 24 ? '$45' : app.duration_months === 12 ? '$24' : 'none (trial)'}
+
+Please verify the documents and return ONLY a JSON object with this structure:
+{
+  "aviso_operacion": {
+    "found": true/false,
+    "business_name": "name as shown on document",
+    "ruc": "RUC number",
+    "ruc_dv": "DV digit",
+    "legal_rep": "legal representative name",
+    "license_number": "license number",
+    "valid": true/false,
+    "notes": "any issues found"
+  },
+  "cedula": {
+    "found": true/false,
+    "id_holder_name": "name on ID",
+    "id_number": "ID number",
+    "notes": "any issues"
+  },
+  "payment": {
+    "found": true/false,
+    "amount": "amount shown",
+    "date": "payment date",
+    "method": "payment method detected",
+    "notes": "any issues"
+  },
+  "verification": {
+    "names_match": true/false,
+    "names_match_detail": "explanation",
+    "payment_matches": true/false,
+    "payment_match_detail": "explanation",
+    "overall_result": "PASS/FAIL/REVIEW",
+    "overall_notes": "summary recommendation"
+  }
+}
+Return ONLY the JSON, no other text.`;
+
+        // Call Claude API
+        const response = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-opus-4-5',
+            max_tokens: 1500,
+            messages: [{
+                role: 'user',
+                content: [...imageContents, { type: 'text', text: prompt }]
+            }]
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            timeout: 60000
+        });
+
+        const content = response.data.content[0].text;
+        const clean   = content.replace(/```json\n?|\n?```/g, '').trim();
+        const result  = JSON.parse(clean);
+
+        // Save extracted RUC data to listing if found
+        if (result.aviso_operacion?.ruc && app.listing_id) {
+            await supabase.from('listings').update({
+                ruc:            result.aviso_operacion.ruc,
+                ruc_dv:         result.aviso_operacion.ruc_dv,
+                legal_name:     result.aviso_operacion.business_name,
+                license_number: result.aviso_operacion.license_number,
+                verified_at:    new Date().toISOString(),
+                verified_by:    'ai'
+            }).eq('id', app.listing_id);
+        }
+
+        await logEvent('ai_verification_completed', {
+            application_id,
+            result: result.verification.overall_result
+        });
+
+        res.json({ success: true, verification: result });
+
+    } catch (err) {
+        console.error('AI verification error:', err.message);
+        res.status(500).json({ error: 'AI verification failed: ' + err.message });
+    }
+});
+
+// ── Approve application ───────────────────────────────────────────────────────
+app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
+    const bcrypt = require('bcrypt');
+    const { application_id } = req.body;
+    if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
+
+    const { data: app, error: appError } = await supabase
+        .from('membership_applications')
+        .select('*')
+        .eq('id', application_id)
+        .single();
+    if (appError || !app) return res.status(404).json({ error: 'Application not found' });
+
+    try {
+        // Generate random password
+        const chars    = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+        const password = Array.from({ length: 10 }, () =>
+            chars[Math.floor(Math.random() * chars.length)]).join('');
+        const hash = await bcrypt.hash(password, 10);
+
+        // Calculate membership dates
+        const isTrial    = app.membership_type === 'trial';
+        const daysToAdd  = isTrial ? 30 : 0;
+        const yearsToAdd = !isTrial ? (app.duration_months === 24 ? 2 : 1) : 0;
+        const paidUntil  = new Date();
+        if (daysToAdd)  paidUntil.setDate(paidUntil.getDate() + daysToAdd);
+        if (yearsToAdd) paidUntil.setFullYear(paidUntil.getFullYear() + yearsToAdd);
+        const paidUntilStr = paidUntil.toISOString().split('T')[0];
+
+        // Generate slug from property name
+        const slug = app.property_name
+            .toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+
+        // Find or create listing
+        let listingId = app.listing_id;
+        if (listingId) {
+            // Update existing listing
+            await supabase.from('listings').update({
+                is_member:             true,
+                is_trial:              isTrial,
+                trial_started_at:      isTrial ? new Date().toISOString() : null,
+                membership_paid_until: paidUntilStr,
+                member_password:       hash,
+                contact_name:          app.contact_name,
+                email_member:          app.contact_email,
+                phone_member:          app.contact_phone,
+                slug:                  slug,
+                invitation_status:     'member',
+                verified_at:           new Date().toISOString(),
+                verified_by:           'admin'
+            }).eq('id', listingId);
+        }
+
+        // Log invoice data
+        if (!isTrial) {
+            const amount    = app.duration_months === 24 ? 45 : 24;
+            const itbms     = parseFloat((amount * 0.07).toFixed(2));
+            const total     = parseFloat((amount + itbms).toFixed(2));
+            await supabase.from('event_log').insert({
+                event_type: 'invoice_pending',
+                event_data: {
+                    application_id,
+                    listing_id:   listingId,
+                    property_name: app.property_name,
+                    contact_name:  app.contact_name,
+                    contact_email: app.contact_email,
+                    ruc:           null,
+                    amount,
+                    itbms,
+                    total,
+                    plan:          app.duration_months + ' months',
+                    payment_method: app.payment_method,
+                    date:          new Date().toISOString()
+                },
+                created_at: new Date().toISOString()
+            });
+        }
+
+        // Update application status
+        await supabase.from('membership_applications').update({
+            status:       'approved',
+            reviewed_at:  new Date().toISOString(),
+            reviewed_by:  'admin'
+        }).eq('id', application_id);
+
+        // Send welcome email
+        const listingUrl = listingId
+            ? `https://trustedpanamastays.com/listing.html?id=${listingId}&lang=es`
+            : `https://trustedpanamastays.com`;
+
+        const planText = isTrial
+            ? 'prueba gratuita de 30 días'
+            : (app.duration_months === 24 ? 'membresía de 2 años' : 'membresía de 1 año');
+
+        const welcomeMsg = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">¡Bienvenido a Trusted Panama Stays!</h1>
+</div>
+<p>Estimado/a <strong>${app.contact_name}</strong>,</p>
+<p>Su solicitud de membresía ha sido <strong style="color:#00a859;">aprobada</strong>. Su ${planText} para <strong>${app.property_name}</strong> está activa hasta el <strong>${paidUntilStr}</strong>.</p>
+<h3 style="color:#005ca9;">Sus datos de acceso:</h3>
+<table style="border:1px solid #e1e5e9;border-radius:8px;padding:1rem;background:#f8f9fa;width:100%;">
+    <tr><td style="padding:6px;font-weight:bold;">URL de su listado:</td><td style="padding:6px;"><a href="${listingUrl}">${listingUrl}</a></td></tr>
+    <tr><td style="padding:6px;font-weight:bold;">Contraseña inicial:</td><td style="padding:6px;font-family:monospace;font-size:1.1rem;"><strong>${password}</strong></td></tr>
+</table>
+<p style="margin-top:1rem;color:#666;font-size:0.88rem;">Por seguridad, le recomendamos cambiar su contraseña después de su primer acceso.</p>
+${isTrial ? `<p style="background:#fffbe6;padding:1rem;border-radius:6px;border:1px solid #FFD700;"><strong>⚠️ Recordatorio:</strong> Su período de prueba vence el <strong>${paidUntilStr}</strong>. Recibirá un recordatorio 5 días antes para continuar con su membresía.</p>` : ''}
+<p>Para acceder a su listado y editarlo, visite el enlace arriba y haga clic en <strong>🔐 Acceso</strong>.</p>
+<p>¿Preguntas? Escríbanos a <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
+</body></html>`;
+
+        const notifyPath = path.join(__dirname, 'public', 'notify.php');
+        await execFileAsync('php', [
+            notifyPath,
+            `Membresía aprobada - ${app.property_name}`,
+            welcomeMsg,
+            app.contact_email
+        ], { timeout: 15000 }).catch(err =>
+            console.error('Welcome email failed:', err.message)
+        );
+
+        await logEvent('application_approved', {
+            application_id,
+            listing_id: listingId,
+            membership_type: app.membership_type,
+            paid_until: paidUntilStr
+        });
+
+        res.json({ success: true, password, paid_until: paidUntilStr, listing_id: listingId });
+
+    } catch (err) {
+        console.error('Approve error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Reject application ────────────────────────────────────────────────────────
+app.post('/api/admin/reject-application', requireAdmin, async (req, res) => {
+    const { application_id, reason, custom_note } = req.body;
+    if (!application_id || !reason) return res.status(400).json({ error: 'Missing fields' });
+
+    const { data: app, error: appError } = await supabase
+        .from('membership_applications')
+        .select('*')
+        .eq('id', application_id)
+        .single();
+    if (appError || !app) return res.status(404).json({ error: 'Not found' });
+
+    await supabase.from('membership_applications').update({
+        status:      'rejected',
+        notes:       `Razón: ${reason}${custom_note ? '. '+custom_note : ''}`,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: 'admin'
+    }).eq('id', application_id);
+
+    // Send rejection email
+    const rejectionMsg = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays — Su solicitud</h1>
+</div>
+<p>Estimado/a <strong>${app.contact_name}</strong>,</p>
+<p>Hemos revisado su solicitud de membresía para <strong>${app.property_name}</strong>.</p>
+<p>Lamentablemente no podemos aprobarla en este momento por la siguiente razón:</p>
+<div style="background:#fde8e8;border:1px solid #ffcccc;border-radius:8px;padding:1rem;margin:1rem 0;">
+    <strong>${reason}</strong>
+    ${custom_note ? `<br><br>${custom_note}` : ''}
+</div>
+<p>Si desea corregir la situación y volver a aplicar, puede hacerlo en:</p>
+<p><a href="https://trustedpanamastays.com/join.html" style="background:#005ca9;color:white;padding:8px 16px;text-decoration:none;border-radius:5px;">Nueva solicitud</a></p>
+<p>¿Preguntas? Escríbanos a <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
+</body></html>`;
+
+    const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    await execFileAsync('php', [
+        notifyPath,
+        `Solicitud de membresía - ${app.property_name}`,
+        rejectionMsg,
+        app.contact_email
+    ], { timeout: 15000 }).catch(err =>
+        console.error('Rejection email failed:', err.message)
+    );
+
+    await logEvent('application_rejected', { application_id, reason });
+    res.json({ success: true });
+});
+
+// ── Get pending invoice log (for monthly QB export) ───────────────────────────
+app.get('/api/admin/invoice-log', requireAdmin, async (req, res) => {
+    const { data, error } = await supabase
+        .from('event_log')
+        .select('*')
+        .eq('event_type', 'invoice_pending')
+        .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
 
 
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
