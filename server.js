@@ -1032,7 +1032,6 @@ app.get('/api/secret-debug', (req, res) => {
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  MEMBERSHIP APPLICATION ENDPOINT
-//  Add this to server.js before the server.listen() line
 // ═════════════════════════════════════════════════════════════════════════════
 
 // ── Multer config for membership docs (10MB limit) ────────────────────────────
@@ -1056,7 +1055,6 @@ app.post('/api/membership-apply',
         duration_months, payment_method
     } = req.body;
 
-    // Basic validation
     if (!property_name || !contact_name || !contact_email || !contact_phone) {
         return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
@@ -1065,7 +1063,30 @@ app.post('/api/membership-apply',
              || req.socket.remoteAddress;
 
     try {
-        // ── 1. Upload documents to Supabase Storage ───────────────────────────
+        // ── Try to find matching listing in database ───────────────────────
+        let listingId = null;
+        const { data: matchingListings } = await supabase
+            .from('listings')
+            .select('id, name, is_trial, trial_started_at, is_member')
+            .ilike('name', `%${property_name.trim()}%`)
+            .eq('province', province)
+            .limit(1);
+
+        if (matchingListings && matchingListings.length > 0) {
+            listingId = matchingListings[0].id;
+            const existing = matchingListings[0];
+
+            // ── Block trial if listing already had trial or membership ────
+            if (membership_type === 'trial') {
+                if (existing.trial_started_at || existing.is_member) {
+                    return res.status(400).json({
+                        error: 'Este hospedaje ya ha tenido una membresía de prueba o activa. Solo se permite una prueba gratuita por hospedaje. Por favor seleccione un plan de pago.'
+                    });
+                }
+            }
+        }
+
+        // ── Upload documents to Supabase Storage ──────────────────────────
         const documents = [];
         const fileFields = [
             { key: 'file_aviso',  type: 'aviso_operacion' },
@@ -1076,50 +1097,29 @@ app.post('/api/membership-apply',
         for (const { key, type } of fileFields) {
             const file = req.files?.[key]?.[0];
             if (!file) continue;
-
-            // Sanitize filename
             const safeName = file.originalname
                 .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                 .replace(/[^a-zA-Z0-9._-]/g, '_')
                 .replace(/_+/g, '_').toLowerCase();
-
             const fileName = `applications/${Date.now()}-${type}-${safeName}`;
-
             const { error: uploadError } = await supabase.storage
                 .from('member-documents')
                 .upload(fileName, file.buffer, {
                     contentType: file.mimetype,
                     upsert: false
                 });
-
             if (uploadError) {
                 console.error(`Upload error for ${type}:`, uploadError.message);
-                // Continue — don't fail the whole application for one file
             } else {
                 documents.push({
-                    type,
-                    path:     fileName,
+                    type, path: fileName,
                     uploaded: new Date().toISOString(),
-                    mime:     file.mimetype,
-                    size:     file.size
+                    mime: file.mimetype, size: file.size
                 });
             }
         }
 
-        // ── 2. Try to find matching listing in database ───────────────────────
-        let listingId = null;
-        const { data: matchingListings } = await supabase
-            .from('listings')
-            .select('id, name')
-            .ilike('name', `%${property_name.trim()}%`)
-            .eq('province', province)
-            .limit(1);
-
-        if (matchingListings && matchingListings.length > 0) {
-            listingId = matchingListings[0].id;
-        }
-
-        // ── 3. Save application to database ──────────────────────────────────
+        // ── Save application to database ──────────────────────────────────
         const { data: application, error: insertError } = await supabase
             .from('membership_applications')
             .insert({
@@ -1142,15 +1142,12 @@ app.post('/api/membership-apply',
 
         if (insertError) throw new Error(insertError.message);
 
-        // ── 4. Log the event ──────────────────────────────────────────────────
         await logEvent('membership_application_received', {
             application_id: application.id,
-            property_name,
-            membership_type,
-            listing_id: listingId
+            property_name, membership_type, listing_id: listingId
         });
 
-        // ── 5. Send email notification via notify.php ─────────────────────────
+        // ── Send notification email ───────────────────────────────────────
         const planText = membership_type === 'trial'
             ? 'Prueba gratuita 30 días'
             : (duration_months == 24 ? '2 años ($45)' : '1 año ($24)');
@@ -1167,52 +1164,38 @@ app.post('/api/membership-apply',
     <tr><td style="padding:6px;font-weight:bold;color:#555;">Teléfono:</td><td style="padding:6px;">${contact_phone}</td></tr>
     <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Plan:</td><td style="padding:6px;">${planText}</td></tr>
     <tr><td style="padding:6px;font-weight:bold;color:#555;">Pago:</td><td style="padding:6px;">${payment_method || 'N/A'}</td></tr>
-    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Documentos:</td><td style="padding:6px;">${documents.length} archivo(s) recibido(s)</td></tr>
-    <tr><td style="padding:6px;font-weight:bold;color:#555;">Listado ATP:</td><td style="padding:6px;">${listingId ? 'Encontrado (ID: '+listingId+')' : 'No encontrado automáticamente'}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Documentos:</td><td style="padding:6px;">${documents.length} archivo(s)</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">ATP match:</td><td style="padding:6px;">${listingId ? 'Sí (ID: '+listingId+')' : 'No encontrado'}</td></tr>
     <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">ID Solicitud:</td><td style="padding:6px;">${application.id}</td></tr>
 </table>
 <p style="margin-top:1rem;">
-    <a href="https://trustedpanamastays.com/admin.html" style="background:#005ca9;color:white;padding:8px 16px;text-decoration:none;border-radius:5px;">
+    <a href="https://trustedpanamastays.com/admin.html"
+       style="background:#005ca9;color:white;padding:8px 16px;text-decoration:none;border-radius:5px;">
         Ver en Panel de Admin
     </a>
 </p>
-<p style="color:#888;font-size:12px;margin-top:1rem;">
-    Trusted Panama Stays · info@trustedpanamastays.com
-</p>
+<p style="color:#888;font-size:12px;margin-top:1rem;">Trusted Panama Stays · info@trustedpanamastays.com</p>
 </body></html>`;
 
-        // Call notify.php via execFile
         const notifyPath = path.join(__dirname, 'public', 'notify.php');
         try {
-            await execFileAsync('php', [notifyPath, subject, message, 'info@trustedpanamastays.com'], {
-                timeout: 15000
-            });
-            console.log(`✅ Notification email sent for application ${application.id}`);
+            await execFileAsync('php', [notifyPath, subject, message, 'info@trustedpanamastays.com'], { timeout: 15000 });
         } catch (emailErr) {
-            // Don't fail the application if email fails
-            console.error('❌ Email notification failed:', emailErr.message);
-            await logEvent('notification_email_failed', {
-                application_id: application.id,
-                error: emailErr.message
-            });
+            console.error('Email notification failed:', emailErr.message);
+            await logEvent('notification_email_failed', { application_id: application.id, error: emailErr.message });
         }
 
-        // ── 6. Return success ─────────────────────────────────────────────────
-        res.json({
-            success:        true,
-            application_id: application.id,
-            listing_found:  !!listingId
-        });
+        res.json({ success: true, application_id: application.id, listing_found: !!listingId });
 
     } catch (err) {
-        console.error('❌ Membership application error:', err.message);
+        console.error('Membership application error:', err.message);
         await logEvent('membership_application_error', { error: err.message, property_name });
         res.status(500).json({ error: 'Error al procesar la solicitud: ' + err.message });
     }
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  APPLICATIONS ENDPOINTS — add to server.js before server.listen()
+//  APPLICATIONS ENDPOINTS 
 // ═════════════════════════════════════════════════════════════════════════════
 
 // ── Get all applications ──────────────────────────────────────────────────────
@@ -1402,32 +1385,59 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
     if (appError || !app) return res.status(404).json({ error: 'Application not found' });
 
     try {
-        // Generate random password
+        const isTrial   = app.membership_type === 'trial';
+        let listingId   = app.listing_id;
+
+        // ── Check existing trial/membership for trial applications ────────
+        if (isTrial && listingId) {
+            const { data: existing } = await supabase
+                .from('listings')
+                .select('is_trial, trial_started_at, is_member')
+                .eq('id', listingId)
+                .single();
+            if (existing?.trial_started_at || existing?.is_member) {
+                // Auto-reject this application
+                await supabase.from('membership_applications').update({
+                    status:      'rejected',
+                    notes:       'Rechazado automáticamente: este hospedaje ya tuvo una prueba gratuita o membresía activa.',
+                    reviewed_at: new Date().toISOString(),
+                    reviewed_by: 'system'
+                }).eq('id', application_id);
+
+                await logEvent('application_auto_rejected', {
+                    application_id,
+                    reason: 'existing_trial_or_membership',
+                    listing_id: listingId
+                });
+
+                return res.status(400).json({
+                    error: 'Este hospedaje ya tuvo una prueba gratuita o membresía. La solicitud ha sido rechazada automáticamente. Por favor ofrezca un plan de pago al solicitante.'
+                });
+            }
+        }
+
+        // ── Generate random password ──────────────────────────────────────
         const chars    = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
         const password = Array.from({ length: 10 }, () =>
             chars[Math.floor(Math.random() * chars.length)]).join('');
         const hash = await bcrypt.hash(password, 10);
 
-        // Calculate membership dates
-        const isTrial    = app.membership_type === 'trial';
-        const daysToAdd  = isTrial ? 30 : 0;
+        // ── Calculate membership dates ────────────────────────────────────
         const yearsToAdd = !isTrial ? (app.duration_months === 24 ? 2 : 1) : 0;
         const paidUntil  = new Date();
-        if (daysToAdd)  paidUntil.setDate(paidUntil.getDate() + daysToAdd);
+        if (isTrial)    paidUntil.setDate(paidUntil.getDate() + 30);
         if (yearsToAdd) paidUntil.setFullYear(paidUntil.getFullYear() + yearsToAdd);
         const paidUntilStr = paidUntil.toISOString().split('T')[0];
 
-        // Generate slug from property name
+        // ── Generate slug ─────────────────────────────────────────────────
         const slug = app.property_name
             .toLowerCase()
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-|-$/g, '');
 
-        // Find or create listing
-        let listingId = app.listing_id;
+        // ── Update listing ────────────────────────────────────────────────
         if (listingId) {
-            // Update existing listing
             await supabase.from('listings').update({
                 is_member:             true,
                 is_trial:              isTrial,
@@ -1444,39 +1454,37 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
             }).eq('id', listingId);
         }
 
-        // Log invoice data
+        // ── Log invoice data for paid plans ───────────────────────────────
         if (!isTrial) {
-            const amount    = app.duration_months === 24 ? 45 : 24;
-            const itbms     = parseFloat((amount * 0.07).toFixed(2));
-            const total     = parseFloat((amount + itbms).toFixed(2));
+            const amount = app.duration_months === 24 ? 45 : 24;
+            const itbms  = parseFloat((amount * 0.07).toFixed(2));
+            const total  = parseFloat((amount + itbms).toFixed(2));
             await supabase.from('event_log').insert({
                 event_type: 'invoice_pending',
                 event_data: {
                     application_id,
-                    listing_id:   listingId,
+                    listing_id:    listingId,
                     property_name: app.property_name,
                     contact_name:  app.contact_name,
                     contact_email: app.contact_email,
                     ruc:           null,
-                    amount,
-                    itbms,
-                    total,
-                    plan:          app.duration_months + ' months',
+                    amount, itbms, total,
+                    plan:           app.duration_months + ' months',
                     payment_method: app.payment_method,
-                    date:          new Date().toISOString()
+                    date:           new Date().toISOString()
                 },
                 created_at: new Date().toISOString()
             });
         }
 
-        // Update application status
+        // ── Update application status ─────────────────────────────────────
         await supabase.from('membership_applications').update({
-            status:       'approved',
-            reviewed_at:  new Date().toISOString(),
-            reviewed_by:  'admin'
+            status:      'approved',
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: 'admin'
         }).eq('id', application_id);
 
-        // Send welcome email
+        // ── Send welcome email ────────────────────────────────────────────
         const listingUrl = listingId
             ? `https://trustedpanamastays.com/listing.html?id=${listingId}&lang=es`
             : `https://trustedpanamastays.com`;
@@ -1492,14 +1500,19 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 </div>
 <p>Estimado/a <strong>${app.contact_name}</strong>,</p>
 <p>Su solicitud de membresía ha sido <strong style="color:#00a859;">aprobada</strong>. Su ${planText} para <strong>${app.property_name}</strong> está activa hasta el <strong>${paidUntilStr}</strong>.</p>
-<h3 style="color:#005ca9;">Sus datos de acceso:</h3>
-<table style="border:1px solid #e1e5e9;border-radius:8px;padding:1rem;background:#f8f9fa;width:100%;">
-    <tr><td style="padding:6px;font-weight:bold;">URL de su listado:</td><td style="padding:6px;"><a href="${listingUrl}">${listingUrl}</a></td></tr>
-    <tr><td style="padding:6px;font-weight:bold;">Contraseña inicial:</td><td style="padding:6px;font-family:monospace;font-size:1.1rem;"><strong>${password}</strong></td></tr>
+<h3 style="color:#005ca9;margin-top:1.2rem;">Sus datos de acceso:</h3>
+<table style="border:1px solid #e1e5e9;border-radius:8px;padding:1rem;background:#f8f9fa;width:100%;margin-bottom:1rem;">
+    <tr><td style="padding:6px;font-weight:bold;">URL de su listado:</td>
+        <td style="padding:6px;"><a href="${listingUrl}">${listingUrl}</a></td></tr>
+    <tr><td style="padding:6px;font-weight:bold;">Contraseña inicial:</td>
+        <td style="padding:6px;font-family:monospace;font-size:1.1rem;"><strong>${password}</strong></td></tr>
 </table>
-<p style="margin-top:1rem;color:#666;font-size:0.88rem;">Por seguridad, le recomendamos cambiar su contraseña después de su primer acceso.</p>
-${isTrial ? `<p style="background:#fffbe6;padding:1rem;border-radius:6px;border:1px solid #FFD700;"><strong>⚠️ Recordatorio:</strong> Su período de prueba vence el <strong>${paidUntilStr}</strong>. Recibirá un recordatorio 5 días antes para continuar con su membresía.</p>` : ''}
-<p>Para acceder a su listado y editarlo, visite el enlace arriba y haga clic en <strong>🔐 Acceso</strong>.</p>
+<p style="color:#666;font-size:0.88rem;">Por seguridad, le recomendamos cambiar su contraseña después de su primer acceso.</p>
+${isTrial ? `<p style="background:#fffbe6;padding:1rem;border-radius:6px;border:1px solid #FFD700;margin-top:1rem;">
+    <strong>⚠️ Recordatorio:</strong> Su período de prueba vence el <strong>${paidUntilStr}</strong>.
+    Recibirá un recordatorio 5 días antes para continuar con su membresía ($24/año o $45/2 años).
+</p>` : ''}
+<p style="margin-top:1rem;">Para editar su listado, visite el enlace arriba y haga clic en <strong>🔐 Acceso</strong>.</p>
 <p>¿Preguntas? Escríbanos a <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>
 <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
 <p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
@@ -1517,9 +1530,9 @@ ${isTrial ? `<p style="background:#fffbe6;padding:1rem;border-radius:6px;border:
 
         await logEvent('application_approved', {
             application_id,
-            listing_id: listingId,
+            listing_id:      listingId,
             membership_type: app.membership_type,
-            paid_until: paidUntilStr
+            paid_until:      paidUntilStr
         });
 
         res.json({ success: true, password, paid_until: paidUntilStr, listing_id: listingId });
