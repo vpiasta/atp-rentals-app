@@ -559,7 +559,7 @@ async function parsePDFWithCoordinates() {
 
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  API ENDPOINTS  (unchanged, still serve from CURRENT_RENTALS in memory)
+//  API ENDPOINTS  
 // ═════════════════════════════════════════════════════════════════════════════
 
 app.get('/api/stats', (req, res) => {
@@ -1232,7 +1232,9 @@ app.post('/api/admin/application-status', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ──────────────────────────────────────────────────────────────────────────────
 // ── AI verify documents ───────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
 app.post('/api/admin/verify-documents', requireAdmin, async (req, res) => {
     const { application_id } = req.body;
     if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
@@ -1343,12 +1345,13 @@ Please carefully read ALL documents provided and return ONLY a JSON object with 
     "id_type": "cédula or passport",
     "notes": "any issues"
   },
-  "payment": {
+"payment": {
     "found": true,
     "amount": "amount shown including currency symbol",
-    "date": "payment date in YYYY-MM-DD if possible",
+    "date": "payment date in YYYY-MM-DD format, remembering Panama uses dd-mm-yyyy",
     "reference": "transaction reference or confirmation number",
     "method": "transfer/yappy/other",
+    "payment_message": "content of MENSAJE/note/concept field, or 'empty' if blank",
     "notes": "any issues"
   },
   "verification": {
@@ -1371,6 +1374,9 @@ Important notes:
 - If a document type is not provided, set found: false and all other fields to null
 - Extract ALL visible text carefully — Panamanian government documents have standardized layouts
 - RUC format in Panama: digits-digit-digits (e.g. 8-123-456789 or 1401220-1-627960)
+- Today's date is ${new Date().toISOString().split('T')[0]}. Do not flag past dates as future dates.
+- Panama uses dd-mm-yyyy date format. A date like 28-05-2026 means May 28, 2026 which is in the past relative to today.
+- For payment receipts, look carefully for any message, note, concept, referencia, or MENSAJE field — even if empty. Extract its content or note that it is empty. Members are instructed to include their property name and province in this field.
 - Return ONLY the JSON, no other text, no markdown code blocks`;
 
         // ── Call Claude API ───────────────────────────────────────────────
