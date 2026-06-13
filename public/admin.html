@@ -1000,6 +1000,7 @@ async function verifyDocuments(appId) {
                 ${row('📅', 'Fecha',      pa.date)}
                 ${row('🔢', 'Referencia', pa.reference)}
                 ${row('💳', 'Método',     pa.method)}
+                ${row('💬', 'Mensaje',    pa.payment_message, pa.payment_message && pa.payment_message !== 'empty' ? 'verify-pass' : 'verify-warn')}
                 ${pa.notes ? row('⚠️', 'Notas', pa.notes, 'verify-warn') : ''}
             `) : ''}
 
