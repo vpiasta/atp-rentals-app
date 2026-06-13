@@ -1594,6 +1594,16 @@ app.get('/api/admin/invoice-log', requireAdmin, async (req, res) => {
     res.json(data);
 });
 
+app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
+    const { path: filePath } = req.query;
+    if (!filePath) return res.status(400).json({ error: 'Missing path' });
+    const { data, error } = await supabase.storage
+        .from('member-documents')
+        .createSignedUrl(filePath, 3600);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ url: data.signedUrl });
+});
+
 
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
