@@ -36,11 +36,12 @@
         .main { padding: 1.5rem; max-width: 1400px; margin: 0 auto; }
 
         /* ── Stats ── */
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
         .stat-card { background: #2c3e50; border-radius: 10px; padding: 1.2rem; text-align: center; cursor: pointer; transition: background 0.2s; }
         .stat-card:hover { background: #3d5166; }
         .stat-number { font-size: 2rem; font-weight: 700; color: #FFD700; }
         .stat-label  { font-size: 0.78rem; color: #aaa; margin-top: 0.3rem; }
+        .stat-card.highlight { border: 1px solid #FFD700; }
 
         /* ── Tabs ── */
         .tabs { display: flex; gap: 4px; margin-bottom: 1.5rem; flex-wrap: wrap; }
@@ -58,8 +59,10 @@
         .tbtn { padding: 8px 16px; border-radius: 7px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.2s; }
         .tbtn.primary { background: #005ca9; color: white; }
         .tbtn.primary:hover { background: #004885; }
+        .tbtn.success { background: #00a859; color: white; }
+        .tbtn.success:hover { background: #007a3d; }
 
-        /* ── Table ── */
+        /* ── Members table ── */
         .table-wrap { background: #2c3e50; border-radius: 10px; overflow: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
         th { background: #1a2a3a; padding: 10px 12px; text-align: left; color: #aaa; font-weight: 600; white-space: nowrap; position: sticky; top: 0; }
@@ -68,11 +71,7 @@
         tr:hover td { background: rgba(0,92,169,0.1); }
 
         /* ── Status badges ── */
-        .status-badge {
-            display: inline-block; padding: 3px 10px; border-radius: 12px;
-            font-size: 0.72rem; font-weight: 700; cursor: pointer;
-            transition: opacity 0.2s; white-space: nowrap;
-        }
+        .status-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; cursor: pointer; transition: opacity 0.2s; white-space: nowrap; }
         .status-badge:hover { opacity: 0.8; }
         .s-not-invited  { background: #1a5c1a; color: #adf5ad; }
         .s-invited      { background: #7a5c00; color: #FFD700; }
@@ -118,33 +117,17 @@
         .panel-msg.ok  { background: #1a5c1a; color: #adf5ad; display: inline-block; }
         .panel-msg.err { background: #7a0000; color: #ffaaaa; display: inline-block; }
 
-        /* ── WhatsApp message box ── */
+        /* ── WhatsApp ── */
         .wa-message { width: 100%; padding: 12px; border: 2px solid #25D366; border-radius: 7px; background: #1a2a3a; color: #eee; font-family: inherit; font-size: 0.88rem; line-height: 1.6; resize: vertical; min-height: 160px; }
         .wa-lang-toggle { display: flex; gap: 8px; margin-bottom: 0.8rem; }
         .wa-lang-btn { padding: 5px 14px; border-radius: 20px; border: 1px solid #3d5166; background: #1a2a3a; color: #aaa; cursor: pointer; font-size: 0.82rem; }
         .wa-lang-btn.active { background: #25D366; color: white; border-color: #25D366; }
 
-        /* ── Log ── */
-        .log-entry { background: #2c3e50; border-radius: 6px; padding: 0.7rem 1rem; margin-bottom: 6px; display: flex; gap: 1rem; align-items: flex-start; font-size: 0.8rem; }
-        .log-time { color: #aaa; white-space: nowrap; flex-shrink: 0; }
-        .log-type { font-weight: 700; color: #7ec8e3; flex-shrink: 0; min-width: 180px; }
-        .log-data { color: #ccc; word-break: break-all; }
-
-        /* ── IP card ── */
-        .ip-card { background: #2c3e50; border-radius: 10px; padding: 1.5rem; max-width: 500px; }
-        .ip-card h3 { color: #FFD700; margin-bottom: 1rem; }
-        .ip-display { font-size: 1.4rem; font-weight: 700; color: #7ec8e3; font-family: monospace; margin-bottom: 0.5rem; }
-
-        /* ── Applications tab ── */
-        .app-card {
-            background: #2c3e50; border-radius: 10px; padding: 1.2rem;
-            margin-bottom: 1rem; border-left: 4px solid #555;
-            transition: border-color 0.2s;
-        }
+        /* ── Applications ── */
+        .app-card { background: #2c3e50; border-radius: 10px; padding: 1.2rem; margin-bottom: 1rem; border-left: 4px solid #555; transition: border-color 0.2s; }
         .app-card.pending  { border-color: #FFD700; }
         .app-card.approved { border-color: #00a859; }
         .app-card.rejected { border-color: #cc0000; }
-        
         .app-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.8rem; }
         .app-name   { font-size: 1rem; font-weight: 700; color: white; }
         .app-meta   { font-size: 0.78rem; color: #aaa; margin-top: 0.2rem; }
@@ -152,63 +135,56 @@
         .app-status.pending  { background: #7a5c00; color: #FFD700; }
         .app-status.approved { background: #1a5c1a; color: #adf5ad; }
         .app-status.rejected { background: #7a0000; color: #ffaaaa; }
-        
         .app-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.82rem; }
         .app-detail-item { color: #ccc; }
         .app-detail-item strong { color: #7ec8e3; }
-        
         .app-docs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
-        .doc-btn {
-            padding: 5px 12px; border-radius: 6px; border: 1px solid #3d5166;
-            background: #1a2a3a; color: #7ec8e3; cursor: pointer;
-            font-size: 0.78rem; text-decoration: none; display: inline-flex; align-items: center; gap: 5px;
-            transition: all 0.2s;
-        }
+        .doc-btn { padding: 5px 12px; border-radius: 6px; border: 1px solid #3d5166; background: #1a2a3a; color: #7ec8e3; cursor: pointer; font-size: 0.78rem; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s; }
         .doc-btn:hover { background: #005ca9; color: white; border-color: #005ca9; }
-        
         .app-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         .app-btn { padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.82rem; font-weight: 600; transition: all 0.2s; }
         .app-btn.ai      { background: #6b46c1; color: white; }
         .app-btn.ai:hover { background: #553c9a; }
         .app-btn.approve { background: #00a859; color: white; }
         .app-btn.approve:hover { background: #007a3d; }
-        .app-btn.reject  { background: #7a0000; color: #ffaaaa; border: 1px solid #cc0000; }
+        .app-btn.reject  { background: #3d5166; color: #ffaaaa; border: 1px solid #7a0000; }
         .app-btn.reject:hover { background: #cc0000; color: white; }
-        
-        .verify-result {
-            background: #1a2a3a; border-radius: 8px; padding: 1rem;
-            margin-top: 0.8rem; font-size: 0.82rem; display: none;
-        }
+        .verify-result { background: #1a2a3a; border-radius: 8px; padding: 1rem; margin-top: 0.8rem; font-size: 0.82rem; display: none; }
         .verify-result.visible { display: block; }
         .verify-row { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; border-bottom: 1px solid #2c3e50; }
         .verify-row:last-child { border-bottom: none; }
-        .verify-icon { flex-shrink: 0; font-size: 1rem; }
+        .verify-icon { flex-shrink: 0; }
         .verify-label { color: #aaa; min-width: 140px; }
         .verify-value { color: white; flex: 1; }
-        .verify-pass { color: #adf5ad; }
-        .verify-fail { color: #ff7070; }
-        .verify-warn { color: #FFD700; }
-        
+        .verify-pass { color: #adf5ad; font-weight: 700; }
+        .verify-fail { color: #ff7070; font-weight: 700; }
+        .verify-warn { color: #FFD700; font-weight: 700; }
         .reject-form { background: #1a2a3a; border-radius: 8px; padding: 1rem; margin-top: 0.8rem; display: none; }
         .reject-form.visible { display: block; }
-        .reject-form select, .reject-form textarea {
-            width: 100%; padding: 8px 10px; border: 2px solid #3d5166; border-radius: 6px;
-            background: #2c3e50; color: white; font-family: inherit; font-size: 0.85rem;
-            margin-bottom: 0.8rem;
-        }
+        .reject-form select, .reject-form textarea { width: 100%; padding: 8px 10px; border: 2px solid #3d5166; border-radius: 6px; background: #2c3e50; color: white; font-family: inherit; font-size: 0.85rem; margin-bottom: 0.8rem; }
         .reject-form textarea { resize: vertical; min-height: 70px; }
-        
         .approve-result { background: #1a3a1a; border: 1px solid #00a859; border-radius: 8px; padding: 1rem; margin-top: 0.8rem; display: none; }
         .approve-result.visible { display: block; }
-        
-        .invoice-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-        .invoice-table th { background: #1a2a3a; padding: 8px 10px; text-align: left; color: #aaa; }
-        .invoice-table td { padding: 8px 10px; border-bottom: 1px solid #3d5166; }
-        
         .filter-tabs { display: flex; gap: 4px; margin-bottom: 1rem; flex-wrap: wrap; }
         .filter-tab { padding: 5px 14px; border-radius: 20px; border: 1px solid #3d5166; background: #1a2a3a; color: #aaa; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
         .filter-tab.active { background: #005ca9; color: white; border-color: #005ca9; }
-        
+
+        /* ── Invoice table ── */
+        .invoice-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .invoice-table th { background: #1a2a3a; padding: 8px 10px; text-align: left; color: #aaa; }
+        .invoice-table td { padding: 8px 10px; border-bottom: 1px solid #3d5166; }
+
+        /* ── Log ── */
+        .log-entry { background: #2c3e50; border-radius: 6px; padding: 0.7rem 1rem; margin-bottom: 6px; display: flex; gap: 1rem; align-items: flex-start; font-size: 0.8rem; }
+        .log-time { color: #aaa; white-space: nowrap; flex-shrink: 0; }
+        .log-type { font-weight: 700; color: #7ec8e3; flex-shrink: 0; min-width: 180px; }
+        .log-data { color: #ccc; word-break: break-all; }
+
+        /* ── IP ── */
+        .ip-card { background: #2c3e50; border-radius: 10px; padding: 1.5rem; max-width: 500px; }
+        .ip-card h3 { color: #FFD700; margin-bottom: 1rem; }
+        .ip-display { font-size: 1.4rem; font-weight: 700; color: #7ec8e3; font-family: monospace; margin-bottom: 0.5rem; }
+
         .loading-row td { text-align: center; padding: 2rem; color: #aaa; }
         .no-results { text-align: center; padding: 2rem; color: #aaa; }
         .row-count { font-size: 0.78rem; color: #aaa; margin-top: 0.5rem; }
@@ -217,7 +193,7 @@
 <body>
 
 <!-- ── Login ── -->
-<div class="login-screen" id="login-screen">
+<div class="login-screen" id="login-screen" style="display:none;">
     <div class="login-card">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.5rem;">
             <svg width="48" height="48" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260">
@@ -231,8 +207,11 @@
             <div><h1>Admin Panel</h1><p>Trusted Panama Stays</p></div>
         </div>
         <div class="login-error" id="login-error"></div>
-        <input type="password" class="login-input" id="admin-password" placeholder="Admin password" autocomplete="current-password">
-        <button class="login-btn" onclick="doLogin()">🔐 Login</button>
+        <form onsubmit="doLogin(); return false;">
+            <input type="password" class="login-input" id="admin-password"
+                   placeholder="Admin password" autocomplete="current-password">
+            <button type="submit" class="login-btn">🔐 Login</button>
+        </form>
         <p style="font-size:0.75rem;color:#555;margin-top:1rem;text-align:center;">IP + password required</p>
     </div>
 </div>
@@ -253,6 +232,8 @@
         </div>
         <div class="header-right">
             <button class="hbtn" onclick="showTab('members')">👥 Members</button>
+            <button class="hbtn" onclick="showTab('applications')">📨 Applications</button>
+            <button class="hbtn" onclick="showTab('invoices')">🧾 Invoices</button>
             <button class="hbtn" onclick="showTab('log')">📋 Log</button>
             <button class="hbtn" onclick="showTab('ip')">🌐 IP</button>
             <button class="hbtn danger" onclick="doLogout()">Log Out</button>
@@ -291,7 +272,7 @@
                 <div class="stat-number" id="stat-refused">—</div>
                 <div class="stat-label">Refused</div>
             </div>
-            <div class="stat-card" onclick="showTab('applications');filterApps('pending')">
+            <div class="stat-card highlight" onclick="showTab('applications');filterApps('pending')">
                 <div class="stat-number" id="stat-pending-apps">—</div>
                 <div class="stat-label">Pending Applications</div>
             </div>
@@ -334,7 +315,7 @@
                     <label>Slug (URL identifier)</label>
                     <input type="text" id="edit-slug" placeholder="e.g. aparthotel-boquete">
                 </div>
-                <div class="field-group" style="grid-column: 1/-1;">
+                <div class="field-group" style="grid-column:1/-1;">
                     <label>Notes (internal)</label>
                     <textarea id="edit-notes" placeholder="Internal notes..."></textarea>
                 </div>
@@ -375,9 +356,7 @@
             </div>
             <textarea class="wa-message" id="wa-message" rows="8"></textarea>
             <div class="panel-actions" style="margin-top:1rem;">
-                <a id="wa-send-link" href="#" target="_blank" class="panel-btn wa" onclick="markInvitedFromWa()">
-                    💬 Open WhatsApp
-                </a>
+                <a id="wa-send-link" href="#" target="_blank" class="panel-btn wa" onclick="markInvitedFromWa()">💬 Open WhatsApp</a>
                 <button class="panel-btn cancel" onclick="closePanel('wa-panel')">Cancel</button>
                 <span style="font-size:0.75rem;color:#aaa;">Opens WhatsApp with pre-written message. Clicking marks as Invited.</span>
             </div>
@@ -385,18 +364,17 @@
 
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab active" onclick="showTab('members')" id="tab-members">👥 Members</button>
-            <button class="tab" onclick="showTab('applications')" id="tab-applications">📨 Applications</button>
-            <button class="tab" onclick="showTab('invoices')" id="tab-invoices">🧾 Invoices</button>
-            <button class="tab" onclick="showTab('log')" id="tab-log">📋 Event Log</button>
-            <button class="tab" onclick="showTab('ip')" id="tab-ip">🌐 IP</button>
+            <button class="tab active" onclick="showTab('members')"      id="tab-members">👥 Members</button>
+            <button class="tab"        onclick="showTab('applications')" id="tab-applications">📨 Applications</button>
+            <button class="tab"        onclick="showTab('invoices')"     id="tab-invoices">🧾 Invoices</button>
+            <button class="tab"        onclick="showTab('log')"          id="tab-log">📋 Event Log</button>
+            <button class="tab"        onclick="showTab('ip')"           id="tab-ip">🌐 IP</button>
         </div>
 
         <!-- Members tab -->
         <div class="tab-content active" id="content-members">
             <div class="toolbar">
-                <input type="text" id="member-search" placeholder="Search name, province, email, contact..."
-                       oninput="filterMembers()">
+                <input type="text" id="member-search" placeholder="Search name, province, email, contact..." oninput="filterMembers()">
                 <select id="member-filter" onchange="filterMembers()">
                     <option value="all">All listings</option>
                     <option value="members">Active members</option>
@@ -414,14 +392,8 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Name / Contact</th>
-                            <th>Province</th>
-                            <th>Type</th>
-                            <th>Email / Phone</th>
-                            <th>Status</th>
-                            <th>Paid Until</th>
-                            <th>Actions</th>
+                            <th>ID</th><th>Name / Contact</th><th>Province</th><th>Type</th>
+                            <th>Email / Phone</th><th>Status</th><th>Paid Until</th><th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="members-tbody">
@@ -432,6 +404,44 @@
             <div class="row-count">Showing <span id="showing-count">0</span> of <span id="total-count">0</span> listings</div>
         </div>
 
+        <!-- Applications tab -->
+        <div class="tab-content" id="content-applications">
+            <div class="filter-tabs">
+                <button class="filter-tab active" onclick="filterApps('all')"      id="ftab-all">All</button>
+                <button class="filter-tab"        onclick="filterApps('pending')"  id="ftab-pending">⏳ Pending</button>
+                <button class="filter-tab"        onclick="filterApps('approved')" id="ftab-approved">✅ Approved</button>
+                <button class="filter-tab"        onclick="filterApps('rejected')" id="ftab-rejected">❌ Rejected</button>
+            </div>
+            <div class="toolbar">
+                <button class="tbtn primary" onclick="loadApplications()">🔄 Refresh</button>
+                <span id="app-count" style="font-size:0.82rem;color:#aaa;align-self:center;"></span>
+            </div>
+            <div id="applications-container">
+                <div class="no-results">Click Refresh to load applications</div>
+            </div>
+        </div>
+
+        <!-- Invoices tab -->
+        <div class="tab-content" id="content-invoices">
+            <div class="toolbar">
+                <button class="tbtn primary" onclick="loadInvoiceLog()">🔄 Refresh</button>
+                <button class="tbtn success" onclick="exportInvoiceCSV()">📥 Export CSV</button>
+            </div>
+            <div class="table-wrap" style="margin-top:1rem;">
+                <table class="invoice-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th><th>Property</th><th>Contact</th><th>Email</th>
+                            <th>RUC</th><th>Plan</th><th>Amount</th><th>ITBMS</th><th>Total</th><th>Payment</th>
+                        </tr>
+                    </thead>
+                    <tbody id="invoice-tbody">
+                        <tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem;">Click Refresh to load</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Log tab -->
         <div class="tab-content" id="content-log">
             <div class="toolbar">
@@ -440,6 +450,7 @@
                     <option value="all">All events</option>
                     <option value="admin">Admin actions</option>
                     <option value="invitation">Invitations</option>
+                    <option value="application">Applications</option>
                     <option value="error">Errors</option>
                 </select>
             </div>
@@ -450,73 +461,31 @@
         <div class="tab-content" id="content-ip">
             <div class="ip-card">
                 <h3>🌐 IP Address Management</h3>
-                <p style="font-size:0.82rem;color:#aaa;margin-bottom:1rem;">Registered admin IP — must match your current IP to access admin functions.</p>
+                <p style="font-size:0.82rem;color:#aaa;margin-bottom:1rem;">Registered admin IP — must match your current IP.</p>
                 <div class="ip-display" id="current-admin-ip">Loading...</div>
                 <p style="font-size:0.8rem;color:#aaa;margin-bottom:1rem;">Your current IP: <strong id="your-current-ip" style="color:#7ec8e3;">Loading...</strong></p>
-                <button class="tbtn primary" onclick="updateAdminIP()" style="margin-bottom:1rem;">📍 Update to My Current IP</button>
+                <button class="tbtn success" onclick="updateAdminIP()" style="margin-bottom:1rem;">📍 Update to My Current IP</button>
                 <p style="font-size:0.75rem;color:#555;margin-top:0.5rem;">
-                    From phone/remote:<br>
+                    From phone:<br>
                     <code style="color:#7ec8e3;font-size:0.72rem;">https://trustedpanamastays.com/api/update-admin-ip?secret=ADMIN_SECRET</code>
                 </p>
             </div>
         </div>
-        <div class="tab-content" id="content-applications">
-            <div class="filter-tabs">
-                <button class="filter-tab active" onclick="filterApps('all')" id="ftab-all">All</button>
-                <button class="filter-tab" onclick="filterApps('pending')" id="ftab-pending">⏳ Pending</button>
-                <button class="filter-tab" onclick="filterApps('approved')" id="ftab-approved">✅ Approved</button>
-                <button class="filter-tab" onclick="filterApps('rejected')" id="ftab-rejected">❌ Rejected</button>
-            </div>
-            <div class="toolbar">
-                <button class="tbtn primary" onclick="loadApplications()">🔄 Refresh</button>
-                <span id="app-count" style="font-size:0.82rem;color:#aaa;align-self:center;"></span>
-            </div>
-            <div id="applications-container">
-                <div class="no-results">Click Refresh to load applications</div>
-            </div>
-        </div>
-        <!-- Invoices tab -->
-        <div class="tab-content" id="content-invoices">
-            <div class="toolbar">
-                <button class="tbtn primary" onclick="loadInvoiceLog()">🔄 Refresh</button>
-                <button class="tbtn primary" onclick="exportInvoiceCSV()" style="background:#00a859;">📥 Export CSV</button>
-            </div>
-            <div class="table-wrap" style="margin-top:1rem;">
-                <table class="invoice-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Property</th>
-                            <th>Contact</th>
-                            <th>Email</th>
-                            <th>RUC</th>
-                            <th>Plan</th>
-                            <th>Amount</th>
-                            <th>ITBMS</th>
-                            <th>Total</th>
-                            <th>Payment</th>
-                        </tr>
-                    </thead>
-                    <tbody id="invoice-tbody">
-                        <tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem;">Click Refresh to load</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+
     </div>
 </div>
 
 <script>
 const API = '';
-let adminToken = sessionStorage.getItem('admin_token') || null;
-let allMembers = [];
-let allLogs    = [];
-let waLang     = 'es';
+let adminToken  = sessionStorage.getItem('admin_token') || null;
+let allMembers  = [];
+let allLogs     = [];
+let allApplications = [];
+let allInvoices = [];
+let waLang      = 'es';
 let currentWaMember = null;
 
 // ── Login ─────────────────────────────────────────────────────────────────────
-document.getElementById('admin-password').addEventListener('keypress', e => { if (e.key==='Enter') doLogin(); });
-
 async function doLogin() {
     const password = document.getElementById('admin-password').value;
     const errorEl  = document.getElementById('login-error');
@@ -555,17 +524,21 @@ async function adminFetch(url, options={}) {
         ...options,
         headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${adminToken}`, ...(options.headers||{}) }
     });
-    if (res.status === 401 || res.status === 403) { doLogout(); throw new Error('Session expired — please log in again'); }
+    if (res.status === 401 || res.status === 403) {
+        doLogout();
+        throw new Error('Session expired — please log in again');
+    }
     return res;
 }
 
 // ── Show admin ────────────────────────────────────────────────────────────────
 function showAdminScreen() {
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('admin-screen').style.display = 'block';
-    document.getElementById('session-info').textContent = 'Session active · ' + new Date().toLocaleTimeString();
+    document.getElementById('login-screen').style.display  = 'none';
+    document.getElementById('admin-screen').style.display  = 'block';
+    document.getElementById('session-info').textContent    = 'Session active · ' + new Date().toLocaleTimeString();
     loadMembers();
     loadIPInfo();
+    loadApplicationCount();
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -574,43 +547,33 @@ function showTab(name) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.getElementById('tab-'+name).classList.add('active');
     document.getElementById('content-'+name).classList.add('active');
-    if (name === 'log') loadLog();
-    if (name === 'ip')  loadIPInfo();
+    if (name === 'log')          loadLog();
+    if (name === 'ip')           loadIPInfo();
+    if (name === 'applications') loadApplications();
+    if (name === 'invoices')     loadInvoiceLog();
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 function getInvitationStatus(m) {
-    const today = new Date();
-    // Member — invitation status irrelevant
-    if (m.is_member && m.membership_paid_until >= today.toISOString().split('T')[0])
-        return { key: 'member', label: 'MEMBER', cls: 's-member' };
-    // Expired member
-    if (m.is_member && m.membership_paid_until < today.toISOString().split('T')[0])
-        return { key: 'expired', label: 'UNPAID', cls: 's-unpaid' };
-    // Not in ATP list
-    if (!m.atp_active)
-        return { key: 'unregistered', label: 'UNREGISTERED', cls: 's-unregistered' };
-    // Refused
-    if (m.invitation_status === 'refused')
-        return { key: 'refused', label: 'REFUSED', cls: 's-refused' };
-    // Invited — check if 30+ days without response
+    const today = new Date().toISOString().split('T')[0];
+    if (m.is_member && m.membership_paid_until >= today) return { key:'member',      label:'MEMBER',       cls:'s-member' };
+    if (m.is_member && m.membership_paid_until <  today) return { key:'expired',     label:'UNPAID',       cls:'s-unpaid' };
+    if (!m.atp_active)                                   return { key:'unregistered',label:'UNREGISTERED', cls:'s-unregistered' };
+    if (m.invitation_status === 'refused')               return { key:'refused',     label:'REFUSED',      cls:'s-refused' };
     if (m.invitation_status === 'invited' || m.invitation_sent_at) {
         const sentAt = new Date(m.invitation_sent_at);
-        const daysSince = (today - sentAt) / (1000*60*60*24);
-        if (daysSince >= 30)
-            return { key: 'no_response', label: 'NO RESPONSE', cls: 's-no-response' };
-        return { key: 'invited', label: 'INVITED', cls: 's-invited', date: sentAt.toLocaleDateString() };
+        const daysSince = (new Date() - sentAt) / (1000*60*60*24);
+        if (daysSince >= 30) return { key:'no_response', label:'NO RESPONSE', cls:'s-no-response' };
+        return { key:'invited', label:'INVITED', cls:'s-invited', date: sentAt.toLocaleDateString() };
     }
-    // Default: not invited
-    return { key: 'not_invited', label: 'INVITE', cls: 's-not-invited' };
+    return { key:'not_invited', label:'INVITE', cls:'s-not-invited' };
 }
 
 // ── Load members ──────────────────────────────────────────────────────────────
 async function loadMembers() {
-    document.getElementById('members-tbody').innerHTML =
-        '<tr class="loading-row"><td colspan="8">Loading...</td></tr>';
+    document.getElementById('members-tbody').innerHTML = '<tr class="loading-row"><td colspan="8">Loading...</td></tr>';
     try {
-        const res  = await adminFetch('/api/admin/members');
+        const res = await adminFetch('/api/admin/members');
         allMembers = await res.json();
         updateStats(allMembers);
         renderMembers(allMembers);
@@ -626,12 +589,12 @@ function updateStats(members) {
     members.forEach(m => {
         counts.total++;
         const s = getInvitationStatus(m);
-        if (s.key === 'member')      counts.members++;
-        if (s.key === 'expired')     counts.expired++;
-        if (s.key === 'not_invited') counts.notInvited++;
-        if (s.key === 'invited')     counts.invited++;
-        if (s.key === 'no_response') counts.noResponse++;
-        if (s.key === 'refused')     counts.refused++;
+        if (s.key==='member')      counts.members++;
+        if (s.key==='expired')     counts.expired++;
+        if (s.key==='not_invited') counts.notInvited++;
+        if (s.key==='invited')     counts.invited++;
+        if (s.key==='no_response') counts.noResponse++;
+        if (s.key==='refused')     counts.refused++;
     });
     document.getElementById('stat-total').textContent       = counts.total;
     document.getElementById('stat-members').textContent     = counts.members;
@@ -652,7 +615,6 @@ function filterMembers() {
     const search = document.getElementById('member-search').value.toLowerCase();
     const filter = document.getElementById('member-filter').value;
     const today  = new Date().toISOString().split('T')[0];
-
     let filtered = allMembers.filter(m => {
         const matchSearch = !search ||
             m.name.toLowerCase().includes(search) ||
@@ -661,15 +623,14 @@ function filterMembers() {
             (m.contact_name||'').toLowerCase().includes(search) ||
             (m.rental_type||'').toLowerCase().includes(search);
         if (!matchSearch) return false;
-
         const s = getInvitationStatus(m);
-        switch (filter) {
-            case 'members':     return s.key === 'member';
-            case 'expired':     return s.key === 'expired';
-            case 'not-invited': return s.key === 'not_invited';
-            case 'invited':     return s.key === 'invited';
-            case 'no-response': return s.key === 'no_response';
-            case 'refused':     return s.key === 'refused';
+        switch(filter) {
+            case 'members':     return s.key==='member';
+            case 'expired':     return s.key==='expired';
+            case 'not-invited': return s.key==='not_invited';
+            case 'invited':     return s.key==='invited';
+            case 'no-response': return s.key==='no_response';
+            case 'refused':     return s.key==='refused';
             case 'no-email':    return !m.email;
             case 'no-atp':      return !m.atp_active;
             default:            return true;
@@ -682,103 +643,74 @@ function renderMembers(members) {
     document.getElementById('showing-count').textContent = members.length;
     document.getElementById('total-count').textContent   = allMembers.length;
     const tbody = document.getElementById('members-tbody');
-    if (!members.length) {
-        tbody.innerHTML = '<tr class="loading-row"><td colspan="8">No results</td></tr>';
-        return;
-    }
+    if (!members.length) { tbody.innerHTML = '<tr class="loading-row"><td colspan="8">No results</td></tr>'; return; }
     const today = new Date().toISOString().split('T')[0];
     tbody.innerHTML = members.map(m => {
         const s = getInvitationStatus(m);
         const atpBadge = m.atp_active
             ? `<span class="status-badge s-atp">ATP</span>`
             : `<span class="status-badge s-no-atp">NO ATP</span>`;
-
-        // Status badge — clickable to cycle through states
         const statusBadge = `<span class="status-badge ${s.cls}" onclick="cycleStatus(${m.id})"
-            title="${s.date ? 'Invited: '+s.date : ''}">${s.label}</span>`;
-
+            title="${s.date?'Invited: '+s.date:''}">${s.label}</span>`;
         const paidUntil = m.membership_paid_until
             ? `<span style="color:${m.membership_paid_until<today?'#ff7070':'#adf5ad'};font-size:0.78rem;">${m.membership_paid_until}</span>`
             : '<span style="color:#555;">—</span>';
-
-        // Phone for WhatsApp
         const phone = m.phone ? m.phone.replace(/[^\d]/g,'').substring(0,8) : '';
-        const waBtn = phone
-            ? `<button class="action-btn wa" onclick="openWaPanel(${m.id})" title="WhatsApp invitation">💬</button>`
-            : '';
-
+        const waBtn = phone ? `<button class="action-btn wa" onclick="openWaPanel(${m.id})" title="WhatsApp">💬</button>` : '';
         return `<tr>
             <td style="color:#555;font-size:0.72rem;">${m.id}</td>
-            <td>
-                <strong style="font-size:0.85rem;">${m.name}</strong>
-                ${m.contact_name ? `<br><span style="color:#aaa;font-size:0.72rem;">${m.contact_name}</span>` : ''}
-                ${m.slug ? `<br><span style="color:#555;font-size:0.68rem;">${m.slug}</span>` : ''}
+            <td><strong style="font-size:0.85rem;">${m.name}</strong>
+                ${m.contact_name?`<br><span style="color:#aaa;font-size:0.72rem;">${m.contact_name}</span>`:''}
+                ${m.slug?`<br><span style="color:#555;font-size:0.68rem;">${m.slug}</span>`:''}
             </td>
             <td style="font-size:0.78rem;">${m.province||'—'}</td>
             <td style="font-size:0.75rem;">${m.rental_type||'—'}</td>
             <td style="font-size:0.78rem;">
-                ${m.email ? `<a href="mailto:${m.email}" style="color:#7ec8e3;">${m.email}</a>` : '<span style="color:#ff7070;font-size:0.72rem;">no email</span>'}
-                ${m.phone ? `<br><span style="color:#aaa;">${m.phone.replace(/^\/+|\/+$/g,'').trim()}</span>` : ''}
+                ${m.email?`<a href="mailto:${m.email}" style="color:#7ec8e3;">${m.email}</a>`:'<span style="color:#ff7070;font-size:0.72rem;">no email</span>'}
+                ${m.phone?`<br><span style="color:#aaa;">${m.phone.replace(/^\/+|\/+$/g,'').trim()}</span>`:''}
             </td>
             <td>${statusBadge}<br>${atpBadge}</td>
             <td>${paidUntil}</td>
             <td style="white-space:nowrap;">
                 <button class="action-btn edit" onclick="openEditPanel(${m.id})">✏️</button>
-                <button class="action-btn pwd"  onclick="openPwdPanel(${m.id}, '${m.name.replace(/'/g,"\\'")}')">🔑</button>
+                <button class="action-btn pwd"  onclick="openPwdPanel(${m.id},'${m.name.replace(/'/g,"\\'")}')">🔑</button>
                 ${waBtn}
             </td>
         </tr>`;
     }).join('');
 }
 
-// ── Cycle status (click on badge) ─────────────────────────────────────────────
+// ── Cycle status ──────────────────────────────────────────────────────────────
 async function cycleStatus(id) {
-    const m = allMembers.find(x => x.id === id);
+    const m = allMembers.find(x => x.id===id);
     if (!m) return;
     const s = getInvitationStatus(m);
-
-    // Define cycle: not_invited → invited → no_response → refused → not_invited
-    // Members/expired handled by edit panel
-    if (s.key === 'member' || s.key === 'expired' || s.key === 'unregistered') {
-        openEditPanel(id); return;
-    }
-
-    const nextStatus = {
-        'not_invited': 'invited',
-        'invited':     'no_response',
-        'no_response': 'refused',
-        'refused':     'not_invited'
-    }[s.key] || 'not_invited';
-
+    if (['member','expired','unregistered'].includes(s.key)) { openEditPanel(id); return; }
+    const nextStatus = { not_invited:'invited', invited:'no_response', no_response:'refused', refused:'not_invited' }[s.key]||'not_invited';
     if (!confirm(`Change status to: ${nextStatus.replace('_',' ').toUpperCase()}?`)) return;
-
     try {
-        const res = await adminFetch('/api/admin/set-invitation-status', {
-            method: 'POST', body: JSON.stringify({ id, status: nextStatus })
-        });
+        const res = await adminFetch('/api/admin/set-invitation-status', { method:'POST', body: JSON.stringify({ id, status: nextStatus }) });
         if (res.ok) {
-            // Update local data
             m.invitation_status = nextStatus;
-            if (nextStatus === 'invited') m.invitation_sent_at = new Date().toISOString();
-            if (nextStatus === 'not_invited') m.invitation_sent_at = null;
-            updateStats(allMembers);
-            filterMembers();
+            if (nextStatus==='invited') m.invitation_sent_at = new Date().toISOString();
+            if (nextStatus==='not_invited') m.invitation_sent_at = null;
+            updateStats(allMembers); filterMembers();
         }
-    } catch (err) { alert('Error: ' + err.message); }
+    } catch (err) { alert('Error: '+err.message); }
 }
 
 // ── Edit panel ────────────────────────────────────────────────────────────────
 function openEditPanel(id) {
-    const m = allMembers.find(x => x.id === id);
+    const m = allMembers.find(x => x.id===id);
     if (!m) return;
     document.getElementById('edit-id').value           = m.id;
     document.getElementById('edit-name').value         = m.name;
-    document.getElementById('edit-contact-name').value = m.contact_name || '';
-    document.getElementById('edit-is-member').value    = m.is_member ? 'true' : 'false';
-    document.getElementById('edit-paid-until').value   = m.membership_paid_until || '';
-    document.getElementById('edit-inv-status').value   = m.invitation_status || 'not_invited';
-    document.getElementById('edit-slug').value         = m.slug || '';
-    document.getElementById('edit-notes').value        = m.notes || '';
+    document.getElementById('edit-contact-name').value = m.contact_name||'';
+    document.getElementById('edit-is-member').value    = m.is_member?'true':'false';
+    document.getElementById('edit-paid-until').value   = m.membership_paid_until||'';
+    document.getElementById('edit-inv-status').value   = m.invitation_status||'not_invited';
+    document.getElementById('edit-slug').value         = m.slug||'';
+    document.getElementById('edit-notes').value        = m.notes||'';
     document.getElementById('edit-panel-title').textContent = `Edit: ${m.name}`;
     document.getElementById('edit-msg').style.display  = 'none';
     closePanel('pwd-panel'); closePanel('wa-panel');
@@ -792,34 +724,29 @@ async function saveMember() {
     msg.style.display = 'none';
     const invStatus = document.getElementById('edit-inv-status').value;
     const payload = {
-        id:                    parseInt(id),
-        is_member:             document.getElementById('edit-is-member').value === 'true',
-        membership_paid_until: document.getElementById('edit-paid-until').value || null,
-        contact_name:          document.getElementById('edit-contact-name').value.trim() || null,
-        slug:                  document.getElementById('edit-slug').value.trim() || null,
-        notes:                 document.getElementById('edit-notes').value.trim() || null,
+        id: parseInt(id),
+        is_member:             document.getElementById('edit-is-member').value==='true',
+        membership_paid_until: document.getElementById('edit-paid-until').value||null,
+        contact_name:          document.getElementById('edit-contact-name').value.trim()||null,
+        slug:                  document.getElementById('edit-slug').value.trim()||null,
+        notes:                 document.getElementById('edit-notes').value.trim()||null,
     };
     try {
         const res  = await adminFetch('/api/admin/update-member', { method:'POST', body: JSON.stringify(payload) });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Save failed');
-
-        // Also update invitation status if changed
-        const m = allMembers.find(x => x.id === parseInt(id));
-        if (m && invStatus !== (m.invitation_status || 'not_invited')) {
-            await adminFetch('/api/admin/set-invitation-status', {
-                method: 'POST', body: JSON.stringify({ id: parseInt(id), status: invStatus })
-            });
+        if (!res.ok) throw new Error(data.error||'Save failed');
+        const m = allMembers.find(x => x.id===parseInt(id));
+        if (m && invStatus!==(m.invitation_status||'not_invited')) {
+            await adminFetch('/api/admin/set-invitation-status', { method:'POST', body: JSON.stringify({ id: parseInt(id), status: invStatus }) });
             m.invitation_status = invStatus;
-            if (invStatus === 'invited') m.invitation_sent_at = new Date().toISOString();
+            if (invStatus==='invited') m.invitation_sent_at = new Date().toISOString();
         }
-
-        msg.textContent = '✅ Saved'; msg.className = 'panel-msg ok'; msg.style.display = 'inline-block';
-        Object.assign(m, payload);
+        msg.textContent='✅ Saved'; msg.className='panel-msg ok'; msg.style.display='inline-block';
+        Object.assign(m||{}, payload);
         updateStats(allMembers); filterMembers();
-        setTimeout(() => closePanel('edit-panel'), 1500);
-    } catch (err) {
-        msg.textContent = '❌ ' + err.message; msg.className = 'panel-msg err'; msg.style.display = 'inline-block';
+        setTimeout(()=>closePanel('edit-panel'),1500);
+    } catch(err) {
+        msg.textContent='❌ '+err.message; msg.className='panel-msg err'; msg.style.display='inline-block';
     }
 }
 
@@ -842,18 +769,14 @@ async function setPassword() {
     try {
         const res  = await adminFetch('/api/admin/set-password', { method:'POST', body: JSON.stringify({ id: parseInt(id), password: pwd }) });
         const data = await res.json();
-        if (res.ok && data.success) {
-            msg.textContent = '✅ Password set — copy it now and send to member!';
-            msg.className = 'panel-msg ok'; msg.style.display = 'inline-block';
-        } else throw new Error(data.error || 'Failed');
-    } catch (err) {
-        msg.textContent = '❌ ' + err.message; msg.className = 'panel-msg err'; msg.style.display = 'inline-block';
-    }
+        if (res.ok && data.success) { msg.textContent='✅ Password set — copy it now!'; msg.className='panel-msg ok'; msg.style.display='inline-block'; }
+        else throw new Error(data.error||'Failed');
+    } catch(err) { msg.textContent='❌ '+err.message; msg.className='panel-msg err'; msg.style.display='inline-block'; }
 }
 
 // ── WhatsApp panel ────────────────────────────────────────────────────────────
 function openWaPanel(id) {
-    const m = allMembers.find(x => x.id === id);
+    const m = allMembers.find(x=>x.id===id);
     if (!m) return;
     currentWaMember = m;
     document.getElementById('wa-id').value    = m.id;
@@ -875,202 +798,104 @@ function setWaLang(lang) {
     const listingUrl = m.slug
         ? `https://trustedpanamastays.com/listing.html?slug=${m.slug}&lang=${lang}`
         : `https://trustedpanamastays.com/listing.html?id=${m.id}&lang=${lang}`;
-
-    const msgEs = `Hola! Su hospedaje *${m.name}* aparece en *Trusted Panama Stays*, el directorio oficial de hospedajes registrados ante la ATP en Panamá.
-
-Con una membresía anual de solo $24 puede agregar fotos, descripción completa, dirección y enlaces de reserva a su perfil.
-
-Más información: https://trustedpanamastays.com/about.html?lang=es
-
-Ver su listado actual: ${listingUrl}
-
-¿Le interesa? Con gusto le ayudamos a configurar su perfil.`;
-
-    const msgEn = `Hello! Your property *${m.name}* is listed on *Trusted Panama Stays*, the official directory of ATP-registered accommodations in Panama.
-
-For just $24/year you can add photos, a full description, address and booking links to your profile.
-
-More info: https://trustedpanamastays.com/about.html
-
-View your current listing: ${listingUrl}
-
-Interested? We're happy to help you set up your profile.`;
-
-    const msg = lang === 'es' ? msgEs : msgEn;
+    const msgEs = `Hola! Su hospedaje *${m.name}* aparece en *Trusted Panama Stays*, el directorio oficial de hospedajes registrados ante la ATP en Panamá.\n\nCon una membresía anual de solo $24 puede agregar fotos, descripción completa y enlaces de reserva a su perfil.\n\nMás información: https://trustedpanamastays.com/about.html?lang=es\n\nVer su listado actual: ${listingUrl}\n\n¿Le interesa? Con gusto le ayudamos a configurar su perfil.`;
+    const msgEn = `Hello! Your property *${m.name}* is listed on *Trusted Panama Stays*, the official directory of ATP-registered accommodations in Panama.\n\nFor just $24/year you can add photos, a full description and booking links to your profile.\n\nMore info: https://trustedpanamastays.com/about.html\n\nView your current listing: ${listingUrl}\n\nInterested? We're happy to help you set up your profile.`;
+    const msg = lang==='es' ? msgEs : msgEn;
     document.getElementById('wa-message').value = msg;
-
-    // Build WhatsApp link
     const phone = document.getElementById('wa-phone').value;
-    if (phone) {
-        const encoded = encodeURIComponent(msg);
-        document.getElementById('wa-send-link').href = `https://wa.me/507${phone}?text=${encoded}`;
-    }
+    if (phone) document.getElementById('wa-send-link').href = `https://wa.me/507${phone}?text=${encodeURIComponent(msg)}`;
 }
 
 function markInvitedFromWa() {
     const id = parseInt(document.getElementById('wa-id').value);
-    const m  = allMembers.find(x => x.id === id);
+    const m  = allMembers.find(x=>x.id===id);
     if (!m) return;
-    // Mark as invited via API
-    adminFetch('/api/admin/set-invitation-status', {
-        method: 'POST', body: JSON.stringify({ id, status: 'invited' })
-    }).then(() => {
-        m.invitation_status = 'invited';
-        m.invitation_sent_at = new Date().toISOString();
-        updateStats(allMembers);
-        filterMembers();
-    }).catch(() => {});
+    adminFetch('/api/admin/set-invitation-status', { method:'POST', body: JSON.stringify({ id, status:'invited' }) })
+        .then(()=>{ m.invitation_status='invited'; m.invitation_sent_at=new Date().toISOString(); updateStats(allMembers); filterMembers(); })
+        .catch(()=>{});
 }
 
-// ── Close panel helper ────────────────────────────────────────────────────────
-function closePanel(id) {
-    document.getElementById(id).classList.remove('active');
-}
-
-// ── Log ───────────────────────────────────────────────────────────────────────
-async function loadLog() {
-    document.getElementById('log-container').innerHTML = '<div class="no-results">Loading...</div>';
-    try {
-        const res = await adminFetch('/api/admin/log?limit=200');
-        allLogs = await res.json();
-        renderLog(allLogs);
-    } catch (err) {
-        document.getElementById('log-container').innerHTML =
-            `<div class="no-results" style="color:#ff7070;">Error: ${err.message}</div>`;
-    }
-}
-
-function renderLog(logs) {
-    const container = document.getElementById('log-container');
-    if (!logs.length) { container.innerHTML = '<div class="no-results">No log entries yet</div>'; return; }
-    container.innerHTML = logs.map(l => `
-        <div class="log-entry">
-            <span class="log-time">${new Date(l.created_at).toLocaleString()}</span>
-            <span class="log-type">${l.event_type}</span>
-            <span class="log-data">${JSON.stringify(l.event_data)}</span>
-        </div>`).join('');
-}
-
-function filterLog() {
-    const f = document.getElementById('log-filter').value;
-    const filtered = f === 'all' ? allLogs : allLogs.filter(l => {
-        if (f === 'admin')      return l.event_type.startsWith('admin');
-        if (f === 'invitation') return l.event_type.includes('invitation');
-        if (f === 'error')      return l.event_type.includes('error');
-        return true;
-    });
-    renderLog(filtered);
-}
-
-// ── IP ────────────────────────────────────────────────────────────────────────
-async function loadIPInfo() {
-    try {
-        const res  = await adminFetch('/api/admin/ip-info');
-        const data = await res.json();
-        document.getElementById('current-admin-ip').textContent = data.adminIP || '—';
-        document.getElementById('your-current-ip').textContent  = data.yourIP  || '—';
-    } catch (err) {
-        document.getElementById('current-admin-ip').textContent = 'Error';
-    }
-}
-
-async function updateAdminIP() {
-    if (!confirm('Update registered admin IP to your current IP?')) return;
-    try {
-        const res  = await adminFetch('/api/admin/update-ip', { method: 'POST' });
-        const data = await res.json();
-        if (res.ok) { alert('✅ IP updated to: ' + data.ip); loadIPInfo(); }
-        else alert('❌ Error: ' + data.error);
-    } catch (err) { alert('Error: ' + err.message); }
-}
-
-// ── Auto-login if token exists ────────────────────────────────────────────────
-if (adminToken) showAdminScreen();
-else document.getElementById('login-screen').style.display = 'flex';
+function closePanel(id) { document.getElementById(id).classList.remove('active'); }
 
 // ── Applications ──────────────────────────────────────────────────────────────
-let allApplications = [];
-let currentAppFilter = 'all';
-
-async function loadApplications() {
-    document.getElementById('applications-container').innerHTML =
-        '<div class="no-results">Loading...</div>';
+async function loadApplicationCount() {
     try {
         const res  = await adminFetch('/api/admin/applications');
+        const apps = await res.json();
+        allApplications = apps;
+        const pending = apps.filter(a=>a.status==='pending').length;
+        document.getElementById('stat-pending-apps').textContent = pending;
+        if (pending>0) document.getElementById('tab-applications').textContent = `📨 Applications (${pending})`;
+    } catch {}
+}
+
+async function loadApplications() {
+    document.getElementById('applications-container').innerHTML = '<div class="no-results">Loading...</div>';
+    try {
+        const res = await adminFetch('/api/admin/applications');
         allApplications = await res.json();
-        renderApplications(allApplications);
-    } catch (err) {
+        const pending = allApplications.filter(a=>a.status==='pending').length;
+        document.getElementById('stat-pending-apps').textContent = pending;
+        filterApps(document.querySelector('.filter-tab.active')?.id?.replace('ftab-','')||'all');
+    } catch(err) {
         document.getElementById('applications-container').innerHTML =
             `<div class="no-results" style="color:#ff7070;">Error: ${err.message}</div>`;
     }
 }
 
 function filterApps(status) {
-    currentAppFilter = status;
-    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-    document.getElementById('ftab-' + status).classList.add('active');
-    const filtered = status === 'all'
-        ? allApplications
-        : allApplications.filter(a => a.status === status);
+    document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active'));
+    const tab = document.getElementById('ftab-'+status);
+    if (tab) tab.classList.add('active');
+    const filtered = status==='all' ? allApplications : allApplications.filter(a=>a.status===status);
+    document.getElementById('app-count').textContent = `${filtered.length} application${filtered.length!==1?'s':''}`;
     renderApplications(filtered);
 }
 
 function renderApplications(apps) {
     const container = document.getElementById('applications-container');
-    document.getElementById('app-count').textContent = `${apps.length} application${apps.length !== 1 ? 's' : ''}`;
-    if (!apps.length) {
-        container.innerHTML = '<div class="no-results">No applications found</div>';
-        return;
-    }
+    if (!apps.length) { container.innerHTML='<div class="no-results">No applications found</div>'; return; }
     container.innerHTML = apps.map(app => {
-        const docButtons = (app.documents || []).map(doc => `
-            <a href="#" class="doc-btn" onclick="viewDocument('${doc.path}', '${doc.type}'); return false;">
-                ${doc.type === 'aviso_operacion' ? '📋' : doc.type === 'cedula' ? '🪪' : '💳'}
+        const docButtons = (app.documents||[]).map(doc =>
+            `<a href="#" class="doc-btn" onclick="viewDocument('${doc.path}','${doc.type}');return false;">
+                ${doc.type==='aviso_operacion'?'📋':doc.type==='cedula'?'🪪':'💳'}
                 ${doc.type.replace(/_/g,' ')}
             </a>`).join('');
-
-        const planText = app.membership_type === 'trial'
-            ? '30 días gratis'
-            : (app.duration_months === 24 ? '2 años ($45)' : '1 año ($24)');
-
-        const isPending = app.status === 'pending';
-
+        const planText = app.membership_type==='trial' ? '30 días gratis'
+            : (app.duration_months===24?'2 años ($45)':'1 año ($24)');
+        const isPending = app.status==='pending';
         return `
         <div class="app-card ${app.status}" id="app-card-${app.id}">
             <div class="app-header">
                 <div>
                     <div class="app-name">${app.property_name}</div>
                     <div class="app-meta">
-                        ${app.province} · ${new Date(app.created_at).toLocaleDateString()} ·
-                        ID: ${app.id}
-                        ${app.listing_id ? ` · <span style="color:#adf5ad;">ATP match: ${app.listing_id}</span>` : ' · <span style="color:#ff7070;">No ATP match</span>'}
+                        ${app.province} · ${new Date(app.created_at).toLocaleDateString()} · ID: ${app.id}
+                        ${app.listing_id
+                            ? ` · <span style="color:#adf5ad;">ATP: ${app.listing_id}</span>`
+                            : ' · <span style="color:#ff7070;">No ATP match</span>'}
                     </div>
                 </div>
                 <span class="app-status ${app.status}">${app.status.toUpperCase()}</span>
             </div>
-
             <div class="app-details">
                 <div class="app-detail-item"><strong>Contacto:</strong> ${app.contact_name}</div>
                 <div class="app-detail-item"><strong>Email:</strong> ${app.contact_email}</div>
                 <div class="app-detail-item"><strong>Teléfono:</strong> ${app.contact_phone}</div>
                 <div class="app-detail-item"><strong>Plan:</strong> ${planText}</div>
-                <div class="app-detail-item"><strong>Pago:</strong> ${app.payment_method || 'N/A'}</div>
-                <div class="app-detail-item"><strong>Cómo nos conoció:</strong> ${app.notes || '—'}</div>
+                <div class="app-detail-item"><strong>Pago:</strong> ${app.payment_method||'N/A'}</div>
+                <div class="app-detail-item"><strong>Notas:</strong> ${app.notes||'—'}</div>
             </div>
-
             ${docButtons ? `<div class="app-docs">${docButtons}</div>` : ''}
-
             ${isPending ? `
             <div class="app-actions">
-                ${process.env?.ANTHROPIC_API_KEY !== undefined ? `
-                <button class="app-btn ai" onclick="verifyDocuments(${app.id})">🤖 AI Verify</button>` : ''}
+                <button class="app-btn ai"      onclick="verifyDocuments(${app.id})">🤖 AI Verify</button>
                 <button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve</button>
-                <button class="app-btn reject" onclick="showRejectForm(${app.id})">❌ Reject</button>
+                <button class="app-btn reject"  onclick="showRejectForm(${app.id})">❌ Reject</button>
             </div>
-
-            <div class="verify-result" id="verify-${app.id}"></div>
+            <div class="verify-result"  id="verify-${app.id}"></div>
             <div class="approve-result" id="approve-${app.id}"></div>
-            <div class="reject-form" id="reject-form-${app.id}">
+            <div class="reject-form"    id="reject-form-${app.id}">
                 <select id="reject-reason-${app.id}">
                     <option value="">Seleccione razón...</option>
                     <option>Documentos ilegibles — envíe escaneos más claros</option>
@@ -1087,8 +912,8 @@ function renderApplications(apps) {
                 </div>
             </div>` : `
             <div style="font-size:0.78rem;color:#aaa;">
-                Reviewed: ${app.reviewed_at ? new Date(app.reviewed_at).toLocaleString() : '—'}
-                ${app.notes ? `<br>Notes: ${app.notes}` : ''}
+                Reviewed: ${app.reviewed_at?new Date(app.reviewed_at).toLocaleString():'—'}
+                ${app.notes?`<br>Notes: ${app.notes}`:''}
             </div>`}
         </div>`;
     }).join('');
@@ -1098,149 +923,127 @@ async function viewDocument(docPath, docType) {
     try {
         const res  = await adminFetch(`/api/admin/document-url?path=${encodeURIComponent(docPath)}`);
         const data = await res.json();
-        if (data.url) window.open(data.url, '_blank');
+        if (data.url) window.open(data.url,'_blank');
         else alert('Could not get document URL');
-    } catch (err) { alert('Error: ' + err.message); }
+    } catch(err) { alert('Error: '+err.message); }
 }
 
 async function verifyDocuments(appId) {
-    const resultEl = document.getElementById('verify-' + appId);
+    const resultEl = document.getElementById('verify-'+appId);
     resultEl.innerHTML = '🤖 AI is reading documents...';
     resultEl.classList.add('visible');
     try {
-        const res  = await adminFetch('/api/admin/verify-documents', {
-            method: 'POST', body: JSON.stringify({ application_id: appId })
-        });
+        const res  = await adminFetch('/api/admin/verify-documents', { method:'POST', body: JSON.stringify({ application_id: appId }) });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-
-        const v = data.verification;
+        const v  = data.verification;
         const ov = v.verification;
-        const resultColor = ov.overall_result === 'PASS' ? 'verify-pass'
-            : ov.overall_result === 'FAIL' ? 'verify-fail' : 'verify-warn';
-
+        const resultColor = ov.overall_result==='PASS'?'verify-pass':ov.overall_result==='FAIL'?'verify-fail':'verify-warn';
         resultEl.innerHTML = `
             <div style="font-weight:700;color:#7ec8e3;margin-bottom:0.8rem;">🤖 AI Verification Report</div>
-            ${v.aviso_operacion ? `
+            ${v.aviso_operacion?`
             <div class="verify-row">
                 <span class="verify-icon">📋</span>
                 <span class="verify-label">Aviso de Operación</span>
-                <span class="verify-value">
-                    ${v.aviso_operacion.business_name || '—'}<br>
-                    <span style="color:#aaa;font-size:0.75rem;">RUC: ${v.aviso_operacion.ruc || '—'} · Rep: ${v.aviso_operacion.legal_rep || '—'}</span>
+                <span class="verify-value">${v.aviso_operacion.business_name||'—'}
+                    <br><span style="color:#aaa;font-size:0.75rem;">RUC: ${v.aviso_operacion.ruc||'—'} · Rep: ${v.aviso_operacion.legal_rep||'—'}</span>
                 </span>
-            </div>` : ''}
-            ${v.cedula ? `
+            </div>`:''}
+            ${v.cedula?`
             <div class="verify-row">
                 <span class="verify-icon">🪪</span>
                 <span class="verify-label">Cédula</span>
-                <span class="verify-value">${v.cedula.id_holder_name || '—'}</span>
-            </div>` : ''}
-            ${v.payment ? `
+                <span class="verify-value">${v.cedula.id_holder_name||'—'}</span>
+            </div>`:''}
+            ${v.payment?`
             <div class="verify-row">
                 <span class="verify-icon">💳</span>
-                <span class="verify-label">Comprobante de pago</span>
-                <span class="verify-value">${v.payment.amount || '—'} · ${v.payment.date || '—'}</span>
-            </div>` : ''}
+                <span class="verify-label">Comprobante</span>
+                <span class="verify-value">${v.payment.amount||'—'} · ${v.payment.date||'—'}</span>
+            </div>`:''}
             <div class="verify-row">
-                <span class="verify-icon">${ov.names_match ? '✅' : '❌'}</span>
+                <span class="verify-icon">${ov.names_match?'✅':'❌'}</span>
                 <span class="verify-label">Nombres coinciden</span>
-                <span class="verify-value ${ov.names_match ? 'verify-pass' : 'verify-fail'}">${ov.names_match_detail || '—'}</span>
+                <span class="verify-value ${ov.names_match?'verify-pass':'verify-fail'}">${ov.names_match_detail||'—'}</span>
             </div>
             <div class="verify-row">
-                <span class="verify-icon">${ov.payment_matches ? '✅' : '⚠️'}</span>
+                <span class="verify-icon">${ov.payment_matches?'✅':'⚠️'}</span>
                 <span class="verify-label">Pago correcto</span>
-                <span class="verify-value ${ov.payment_matches ? 'verify-pass' : 'verify-warn'}">${ov.payment_match_detail || '—'}</span>
+                <span class="verify-value ${ov.payment_matches?'verify-pass':'verify-warn'}">${ov.payment_match_detail||'—'}</span>
             </div>
             <div class="verify-row" style="background:rgba(0,0,0,0.2);border-radius:4px;padding:6px;">
                 <span class="verify-icon">🎯</span>
                 <span class="verify-label">Resultado</span>
-                <span class="verify-value ${resultColor}" style="font-weight:700;">${ov.overall_result} — ${ov.overall_notes || ''}</span>
+                <span class="verify-value ${resultColor}" style="font-weight:700;">${ov.overall_result} — ${ov.overall_notes||''}</span>
             </div>`;
-    } catch (err) {
-        resultEl.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`;
-    }
+    } catch(err) { resultEl.innerHTML=`<span style="color:#ff7070;">Error: ${err.message}</span>`; }
 }
 
 async function approveApplication(appId) {
-    if (!confirm('Approve this application and send welcome email with password?')) return;
-    const resultEl = document.getElementById('approve-' + appId);
+    if (!confirm('Approve this application and send welcome email with auto-generated password?')) return;
+    const resultEl = document.getElementById('approve-'+appId);
     resultEl.innerHTML = '⏳ Processing...';
     resultEl.classList.add('visible');
     try {
-        const res  = await adminFetch('/api/admin/approve-application', {
-            method: 'POST', body: JSON.stringify({ application_id: appId })
-        });
+        const res  = await adminFetch('/api/admin/approve-application', { method:'POST', body: JSON.stringify({ application_id: appId }) });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-
         resultEl.innerHTML = `
             <div style="color:#adf5ad;font-weight:700;margin-bottom:0.5rem;">✅ Application approved!</div>
             <div style="font-size:0.82rem;color:#ccc;">
                 Password sent to member: <code style="background:#2c3e50;padding:2px 6px;border-radius:4px;">${data.password}</code><br>
                 Membership until: <strong>${data.paid_until}</strong><br>
-                ${data.listing_id ? `Listing ID: ${data.listing_id}` : 'No ATP listing linked'}
+                ${data.listing_id?`Listing ID: ${data.listing_id}`:'No ATP listing linked'}
             </div>`;
-
-        // Update card status
-        const card = document.getElementById('app-card-' + appId);
+        const card = document.getElementById('app-card-'+appId);
         if (card) {
-            card.classList.remove('pending');
-            card.classList.add('approved');
+            card.classList.replace('pending','approved');
             card.querySelector('.app-status').textContent = 'APPROVED';
             card.querySelector('.app-status').className = 'app-status approved';
             card.querySelector('.app-actions')?.remove();
-            card.querySelector('.verify-result')?.remove();
             card.querySelector('.reject-form')?.remove();
         }
-
-        // Refresh stats
         await loadMembers();
-    } catch (err) {
-        resultEl.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`;
-    }
+        document.getElementById('stat-pending-apps').textContent =
+            allApplications.filter(a=>a.status==='pending').length;
+    } catch(err) { resultEl.innerHTML=`<span style="color:#ff7070;">Error: ${err.message}</span>`; }
 }
 
 function showRejectForm(appId) {
-    document.getElementById('reject-form-' + appId).classList.add('visible');
-    document.getElementById('verify-' + appId).classList.remove('visible');
+    document.getElementById('reject-form-'+appId).classList.add('visible');
+    document.getElementById('verify-'+appId).classList.remove('visible');
 }
 
 async function confirmReject(appId) {
-    const reason = document.getElementById('reject-reason-' + appId).value;
-    const note   = document.getElementById('reject-note-' + appId).value;
+    const reason = document.getElementById('reject-reason-'+appId).value;
+    const note   = document.getElementById('reject-note-'+appId).value;
     if (!reason) { alert('Please select a rejection reason'); return; }
     if (!confirm('Send rejection email to applicant?')) return;
     try {
         const res = await adminFetch('/api/admin/reject-application', {
-            method: 'POST',
-            body: JSON.stringify({ application_id: appId, reason, custom_note: note })
+            method:'POST', body: JSON.stringify({ application_id: appId, reason, custom_note: note })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-
-        const card = document.getElementById('app-card-' + appId);
+        const card = document.getElementById('app-card-'+appId);
         if (card) {
-            card.classList.remove('pending'); card.classList.add('rejected');
+            card.classList.replace('pending','rejected');
             card.querySelector('.app-status').textContent = 'REJECTED';
             card.querySelector('.app-status').className = 'app-status rejected';
             card.querySelector('.app-actions')?.remove();
             card.querySelector('.reject-form')?.remove();
-            card.querySelector('.verify-result')?.remove();
         }
         alert('Rejection email sent.');
-    } catch (err) { alert('Error: ' + err.message); }
+    } catch(err) { alert('Error: '+err.message); }
 }
 
 // ── Invoice log ───────────────────────────────────────────────────────────────
-let allInvoices = [];
-
 async function loadInvoiceLog() {
     try {
-        const res  = await adminFetch('/api/admin/invoice-log');
+        const res = await adminFetch('/api/admin/invoice-log');
         allInvoices = await res.json();
         renderInvoiceLog(allInvoices);
-    } catch (err) {
+    } catch(err) {
         document.getElementById('invoice-tbody').innerHTML =
             `<tr><td colspan="10" style="color:#ff7070;text-align:center;">Error: ${err.message}</td></tr>`;
     }
@@ -1248,23 +1051,20 @@ async function loadInvoiceLog() {
 
 function renderInvoiceLog(invoices) {
     const tbody = document.getElementById('invoice-tbody');
-    if (!invoices.length) {
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem;">No invoices yet</td></tr>';
-        return;
-    }
+    if (!invoices.length) { tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem;">No invoices yet</td></tr>'; return; }
     tbody.innerHTML = invoices.map(inv => {
         const d = inv.event_data;
         return `<tr>
             <td>${new Date(inv.created_at).toLocaleDateString()}</td>
-            <td>${d.property_name || '—'}</td>
-            <td>${d.contact_name || '—'}</td>
-            <td style="font-size:0.75rem;">${d.contact_email || '—'}</td>
-            <td style="font-family:monospace;">${d.ruc || '—'}</td>
-            <td>${d.plan || '—'}</td>
-            <td>$${d.amount || '—'}</td>
-            <td>$${d.itbms || '—'}</td>
-            <td><strong>$${d.total || '—'}</strong></td>
-            <td>${d.payment_method || '—'}</td>
+            <td>${d.property_name||'—'}</td>
+            <td>${d.contact_name||'—'}</td>
+            <td style="font-size:0.75rem;">${d.contact_email||'—'}</td>
+            <td style="font-family:monospace;">${d.ruc||'—'}</td>
+            <td>${d.plan||'—'}</td>
+            <td>$${d.amount||'—'}</td>
+            <td>$${d.itbms||'—'}</td>
+            <td><strong>$${d.total||'—'}</strong></td>
+            <td>${d.payment_method||'—'}</td>
         </tr>`;
     }).join('');
 }
@@ -1274,52 +1074,91 @@ function exportInvoiceCSV() {
     const headers = ['Date','Property','Contact','Email','RUC','Plan','Amount','ITBMS','Total','Payment'];
     const rows = allInvoices.map(inv => {
         const d = inv.event_data;
-        return [
-            new Date(inv.created_at).toLocaleDateString(),
+        return [new Date(inv.created_at).toLocaleDateString(),
             d.property_name, d.contact_name, d.contact_email,
-            d.ruc || '', d.plan, d.amount, d.itbms, d.total, d.payment_method
-        ].map(v => `"${v || ''}"`).join(',');
+            d.ruc||'', d.plan, d.amount, d.itbms, d.total, d.payment_method
+        ].map(v=>`"${v||''}"`).join(',');
     });
-    const csv  = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csv  = [headers.join(','),...rows].join('\n');
+    const blob = new Blob([csv],{type:'text/csv'});
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = `tps-invoices-${new Date().toISOString().split('T')[0]}.csv`;
+    a.href=url; a.download=`tps-invoices-${new Date().toISOString().split('T')[0]}.csv`;
     a.click(); URL.revokeObjectURL(url);
 }
 
-// ── Update showTab to handle new tabs ────────────────────────────────────────
-// Replace the existing showTab function with this one:
-// (Find "function showTab(name)" and replace the entire function)
-function showTab(name) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.getElementById('tab-'+name).classList.add('active');
-    document.getElementById('content-'+name).classList.add('active');
-    if (name === 'log')          loadLog();
-    if (name === 'ip')           loadIPInfo();
-    if (name === 'applications') loadApplications();
-    if (name === 'invoices')     loadInvoiceLog();
+// ── Log ───────────────────────────────────────────────────────────────────────
+async function loadLog() {
+    document.getElementById('log-container').innerHTML = '<div class="no-results">Loading...</div>';
+    try {
+        const res = await adminFetch('/api/admin/log?limit=200');
+        allLogs = await res.json();
+        renderLog(allLogs);
+    } catch(err) {
+        document.getElementById('log-container').innerHTML =
+            `<div class="no-results" style="color:#ff7070;">Error: ${err.message}</div>`;
+    }
 }
 
-async function loadApplicationCount() {
+function renderLog(logs) {
+    const container = document.getElementById('log-container');
+    if (!logs.length) { container.innerHTML='<div class="no-results">No log entries yet</div>'; return; }
+    container.innerHTML = logs.map(l=>`
+        <div class="log-entry">
+            <span class="log-time">${new Date(l.created_at).toLocaleString()}</span>
+            <span class="log-type">${l.event_type}</span>
+            <span class="log-data">${JSON.stringify(l.event_data)}</span>
+        </div>`).join('');
+}
+
+function filterLog() {
+    const f = document.getElementById('log-filter').value;
+    const filtered = f==='all' ? allLogs : allLogs.filter(l=>{
+        if (f==='admin')       return l.event_type.startsWith('admin');
+        if (f==='invitation')  return l.event_type.includes('invitation');
+        if (f==='application') return l.event_type.includes('application');
+        if (f==='error')       return l.event_type.includes('error');
+        return true;
+    });
+    renderLog(filtered);
+}
+
+// ── IP ────────────────────────────────────────────────────────────────────────
+async function loadIPInfo() {
     try {
-        const res  = await adminFetch('/api/admin/applications');
-        const apps = await res.json();
-        const pending = apps.filter(a => a.status === 'pending').length;
-        document.getElementById('stat-pending-apps').textContent = pending;
-        if (pending > 0) {
-            document.getElementById('tab-applications').textContent = `📨 Applications (${pending})`;
-        }
+        const res  = await adminFetch('/api/admin/ip-info');
+        const data = await res.json();
+        document.getElementById('current-admin-ip').textContent = data.adminIP||'—';
+        document.getElementById('your-current-ip').textContent  = data.yourIP ||'—';
     } catch {}
 }
 
-function showAdminScreen() {
-    loadApplicationCount();  // ADD THIS LINE
+async function updateAdminIP() {
+    if (!confirm('Update registered admin IP to your current IP?')) return;
+    try {
+        const res  = await adminFetch('/api/admin/update-ip', { method:'POST' });
+        const data = await res.json();
+        if (res.ok) { alert('✅ IP updated to: '+data.ip); loadIPInfo(); }
+        else alert('❌ Error: '+data.error);
+    } catch(err) { alert('Error: '+err.message); }
 }
 
-    console.log('Script loaded, token:', sessionStorage.getItem('admin_token'));
+// ── Auto-login with token validation ──────────────────────────────────────────
+function showLogin() {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('admin-screen').style.display = 'none';
+}
 
+if (adminToken) {
+    fetch('/api/admin/ip-info', {
+        headers: { 'Authorization': 'Bearer ' + adminToken, 'Content-Type': 'application/json' }
+    }).then(res => {
+        if (res.ok) showAdminScreen();
+        else { sessionStorage.removeItem('admin_token'); adminToken=null; showLogin(); }
+    }).catch(() => { sessionStorage.removeItem('admin_token'); adminToken=null; showLogin(); });
+} else {
+    showLogin();
+}
 </script>
 </body>
 </html>
