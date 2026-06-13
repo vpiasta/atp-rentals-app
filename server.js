@@ -1617,6 +1617,13 @@ app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
     res.json({ url: data.signedUrl });
 });
 
+app.get('/api/env-check2', (req, res) => {
+    res.json({
+        anthropic: !!process.env.ANTHROPIC_API_KEY,
+        prefix:    process.env.ANTHROPIC_API_KEY?.substring(0,10) + '...'
+    });
+});
+
 
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
