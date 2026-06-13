@@ -1371,6 +1371,8 @@ Important notes:
 - Use PASS when all documents are valid and match
 - Use FAIL when there are clear mismatches or invalid documents  
 - Use REVIEW when documents are valid but have minor issues needing human judgment
+- When evaluating payment: check if payment_message contains the property name or province. If message is empty, flag it as missing but do not FAIL — just note it in payment_match_detail.
+- A payment predating the application by days or weeks is normal and acceptable.
 - If a document type is not provided, set found: false and all other fields to null
 - Extract ALL visible text carefully — Panamanian government documents have standardized layouts
 - RUC format in Panama: digits-digit-digits (e.g. 8-123-456789 or 1401220-1-627960)
