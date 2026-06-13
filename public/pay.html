@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Renovar Membresía — Trusted Panama Stays</title>
+    <meta name="description" content="Envíe su comprobante de pago para activar o renovar su membresía en Trusted Panama Stays.">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8f9fa; color: #111; line-height: 1.6; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+
+        header {
+            background: linear-gradient(135deg, #005ca9, #00a859);
+            color: white; padding: 1.2rem 1.8rem; border-radius: 10px;
+            margin-bottom: 2rem; display: flex; align-items: center;
+            justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-logo { width: 52px; height: 52px; flex-shrink: 0; }
+        .header-left h1 { font-size: 1.3rem; font-weight: 700; color: white; }
+        .header-left p  { font-size: 0.82rem; opacity: 0.85; }
+        .back-link {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 20px; padding: 5px 14px; text-decoration: none;
+            color: white; font-size: 0.82rem; font-weight: 600;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.28); }
+
+        .card {
+            background: white; border-radius: 12px; padding: 2rem;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.08); margin-bottom: 1.5rem;
+        }
+        .card h2 { font-size: 1.2rem; color: #005ca9; margin-bottom: 0.5rem; }
+        .card p  { color: #555; font-size: 0.92rem; margin-bottom: 1rem; }
+
+        .info-box {
+            background: #f0f7ff; border: 1px solid #c0d8f0;
+            border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;
+            font-size: 0.88rem; color: #005ca9;
+        }
+
+        .field-group { margin-bottom: 1.2rem; }
+        .field-group label {
+            display: block; font-size: 0.8rem; font-weight: 600;
+            color: #555; text-transform: uppercase; letter-spacing: 0.04em;
+            margin-bottom: 4px;
+        }
+        .field-group label .required { color: #cc0000; }
+        .field-group input {
+            width: 100%; padding: 10px 12px; border: 2px solid #e1e5e9;
+            border-radius: 7px; font-size: 0.95rem; font-family: inherit;
+            transition: border-color 0.25s; background: #fafafa;
+        }
+        .field-group input:focus { outline: none; border-color: #005ca9; background: white; }
+        .field-group input.error { border-color: #cc0000; }
+        .error-msg { font-size: 0.75rem; color: #cc0000; display: none; margin-top: 3px; }
+
+        /* Plan selector */
+        .plan-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1.2rem; }
+        .plan-option {
+            border: 2px solid #e1e5e9; border-radius: 8px; padding: 0.8rem;
+            text-align: center; cursor: pointer; transition: all 0.25s;
+        }
+        .plan-option:hover { border-color: #005ca9; }
+        .plan-option.selected { border-color: #005ca9; background: #f0f7ff; }
+        .plan-option input[type="radio"] { display: none; }
+        .plan-amount { font-size: 1.4rem; font-weight: 700; color: #005ca9; }
+        .plan-label  { font-size: 0.78rem; color: #555; }
+        .plan-note   { font-size: 0.7rem; color: #00a859; font-weight: 600; }
+
+        /* Payment method */
+        .payment-options { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 1.2rem; }
+        .payment-option {
+            border: 2px solid #e1e5e9; border-radius: 8px; padding: 0.8rem 1rem;
+            cursor: pointer; transition: all 0.25s; display: flex; align-items: center; gap: 8px;
+        }
+        .payment-option:hover { border-color: #005ca9; }
+        .payment-option.selected { border-color: #005ca9; background: #f0f7ff; }
+        .payment-option input[type="radio"] { display: none; }
+        .pay-icon  { font-size: 1.4rem; }
+        .pay-label { font-size: 0.88rem; font-weight: 600; }
+        .pay-detail{ font-size: 0.75rem; color: #888; }
+
+        .bank-details {
+            background: #f0f7ff; border: 1px solid #c0d8f0; border-radius: 8px;
+            padding: 1rem; margin-bottom: 1rem; display: none; font-size: 0.88rem;
+        }
+        .bank-details.visible { display: block; }
+        .bank-row { margin-bottom: 0.3rem; }
+
+        /* Upload zone */
+        .upload-zone {
+            border: 2px dashed #005ca9; border-radius: 8px; padding: 1.5rem;
+            text-align: center; cursor: pointer; transition: all 0.25s;
+            background: #f0f7ff; position: relative;
+        }
+        .upload-zone:hover, .upload-zone.has-file { background: #dceeff; border-color: #004885; }
+        .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+        .upload-zone-icon { font-size: 2rem; margin-bottom: 0.3rem; }
+        .upload-zone-text { color: #005ca9; font-size: 0.88rem; font-weight: 600; }
+        .upload-zone-hint { color: #888; font-size: 0.75rem; margin-top: 0.2rem; }
+        .upload-zone-file { color: #00a859; font-size: 0.82rem; margin-top: 0.3rem; font-weight: 600; display: none; }
+
+        /* Listing preview */
+        .listing-preview {
+            background: #e8f4e8; border: 1px solid #00a859; border-radius: 8px;
+            padding: 0.8rem 1rem; margin-bottom: 1rem; display: none; font-size: 0.88rem;
+        }
+        .listing-preview.visible { display: block; }
+        .listing-preview strong { color: #005ca9; }
+
+        /* Submit */
+        .submit-btn {
+            width: 100%; padding: 13px; background: #005ca9; color: white; border: none;
+            border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer;
+            transition: background 0.25s;
+        }
+        .submit-btn:hover    { background: #004885; }
+        .submit-btn:disabled { background: #aaa; cursor: not-allowed; }
+
+        .form-message { padding: 1rem; border-radius: 8px; margin-top: 1rem; display: none; font-size: 0.92rem; text-align: center; }
+        .form-message.error   { background: #fde8e8; color: #7a0000; border: 1px solid #cc0000; display: block; }
+        .form-message.success { background: #e8f4e8; color: #1a5c1a; border: 1px solid #00a859; display: block; }
+
+        .success-screen { text-align: center; padding: 2rem; display: none; }
+        .success-screen.visible { display: block; }
+        .success-icon { font-size: 4rem; margin-bottom: 1rem; }
+        .success-screen h2 { color: #005ca9; margin-bottom: 1rem; }
+        .success-screen p  { color: #555; max-width: 400px; margin: 0 auto 1rem; }
+
+        footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
+        footer a { color: #7ec8e3; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 480px) {
+            .plan-options { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <header>
+        <div class="header-left">
+            <svg class="header-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260">
+                <rect x="30" y="130" width="100" height="62" fill="white"/>
+                <rect x="130" y="130" width="100" height="62" fill="#cc0000"/>
+                <rect x="30" y="192" width="100" height="62" fill="#1a3a6b"/>
+                <rect x="130" y="192" width="100" height="62" fill="white"/>
+                <rect x="30" y="130" width="200" height="124" fill="none" stroke="white" stroke-width="2"/>
+                <polygon points="80,147 82.5,155 91,155 84,160 86.5,168 80,163 73.5,168 76,160 69,155 77.5,155" fill="#1a3a6b"/>
+                <polygon points="180,209 182.5,217 191,217 184,222 186.5,230 180,225 173.5,230 176,222 169,217 177.5,217" fill="#cc0000"/>
+                <polyline points="5,128 130,16 255,128" fill="none" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M54,138 L98,246 L218,26" fill="none" stroke="#FFD700" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div>
+                <h1>Pago de Membresía</h1>
+                <p>Trusted Panama Stays</p>
+            </div>
+        </div>
+        <a href="index_es.html" class="back-link">← Volver</a>
+    </header>
+
+    <!-- Form -->
+    <form id="pay-form" novalidate>
+
+        <div class="card">
+            <h2>💳 Enviar Comprobante de Pago</h2>
+            <p>Si ya tiene un número de membresía, ingrese aquí su comprobante de pago para activar o renovar su acceso.</p>
+
+            <div class="info-box">
+                Su número de membresía es el número que aparece en los correos de Trusted Panama Stays.
+                Si no lo recuerda, escríbanos a
+                <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a>
+            </div>
+
+            <!-- Membership ID -->
+            <div class="field-group">
+                <label>Número de membresía <span class="required">*</span></label>
+                <input type="number" id="membership-id" placeholder="Ej: 11134" min="1" required
+                       oninput="lookupMember()">
+                <div class="error-msg" id="err-id">Ingrese su número de membresía</div>
+            </div>
+
+            <!-- Listing preview (shown after valid ID entered) -->
+            <div class="listing-preview" id="listing-preview"></div>
+
+            <!-- Plan selection -->
+            <div class="field-group">
+                <label>Plan de membresía <span class="required">*</span></label>
+                <div class="plan-options">
+                    <label class="plan-option" id="plan-1year" onclick="selectPlan('1year')">
+                        <input type="radio" name="plan" value="1year">
+                        <div class="plan-amount">$24</div>
+                        <div class="plan-label">1 año</div>
+                        <div class="plan-note">· $25.68 inclusive ITBMS</div>
+                    </label>
+                    <label class="plan-option" id="plan-2year" onclick="selectPlan('2year')">
+                        <input type="radio" name="plan" value="2year">
+                        <div class="plan-amount">$45</div>
+                        <div class="plan-label">2 años  · Ahorre $3</div>
+                        <div class="plan-note">$48.15 inclusive ITBMS</div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Payment method -->
+            <div class="field-group">
+                <label>Método de pago <span class="required">*</span></label>
+                <div class="payment-options">
+                    <label class="payment-option" id="pay-transfer" onclick="selectPayment('transfer')">
+                        <input type="radio" name="payment" value="transfer">
+                        <span class="pay-icon">🏦</span>
+                        <div>
+                            <div class="pay-label">Transferencia bancaria</div>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="bank-details visible" id="bank-details-transfer">
+                    <p style="font-weight:700;color:#005ca9;margin-bottom:0.5rem;">Datos para transferencia:</p>
+                    <div class="bank-row"><strong>Beneficiario:</strong> Tuscany Real Estates SA</div>
+                    <div class="bank-row"><strong>RUC:</strong> 1401220-1-627960 DV21</div>
+                    <div class="bank-row"><strong>Banco:</strong> BAC — Cuenta corriente</div>
+                    <div class="bank-row"><strong>Cuenta:</strong> 104313259</div>
+                    <div class="bank-row" style="margin-top:0.5rem;color:#666;font-size:0.82rem;">
+                        ⚠️ En el campo <strong>MENSAJE</strong> de la transferencia, escriba el nombre de su hospedaje y provincia.<br>
+                        Ejemplo: <em>Aparthotel Boquete, Chiriquí</em>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment proof upload -->
+            <div class="field-group">
+                <label>Comprobante de pago <span class="required">*</span></label>
+                <div class="upload-zone" id="upload-zone">
+                    <input type="file" id="file-pago" accept="image/*,.pdf"
+                           onchange="fileSelected(this)">
+                    <div class="upload-zone-icon">💳</div>
+                    <div class="upload-zone-text">Clic o arrastre aquí</div>
+                    <div class="upload-zone-hint">Captura de transferencia o pago · JPG, PNG, PDF · máx. 10MB</div>
+                    <div class="upload-zone-file" id="file-name"></div>
+                </div>
+                <div class="error-msg" id="err-pago">Comprobante requerido</div>
+            </div>
+
+            <!-- Contact email (optional) -->
+            <div class="field-group">
+                <label>Correo electrónico (opcional)</label>
+                <input type="email" id="contact-email" placeholder="Para recibir confirmación">
+            </div>
+
+            <button type="button" class="submit-btn" id="submit-btn" onclick="submitPayment()">
+                📨 Enviar Comprobante
+            </button>
+            <div class="form-message" id="form-message"></div>
+        </div>
+    </form>
+
+    <!-- Success screen -->
+    <div class="success-screen" id="success-screen">
+        <div class="success-icon">✅</div>
+        <h2>¡Comprobante recibido!</h2>
+        <p>Hemos recibido su comprobante de pago para <strong id="success-name"></strong>.</p>
+        <p>Verificaremos su pago y activaremos su membresía en breve. Si proporcionó un correo, le enviaremos confirmación.</p>
+        <p style="margin-top:1.5rem;">
+            <a href="index_es.html" style="color:#005ca9;">← Volver al directorio</a>
+        </p>
+    </div>
+
+    <footer>
+        <p style="font-size:0.8rem;">Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>con datos adicionales proporcionados por nuestros miembros</p>
+        <p style="margin-top:0.8rem;">
+            Trusted Panama Stays es propiedad de Tuscany Real Estates SA<br>
+            RUC 1401220-1-627960 DV21<br>
+            <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a>
+        </p>
+    </footer>
+</div>
+
+<script>
+const API = '';
+let selectedPlan    = '';
+let selectedPayment = 'transfer';
+let lookupTimer     = null;
+let currentListing  = null;
+
+// ── Plan selection ────────────────────────────────────────────────────────────
+function selectPlan(plan) {
+    selectedPlan = plan;
+    ['1year','2year'].forEach(p => {
+        document.getElementById('plan-'+p).classList.toggle('selected', p===plan);
+    });
+}
+
+// ── Payment method ────────────────────────────────────────────────────────────
+function selectPayment(method) {
+    selectedPayment = method;
+    document.getElementById('pay-transfer').classList.toggle('selected', method==='transfer');
+    document.getElementById('bank-details-transfer').classList.toggle('visible', method==='transfer');
+}
+// Default: transfer selected
+document.getElementById('pay-transfer').classList.add('selected');
+
+// ── Member lookup ─────────────────────────────────────────────────────────────
+function lookupMember() {
+    clearTimeout(lookupTimer);
+    const id = document.getElementById('membership-id').value;
+    const preview = document.getElementById('listing-preview');
+    if (!id || id.length < 3) { preview.classList.remove('visible'); currentListing=null; return; }
+    lookupTimer = setTimeout(async () => {
+        try {
+            const res  = await fetch(`${API}/api/listing/${id}`);
+            const data = await res.json();
+            if (res.ok && data.id) {
+                currentListing = data;
+                preview.innerHTML = `
+                    <strong>✅ Hospedaje encontrado:</strong> ${data.name}<br>
+                    <span style="color:#555;">${data.province} · ${data.rental_type||''}</span>
+                    ${data.membership_paid_until
+                        ? `<br><span style="color:#888;font-size:0.82rem;">Membresía hasta: ${data.membership_paid_until}</span>`
+                        : ''}`;
+                preview.classList.add('visible');
+                document.getElementById('err-id').style.display = 'none';
+            } else {
+                currentListing = null;
+                preview.innerHTML = '<span style="color:#cc0000;">❌ Número no encontrado. Verifique e intente de nuevo.</span>';
+                preview.classList.add('visible');
+            }
+        } catch { preview.classList.remove('visible'); currentListing=null; }
+    }, 600);
+}
+
+// ── File selection ────────────────────────────────────────────────────────────
+function fileSelected(input) {
+    const file = input.files[0];
+    if (!file) return;
+    document.getElementById('upload-zone').classList.add('has-file');
+    const nameEl = document.getElementById('file-name');
+    nameEl.textContent = '✓ ' + file.name;
+    nameEl.style.display = 'block';
+    document.getElementById('err-pago').style.display = 'none';
+}
+
+// ── Validation ────────────────────────────────────────────────────────────────
+function validate() {
+    let valid = true;
+    const id = document.getElementById('membership-id').value;
+    if (!id || !currentListing) {
+        document.getElementById('err-id').style.display = 'block';
+        valid = false;
+    }
+    if (!selectedPlan) {
+        showMsg('Por favor seleccione un plan de membresía.', 'error');
+        valid = false;
+    }
+    if (!document.getElementById('file-pago').files[0]) {
+        document.getElementById('err-pago').style.display = 'block';
+        valid = false;
+    }
+    return valid;
+}
+
+function showMsg(text, type) {
+    const el = document.getElementById('form-message');
+    el.textContent = text;
+    el.className = 'form-message ' + type;
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+async function submitPayment() {
+    if (!validate()) return;
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true; btn.textContent = '⏳ Enviando...';
+
+    const formData = new FormData();
+    formData.append('listing_id',     currentListing.id);
+    formData.append('duration_months', selectedPlan==='2year' ? 24 : 12);
+    formData.append('payment_method',  selectedPayment);
+    formData.append('contact_email',   document.getElementById('contact-email').value.trim());
+    formData.append('file_pago',       document.getElementById('file-pago').files[0]);
+
+    try {
+        const res  = await fetch(`${API}/api/submit-payment`, { method:'POST', body: formData });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            document.getElementById('pay-form').style.display = 'none';
+            document.getElementById('success-screen').classList.add('visible');
+            document.getElementById('success-name').textContent = currentListing.name;
+            window.scrollTo({ top:0, behavior:'smooth' });
+        } else throw new Error(data.error||'Error al enviar');
+    } catch(err) {
+        showMsg('❌ ' + err.message, 'error');
+        btn.disabled=false; btn.textContent='📨 Enviar Comprobante';
+    }
+}
+</script>
+</body>
+</html>
