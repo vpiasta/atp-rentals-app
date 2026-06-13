@@ -1237,7 +1237,6 @@ app.post('/api/admin/verify-documents', requireAdmin, async (req, res) => {
     const { application_id } = req.body;
     if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
 
-    // Get application
     const { data: app, error: appError } = await supabase
         .from('membership_applications')
         .select('*')
@@ -1249,94 +1248,143 @@ app.post('/api/admin/verify-documents', requireAdmin, async (req, res) => {
 
     try {
         const imageContents = [];
+        const docLabels     = [];
 
-        // Download each document from Supabase Storage
+        // ── Download and prepare each document ───────────────────────────
         for (const doc of app.documents) {
             const { data: fileData, error: dlError } = await supabase.storage
                 .from('member-documents')
                 .download(doc.path);
-            if (dlError) continue;
+            if (dlError) {
+                console.error(`Download error for ${doc.type}:`, dlError.message);
+                continue;
+            }
 
             const arrayBuffer = await fileData.arrayBuffer();
-            const base64 = Buffer.from(arrayBuffer).toString('base64');
+            const buffer      = Buffer.from(arrayBuffer);
+            const isPdf       = doc.mime === 'application/pdf';
+            let   base64, mediaType;
 
-            // Only send images to vision (skip PDFs for now — Claude Vision handles jpg/png/webp/gif)
-            const isPdf = doc.mime === 'application/pdf';
-            if (!isPdf) {
+            if (isPdf) {
+                // Convert PDF to image using sharp if available, otherwise send as-is
+                // Claude can read PDFs directly via the document type
+                base64    = buffer.toString('base64');
+                mediaType = 'application/pdf';
+
+                // Use Claude's document type for PDFs
+                imageContents.push({
+                    type: 'document',
+                    source: {
+                        type:       'base64',
+                        media_type: 'application/pdf',
+                        data:       base64
+                    }
+                });
+            } else {
+                // Image file — send directly
+                base64    = buffer.toString('base64');
+                mediaType = doc.mime;
                 imageContents.push({
                     type: 'image',
-                    source: { type: 'base64', media_type: doc.mime, data: base64 }
-                });
-                imageContents.push({
-                    type: 'text',
-                    text: `The above image is the: ${doc.type.replace(/_/g,' ').toUpperCase()}`
+                    source: {
+                        type:       'base64',
+                        media_type: mediaType,
+                        data:       base64
+                    }
                 });
             }
+
+            imageContents.push({
+                type: 'text',
+                text: `The above document is: ${doc.type.replace(/_/g,' ').toUpperCase()}`
+            });
+            docLabels.push(doc.type);
         }
 
         if (!imageContents.length) {
-            return res.status(400).json({ error: 'No image documents available for AI verification. PDF documents must be reviewed manually.' });
+            return res.status(400).json({ error: 'Could not load any documents for verification' });
         }
 
-        // Build verification prompt
-        const prompt = `You are verifying membership application documents for a Panama tourism rental directory.
+        // ── Build extraction + verification prompt ────────────────────────
+        const prompt = `You are verifying membership application documents for a Panama tourism rental directory called Trusted Panama Stays.
 
-Application details:
-- Property name: ${app.property_name}
+Application details submitted by the applicant:
+- Property/establishment name: ${app.property_name}
 - Contact/representative name: ${app.contact_name}
 - Province: ${app.province}
-- Plan: ${app.membership_type === 'trial' ? 'Free trial' : app.duration_months + ' months paid'}
+- Plan: ${app.membership_type === 'trial' ? 'Free 30-day trial' : app.duration_months + ' months paid'}
 - Payment method: ${app.payment_method || 'none'}
 - Amount expected: ${app.duration_months === 24 ? '$45' : app.duration_months === 12 ? '$24' : 'none (trial)'}
 
-Please verify the documents and return ONLY a JSON object with this structure:
+Documents provided: ${docLabels.join(', ')}
+
+Please carefully read ALL documents provided and return ONLY a JSON object with this exact structure:
+
 {
   "aviso_operacion": {
-    "found": true/false,
-    "business_name": "name as shown on document",
-    "ruc": "RUC number",
-    "ruc_dv": "DV digit",
-    "legal_rep": "legal representative name",
-    "license_number": "license number",
-    "valid": true/false,
-    "notes": "any issues found"
+    "found": true,
+    "aviso_number": "the aviso de operación number",
+    "issue_date": "date in YYYY-MM-DD format if possible",
+    "establishment_name": "name of the establishment/business as shown",
+    "establishment_location": "address or location of the establishment",
+    "company_name": "legal company name (razón social)",
+    "ruc": "RUC number (digits only, no DV)",
+    "ruc_dv": "DV digit(s)",
+    "rep_name": "full name of legal representative",
+    "rep_cedula": "cédula number of representative",
+    "activity": "business activity description",
+    "valid": true,
+    "notes": "any issues or observations about this document"
   },
   "cedula": {
-    "found": true/false,
-    "id_holder_name": "name on ID",
-    "id_number": "ID number",
+    "found": true,
+    "id_holder_name": "full name as shown on ID",
+    "id_number": "cédula or passport number",
+    "id_type": "cédula or passport",
     "notes": "any issues"
   },
   "payment": {
-    "found": true/false,
-    "amount": "amount shown",
-    "date": "payment date",
-    "method": "payment method detected",
+    "found": true,
+    "amount": "amount shown including currency symbol",
+    "date": "payment date in YYYY-MM-DD if possible",
+    "reference": "transaction reference or confirmation number",
+    "method": "transfer/yappy/other",
     "notes": "any issues"
   },
   "verification": {
-    "names_match": true/false,
-    "names_match_detail": "explanation",
-    "payment_matches": true/false,
-    "payment_match_detail": "explanation",
-    "overall_result": "PASS/FAIL/REVIEW",
-    "overall_notes": "summary recommendation"
+    "names_match": true,
+    "names_match_detail": "Does rep_name on aviso match cedula holder name? Explain any differences.",
+    "establishment_matches": true,
+    "establishment_match_detail": "Does establishment name on aviso match application property name?",
+    "payment_matches": true,
+    "payment_match_detail": "Does payment amount match expected amount? Is date recent?",
+    "overall_result": "PASS",
+    "overall_notes": "Summary recommendation for admin"
   }
 }
-Return ONLY the JSON, no other text.`;
 
-        // Call Claude API
+Important notes:
+- overall_result must be exactly: PASS, FAIL, or REVIEW
+- Use PASS when all documents are valid and match
+- Use FAIL when there are clear mismatches or invalid documents  
+- Use REVIEW when documents are valid but have minor issues needing human judgment
+- If a document type is not provided, set found: false and all other fields to null
+- Extract ALL visible text carefully — Panamanian government documents have standardized layouts
+- RUC format in Panama: digits-digit-digits (e.g. 8-123-456789 or 1401220-1-627960)
+- Return ONLY the JSON, no other text, no markdown code blocks`;
+
+        // ── Call Claude API ───────────────────────────────────────────────
         const response = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-opus-4-5',
-            max_tokens: 1500,
-            messages: [{
-                role: 'user',
+            model:      'claude-opus-4-5',
+            max_tokens: 2000,
+            messages:   [{
+                role:    'user',
                 content: [...imageContents, { type: 'text', text: prompt }]
             }]
         }, {
             headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'Content-Type':      'application/json',
+                'x-api-key':         process.env.ANTHROPIC_API_KEY,
                 'anthropic-version': '2023-06-01'
             },
             timeout: 60000
@@ -1344,29 +1392,54 @@ Return ONLY the JSON, no other text.`;
 
         const content = response.data.content[0].text;
         const clean   = content.replace(/```json\n?|\n?```/g, '').trim();
-        const result  = JSON.parse(clean);
+        let result;
+        try {
+            result = JSON.parse(clean);
+        } catch (parseErr) {
+            console.error('JSON parse error:', clean.substring(0, 200));
+            return res.status(500).json({ error: 'Could not parse AI response', raw: clean.substring(0, 500) });
+        }
 
-        // Save extracted RUC data to listing if found
-        if (result.aviso_operacion?.ruc && app.listing_id) {
-            await supabase.from('listings').update({
-                ruc:            result.aviso_operacion.ruc,
-                ruc_dv:         result.aviso_operacion.ruc_dv,
-                legal_name:     result.aviso_operacion.business_name,
-                license_number: result.aviso_operacion.license_number,
-                verified_at:    new Date().toISOString(),
-                verified_by:    'ai'
-            }).eq('id', app.listing_id);
+        // ── Auto-save extracted data to listing ───────────────────────────
+        if (app.listing_id && result.aviso_operacion?.found) {
+            const ao = result.aviso_operacion;
+            const updateData = {};
+            if (ao.ruc)                    updateData.ruc                    = ao.ruc;
+            if (ao.ruc_dv)                 updateData.ruc_dv                 = ao.ruc_dv;
+            if (ao.company_name)           updateData.legal_name             = ao.company_name;
+            if (ao.aviso_number)           updateData.license_number         = ao.aviso_number;
+            if (ao.issue_date)             updateData.license_date           = ao.issue_date;
+            if (ao.rep_name)               updateData.rep_name               = ao.rep_name;
+            if (ao.rep_cedula)             updateData.rep_cedula             = ao.rep_cedula;
+            if (ao.establishment_name)     updateData.establishment_name     = ao.establishment_name;
+            if (ao.establishment_location) updateData.establishment_location = ao.establishment_location;
+            updateData.verified_at = new Date().toISOString();
+            updateData.verified_by = 'ai';
+
+            const { error: updateError } = await supabase
+                .from('listings')
+                .update(updateData)
+                .eq('id', app.listing_id);
+
+            if (updateError) {
+                console.error('Failed to save extracted data:', updateError.message);
+            } else {
+                console.log(`✅ Extracted data saved to listing ${app.listing_id}`);
+            }
         }
 
         await logEvent('ai_verification_completed', {
             application_id,
-            result: result.verification.overall_result
+            result:     result.verification?.overall_result,
+            listing_id: app.listing_id,
+            data_saved: !!app.listing_id
         });
 
         res.json({ success: true, verification: result });
 
     } catch (err) {
         console.error('AI verification error:', err.message);
+        if (err.response?.data) console.error('API error:', JSON.stringify(err.response.data));
         res.status(500).json({ error: 'AI verification failed: ' + err.message });
     }
 });
@@ -1494,29 +1567,29 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
             : (app.duration_months === 24 ? 'membresía de 2 años' : 'membresía de 1 año');
 
         const welcomeMsg = `
-<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
-<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
-    <h1 style="color:white;margin:0;font-size:1.4rem;">¡Bienvenido a Trusted Panama Stays!</h1>
-</div>
-<p>Estimado/a <strong>${app.contact_name}</strong>,</p>
-<p>Su solicitud de membresía ha sido <strong style="color:#00a859;">aprobada</strong>. Su ${planText} para <strong>${app.property_name}</strong> está activa hasta el <strong>${paidUntilStr}</strong>.</p>
-<h3 style="color:#005ca9;margin-top:1.2rem;">Sus datos de acceso:</h3>
-<table style="border:1px solid #e1e5e9;border-radius:8px;padding:1rem;background:#f8f9fa;width:100%;margin-bottom:1rem;">
-    <tr><td style="padding:6px;font-weight:bold;">URL de su listado:</td>
-        <td style="padding:6px;"><a href="${listingUrl}">${listingUrl}</a></td></tr>
-    <tr><td style="padding:6px;font-weight:bold;">Contraseña inicial:</td>
-        <td style="padding:6px;font-family:monospace;font-size:1.1rem;"><strong>${password}</strong></td></tr>
-</table>
-<p style="color:#666;font-size:0.88rem;">Por seguridad, le recomendamos cambiar su contraseña después de su primer acceso.</p>
-${isTrial ? `<p style="background:#fffbe6;padding:1rem;border-radius:6px;border:1px solid #FFD700;margin-top:1rem;">
-    <strong>⚠️ Recordatorio:</strong> Su período de prueba vence el <strong>${paidUntilStr}</strong>.
-    Recibirá un recordatorio 5 días antes para continuar con su membresía ($24/año o $45/2 años).
-</p>` : ''}
-<p style="margin-top:1rem;">Para editar su listado, visite el enlace arriba y haga clic en <strong>🔐 Acceso</strong>.</p>
-<p>¿Preguntas? Escríbanos a <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>
-<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
-<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
-</body></html>`;
+    <html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+    <div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+        <h1 style="color:white;margin:0;font-size:1.4rem;">¡Bienvenido a Trusted Panama Stays!</h1>
+    </div>
+    <p>Estimado/a <strong>${app.contact_name}</strong>,</p>
+    <p>Su solicitud de membresía ha sido <strong style="color:#00a859;">aprobada</strong>. Su ${planText} para <strong>${app.property_name}</strong> está activa hasta el <strong>${paidUntilStr}</strong>.</p>
+    <h3 style="color:#005ca9;margin-top:1.2rem;">Sus datos de acceso:</h3>
+    <table style="border:1px solid #e1e5e9;border-radius:8px;padding:1rem;background:#f8f9fa;width:100%;margin-bottom:1rem;">
+        <tr><td style="padding:6px;font-weight:bold;">URL de su listado:</td>
+            <td style="padding:6px;"><a href="${listingUrl}">${listingUrl}</a></td></tr>
+        <tr><td style="padding:6px;font-weight:bold;">Contraseña inicial:</td>
+            <td style="padding:6px;font-family:monospace;font-size:1.1rem;"><strong>${password}</strong></td></tr>
+    </table>
+    <p style="color:#666;font-size:0.88rem;">Por seguridad, le recomendamos cambiar su contraseña después de su primer acceso.</p>
+    ${isTrial ? `<p style="background:#fffbe6;padding:1rem;border-radius:6px;border:1px solid #FFD700;margin-top:1rem;">
+        <strong>⚠️ Recordatorio:</strong> Su período de prueba vence el <strong>${paidUntilStr}</strong>.
+        Recibirá un recordatorio 5 días antes para continuar con su membresía ($24/año o $45/2 años).
+    </p>` : ''}
+    <p style="margin-top:1rem;">Para editar su listado, visite el enlace arriba y haga clic en <strong>🔐 Acceso</strong>.</p>
+    <p>¿Preguntas? Escríbanos a <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>
+    <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+    <p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
+    </body></html>`;
 
         const notifyPath = path.join(__dirname, 'public', 'notify.php');
         await execFileAsync('php', [
@@ -1615,13 +1688,6 @@ app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
         .createSignedUrl(filePath, 3600);
     if (error) return res.status(500).json({ error: error.message });
     res.json({ url: data.signedUrl });
-});
-
-app.get('/api/env-check2', (req, res) => {
-    res.json({
-        anthropic: !!process.env.ANTHROPIC_API_KEY,
-        prefix:    process.env.ANTHROPIC_API_KEY?.substring(0,10) + '...'
-    });
 });
 
 
