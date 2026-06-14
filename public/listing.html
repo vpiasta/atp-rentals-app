@@ -14,7 +14,6 @@
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #111; background: #f8f9fa; }
         .container { max-width: 900px; margin: 0 auto; padding: 20px; }
 
-        /* ── Header ── */
         header {
             background: linear-gradient(135deg, #005ca9, #00a859);
             color: white; padding: 1.2rem 1.5rem; border-radius: 10px;
@@ -35,10 +34,8 @@
         }
         .header-btn:hover { background: rgba(255,255,255,0.28); }
 
-        /* ── Main card ── */
         .listing-card { background: white; border-radius: 12px; box-shadow: 0 2px 20px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 1.5rem; }
 
-        /* ── Name + badges ── */
         .name-row { padding: 1.5rem 1.5rem 0; }
         .listing-name { font-size: 1.8rem; color: #005ca9; margin-bottom: 0.6rem; font-weight: 700; }
         .badges { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 1.2rem; }
@@ -46,7 +43,6 @@
         .badge-type { background: #00a859; } .badge-province { background: #005ca9; }
         .badge-member { background: #a07800; } .badge-atp { background: #1a7a1a; }
 
-        /* ── Quick buttons ── */
         .quick-buttons { padding: 0 1.5rem 1.2rem; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid #e1e5e9; }
         .qbtn { padding: 7px 14px; border: 2px solid #005ca9; border-radius: 7px; text-decoration: none; color: #005ca9; font-weight: 600; font-size: 0.85rem; transition: all 0.25s; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; background: white; }
         .qbtn:hover           { background: #005ca9; color: white; }
@@ -59,19 +55,16 @@
         .qbtn.custom          { border-color: #666; color: #444; }
         .qbtn.custom:hover    { background: #444; color: white; border-color: #444; }
 
-        /* ── Sections ── */
         .section { padding: 1.2rem 1.5rem; border-bottom: 1px solid #e1e5e9; }
         .section:last-child { border-bottom: none; }
         .section-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-bottom: 0.8rem; font-weight: 700; }
 
-        /* ── Info grid ── */
         .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, auto)); gap: 0.8rem; align-items: start; }
         .info-item { display: flex; gap: 9px; align-items: flex-start; }
         .info-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; }
         .info-label { font-size: 0.75rem; color: #888; }
         .info-value { font-weight: 600; color: #111; font-size: 0.95rem; }
 
-        /* ── Photo gallery VIEW ── */
         .photo-gallery { width: 100%; background: transparent; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; padding: 12px; }
         .photo-gallery img { max-width: 100%; max-height: 340px; object-fit: contain; display: block; border: 1px solid #333; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
         .photo-placeholder { font-size: 5rem; opacity: 0.2; color: #888; padding: 3rem; }
@@ -79,7 +72,6 @@
         .photo-nav button { background: rgba(0,0,0,0.55); color: white; border: none; border-radius: 50%; width: 34px; height: 34px; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; }
         .photo-count { position: absolute; bottom: 18px; left: 18px; background: rgba(0,0,0,0.55); color: white; padding: 3px 9px; border-radius: 12px; font-size: 0.78rem; }
 
-        /* ── Photo manager EDIT ── */
         .photo-manager { display: flex; flex-direction: column; gap: 12px; }
         .upload-zone { border: 2px dashed #005ca9; border-radius: 10px; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.25s; background: #f0f7ff; position: relative; }
         .upload-zone:hover, .upload-zone.dragover { background: #dceeff; border-color: #004885; }
@@ -101,27 +93,22 @@
         .photo-ctrl-btn.star { color: #FFD700; }
         .photo-thumb-label { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.6); color: #FFD700; font-size: 0.65rem; padding: 2px 6px; border-radius: 8px; font-weight: 700; }
 
-        /* ── Editable fields ── */
         .edit-group { margin-bottom: 1.2rem; }
         .edit-group:last-child { margin-bottom: 0; }
         .edit-label { display: block; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: #888; font-weight: 700; margin-bottom: 0.4rem; }
         .edit-input { width: 100%; padding: 9px 12px; border: 2px solid #e1e5e9; border-radius: 7px; font-size: 0.95rem; font-family: inherit; transition: border-color 0.25s; color: #111; background: #fafafa; }
         .edit-input:focus { outline: none; border-color: #005ca9; background: white; }
 
-        /* ── Quill editor ── */
         .quill-wrapper { border: 2px solid #e1e5e9; border-radius: 7px; overflow: visible; background: #fafafa; }
         .quill-wrapper:focus-within { border-color: #005ca9; background: white; }
         .ql-toolbar { border: none !important; border-bottom: 1px solid #e1e5e9 !important; background: #f5f5f5; border-radius: 7px 7px 0 0; }
         .ql-container { border: none !important; font-size: 0.95rem; min-height: 120px; }
         .ql-editor { min-height: 120px; }
-        .ql-toolbar.ql-snow + .ql-toolbar.ql-snow { display: none; }
 
-        /* ── Description view ── */
         .description-text { color: #444; line-height: 1.8; }
         .description-text a { color: #005ca9; text-decoration: underline; }
         .description-text ul, .description-text ol { padding-left: 1.5rem; }
 
-        /* ── Custom links ── */
         .custom-link-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 1rem; }
         .custom-link-row { display: grid; grid-template-columns: 60px 1fr 1fr auto; gap: 8px; align-items: center; }
         .custom-link-row input { padding: 7px 10px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 0.88rem; font-family: inherit; }
@@ -132,7 +119,6 @@
         .add-link-btn:hover { background: #005ca9; color: white; border-style: solid; }
         .custom-link-hint { font-size: 0.75rem; color: #aaa; margin-top: 0.3rem; }
 
-        /* ── Save bar ── */
         .save-bar { background: #fffbe6; border: 1px solid #FFD700; border-radius: 8px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
         .save-bar p { font-size: 0.88rem; color: #7a5c00; }
         .save-btn { padding: 9px 24px; background: #005ca9; color: white; border: none; border-radius: 7px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background 0.25s; }
@@ -141,15 +127,13 @@
         .save-message.success { background: #e8f4e8; color: #1a5c1a; display: inline-block; }
         .save-message.error   { background: #fde8e8; color: #7a0000; display: inline-block; }
 
-        /* ── Footer ── */
         footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
         footer a { color: #7ec8e3; text-decoration: none; }
         footer a:hover { text-decoration: underline; }
 
-        /* ── Login modal ── */
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
         .modal-overlay.active { display: flex; }
-        .modal { background: white; border-radius: 12px; padding: 2rem; width: 340px; max-width: 90vw; box-shadow: 0 8px 40px rgba(0,0,0,0.2); }
+        .modal { background: white; border-radius: 12px; padding: 2rem; width: 360px; max-width: 90vw; box-shadow: 0 8px 40px rgba(0,0,0,0.2); }
         .modal h3 { font-size: 1.2rem; color: #005ca9; margin-bottom: 0.5rem; }
         .modal p  { font-size: 0.85rem; color: #666; margin-bottom: 1rem; }
         .modal input { width: 100%; padding: 10px 14px; border: 2px solid #e1e5e9; border-radius: 7px; font-size: 1rem; margin-bottom: 1rem; }
@@ -160,12 +144,33 @@
         .modal-btn.confirm { background: #005ca9; color: white; } .modal-btn.confirm:hover { background: #004885; }
         .modal-btn.cancel  { background: #f0f0f0; color: #555; } .modal-btn.cancel:hover  { background: #e0e0e0; }
 
+        /* ── Password change form ── */
+        .pwd-change-form {
+            background: #f8f9fa; border: 2px solid #e1e5e9; border-radius: 10px;
+            padding: 1.2rem 1.5rem; margin: 0 1.5rem 0.5rem; display: none;
+        }
+        .pwd-change-form.visible { display: block; }
+        .pwd-change-form h4 { font-size: 0.9rem; color: #005ca9; margin-bottom: 1rem; }
+        .pwd-field { margin-bottom: 0.8rem; }
+        .pwd-field label { display: block; font-size: 0.75rem; font-weight: 600; color: #555; margin-bottom: 3px; text-transform: uppercase; }
+        .pwd-field input { width: 100%; padding: 8px 10px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 0.9rem; font-family: inherit; }
+        .pwd-field input:focus { outline: none; border-color: #005ca9; }
+        .pwd-actions { display: flex; gap: 8px; margin-top: 0.8rem; }
+        .pwd-msg { font-size: 0.82rem; padding: 5px 10px; border-radius: 5px; margin-top: 0.5rem; display: none; }
+        .pwd-msg.ok  { background: #e8f4e8; color: #1a5c1a; border: 1px solid #00a859; display: block; }
+        .pwd-msg.err { background: #fde8e8; color: #7a0000; border: 1px solid #cc0000; display: block; }
+        .strength-bar { height: 3px; border-radius: 2px; margin-top: 4px; background: #e1e5e9; transition: all 0.3s; }
+        .strength-bar.weak   { background: #cc0000; width: 33%; }
+        .strength-bar.medium { background: #FFD700; width: 66%; }
+        .strength-bar.strong { background: #00a859; width: 100%; }
+
         .loading-state { text-align: center; padding: 4rem; color: #005ca9; font-size: 1.1rem; }
         .error-state   { text-align: center; padding: 4rem; color: #cc0000; }
 
         @media (max-width: 600px) {
             .listing-name { font-size: 1.4rem; }
             .name-row, .quick-buttons, .section { padding-left: 1rem; padding-right: 1rem; }
+            .pwd-change-form { margin-left: 1rem; margin-right: 1rem; }
             .qbtn.login-btn, .qbtn.logout-btn { margin-left: 0; }
             .custom-link-row { grid-template-columns: 50px 1fr; }
             .custom-link-row input:nth-child(3) { display: none; }
@@ -177,7 +182,6 @@
 
     <header>
         <div class="header-left">
-            <!-- Logo -->
             <svg class="header-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260" role="img" aria-label="Trusted Panama Stays logo">
                 <rect x="30" y="130" width="100" height="62" fill="white"/>
                 <rect x="130" y="130" width="100" height="62" fill="#cc0000"/>
@@ -237,6 +241,24 @@
             <button class="modal-btn cancel" id="modal-cancel"></button>
             <button class="modal-btn confirm" id="modal-confirm"></button>
         </div>
+        <p style="text-align:center;margin-top:0.8rem;font-size:0.82rem;">
+            <a href="#" onclick="showForgotForm();return false;" style="color:#005ca9;">
+                ¿Olvidó su contraseña? / Forgot password?
+            </a>
+        </p>
+        <div id="forgot-form" style="display:none;margin-top:1rem;padding:1rem;background:#f0f7ff;border-radius:8px;border:1px solid #c0d8f0;">
+            <p style="font-size:0.85rem;color:#005ca9;margin-bottom:0.8rem;font-weight:600;">Recuperar contraseña</p>
+            <p style="font-size:0.82rem;color:#555;margin-bottom:0.8rem;">Ingrese su número de membresía y correo electrónico registrado.</p>
+            <input type="number" id="forgot-id" placeholder="N° de membresía"
+                   style="width:100%;padding:8px 10px;border:2px solid #e1e5e9;border-radius:6px;font-size:0.88rem;margin-bottom:0.5rem;">
+            <input type="email" id="forgot-email" placeholder="Correo electrónico"
+                   style="width:100%;padding:8px 10px;border:2px solid #e1e5e9;border-radius:6px;font-size:0.88rem;margin-bottom:0.8rem;">
+            <button onclick="requestPasswordReset()" class="modal-btn confirm" style="width:100%;">Enviar enlace</button>
+            <div id="forgot-msg" style="font-size:0.82rem;margin-top:0.5rem;display:none;"></div>
+            <p style="text-align:center;margin-top:0.5rem;">
+                <a href="#" onclick="hideForgotForm();return false;" style="font-size:0.78rem;color:#888;">← Volver</a>
+            </p>
+        </div>
     </div>
 </div>
 
@@ -257,7 +279,6 @@ let quillEs      = null;
 let customLinks  = [];
 let hasUnsavedChanges = false;
 
-// ── Translations ──────────────────────────────────────────────────────────────
 const T = {
     back:          isEs ? '← Volver'                  : '← Back',
     subtitle:      isEs ? 'Alojamiento verificado ATP' : 'Verified ATP-Registered Accommodation',
@@ -283,6 +304,7 @@ const T = {
     booking:       isEs ? '🔗 Reservar' : '🔗 Book Now',
     memberLogin:   isEs ? '🔐 Acceso'   : '🔐 Login',
     logout:        isEs ? 'Salir'       : 'Log Out',
+    changePwd:     isEs ? '🔑 Cambiar contraseña' : '🔑 Change password',
     noDesc:        isEs ? 'Sin descripción aún.' : 'No description yet.',
     notFound:      isEs ? 'Listado no encontrado.' : 'Listing not found.',
     uploadClick:   isEs ? 'Clic o arrastre fotos aquí' : 'Click or drag photos here',
@@ -314,7 +336,6 @@ const T = {
         : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>with additional data provided by our members',
 };
 
-// ── Static translations ───────────────────────────────────────────────────────
 document.getElementById('back-link').textContent       = T.back;
 document.getElementById('back-link').href              = isEs ? 'index_es.html' : 'index.html';
 document.getElementById('header-subtitle').textContent = T.subtitle;
@@ -326,7 +347,6 @@ document.getElementById('modal-confirm').textContent   = T.confirm;
 document.getElementById('save-bar-text').textContent   = T.saveBar;
 document.getElementById('save-btn').textContent        = T.saveChanges;
 
-// Language button — inline SVG flag, no emoji
 const langLink = document.getElementById('lang-link');
 if (isEs) {
     langLink.href = '#';
@@ -353,13 +373,11 @@ langLink.addEventListener('click', e => {
     window.location.href = `listing.html?${param}&lang=${newLang}`;
 });
 
-// ── Session ───────────────────────────────────────────────────────────────────
 function restoreSession(id) {
     const token = sessionStorage.getItem(`tps_token_${id}`);
     if (token) { sessionToken = token; isLoggedIn = true; }
 }
 
-// ── Phone helpers ─────────────────────────────────────────────────────────────
 function getPhoneNumbers(phoneStr) {
     if (!phoneStr) return { display: '', call: null, whatsapp: null };
     const nums     = phoneStr.split('/').map(p => p.trim().replace(/\D/g,'')).filter(p => p.length >= 7);
@@ -376,7 +394,6 @@ function mapsUrl(rental) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
-// ── Quick buttons (standard only — no custom links here) ──────────────────────
 function buildQuickButtons(rental, editMode) {
     const ph  = getPhoneNumbers(rental.phone_member || rental.phone);
     const em  = rental.email_member || rental.email;
@@ -391,10 +408,10 @@ function buildQuickButtons(rental, editMode) {
         ${em      ? `<a href="mailto:${em}" class="qbtn">${T.emailBtn}</a>` : ''}
         ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
         <a href="${url}" target="_blank" class="qbtn">${T.maps}</a>
+        ${editMode ? `<button onclick="togglePwdForm()" class="qbtn" style="border-color:#a07800;color:#7a5c00;">${T.changePwd}</button>` : ''}
         ${loginLogout}`;
 }
 
-// ── Photo gallery VIEW ────────────────────────────────────────────────────────
 let viewPhotos = [], currentPhoto = 0;
 function galleryHTML() {
     if (!viewPhotos.length) return `<div class="photo-gallery"><span class="photo-placeholder">🏨</span></div>`;
@@ -415,7 +432,6 @@ function changePhoto(dir) {
     if (c) c.textContent = `${currentPhoto+1} / ${viewPhotos.length}`;
 }
 
-// ── Photo thumbs EDIT ─────────────────────────────────────────────────────────
 function renderPhotoThumbs() {
     const container = document.getElementById('photo-thumbs');
     if (!container) return;
@@ -440,14 +456,13 @@ function movePhoto(i, dir) {
 }
 function removeEditPhoto(i) { editPhotos.splice(i,1); renderPhotoThumbs(); markUnsaved(); }
 
-// ── Custom links EDIT ─────────────────────────────────────────────────────────
 function renderCustomLinks() {
     const container = document.getElementById('custom-link-list');
     if (!container) return;
     container.innerHTML = customLinks.map((l, i) => `
         <div class="custom-link-row">
             <input type="text" value="${l.emoji||''}" placeholder="📸"
-                   title="${isEs ? 'Pegue un emoji aquí (ej: 📸 🌐 🎥)' : 'Paste an emoji here (e.g: 📸 🌐 🎥)'}"
+                   title="${isEs ? 'Pegue un emoji aquí' : 'Paste an emoji here'}"
                    onchange="customLinks[${i}].emoji=this.value; markUnsaved();" maxlength="4">
             <input type="text" value="${l.label||''}" placeholder="${T.linkLabel}"
                    onchange="customLinks[${i}].label=this.value; markUnsaved();">
@@ -459,10 +474,8 @@ function renderCustomLinks() {
 function addCustomLink() { if (customLinks.length >= 4) return; customLinks.push({emoji:'',label:'',url:''}); renderCustomLinks(); markUnsaved(); }
 function removeCustomLink(i) { customLinks.splice(i,1); renderCustomLinks(); markUnsaved(); }
 
-// ── Unsaved changes tracking ──────────────────────────────────────────────────
 function markUnsaved() { hasUnsavedChanges = true; }
 
-// ── Image resize + upload ─────────────────────────────────────────────────────
 function resizeImage(file, maxWidth=1920, maxHeight=1080, quality=0.85) {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -502,10 +515,10 @@ async function uploadPhoto(file) {
 }
 
 async function handleFiles(files) {
-    const progress = document.getElementById('upload-progress');
+    const progress    = document.getElementById('upload-progress');
     const progressBar = document.getElementById('progress-bar');
     const progressText = document.getElementById('progress-text');
-    const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    const validFiles  = Array.from(files).filter(f => f.type.startsWith('image/'));
     if (!validFiles.length) return;
     if (editPhotos.length + validFiles.length > 20) { alert(isEs ? 'Máximo 20 fotos.' : 'Maximum 20 photos.'); return; }
     progress.style.display = 'block';
@@ -520,7 +533,7 @@ async function handleFiles(files) {
 }
 
 function wireUploadZone() {
-    const zone = document.getElementById('upload-zone');
+    const zone  = document.getElementById('upload-zone');
     const input = document.getElementById('file-input');
     if (!zone || !input) return;
     input.addEventListener('change', e => { handleFiles(e.target.files); e.target.value=''; });
@@ -530,18 +543,13 @@ function wireUploadZone() {
     renderPhotoThumbs();
 }
 
-// ── Quill tooltips ────────────────────────────────────────────────────────────
 function addQuillTooltips(containerId) {
     const tooltips = {
         'ql-bold':      isEs ? 'Negrita' : 'Bold',
         'ql-italic':    isEs ? 'Cursiva' : 'Italic',
         'ql-underline': isEs ? 'Subrayado' : 'Underline',
-        'ql-link':      isEs
-            ? 'Enlace: seleccione texto, luego clic aquí y pegue la URL en el campo'
-            : 'Link: select text first, then click here and paste the URL in the field',
-        'ql-clean':     isEs
-            ? 'Eliminar todo el formato y enlaces del texto seleccionado'
-            : 'Remove all formatting and links from selected text',
+        'ql-link':      isEs ? 'Enlace: seleccione texto, luego clic aquí' : 'Link: select text first, then click here',
+        'ql-clean':     isEs ? 'Eliminar formato' : 'Remove formatting',
     };
     const wrapper = document.getElementById(containerId)?.closest('.quill-wrapper');
     if (!wrapper) return;
@@ -551,24 +559,17 @@ function addQuillTooltips(containerId) {
 }
 
 function initQuill(rental) {
-    const toolbarOptions = [
-        ['bold', 'italic', 'underline'],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        ['link'],
-        ['clean']
-    ];
+    const toolbarOptions = [['bold','italic','underline'],[{'list':'ordered'},{'list':'bullet'}],['link'],['clean']];
     quillEn = new Quill('#quill-en', { theme: 'snow', modules: { toolbar: toolbarOptions } });
     quillEs = new Quill('#quill-es', { theme: 'snow', modules: { toolbar: toolbarOptions } });
     if (rental.description_en) quillEn.root.innerHTML = rental.description_en;
     if (rental.description_es) quillEs.root.innerHTML = rental.description_es;
-    // Track changes in Quill editors
     quillEn.on('text-change', markUnsaved);
     quillEs.on('text-change', markUnsaved);
     addQuillTooltips('quill-en');
     addQuillTooltips('quill-es');
 }
 
-// ── Render VIEW ───────────────────────────────────────────────────────────────
 function renderView(rental) {
     viewPhotos = Array.isArray(rental.photos) ? rental.photos : []; currentPhoto = 0;
     const description = isEs
@@ -615,12 +616,9 @@ function renderView(rental) {
     </div>`;
 }
 
-// ── Render EDIT ───────────────────────────────────────────────────────────────
 function renderEdit(rental) {
     editPhotos  = Array.isArray(rental.photos) ? [...rental.photos] : [];
     customLinks = Array.isArray(rental.custom_links) ? [...rental.custom_links] : [];
-    const ph = getPhoneNumbers(rental.phone_member || rental.phone);
-    const em = rental.email_member || rental.email;
     return `
     <div class="listing-card">
         <div class="name-row">
@@ -633,6 +631,27 @@ function renderEdit(rental) {
             </div>
         </div>
         <div class="quick-buttons">${buildQuickButtons(rental, true)}</div>
+        <div class="pwd-change-form" id="pwd-change-form">
+            <h4>🔑 ${isEs?'Cambiar contraseña':'Change password'}</h4>
+            <div class="pwd-field">
+                <label>${isEs?'Contraseña actual':'Current password'}</label>
+                <input type="password" id="pwd-current" placeholder="${isEs?'Su contraseña actual':'Your current password'}">
+            </div>
+            <div class="pwd-field">
+                <label>${isEs?'Nueva contraseña':'New password'}</label>
+                <input type="password" id="pwd-new" placeholder="${isEs?'Mínimo 6 caracteres':'Minimum 6 characters'}" oninput="checkPwdStrength()">
+                <div class="strength-bar" id="pwd-strength-bar"></div>
+            </div>
+            <div class="pwd-field">
+                <label>${isEs?'Confirmar nueva contraseña':'Confirm new password'}</label>
+                <input type="password" id="pwd-confirm" placeholder="${isEs?'Repita la nueva contraseña':'Repeat new password'}">
+            </div>
+            <div class="pwd-actions">
+                <button onclick="changePassword()" class="qbtn">${isEs?'Guardar contraseña':'Save password'}</button>
+                <button onclick="togglePwdForm()" class="qbtn">${isEs?'Cancelar':'Cancel'}</button>
+            </div>
+            <div class="pwd-msg" id="pwd-msg"></div>
+        </div>
         <div class="section">
             <div class="section-title">${T.contact}</div>
             <div class="edit-group">
@@ -697,12 +716,11 @@ function renderEdit(rental) {
     </div>`;
 }
 
-// ── Save ──────────────────────────────────────────────────────────────────────
 async function saveChanges() {
     const btn = document.getElementById('save-btn');
     const msg = document.getElementById('save-message');
     btn.disabled = true; msg.className = 'save-message'; msg.style.display = 'none';
-    const linkRows = document.querySelectorAll('#custom-link-list .custom-link-row');
+    const linkRows   = document.querySelectorAll('#custom-link-list .custom-link-row');
     const savedLinks = Array.from(linkRows).map(row => {
         const inputs = row.querySelectorAll('input');
         return { emoji: inputs[0].value.trim(), label: inputs[1].value.trim(), url: inputs[2].value.trim() };
@@ -735,11 +753,11 @@ async function saveChanges() {
     return true;
 }
 
-// ── Login ─────────────────────────────────────────────────────────────────────
 function openLogin() {
     document.getElementById('login-modal').classList.add('active');
     document.getElementById('password-input').value = '';
     document.getElementById('modal-error').style.display = 'none';
+    document.getElementById('forgot-form').style.display = 'none';
     setTimeout(() => document.getElementById('password-input').focus(), 100);
 }
 function closeLogin() { document.getElementById('login-modal').classList.remove('active'); }
@@ -767,10 +785,8 @@ async function attemptLogin() {
     } catch { errorEl.textContent = T.loginError; errorEl.style.display = 'block'; }
 }
 
-// ── Logout with unsaved changes warning ───────────────────────────────────────
 async function doLogout() {
     if (hasUnsavedChanges) {
-        // Show inline warning in save bar
         const saveBar = document.querySelector('.save-bar');
         const existing = document.getElementById('logout-warning');
         if (!existing) {
@@ -795,7 +811,6 @@ function performLogout() {
     renderPage(currentRental);
 }
 
-// ── Render page ───────────────────────────────────────────────────────────────
 function renderPage(rental) {
     const saveBar = document.getElementById('save-bar');
     if (isLoggedIn && rental.is_member) {
@@ -809,7 +824,6 @@ function renderPage(rental) {
     }
 }
 
-// ── Load listing ──────────────────────────────────────────────────────────────
 async function loadListing() {
     if (!listingId && !slugParam) {
         document.getElementById('listing-content').innerHTML = `<div class="error-state">${T.notFound}</div>`;
@@ -830,7 +844,98 @@ async function loadListing() {
     }
 }
 
+// ── Password change functions ─────────────────────────────────────────────────
+function togglePwdForm() {
+    const form = document.getElementById('pwd-change-form');
+    form.classList.toggle('visible');
+    if (form.classList.contains('visible')) {
+        document.getElementById('pwd-current').focus();
+        document.getElementById('pwd-msg').className = 'pwd-msg';
+        document.getElementById('pwd-current').value = '';
+        document.getElementById('pwd-new').value     = '';
+        document.getElementById('pwd-confirm').value = '';
+        document.getElementById('pwd-strength-bar').className = 'strength-bar';
+    }
+}
+
+function checkPwdStrength() {
+    const pwd = document.getElementById('pwd-new').value;
+    const bar = document.getElementById('pwd-strength-bar');
+    if (!pwd) { bar.className = 'strength-bar'; return; }
+    const score = [/[A-Z]/.test(pwd), /[a-z]/.test(pwd), /[0-9]/.test(pwd), pwd.length >= 8].filter(Boolean).length;
+    if (pwd.length < 6)   bar.className = 'strength-bar weak';
+    else if (score <= 2)  bar.className = 'strength-bar weak';
+    else if (score === 3) bar.className = 'strength-bar medium';
+    else                  bar.className = 'strength-bar strong';
+}
+
+async function changePassword() {
+    const current = document.getElementById('pwd-current').value;
+    const newPwd  = document.getElementById('pwd-new').value;
+    const confirm = document.getElementById('pwd-confirm').value;
+    const msgEl   = document.getElementById('pwd-msg');
+    msgEl.className = 'pwd-msg';
+    if (!current) { msgEl.textContent = isEs?'Ingrese su contraseña actual':'Enter your current password'; msgEl.className = 'pwd-msg err'; return; }
+    if (!newPwd || newPwd.length < 6) { msgEl.textContent = isEs?'La nueva contraseña debe tener al menos 6 caracteres':'New password must be at least 6 characters'; msgEl.className = 'pwd-msg err'; return; }
+    if (newPwd !== confirm) { msgEl.textContent = isEs?'Las contraseñas no coinciden':'Passwords do not match'; msgEl.className = 'pwd-msg err'; return; }
+    try {
+        const res  = await fetch('/api/listing-change-password', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: listingId, token: sessionToken, current_password: current, new_password: newPwd })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            msgEl.textContent = isEs?'✅ Contraseña cambiada exitosamente':'✅ Password changed successfully';
+            msgEl.className = 'pwd-msg ok';
+            setTimeout(() => togglePwdForm(), 2000);
+        } else {
+            msgEl.textContent = data.error || (isEs?'Error al cambiar contraseña':'Error changing password');
+            msgEl.className = 'pwd-msg err';
+        }
+    } catch (err) {
+        msgEl.textContent = isEs?'Error de conexión':'Connection error';
+        msgEl.className = 'pwd-msg err';
+    }
+}
+
+// ── Forgot password functions ─────────────────────────────────────────────────
+function showForgotForm() {
+    document.getElementById('forgot-form').style.display = 'block';
+    document.getElementById('forgot-id').value    = listingId || '';
+    document.getElementById('forgot-email').value = '';
+    document.getElementById('forgot-msg').style.display = 'none';
+}
+
+function hideForgotForm() {
+    document.getElementById('forgot-form').style.display = 'none';
+}
+
+async function requestPasswordReset() {
+    const id    = document.getElementById('forgot-id').value;
+    const email = document.getElementById('forgot-email').value;
+    const msgEl = document.getElementById('forgot-msg');
+    if (!id || !email) {
+        msgEl.textContent = isEs?'Por favor ingrese su número de membresía y correo':'Please enter your membership number and email';
+        msgEl.style.cssText = 'display:block;color:#7a0000;'; return;
+    }
+    try {
+        await fetch('/api/request-password-reset', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ listing_id: id, email })
+        });
+        msgEl.textContent = isEs
+            ? '✅ Si el correo es correcto, recibirá un enlace de recuperación en breve.'
+            : '✅ If the email is correct, you will receive a reset link shortly.';
+        msgEl.style.cssText = 'display:block;color:#1a5c1a;background:#e8f4e8;padding:8px;border-radius:5px;';
+    } catch {
+        msgEl.textContent = isEs?'Error de conexión. Intente de nuevo.':'Connection error. Please try again.';
+        msgEl.style.cssText = 'display:block;color:#7a0000;';
+    }
+}
+
 loadListing();
 </script>
+</body>
+</html>
 </body>
 </html>
