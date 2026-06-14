@@ -1694,6 +1694,164 @@ app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
     res.json({ url: data.signedUrl });
 });
 
+// ── POST /api/listing-change-password ─────────────────────────────────────────
+app.post('/api/listing-change-password', async (req, res) => {
+    const bcrypt = require('bcrypt');
+    const { id, token, current_password, new_password } = req.body;
+    if (!id || !token || !current_password || !new_password)
+        return res.status(400).json({ error: 'Missing fields' });
+    if (new_password.length < 6)
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+
+    // Verify token
+    try {
+        const decoded = Buffer.from(token, 'base64').toString();
+        const [tokenId] = decoded.split(':');
+        if (tokenId !== String(id)) return res.status(403).json({ error: 'Invalid token' });
+    } catch { return res.status(403).json({ error: 'Invalid token' }); }
+
+    // Get current password hash
+    const { data, error } = await supabase
+        .from('listings')
+        .select('member_password')
+        .eq('id', id)
+        .single();
+    if (error || !data) return res.status(404).json({ error: 'Listing not found' });
+
+    // Verify current password
+    const match = await bcrypt.compare(current_password, data.member_password);
+    if (!match) return res.status(401).json({ error: 'Contraseña actual incorrecta' });
+
+    // Save new password
+    const hash = await bcrypt.hash(new_password, 10);
+    const { error: updateError } = await supabase
+        .from('listings')
+        .update({ member_password: hash, password_changed: true })
+        .eq('id', id);
+    if (updateError) return res.status(500).json({ error: updateError.message });
+
+    await logEvent('member_password_changed', { listing_id: id });
+    res.json({ success: true });
+});
+
+// ── POST /api/request-password-reset ─────────────────────────────────────────
+app.post('/api/request-password-reset', async (req, res) => {
+    const { listing_id, email } = req.body;
+    if (!listing_id || !email)
+        return res.status(400).json({ error: 'Missing fields' });
+
+    // Find listing and verify email matches
+    const { data: listing, error } = await supabase
+        .from('listings')
+        .select('id, name, email_member, email')
+        .eq('id', listing_id)
+        .single();
+
+    if (error || !listing) {
+        // Don't reveal if listing exists — always return success
+        return res.json({ success: true });
+    }
+
+    const memberEmail = (listing.email_member || listing.email || '').toLowerCase().trim();
+    const inputEmail  = email.toLowerCase().trim();
+
+    if (memberEmail !== inputEmail) {
+        // Email doesn't match — still return success (security)
+        return res.json({ success: true });
+    }
+
+    // Generate reset token
+    const crypto = require('crypto');
+    const token  = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Save token to database
+    const { error: insertError } = await supabase
+        .from('password_reset_tokens')
+        .insert({
+            listing_id: listing.id,
+            token,
+            expires_at: expires.toISOString(),
+            used: false
+        });
+    if (insertError) return res.status(500).json({ error: 'Could not create reset token' });
+
+    // Send reset email
+    const resetUrl = `https://trustedpanamastays.com/reset-password.html?token=${token}&id=${listing.id}`;
+    const subject  = 'Recuperación de contraseña — Trusted Panama Stays';
+    const message  = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
+</div>
+<p>Hemos recibido una solicitud para restablecer la contraseña de <strong>${listing.name}</strong>.</p>
+<p>Haga clic en el siguiente enlace para crear una nueva contraseña:</p>
+<p style="margin:1.5rem 0;">
+    <a href="${resetUrl}"
+       style="background:#005ca9;color:white;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">
+        Restablecer contraseña
+    </a>
+</p>
+<p style="color:#666;font-size:0.85rem;">Este enlace es válido por <strong>1 hora</strong>.</p>
+<p style="color:#666;font-size:0.85rem;">Si no solicitó este cambio, ignore este mensaje — su contraseña no cambiará.</p>
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
+</body></html>`;
+
+    const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    try {
+        await execFileAsync('php', [notifyPath, subject, message, memberEmail], { timeout: 15000 });
+    } catch (err) {
+        console.error('Reset email failed:', err.message);
+        return res.status(500).json({ error: 'Could not send reset email' });
+    }
+
+    await logEvent('password_reset_requested', { listing_id: listing.id });
+    res.json({ success: true });
+});
+
+// ── POST /api/reset-password ──────────────────────────────────────────────────
+app.post('/api/reset-password', async (req, res) => {
+    const bcrypt = require('bcrypt');
+    const { token, listing_id, new_password } = req.body;
+    if (!token || !listing_id || !new_password)
+        return res.status(400).json({ error: 'Missing fields' });
+    if (new_password.length < 6)
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+
+    // Find and validate token
+    const { data: resetToken, error } = await supabase
+        .from('password_reset_tokens')
+        .select('*')
+        .eq('token', token)
+        .eq('listing_id', listing_id)
+        .eq('used', false)
+        .single();
+
+    if (error || !resetToken)
+        return res.status(400).json({ error: 'Enlace inválido o ya utilizado' });
+
+    if (new Date(resetToken.expires_at) < new Date())
+        return res.status(400).json({ error: 'El enlace ha expirado. Solicite uno nuevo.' });
+
+    // Save new password
+    const hash = await bcrypt.hash(new_password, 10);
+    const { error: updateError } = await supabase
+        .from('listings')
+        .update({ member_password: hash, password_changed: true })
+        .eq('id', listing_id);
+    if (updateError) return res.status(500).json({ error: updateError.message });
+
+    // Mark token as used
+    await supabase
+        .from('password_reset_tokens')
+        .update({ used: true })
+        .eq('id', resetToken.id);
+
+    await logEvent('password_reset_completed', { listing_id });
+    res.json({ success: true });
+});
+
 
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
