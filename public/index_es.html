@@ -79,7 +79,7 @@
             .contact-button { padding: 7px 10px; font-size: 0.8rem; }
             .contact-button .btn-text { display: none; }
             .contact-button .btn-icon { display: inline; font-size: 1.1rem; }
-            .contact-buttons { flex-wrap: nowrap; }
+            .contact-buttons { flex-wrap: nowrap; justify-content: center; }
         }
         .no-results { text-align: center; padding: 3rem; color: #666; }
         .loading    { text-align: center; padding: 2rem; color: #005ca9; }
@@ -138,6 +138,7 @@
         <div class="search-box">
             <input type="text" id="searchInput" placeholder="Buscar por nombre, ubicación, tipo...">
             <button id="searchButton">Buscar</button>
+            <button id="clearButton" style="padding:11px 16px;background:#e1e5e9;color:#555;border:none;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600;transition:background 0.3s;" onclick="clearSearch()">✕ Limpiar</button>
         </div>
         <div class="filters">
             <div class="filter-group">
@@ -189,32 +190,60 @@ function updatePageDates() {
 }
 document.addEventListener('DOMContentLoaded', () => { updatePageDates(); setInterval(updatePageDates, 30000); });
 
-function showDefaultView() {
-    resultsContainer.innerHTML = `
-        <div style="text-align:center;padding:5px;color:#666;">
-            <p>Use la búsqueda o los filtros para encontrar hospedajes específicos</p>
-            <p><small>Ejemplo de hospedaje miembro:</small></p>
-        </div>
-        <div class="result-card is-member">
-            <h3 class="result-title">APARTHOTEL BOQUETE</h3>
-            <div class="result-badges">
-                <span class="result-badge badge-type">Aparta-Hotel</span>
-                <span class="result-badge badge-province">CHIRIQUÍ</span>
-                <span class="result-badge badge-member">⭐ Miembro</span>
+async function showDefaultView() {
+    resultsContainer.innerHTML = '<div class="loading">Cargando...</div>';
+    try {
+        const res  = await fetch(`${API_BASE_URL}/api/featured-listing`);
+        const r    = await res.json();
+        if (!res.ok) throw new Error();
+        const active = r.is_member && r.membership_paid_until && new Date(r.membership_paid_until) >= new Date();
+        const phone  = active ? (r.phone_member || r.phone) : r.phone;
+        const email  = active ? (r.email_member || r.email) : r.email;
+        const address= active ? (r.address || '') : '';
+        const ph     = getPhoneNumbers(phone);
+        const mapsUrl= `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.name+' '+(r.province||'')+' Panama')}`;
+        const photos = Array.isArray(r.photos) ? r.photos : [];
+        const thumb  = active && photos.length ? photos[0] : null;
+        const listUrl= r.slug ? `listing.html?slug=${r.slug}&lang=es` : `listing.html?id=${r.id}&lang=es`;
+        const thumbHtml = thumb
+            ? `<a href="${listUrl}" class="member-thumb">
+                <img src="${thumb}" alt="${r.name}" loading="lazy">
+                <span class="member-thumb-label">Ver Más</span>
+               </a>`
+            : '';
+        resultsContainer.innerHTML = `
+            <div style="font-size:0.78rem;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">⭐ Hospedaje Destacado</div>
+            <div class="result-card is-member">
+                <h3 class="result-title">${r.name}</h3>
+                <div class="result-badges">
+                    ${r.rental_type ? `<span class="result-badge badge-type">${r.rental_type}</span>` : ''}
+                    ${r.province    ? `<span class="result-badge badge-province">${r.province}</span>` : ''}
+                    ${active        ? `<span class="result-badge badge-member">⭐ Miembro</span>` : ''}
+                </div>
+                <div class="card-body">
+                    ${thumbHtml}
+                    <div class="card-info">
+                        <div class="result-details">
+                            ${ph.display ? `<div class="detail-item"><span>📞</span><span>${ph.display}</span></div>` : ''}
+                            ${email      ? `<div class="detail-item"><span>✉️</span><span>${email}</span></div>` : ''}
+                            ${address    ? `<div class="detail-item"><span>📍</span><span>${address}</span></div>` : ''}
+                        </div>
+                        <div class="contact-buttons">
+                            ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button"><span class="btn-icon">📞</span><span class="btn-text"> Llamar</span></a>` : ''}
+                            ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Correo</span></a>` : ''}
+                            ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
+                            <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
+                            ${active ? `<a href="${listUrl}" class="contact-button seemore-button"><span class="btn-icon">⭐</span><span class="btn-text"> Ver Más</span></a>` : ''}
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="result-details">
-                <div class="detail-item"><span>📞</span><span>68916669 / 68916660</span></div>
-                <div class="detail-item"><span>✉️</span><span>info@aparthotel-boquete.com</span></div>
-                <div class="detail-item"><span>📍</span><span>Boquete, Chiriquí, Panama</span></div>
-            </div>
-            <div class="contact-buttons">
-                <a href="tel:+50768916669" class="contact-button">📞 Llamar</a>
-                <a href="mailto:info@aparthotel-boquete.com" class="contact-button">✉️ Correo</a>
-                <a href="https://wa.me/50768916669" target="_blank" class="contact-button whatsapp-button">💬 WhatsApp</a>
-                <a href="https://www.google.com/maps/search/?api=1&query=Aparthotel+Boquete+Chiriqui+Panama" target="_blank" class="contact-button">📍 Maps</a>
-                <a href="listing.html?slug=aparthotel-boquete&lang=es" class="contact-button seemore-button">⭐ Ver Más</a>
-            </div>
-        </div>`;
+            <div class="no-results" style="padding:0.8rem;">
+                <p>Use la búsqueda o los filtros para encontrar hospedajes específicos</p>
+            </div>`;
+    } catch {
+        resultsContainer.innerHTML = '<div class="no-results"><p>Use la búsqueda o los filtros para encontrar hospedajes registrados</p></div>';
+    }
 }
 
 async function loadStats() {
@@ -327,6 +356,14 @@ searchButton.addEventListener('click', performSearch);
 searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') performSearch(); });
 provinceFilter.addEventListener('change', performSearch);
 typeFilter.addEventListener('change', performSearch);
+function clearSearch() {
+    searchInput.value = '';
+    provinceFilter.value = '';
+    typeFilter.value = '';
+    showDefaultView();
+    updateSelectedCount(null);
+}
+
 loadInitialData();
 </script>
 </body>
