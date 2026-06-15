@@ -202,7 +202,7 @@ initializeData();
 
 async function getLatestPdfUrl() {
     console.log('🔄 Fetching PDF URL via PHP...');
-    
+
     // Write a small PHP script to a temp file and execute it
     const phpScript = `<?php
 $ch = curl_init();
@@ -230,13 +230,13 @@ if (!empty($matches[1])) {
 
     const tmpFile = '/tmp/get_pdf_url.php';
     require('fs').writeFileSync(tmpFile, phpScript);
-    
+
     const { stdout } = await execFileAsync('php', [tmpFile], { timeout: 20000 });
     const data = JSON.parse(stdout);
-    
+
     if (data.error) throw new Error(data.error);
     if (!data.pdfUrl) throw new Error('No PDF URL returned');
-    
+
     console.log('✅ PDF URL:', data.pdfUrl);
     return {
         pdfUrl: data.pdfUrl,
@@ -559,7 +559,7 @@ async function parsePDFWithCoordinates() {
 
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  API ENDPOINTS  
+//  API ENDPOINTS
 // ═════════════════════════════════════════════════════════════════════════════
 
 app.get('/api/stats', (req, res) => {
@@ -592,23 +592,63 @@ app.get('/api/types', (req, res) => {
     res.json(types);
 });
 
-app.get('/api/rentals', (req, res) => {
+app.get('/api/rentals', async (req, res) => {
     const { search, province, type } = req.query;
-    let filteredRentals = [...CURRENT_RENTALS];
+
+    // Start from in-memory ATP data
+    let filtered = [...CURRENT_RENTALS];
+
+    // Apply filters
     if (search) {
-        const searchLower = search.toLowerCase();
-        filteredRentals = filteredRentals.filter(r =>
-            r.name.toLowerCase().includes(searchLower) ||
-            (r.email && r.email.toLowerCase().includes(searchLower)) ||
-            (r.phone && r.phone.toLowerCase().includes(searchLower)) ||
-            (r.province && r.province.toLowerCase().includes(searchLower)) ||
-            (r.type && r.type.toLowerCase().includes(searchLower))
+        const s = search.toLowerCase();
+        filtered = filtered.filter(r =>
+            r.name.toLowerCase().includes(s) ||
+            (r.email    && r.email.toLowerCase().includes(s)) ||
+            (r.phone    && r.phone.toLowerCase().includes(s)) ||
+            (r.province && r.province.toLowerCase().includes(s))
         );
     }
-    if (province) filteredRentals = filteredRentals.filter(r => r.province === province);
-    if (type) filteredRentals = filteredRentals.filter(r => r.rental_type === type);
-    res.json(filteredRentals);
+    if (province) filtered = filtered.filter(r => r.province === province);
+    if (type)     filtered = filtered.filter(r => r.rental_type === type);
+
+    // Enrich with member data from database in batches
+    // Only fetch member fields for matched results
+    try {
+        const ids = filtered.map(r => r.id).filter(Boolean);
+        if (ids.length > 0) {
+            // Fetch member data for all matching listings
+            const { data: memberData } = await supabase
+                .from('listings')
+                .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug')
+                .in('id', ids);
+
+            if (memberData && memberData.length > 0) {
+                const memberMap = {};
+                memberData.forEach(m => { memberMap[m.id] = m; });
+
+                filtered = filtered.map(r => {
+                    const m = memberMap[r.id];
+                    if (!m) return r;
+                    return {
+                        ...r,
+                        phone_member:          m.phone_member || null,
+                        email_member:          m.email_member || null,
+                        address:               m.address || null,
+                        photos:                m.photos || null,
+                        is_member:             m.is_member || false,
+                        membership_paid_until: m.membership_paid_until || null,
+                        slug:                  m.slug || null
+                    };
+                });
+            }
+        }
+    } catch (err) {
+        console.error('Error enriching rentals with member data:', err.message);
+        // Return ATP data without member enrichment rather than failing
+    }
+    res.json(filtered);
 });
+
 
 app.get('/api/status', (req, res) => {
     res.json({
@@ -736,7 +776,7 @@ app.post('/api/listing-login', async (req, res) => {
 
 app.post('/api/listing-update', async (req, res) => {
     const bcrypt = require('bcrypt');
-    const { id, token, address, phone_member, email_member, description_en, 
+    const { id, token, address, phone_member, email_member, description_en,
         description_es, website_url, booking_url, photos, custom_links } = req.body;
 
     // Verify token
@@ -1053,7 +1093,7 @@ app.get('/api/admin/ip-info', requireAdmin, async (req, res) => {
 
 app.get('/api/test-anthropic', async (req, res) => {
     const { secret } = req.query;
-    if (secret !== process.env.ADMIN_SECRET) return res.status(403).json({ 
+    if (secret !== process.env.ADMIN_SECRET) return res.status(403).json({
         error: 'No',
         received_length: secret?.length,
         expected_length: process.env.ADMIN_SECRET?.length
@@ -1066,7 +1106,7 @@ app.get('/api/test-anthropic', async (req, res) => {
 
 app.get('/api/env-check', (req, res) => {
     res.json({
-        keys_present: Object.keys(process.env).filter(k => 
+        keys_present: Object.keys(process.env).filter(k =>
             ['ADMIN_SECRET','ADMIN_PASSWORD','SUPABASE_URL','SUPABASE_ANON_KEY','ANTHROPIC_API_KEY']
             .includes(k)
         ),
@@ -1252,7 +1292,7 @@ app.post('/api/membership-apply',
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  APPLICATIONS ENDPOINTS 
+//  APPLICATIONS ENDPOINTS
 // ═════════════════════════════════════════════════════════════════════════════
 
 // ── Get all applications ──────────────────────────────────────────────────────
@@ -1426,7 +1466,7 @@ Please carefully read ALL documents provided and return ONLY a JSON object with 
 Important notes:
 - overall_result must be exactly: PASS, FAIL, or REVIEW
 - Use PASS when all documents are valid and match
-- Use FAIL when there are clear mismatches or invalid documents  
+- Use FAIL when there are clear mismatches or invalid documents
 - Use REVIEW when documents are valid but have minor issues needing human judgment
 - When evaluating payment: check if payment_message contains the property name or province. If message is empty, flag it as missing but do not FAIL — just note it in payment_match_detail.
 - A payment predating the application by days or weeks is normal and acceptable.
@@ -1542,15 +1582,16 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 
         if (listingId) {
             await supabase.from('listings').update({
-                is_member: true, is_trial: isTrial,
+                is_member:             true,
+                is_trial:              isTrial,
                 trial_started_at:      isTrial ? new Date().toISOString() : null,
                 membership_paid_until: paidUntilStr,
                 member_password:       hash,
                 contact_name:          app.contact_name,
-                email_member:          app.contact_email,
-                phone_member:          app.contact_phone,
-                slug, invitation_status: 'member',
-                verified_at: new Date().toISOString(), verified_by: 'admin'
+                slug,
+                invitation_status:     'member',
+                verified_at:           new Date().toISOString(),
+                verified_by:           'admin'
             }).eq('id', listingId);
         }
 
@@ -1859,4 +1900,3 @@ server.listen(PORT, () => {
     console.log(`📍 Main page: http://localhost:${PORT}`);
     console.log(`📍 Health:    http://localhost:${PORT}/health`);
 });
-
