@@ -73,6 +73,24 @@
         .whatsapp-button:hover { background: #25D366; color: white; }
         .seemore-button        { border-color: #b8860b; color: #7a5c00; background: #fffbe6; }
         .seemore-button:hover  { background: #b8860b; color: white; border-color: #b8860b; }
+        /* ── Member thumbnail ── */
+        .card-body { display: flex; gap: 1rem; align-items: flex-start; }
+        .member-thumb {
+            flex-shrink: 0; width: 120px; height: 90px;
+            border-radius: 8px; overflow: hidden;
+            border: 2px solid #b8860b; cursor: pointer;
+        }
+        .member-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .member-thumb-label {
+            display: block; background: rgba(184,134,11,0.9); color: white;
+            text-align: center; font-size: 0.68rem; font-weight: 700;
+            padding: 2px 0; margin-top: -20px; position: relative;
+        }
+        .card-info { flex: 1; min-width: 0; }
+        @media (max-width: 480px) {
+            .member-thumb { width: 80px; height: 60px; }
+            .card-body { gap: 0.6rem; }
+        }
         .no-results { text-align: center; padding: 3rem; color: #666; }
         .loading    { text-align: center; padding: 2rem; color: #005ca9; }
 
@@ -114,7 +132,6 @@
             </div>
             <!-- Right: lang + ATP note -->
             <div class="header-right">
-                <a href="about.html" class="lang-toggle">About</a>
                 <a href="index_es.html" class="lang-toggle">
                     <svg width="20" height="14" viewBox="0 0 20 14" style="border:1px solid rgba(255,255,255,0.4);flex-shrink:0;">
                         <rect x="0" y="0" width="10" height="7" fill="white"/>
@@ -283,6 +300,12 @@ function getPhoneNumbers(phoneStr) {
     return { display, call, whatsapp };
 }
 
+function isMemberActive(rental) {
+    if (!rental.is_member) return false;
+    if (!rental.membership_paid_until) return false;
+    return new Date(rental.membership_paid_until) >= new Date();
+}
+
 function displayResults(rentals) {
     resultsContainer.innerHTML = '';
     if (!rentals.length) {
@@ -291,28 +314,47 @@ function displayResults(rentals) {
     }
     rentals.forEach(rental => {
         const card = document.createElement('div');
-        card.className = 'result-card' + (rental.is_member ? ' is-member' : '');
-        const ph = getPhoneNumbers(rental.phone_member || rental.phone);
-        const em = rental.email_member || rental.email;
+        const active = isMemberActive(rental);
+        card.className = 'result-card' + (active ? ' is-member' : '');
+        const phone   = active ? (rental.phone_member || rental.phone) : rental.phone;
+        const email   = active ? (rental.email_member || rental.email) : rental.email;
+        const address = active ? (rental.address || '') : '';
+        const ph      = getPhoneNumbers(phone);
         const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name+' '+(rental.province||'')+' Panama')}`;
+        const photos  = Array.isArray(rental.photos) ? rental.photos : [];
+        const thumb   = active && photos.length ? photos[0] : null;
+        const listUrl = rental.slug
+            ? `listing.html?slug=${rental.slug}&lang=en`
+            : `listing.html?id=${rental.id}&lang=en`;
+        const thumbHtml = thumb
+            ? `<a href="${listUrl}" class="member-thumb">
+                <img src="${thumb}" alt="${rental.name}" loading="lazy">
+                <span class="member-thumb-label">See More</span>
+               </a>`
+            : '';
         card.innerHTML = `
             <h3 class="result-title">${rental.name}</h3>
             <div class="result-badges">
                 ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
-                ${rental.is_member   ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
+                ${active             ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
             </div>
-            <div class="result-details">
-                ${ph.display ? `<div class="detail-item"><span>📞</span><span>${ph.display}</span></div>` : ''}
-                ${em         ? `<div class="detail-item"><span>✉️</span><span>${em}</span></div>` : ''}
-                ${rental.address ? `<div class="detail-item"><span>📍</span><span>${rental.address}</span></div>` : ''}
-            </div>
-            <div class="contact-buttons">
-                ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button">📞 Call</a>` : ''}
-                ${em          ? `<a href="mailto:${em}" class="contact-button">✉️ Email</a>` : ''}
-                ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button">💬 WhatsApp</a>` : ''}
-                <a href="${mapsUrl}" target="_blank" class="contact-button">📍 Maps</a>
-                ${rental.is_member ? `<a href="listing.html?id=${rental.id}&lang=en" class="contact-button seemore-button">⭐ See More</a>` : ''}
+            <div class="card-body">
+                ${thumbHtml}
+                <div class="card-info">
+                    <div class="result-details">
+                        ${ph.display ? `<div class="detail-item"><span>📞</span><span>${ph.display}</span></div>` : ''}
+                        ${email      ? `<div class="detail-item"><span>✉️</span><span>${email}</span></div>` : ''}
+                        ${address    ? `<div class="detail-item"><span>📍</span><span>${address}</span></div>` : ''}
+                    </div>
+                    <div class="contact-buttons">
+                        ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button">📞 Call</a>` : ''}
+                        ${email       ? `<a href="mailto:${email}" class="contact-button">✉️ Email</a>` : ''}
+                        ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button">💬 WhatsApp</a>` : ''}
+                        <a href="${mapsUrl}" target="_blank" class="contact-button">📍 Maps</a>
+                        ${active && !thumb ? `<a href="${listUrl}" class="contact-button seemore-button">⭐ See More</a>` : ''}
+                    </div>
+                </div>
             </div>`;
         resultsContainer.appendChild(card);
     });
