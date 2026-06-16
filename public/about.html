@@ -70,14 +70,12 @@
         .price-box .price { font-size: 2.5rem; font-weight: 700; color: #FFD700; }
         .price-box .period { font-size: 0.9rem; opacity: 0.85; }
 
-        footer {
-            background: #2c3e50; color: #ccc; border-radius: 10px;
-            padding: 1.2rem 1.5rem; text-align: center;
-            font-size: 0.85rem; line-height: 1.8; margin-top: 1.5rem;
-        }
+        /* ── Footer ── */
+        footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
         footer a { color: #7ec8e3; text-decoration: none; }
         footer a:hover { text-decoration: underline; }
-        </style>
+
+    </style>
 </head>
 <body>
 <div class="container">
@@ -252,8 +250,8 @@ function applyLang() {
     document.getElementById('back-link').href           = isEs ? 'index_es.html' : 'index.html';
     document.getElementById('lang-text').textContent    = isEs ? 'English' : 'Español';
     document.getElementById('footer-atp').innerHTML     = isEs
-        ? 'Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>'
-        : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>';
+        ? 'Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>con datos adicionales proporcionados por nuestros miembros'
+        : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>with additional data provided by our members';
 
     // Set flag SVG
     const flagEl = document.getElementById('lang-flag');
