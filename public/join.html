@@ -105,7 +105,7 @@
         .upload-zone-file { color: #00a859; font-size: 0.82rem; margin-top: 0.3rem; font-weight: 600; display: none; }
 
         /* Payment method */
-        .payment-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .payment-options { display: grid; grid-template-columns: 1fr; gap: 10px; }
         .payment-option {
             border: 2px solid #e1e5e9; border-radius: 8px; padding: 0.8rem 1rem;
             cursor: pointer; transition: all 0.25s; display: flex; align-items: center; gap: 8px;
@@ -223,7 +223,7 @@
                 <div class="price-label">1 AÑO</div>
                 <div class="price-amount">$24</div>
                 <div class="price-period">$2 +ITBMS por mes</div>
-                <div class="price-note">$25.68 inclusive ITBMS/div>
+                <div class="price-note">$25.68 inclusive ITBMS</div>
             </label>
             <label class="price-box" id="box-2year" onclick="selectPlan('2year')">
                 <input type="radio" name="plan" value="2year">
@@ -293,7 +293,7 @@
                     <label>¿Cómo nos conoció?</label>
                     <select id="how-found">
                         <option value="">Seleccione...</option>
-                        <option value="Invitación">Invitación</option>
+                        <option value="whatsapp">Mensaje de WhatsApp</option>
                         <option value="google">Búsqueda en Google</option>
                         <option value="referral">Recomendación</option>
                         <option value="atp">A través de la ATP</option>
@@ -391,7 +391,7 @@
                 <div class="bank-row"><strong>Número:</strong> aún no disponible</div>
                 <div class="bank-row"><strong>A nombre de:</strong> Tuscany Real Estates SA</div>
                 <div class="bank-row" style="margin-top:0.5rem;color:#666;font-size:0.82rem;">
-                    Incluya "TrustedPanamaStays" y el nombre de su hospedaje en el concepto del pago.
+                    Incluya el nombre de su hospedaje en el concepto del pago.
                 </div>
             </div>
         </div>
@@ -458,7 +458,9 @@
     </div>
 
     <footer>
-        <p style="font-size:0.8rem;">Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a></p>
+        <p style="font-size:0.8rem;">Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>
+            <br>with added data from our members.
+        </p>
         <p style="margin-top:0.8rem;">
             Trusted Panama Stays es propiedad de Tuscany Real Estates SA<br>
             RUC 1401220-1-627960 DV21<br>
@@ -660,6 +662,11 @@ async function submitForm() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+selectPlan('trial');
+generateCaptcha();
+</script>
+</body>
+</html>──────────────────────────────
 selectPlan('trial');
 generateCaptcha();
 </script>
