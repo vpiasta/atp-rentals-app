@@ -178,7 +178,17 @@ const typeFilter       = document.getElementById('typeFilter');
 const resultsContainer = document.getElementById('resultsContainer');
 const statsPanel       = document.getElementById('statsPanel');
 
-async function loadInitialData() { await loadStats(); await loadFilters(); showDefaultView(); }
+async function loadInitialData() {
+    await loadStats();
+    await loadFilters();
+    const stats = await fetch(`${API_BASE_URL}/api/stats`).then(r=>r.json()).catch(()=>({total_rentals:0}));
+    if (stats.total_rentals === 0) {
+        resultsContainer.innerHTML = '<div class="no-results"><p>El servidor está iniciando. Intente de nuevo en unos segundos.</p></div>';
+        setTimeout(async () => { await loadStats(); await loadFilters(); showDefaultView(); }, 3000);
+    } else {
+        showDefaultView();
+    }
+}
 
 function updatePageDates() {
     fetch(`${API_BASE_URL}/api/pdf-info`).then(r=>r.json()).then(data => {

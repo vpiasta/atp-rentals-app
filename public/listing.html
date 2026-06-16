@@ -168,9 +168,11 @@
         .error-state   { text-align: center; padding: 4rem; color: #cc0000; }
 
         @media (max-width: 600px) {
-            .listing-name { font-size: 1.4rem; }
+            .listing-name { font-size: 1.4rem; text-align: center; }
             .name-row, .quick-buttons, .section { padding-left: 1rem; padding-right: 1rem; }
             .pwd-change-form { margin-left: 1rem; margin-right: 1rem; }
+            .badges { justify-content: center; }
+            .quick-buttons { justify-content: center; }
             .qbtn.login-btn, .qbtn.logout-btn { margin-left: 0; }
             .custom-link-row { grid-template-columns: 50px 1fr; }
             .custom-link-row input:nth-child(3) { display: none; }
@@ -585,8 +587,8 @@ function renderView(rental) {
             <div class="badges">
                 ${rental.rental_type ? `<span class="badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="badge badge-province">📍 ${rental.province}</span>` : ''}
-                ${rental.is_member   ? `<span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>` : ''}
                 <span class="badge badge-atp">✅ ATP</span>
+                ${rental.is_member   ? `<span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>` : ''}
             </div>
         </div>
         <div class="quick-buttons">${buildQuickButtons(rental, false)}</div>
@@ -626,8 +628,8 @@ function renderEdit(rental) {
             <div class="badges">
                 ${rental.rental_type ? `<span class="badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="badge badge-province">📍 ${rental.province}</span>` : ''}
-                <span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>
                 <span class="badge badge-atp">✅ ATP</span>
+                <span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>
             </div>
         </div>
         <div class="quick-buttons">${buildQuickButtons(rental, true)}</div>
@@ -935,7 +937,5 @@ async function requestPasswordReset() {
 
 loadListing();
 </script>
-</body>
-</html>
 </body>
 </html>

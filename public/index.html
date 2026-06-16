@@ -210,7 +210,18 @@ const statsPanel       = document.getElementById('statsPanel');
 async function loadInitialData() {
     await loadStats();
     await loadFilters();
-    showDefaultView();
+    // Check if server has data loaded; if not, retry after 3 seconds
+    const stats = await fetch(`${API_BASE_URL}/api/stats`).then(r=>r.json()).catch(()=>({total_rentals:0}));
+    if (stats.total_rentals === 0) {
+        resultsContainer.innerHTML = `<div class="no-results"><p>Server is starting up. Please try again in a few seconds.</p></div>`;
+        setTimeout(async () => {
+            await loadStats();
+            await loadFilters();
+            showDefaultView();
+        }, 3000);
+    } else {
+        showDefaultView();
+    }
 }
 
 function updatePageDates() {
