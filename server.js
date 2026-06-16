@@ -1918,6 +1918,31 @@ app.get('/api/featured-listing', async (req, res) => {
     }
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  featured listing
+// ═════════════════════════════════════════════════════════════════════════════
+app.get('/api/featured-listing', async (req, res) => {
+    try {
+        const { data: setting } = await supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'featured_listing_id')
+            .single();
+        if (!setting) return res.status(404).json({ error: 'No featured listing configured' });
+
+        const { data: listing, error } = await supabase
+            .from('listings')
+            .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, website_url, booking_url')
+            .eq('id', parseInt(setting.value))
+            .single();
+        if (error || !listing) return res.status(404).json({ error: 'Featured listing not found' });
+
+        res.json(listing);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
