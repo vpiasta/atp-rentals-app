@@ -1943,6 +1943,97 @@ app.get('/api/featured-listing', async (req, res) => {
     }
 });
 
+// ── GET /api/send-trial-reminders (called by GitHub Action daily) ─────────────
+app.get('/api/send-trial-reminders', async (req, res) => {
+    const { secret } = req.query;
+    if (secret !== process.env.ADMIN_SECRET) return res.status(403).send('Denied');
+
+    try {
+        // Find trials expiring in 5 days (between 4 and 6 days from now)
+        const today   = new Date();
+        const in4days = new Date(today); in4days.setDate(today.getDate() + 4);
+        const in6days = new Date(today); in6days.setDate(today.getDate() + 6);
+
+        const { data: expiring, error } = await supabase
+            .from('listings')
+            .select('id, name, email_member, email, phone, membership_paid_until, slug')
+            .eq('is_member', true)
+            .eq('is_trial', true)
+            .gte('membership_paid_until', in4days.toISOString().split('T')[0])
+            .lte('membership_paid_until', in6days.toISOString().split('T')[0]);
+
+        if (error) throw new Error(error.message);
+        if (!expiring || expiring.length === 0) {
+            return res.json({ success: true, sent: 0, message: 'No trials expiring in 5 days' });
+        }
+
+        const notifyPath = path.join(__dirname, 'public', 'notify.php');
+        let sent = 0;
+
+        for (const listing of expiring) {
+            const memberEmail = listing.email_member || listing.email;
+            if (!memberEmail || !memberEmail.includes('@')) {
+                await logEvent('trial_reminder_skipped', { listing_id: listing.id, reason: 'no_email' });
+                continue;
+            }
+
+            const listingUrl = listing.slug
+                ? `https://trustedpanamastays.com/listing.html?slug=${listing.slug}&lang=es`
+                : `https://trustedpanamastays.com/listing.html?id=${listing.id}&lang=es`;
+            const payUrl = `https://trustedpanamastays.com/pay.html`;
+
+            const subject = `Su prueba gratuita vence en 5 días — ${listing.name}`;
+            const message = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
+</div>
+<p>Estimado/a propietario/a de <strong>${listing.name}</strong>,</p>
+<p>Su período de prueba gratuita vence el <strong>${listing.membership_paid_until}</strong> — en 5 días.</p>
+<p>Para continuar con acceso completo a su listado (fotos, descripción, enlaces de reserva), 
+   renueve su membresía ahora:</p>
+<table style="border:1px solid #e1e5e9;border-radius:8px;background:#f8f9fa;width:100%;margin:1rem 0;">
+    <tr><td style="padding:8px;font-weight:bold;">1 año:</td><td style="padding:8px;"><strong>$24</strong> + ITBMS ($25.68 inclusive)</td></tr>
+    <tr><td style="padding:8px;font-weight:bold;">2 años:</td><td style="padding:8px;"><strong>$45</strong> + ITBMS ($48.15 inclusive) · Ahorre $3</td></tr>
+    <tr><td style="padding:8px;font-weight:bold;">N° membresía:</td><td style="padding:8px;font-family:monospace;"><strong>${listing.id}</strong></td></tr>
+</table>
+<p style="text-align:center;margin:1.5rem 0;">
+    <a href="${payUrl}" style="background:#005ca9;color:white;padding:11px 28px;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;">
+        Renovar membresía →
+    </a>
+</p>
+<p style="font-size:0.85rem;color:#666;">
+    También puede renovar iniciando sesión en su listado:<br>
+    <a href="${listingUrl}" style="color:#005ca9;">${listingUrl}</a>
+</p>
+<p style="font-size:0.82rem;color:#888;margin-top:1rem;">
+    Si decide no renovar, su perfil se desactivará automáticamente al vencer el período de prueba.
+    Sus documentos e información quedarán guardados — puede reactivar su membresía en cualquier momento.
+</p>
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">
+    Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
+    <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a>
+</p>
+</body></html>`;
+
+            try {
+                await execFileAsync('php', [notifyPath, subject, message, memberEmail], { timeout: 15000 });
+                await logEvent('trial_reminder_sent', { listing_id: listing.id, email: memberEmail, expires: listing.membership_paid_until });
+                sent++;
+            } catch (emailErr) {
+                await logEvent('trial_reminder_failed', { listing_id: listing.id, error: emailErr.message });
+            }
+        }
+
+        res.json({ success: true, sent, total: expiring.length });
+
+    } catch (err) {
+        console.error('Trial reminder error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
