@@ -1,0 +1,14 @@
+name: Send Trial Expiry Reminders
+
+on:
+  schedule:
+    - cron: '0 13 * * *'   # 8am Panama time (UTC-5) = 1pm UTC
+  workflow_dispatch:         # Allow manual trigger
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send trial expiry reminders
+        run: |
+          curl -s "https://trustedpanamastays.com/api/send-trial-reminders?secret=${{ secrets.ADMIN_SECRET }}"
