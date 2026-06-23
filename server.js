@@ -185,12 +185,158 @@ async function checkForPdfUpdate() {
             CURRENT_RENTALS = PDF_RENTALS;
             DATA_SOURCE = 'atp-pdf';
             console.log(`✅ STEP 2: Database updated with ${PDF_RENTALS.length} listings from new PDF`);
+            await checkPendingAtpApplications();
         }
     } catch (err) {
         console.error('❌ STEP 2: PDF update check failed:', err.message);
         // If we already have data from STEP 1, keep serving it — no problem
     }
 }
+
+async function checkPendingAtpApplications() {
+    console.log('🔄 Checking pending ATP applications...');
+    try {
+        // Get all applications waiting for ATP registration
+        const { data: pending, error } = await supabase
+            .from('membership_applications')
+            .select('*')
+            .eq('status', 'pending_atp')
+            .eq('auto_activate', true);
+
+        if (error || !pending || pending.length === 0) {
+            console.log('ℹ️  No pending ATP applications to check');
+            return;
+        }
+
+        console.log(`🔍 Found ${pending.length} pending ATP application(s)`);
+        const bcrypt = require('bcrypt');
+        const notifyPath = require('path').join(__dirname, 'public', 'notify.php');
+
+        for (const app of pending) {
+            // Try to find matching listing by name similarity
+            const { data: matches } = await supabase
+                .from('listings')
+                .select('id, name, province, is_member')
+                .ilike('name', `%${app.property_name.trim()}%`)
+                .eq('province', app.province)
+                .limit(3);
+
+            if (!matches || matches.length === 0) {
+                console.log(`⏳ No ATP match yet for: ${app.property_name}`);
+                continue;
+            }
+
+            // Use best match (first result)
+            const listing = matches[0];
+
+            // Skip if already a member
+            if (listing.is_member) {
+                console.log(`⚠️  Listing ${listing.id} already a member, skipping`);
+                continue;
+            }
+
+            console.log(`✅ Found ATP match for ${app.property_name}: ${listing.name} (ID: ${listing.id})`);
+
+            // Generate password
+            const chars    = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+            const password = Array.from({ length: 10 }, () =>
+                chars[Math.floor(Math.random() * chars.length)]).join('');
+            const hash = await bcrypt.hash(password, 10);
+
+            // Set trial expiry to 30 days from now
+            const paidUntil = new Date();
+            paidUntil.setDate(paidUntil.getDate() + 30);
+            const paidUntilStr = paidUntil.toISOString().split('T')[0];
+
+            const slug = app.property_name
+                .toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+            // Activate listing
+            await supabase.from('listings').update({
+                is_member:             true,
+                is_trial:              true,
+                trial_started_at:      new Date().toISOString(),
+                membership_paid_until: paidUntilStr,
+                member_password:       hash,
+                contact_name:          app.contact_name,
+                slug,
+                invitation_status:     'member',
+                verified_at:           new Date().toISOString(),
+                verified_by:           'auto_atp'
+            }).eq('id', listing.id);
+
+            // Update application
+            await supabase.from('membership_applications').update({
+                status:      'approved',
+                listing_id:  listing.id,
+                reviewed_at: new Date().toISOString(),
+                reviewed_by: 'system_auto'
+            }).eq('id', app.id);
+
+            // Send welcome email
+            const listingUrl = `https://trustedpanamastays.com/listing.html?id=${listing.id}&lang=es`;
+            const payUrl     = `https://trustedpanamastays.com/pay.html`;
+
+            const welcomeMsg = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">¡Buenas noticias de Trusted Panama Stays!</h1>
+</div>
+<p>Estimado/a <strong>${app.contact_name}</strong>,</p>
+<p>Su hospedaje <strong>${listing.name}</strong> acaba de aparecer en el registro oficial de la ATP, y hemos activado automáticamente su membresía de prueba gratuita.</p>
+<p>Su prueba está activa hasta el <strong>${paidUntilStr}</strong>.</p>
+<h3 style="color:#005ca9;margin-top:1.2rem;">Sus datos de acceso:</h3>
+<table style="border:1px solid #e1e5e9;border-radius:8px;background:#f8f9fa;width:100%;margin-bottom:1rem;">
+    <tr><td style="padding:8px;font-weight:bold;">URL:</td>
+        <td style="padding:8px;"><a href="${listingUrl}">${listingUrl}</a></td></tr>
+    <tr><td style="padding:8px;font-weight:bold;">Contraseña:</td>
+        <td style="padding:8px;font-family:monospace;font-size:1.1rem;"><strong>${password}</strong></td></tr>
+    <tr><td style="padding:8px;font-weight:bold;">N° membresía:</td>
+        <td style="padding:8px;font-family:monospace;"><strong>${listing.id}</strong></td></tr>
+</table>
+<p style="background:#fffbe6;padding:1rem;border-radius:6px;border:1px solid #FFD700;margin-top:1rem;">
+    <strong>⚠️ Recordatorio:</strong> Su prueba vence el <strong>${paidUntilStr}</strong>.
+    Recibirá un recordatorio 5 días antes.<br>
+    Para renovar: <a href="${payUrl}">${payUrl}</a> · N° membresía: <strong>${listing.id}</strong>
+</p>
+<p style="margin-top:1rem;">Para editar su listado, visite el enlace y haga clic en <strong>🔐 Acceso</strong>.</p>
+<p>¿Preguntas? <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
+</body></html>`;
+
+            const hasEmail = !!(app.contact_email && app.contact_email.includes('@'));
+            if (hasEmail) {
+                try {
+                    await execFileAsync('php', [
+                        notifyPath,
+                        `¡Su hospedaje está activo en Trusted Panama Stays! — ${listing.name}`,
+                        welcomeMsg,
+                        app.contact_email
+                    ], { timeout: 15000 });
+                    console.log(`📧 Welcome email sent to ${app.contact_email}`);
+                } catch (emailErr) {
+                    console.error(`❌ Welcome email failed for ${app.contact_email}:`, emailErr.message);
+                }
+            }
+
+            await logEvent('pending_atp_activated', {
+                application_id: app.id,
+                listing_id:     listing.id,
+                property_name:  listing.name,
+                paid_until:     paidUntilStr
+            });
+
+            console.log(`✅ Auto-activated: ${listing.name} (ID: ${listing.id})`);
+        }
+
+    } catch (err) {
+        console.error('❌ checkPendingAtpApplications error:', err.message);
+    }
+}
+
 
 // Call on startup
 initializeData();
@@ -1550,7 +1696,6 @@ Important notes:
 });
 
 // ── Approve application ───────────────────────────────────────────────────────
-
 app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
     const bcrypt = require('bcrypt');
     const { application_id } = req.body;
@@ -1561,6 +1706,64 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         const isTrial  = app.membership_type === 'trial';
         let listingId  = app.listing_id;
 
+        // ── Block if no ATP listing match — set to pending_atp ────────────
+        if (!listingId) {
+            const directoryUrl = 'https://trustedpanamastays.com/index_es.html';
+
+            await supabase.from('membership_applications').update({
+                status:             'pending_atp',
+                documents_verified: true,
+                auto_activate:      true,
+                notes:              'Documentos verificados. En espera de registro ATP.',
+                reviewed_at:        new Date().toISOString(),
+                reviewed_by:        'admin'
+            }).eq('id', application_id);
+
+            const notFoundMsg = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
+</div>
+<p>Estimado/a <strong>${app.contact_name}</strong>,</p>
+<p>Gracias por su solicitud de membresía en <strong>TrustedPanamaStays.com</strong>.</p>
+<p>Hemos recibido y verificado sus documentos. Ellos cumplen con los requisitos para la membresía, pero no hemos podido encontrar su hospedaje en el <em>Reporte de Hospedajes vigentes</em> de la ATP.</p>
+<div style="background:#fffbe6;border:1px solid #FFD700;border-radius:8px;padding:1rem;margin:1rem 0;">
+    <p style="margin:0 0 0.5rem;font-weight:bold;">¿Qué significa esto?</p>
+    <p style="margin:0;font-size:0.9rem;">Su hospedaje aún no aparece en el registro oficial de la ATP. Una vez que su registro sea aprobado por la ATP y aparezca en su lista pública, activaremos su membresía de prueba gratuita de 30 días <strong>automáticamente</strong> — sin que usted tenga que hacer nada más.</p>
+</div>
+<p>Para registrarse con la ATP, visite:</p>
+<p><a href="https://www.atp.gob.pa/industrias/hoteleros/" style="color:#005ca9;">https://www.atp.gob.pa/industrias/hoteleros/</a></p>
+<p style="font-size:0.85rem;color:#666;">Si cree que su hospedaje ya está registrado bajo un nombre diferente, responda a este correo con el nombre exacto como aparece en el directorio:<br>
+<a href="${directoryUrl}" style="color:#005ca9;">${directoryUrl}</a></p>
+<p>¿Preguntas? <a href="mailto:info@trustedpanamastays.com" style="color:#005ca9;">info@trustedpanamastays.com</a></p>
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
+</body></html>`;
+
+            const hasEmail = !!(app.contact_email && app.contact_email.includes('@'));
+            let emailSent  = false;
+            let waText     = null;
+            const waFallback = `Hola! Somos Trusted Panama Stays.\n\nHemos verificado sus documentos para *${app.property_name}*. Todo está en orden, pero su hospedaje aún no aparece en el registro de la ATP.\n\nCuando la ATP registre su hospedaje, activaremos su membresía de prueba automáticamente.\n\nPara registrarse: https://www.atp.gob.pa/industrias/hoteleros/\n\nPreguntas? info@trustedpanamastays.com`;
+
+            if (hasEmail) {
+                const notifyPath = path.join(__dirname, 'public', 'notify.php');
+                try {
+                    await execFileAsync('php', [notifyPath, `Solicitud de membresía — ${app.property_name}`, notFoundMsg, app.contact_email], { timeout: 15000 });
+                    emailSent = true;
+                } catch (err) {
+                    console.error('Not-found email failed:', err.message);
+                    waText = waFallback;
+                }
+            } else {
+                waText = waFallback;
+            }
+
+            await logEvent('application_pending_atp', { application_id, property_name: app.property_name, email_sent: emailSent });
+            const phone = app.contact_phone?.replace(/[^\d]/g,'').substring(0,8) || null;
+            return res.json({ success: true, pending_atp: true, email_sent: emailSent, whatsapp_text: waText, property_name: app.property_name, phone });
+        }
+
+        // ── Block duplicate trial ─────────────────────────────────────────
         if (isTrial && listingId) {
             const { data: existing } = await supabase.from('listings').select('is_trial, trial_started_at, is_member').eq('id', listingId).single();
             if (existing?.trial_started_at || existing?.is_member) {
@@ -1570,38 +1773,47 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
             }
         }
 
+        // ── Generate password ─────────────────────────────────────────────
         const chars    = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
         const password = Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
         const hash     = await bcrypt.hash(password, 10);
 
+        // ── Calculate dates ───────────────────────────────────────────────
         const paidUntil = new Date();
         if (isTrial) paidUntil.setDate(paidUntil.getDate() + 30);
         else paidUntil.setFullYear(paidUntil.getFullYear() + (app.duration_months === 24 ? 2 : 1));
         const paidUntilStr = paidUntil.toISOString().split('T')[0];
         const slug = app.property_name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-        if (listingId) {
-            await supabase.from('listings').update({
-                is_member:             true,
-                is_trial:              isTrial,
-                trial_started_at:      isTrial ? new Date().toISOString() : null,
-                membership_paid_until: paidUntilStr,
-                member_password:       hash,
-                contact_name:          app.contact_name,
-                slug,
-                invitation_status:     'member',
-                verified_at:           new Date().toISOString(),
-                verified_by:           'admin'
-            }).eq('id', listingId);
-        }
+        // ── Update listing ────────────────────────────────────────────────
+        await supabase.from('listings').update({
+            is_member:             true,
+            is_trial:              isTrial,
+            trial_started_at:      isTrial ? new Date().toISOString() : null,
+            membership_paid_until: paidUntilStr,
+            member_password:       hash,
+            contact_name:          app.contact_name,
+            slug,
+            invitation_status:     'member',
+            verified_at:           new Date().toISOString(),
+            verified_by:           'admin'
+        }).eq('id', listingId);
+
+        // ── Log invoice for paid plans ────────────────────────────────────
         if (!isTrial) {
             const amount = app.duration_months === 24 ? 45 : 24;
             const itbms  = parseFloat((amount * 0.07).toFixed(2));
-            await supabase.from('event_log').insert({ event_type: 'invoice_pending', event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: app.duration_months+' months', payment_method: app.payment_method, date: new Date().toISOString() }, created_at: new Date().toISOString() });
+            await supabase.from('event_log').insert({
+                event_type: 'invoice_pending',
+                event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: app.duration_months+' months', payment_method: app.payment_method, date: new Date().toISOString() },
+                created_at: new Date().toISOString()
+            });
         }
 
+        // ── Update application status ─────────────────────────────────────
         await supabase.from('membership_applications').update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', application_id);
 
+        // ── Send welcome email ────────────────────────────────────────────
         const msgType   = isTrial ? 'approved_trial' : 'approved_paid';
         const emailHtml = generateEmailHtml({ ...app, listing_id: listingId }, msgType, password, paidUntilStr);
         const waMsg     = generateWaText({ ...app, listing_id: listingId }, msgType, password, paidUntilStr);
@@ -1611,18 +1823,22 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 
         if (hasEmail) {
             const notifyPath = path.join(__dirname, 'public', 'notify.php');
-            try { await execFileAsync('php', [notifyPath, 'Membresía aprobada - ' + app.property_name, emailHtml, app.contact_email], { timeout: 15000 }); emailSent = true; }
-            catch (err) { console.error('Welcome email failed:', err.message); waText = waMsg; }
+            try {
+                await execFileAsync('php', [notifyPath, 'Membresía aprobada - ' + app.property_name, emailHtml, app.contact_email], { timeout: 15000 });
+                emailSent = true;
+            } catch (err) { console.error('Welcome email failed:', err.message); waText = waMsg; }
         } else { waText = waMsg; }
 
         const phone = app.contact_phone?.replace(/[^\d]/g,'').substring(0,8) || null;
         await logEvent('application_approved', { application_id, listing_id: listingId, membership_type: app.membership_type, paid_until: paidUntilStr });
         res.json({ success: true, password, paid_until: paidUntilStr, listing_id: listingId, property_name: app.property_name, email_sent: emailSent, whatsapp_text: waText, phone });
+
     } catch (err) {
         console.error('Approve error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
+
 
 // ── Reject application ────────────────────────────────────────────────────────
 app.post('/api/admin/reject-application', requireAdmin, async (req, res) => {
