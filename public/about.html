@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>About — Trusted Panama Stays</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/css/flag-icon.min.css">
+
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8f9fa; color: #111; line-height: 1.7; }
@@ -63,14 +65,182 @@
             margin: 1.5rem 0;
         }
 
-        .price-box {
-            background: #005ca9; color: white; border-radius: 10px;
-            padding: 1.5rem; text-align: center; margin: 1.5rem 0;
+        /* --- table container: ensures horizontal scroll on narrow screens, but we want spacing, not cramping --- */
+        .table-responsive {
+            overflow-x: auto;
+            margin: 1rem 0 0.2rem;
+            -webkit-overflow-scrolling: touch;
         }
-        .price-box .price { font-size: 2.5rem; font-weight: 700; color: #FFD700; }
-        .price-box .period { font-size: 0.9rem; opacity: 0.85; }
 
-        /* ── Footer ── */
+        .compare-table {
+            width: 80%;
+            border-collapse: collapse;
+            border: none;
+            font-size: 0.95rem;
+            min-width: 520px; /* ensures columns don't squeeze too tight on narrow screens */
+        }
+
+        .compare-table th,
+        .compare-table td {
+            border: none;
+            padding: 0.65rem 0.5rem 0.65rem 0;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        /* --- CRITICAL: add right padding to each cell to guarantee space between columns --- */
+        .compare-table th,
+        .compare-table td {
+            line-height: 1.3; /* reduces line spacing too */
+            padding-top: 0.1rem !important;    /* was 0.65rem */
+            padding-bottom: 0.1rem !important; /* was 0.65rem */
+            padding-right: 1.2rem !important;  /* consistent spacing between columns */
+        }
+        /* but keep first column left padding 0, last column right padding 0 */
+        .compare-table th:first-child,
+        .compare-table td:first-child {
+            padding-left: 0;
+            padding-right: 1.0rem !important;
+        }
+        .compare-table th:last-child,
+        .compare-table td:last-child {
+            padding-right: 0 !important;
+        }
+
+        .compare-table th {
+            font-weight: 700;
+            text-align: center;
+            padding-bottom: 0.9rem;
+            color: #0b1e33;
+            background: #cccccc;
+        }
+        .compare-table td {
+            font-weight: 400;
+        }
+
+        /* column width hints – but with padding-right they'll keep space */
+        .compare-table th:first-child,
+        .compare-table td:first-child {
+            width: 22%;
+            min-width: 120px;
+        }
+        .compare-table th:nth-child(2),
+        .compare-table td:nth-child(2) {
+            width: 38%;
+            min-width: 130px;
+        }
+
+        .compare-table th:nth-child(3),
+        .compare-table td:nth-child(3) {
+            width: 40%;
+            min-width: 130px;
+        }
+
+        .compare-table tbody tr:nth-child(odd) {
+            background-color: white;  /* light green */
+        }
+
+        .compare-table tbody tr:nth-child(even) {
+            background-color: #f0f6ff;  /* light blue */
+        }
+
+        /* Keep header background separate */
+        .compare-table thead tr {
+            background-color: #222222;  /* neutral light gray for header */
+        }
+
+        /* no visible borders */
+        .compare-table thead th {
+            border-bottom: none;
+        }
+
+        /* Inherit from .table-responsive but we keep it separate */
+        .list-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: none;
+            font-size: 0.95rem;
+            /* no min-width here so it adapts to content */
+        }
+
+        /* --- First column: narrow, only for the checkmark --- */
+        .list-table td:first-child {
+            width: 2.2rem;          /* narrow, just enough for the checkmark */
+            min-width: 2.2rem;      /* prevents shrinking */
+            max-width: 2.2rem;      /* prevents growing */
+            padding: 0.1rem 0.5rem 0.1rem 0 !important;
+            text-align: center;     /* center the checkmark */
+            vertical-align: top;    /* CRITICAL: top-align so checkmark stays with first line of text */
+            border: none;
+            line-height: 1.3;
+        }
+
+        /* --- Second column: takes remaining width, text wraps normally --- */
+        .list-table td:last-child {
+            padding: 0.1rem 0 0.1rem 0 !important;
+            text-align: left;
+            vertical-align: top;    /* also top-aligned to match first column */
+            border: none;
+            line-height: 1.3;
+            word-wrap: break-word;  /* allows long words to wrap */
+            overflow-wrap: break-word;
+        }
+
+        /* --- Row styles: alternating colors --- */
+        .list-table tbody tr:nth-child(odd) {
+            background-color: white;
+        }
+
+        .list-table tbody tr:nth-child(even) {
+            background-color: #f0f6ff;  /* light blue */
+        }
+
+        /* --- Optional: hover effect --- */
+        .list-table tbody tr:hover {
+            background-color: #e3f0e3;  /* light green on hover for odd */
+        }
+
+        .list-table tbody tr:nth-child(even):hover {
+            background-color: #dce8f8;  /* slightly darker blue for even on hover */
+        }
+
+        /* --- Checkmark styling (optional) --- */
+        .list-table td:first-child .check {
+            color: #16a34a;
+            font-size: 1rem;
+            display: inline-block;
+        }
+
+        /* --- Ensure checkmark doesn't wrap --- */
+        .list-table td:first-child {
+            white-space: nowrap;
+        }
+
+        /* --- Reduce spacing between rows further if needed --- */
+        .list-table td {
+            padding-top: 0.05rem !important;
+            padding-bottom: 0.05rem !important;
+        }
+
+        /* --- Compact on mobile --- */
+        @media (max-width: 600px) {
+            .list-table {
+                font-size: 0.85rem;
+            }
+            .list-table td:first-child {
+                width: 1.8rem;
+                min-width: 1.8rem;
+                max-width: 1.8rem;
+                padding-right: 0.3rem !important;
+            }
+            .list-table td {
+                padding-top: 0.05rem !important;
+                padding-bottom: 0.05rem !important;
+            }
+        }
+
+
+            /* ── Footer ── */
         footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
         footer a { color: #7ec8e3; text-decoration: none; }
         footer a:hover { text-decoration: underline; }
@@ -94,14 +264,14 @@
             </svg>
             <div>
                 <h1 id="page-title">About Us</h1>
-                <p id="page-subtitle">Trusted Panama Stays</p>
+                <p id="page-subtitle" style="color: white">Trusted Panama Stays</p>
             </div>
         </div>
         <div class="header-right">
             <a id="back-link" href="index.html" class="back-link">← Back</a>
             <a id="lang-toggle" href="#" class="lang-toggle" onclick="toggleLang(event)">
                 <svg width="20" height="14" viewBox="0 0 20 14" id="lang-flag"></svg>
-                <span id="lang-text">Español</span>
+                <span id="lang-text" style="padding-left:5px">Español</span>
             </a>
         </div>
     </header>
@@ -111,7 +281,7 @@
 
         <h2>What is Trusted Panama Stays?</h2>
         <p>
-            Trusted Panama Stays is the only online directory exclusively listing short-term tourist accommodations
+            Trusted Panama Stays is the only directly editable online directory, exclusively listing short-term tourist accommodations
             that are officially registered with Panama's Tourism Authority (ATP) and legally authorized to operate.
         </p>
 
@@ -143,17 +313,72 @@
             website and booking page — for less than $2 per month.
         </p>
 
-        <div class="price-box">
-            <div class="price">$24</div>
-            <div class="period">per year + ITBMS · introductory price</div>
-            <p style="margin-top:0.8rem;margin-bottom:0;font-size:0.88rem;opacity:0.9;">
-                Includes full profile with photos, description, address, and booking links.<br>
-                First 30 days free — no payment required to start.
-            </p>
+        <div>
+          <p>
+            What about the ATP page "Tripealotuyo", is it not sufficient to be listed there?<br>
+            Both pages show all registered places for free. But there are big differences. Compare:
+          </p>
+
+          <div class="table-responsive">
+            <table class="compare-table"  id="compareTableEn">
+              <thead>
+                <tr>
+                    <th>Característics</th>
+                    <th>Trusted Panama Stays</th>
+                    <th>ATP page</th>
+                </tr>
+              </thead>
+              <tbody>
+                  <tr><td>client target</td><td>🌐  international clients</td><td><span class="flag-icon flag-icon-pa" style="vertical-align:top; font-size:1.1rem;"></span>    national tourism</td></tr>
+                  <tr><td>language</td><td>✅  Spanish and English</td><td>❌  only Spanish</td></tr>
+                  <tr><td>searchable</td><td>✅  search for anything</td><td>❌  no search box</td></tr>
+                  <tr><td>Google Maps</td><td>✅  everybody</td><td>👑  requirements</td></tr>
+                  <tr><td>listing order</td><td>✅  alphabetic</td><td>👑  privilegded</td></tr>
+                  <tr><td>photo or logo</td><td>✅  yes ⭐</td><td>👑  requirements</td></tr>
+                  <tr><td>your website</td><td>✅  yes ⭐</td><td>❌  no</td></tr>
+                  <tr><td>booking page</td><td>✅  yes ⭐</td><td>❌  only WhatsApp</td></tr>
+                  <tr><td>link buttons</td><td>✅  2 ... 6 ⭐</td><td>👑  0 or 1</td></tr>
+                  <tr><td>editable address</td><td>✅  yes ⭐</td><td>❌  fixed</td></tr>
+                  <tr><td>description</td><td>✅  Spanish & English ⭐</td><td>❌  no</td></tr>
+                  <tr><td>slide show</td><td>✅  up to 20 photos ⭐</td><td>❌  no</td></tr>
+                  <tr><td>easily editable</td><td>✅  yes ⭐</td><td>❌  no</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:0.3rem; font-style:italic; font-size:12px">⭐ available for members  --  👑 special requirements</p>
+          <p>While the ATP site is only in Spanish, focuses on internal turism, and has no search box, Trusted Panama Stays targets international tourists and lets visitors:
+
+          <div class="table-responsive" style="padding-left:30px; padding-bottom:20px;">
+            <table class="list-table">
+              <tbody>
+                  <tr><td>✅</td><td>choose between English and Spanish</td></tr>
+                  <tr><td>✅</td><td>search for province, type of hospitality, and any word combined with these</td></tr>
+                  <tr><td>✅</td><td>look up your place on Google Maps with one click</td></tr>
+                  <tr><td>✅</td><td>contact you via WhatsApp with one click</td></tr>
+              </tbody>
+            </table>
+          </div>
+            Members can create a complete individual listing page which visitors can access by clicking on an image of your choice to
+            <div class="table-responsive" style="padding-left:30px;  padding-bottom:20px;">
+              <table class="list-table">
+                <tbody>
+                    <tr><td>✅</td><td>read a detailed description of your place in English or Spanish</td></tr>
+                    <tr><td>✅</td><td>watch up to 20 of your best photos</td></tr>
+                    <tr><td>✅</td><td>visit your web site with one click</td></tr>
+                    <tr><td>✅</td><td>open your booking page or book via WhatsApp with one click.</td></tr>
+                    <tr><td>✅</td><td>You can create up to four additional buttons with links to any web page you want, e.g. virtual tours, videos, internal or external pages.</td></tr>
+                    <tr><td>✅</td><td>Trusted Panama Stays is made by hospitality owners for hospitality owners. We can easily make changes or add new features if our members request it.</td></tr>
+                </tbody>
+              </table>
+
+              <p></p>
+              <p style="line-height: 1.2;color:black;"><i><b>Trusted Panama Stays</b> is made by hospitality owners for hospitality owners. We can make changes or add new features if our members request it. Let us know which additional features you would like to see.</i></p>
+            </div>
+          </p>
         </div>
 
         <div style="text-align:center;margin-top:1.5rem;">
-            <a href="join.html" style="display:inline-block;padding:11px 28px;background:#005ca9;color:white;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;">
+            <a href="join.html" style="display:inline-block;padding:11px 15px;background:#005ca9;color:white;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;">
                 Apply for membership →
             </a>
         </div>
@@ -170,7 +395,7 @@
 
         <h2>¿Qué es Trusted Panama Stays?</h2>
         <p>
-            Trusted Panama Stays es el único directorio en línea que lista exclusivamente alojamientos turísticos
+            Trusted Panama Stays es el único directorio en línea que los miembros pueden editar directamente y que lista exclusivamente alojamientos turísticos
             a corto plazo registrados oficialmente ante la Autoridad de Turismo de Panamá (ATP) y autorizados
             legalmente para operar.
         </p>
@@ -204,14 +429,68 @@
             y página de reservas — por menos de $2 al mes.
         </p>
 
-        <div class="price-box">
-            <div class="price">$24</div>
-            <div class="period">por año + ITBMS · precio introductorio</div>
-            <p style="margin-top:0.8rem;margin-bottom:0;font-size:0.88rem;opacity:0.9;">
-                Incluye perfil completo con fotos, descripción, dirección y enlaces de reserva.<br>
-                Los primeros 30 días son gratuitos — sin pago inicial.
-            </p>
+        <div>
+          <p>
+            ¿Qué me dice de la página de la ATP "Tripealotuyo"? ¿No basta con aparecer en ella?<br>
+            Ambas páginas muestran todos los lugares registrados de forma gratuita. Pero existen grandes diferencias. Compárese:        </p>
+
+          <div class="table-responsive">
+            <table class="compare-table"  id="compareTableEn">
+              <thead>
+                <tr>
+                    <th>Característica</th>
+                    <th>Trusted Panama Stays</th>
+                    <th>página de la ATP  </th>
+                </tr>
+              </thead>
+              <tbody>
+                  <tr><td>objetivo</td><td>🌐  turismo global</td><td><span class="flag-icon flag-icon-pa" style="vertical-align:top; font-size:1.1rem;"></span>    turismo interno</td></tr>
+                  <tr><td>idiomas</td><td>✅  español e inglés</td><td>❌  solo español</td></tr>
+                  <tr><td>búsqueda</td><td>✅  buscar cualquier cosa</td><td>❌  no ofrece búsqueda</td></tr>
+                  <tr><td>Google Maps</td><td>✅  para todos</td><td>👑  requisitos especiales</td></tr>
+                  <tr><td>orden</td><td>✅  alphabético</td><td>👑  hay privilegios</td></tr>
+                  <tr><td>foto o logo</td><td>✅  si ⭐</td><td>👑  requisitos especiales</td></tr>
+                  <tr><td>tu sitio web</td><td>✅  si ⭐</td><td>❌  no</td></tr>
+                  <tr><td>página de reservas</td><td>✅  si ⭐</td><td>❌  solo WhatsApp</td></tr>
+                  <tr><td>enlaces</td><td>✅  2-6 botones ⭐</td><td>👑  0 o 1</td></tr>
+                  <tr><td>editar dirección</td><td>✅  fácil ⭐</td><td>👑  por solicitud</td></tr>
+                  <tr><td>descripción</td><td>✅  español & inglés ⭐</td><td>❌  no hay</td></tr>
+                  <tr><td>galería de fotos</td><td>✅  hasta 20 fotos ⭐</td><td>❌  no hay</td></tr>
+                  <tr><td>edición sencilla</td><td>✅  fácil ⭐</td><td>❌  no</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:0.3rem; font-style:italic; font-size:12px">⭐ disponible para miembros  --  👑 requiere solicitud por correo</p>
+          <p>Si bien el sitio web de ATP solo está disponible en español y no tiene cuadro de búsqueda, Trusted Panama Stays permite a los visitantes:
+
+          <div class="table-responsive" style="padding-left:30px">
+            <table class="list-table">
+              <tbody>
+                  <tr><td>✅</td><td>escoger entre inglés y español</td></tr>
+                  <tr><td>✅</td><td>buscar por provincia, tipo de hospedaje, y cualquier término solo o combinado con estos</td></tr>
+                  <tr><td>✅</td><td>Buscar tu hospedaje en Google Maps con un solo clic.</td></tr>
+                  <tr><td>✅</td><td>contactarte por WhatsApp con un solo clic</td></tr>
+              </tbody>
+            </table>
+          </div>
+            Los miembros pueden crear una página de listado individual completa a la que los visitantes pueden acceder haciendo clic en una imagen de tu elección.
+            <div class="table-responsive" style="padding-left:30px;  padding-bottom:20px;">
+              <table class="list-table">
+                <tbody>
+                    <tr><td>✅</td><td>leer una descripción detallada de tu alojamiento en inglés o español.</td></tr>
+                    <tr><td>✅</td><td>ver hasta 20 de tus mejores fotos</td></tr>
+                    <tr><td>✅</td><td>visitar tu sitio web con un solo clic</td></tr>
+                    <tr><td>✅</td><td>abrir tu página de reservas o reservar por WhatsApp con un solo clic.</td></tr>
+                    <tr><td>✅</td><td>Puedes crear hasta cuatro botones adicionales con enlaces a cualquier página web que desees, por ejemplo, visitas virtuales, vídeos, páginas internas o externas.</td></tr>
+                    </tbody>
+              </table>
+              <p></p>
+              <p style="line-height: 1.2;color:black;"><i><b>Trusted Panama Stays</b> es una plataforma creada por y para propietarios de hospedajes. Podemos realizar cambios o añadir nuevas funciones fácilmente si nuestros miembros lo solicitan. Escribenos qué características adicionales te gustaría ver.</i></p>
+
+            </div>
+          </p>
         </div>
+
 
         <div style="text-align:center;margin-top:1.5rem;">
             <a href="join.html" style="display:inline-block;padding:11px 28px;background:#005ca9;color:white;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;">
@@ -227,8 +506,8 @@
     </div>
 
     <footer>
-        <p style="font-size:0.8rem; color:#ccc;" id="footer-atp"></p>
-        <p style="margin-top:0.8rem; color:#ccc;">
+        <p style="font-size:0.8rem; color: #cccccc" id="footer-atp"></p>
+        <p style="margin-top:0.8rem; color: #cccccc">
             Trusted Panama Stays is owned and copyrighted by Tuscany Real Estates SA<br>
             RUC 1401220-1-627960 DV21<br>
             <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a>
