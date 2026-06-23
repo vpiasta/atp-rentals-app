@@ -726,7 +726,7 @@ app.get('/api/listing/slug/:slug', async (req, res) => {
     const { slug } = req.params;
     const { data, error } = await supabase
         .from('listings')
-        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links, is_trial, trial_started_at')
         .eq('slug', slug)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
@@ -737,7 +737,7 @@ app.get('/api/listing/:id', async (req, res) => {
     const { id } = req.params;
     const { data, error } = await supabase
         .from('listings')
-        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug, is_trial, trial_started_at')
         .eq('id', id)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
@@ -1594,7 +1594,6 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
                 verified_by:           'admin'
             }).eq('id', listingId);
         }
-
         if (!isTrial) {
             const amount = app.duration_months === 24 ? 45 : 24;
             const itbms  = parseFloat((amount * 0.07).toFixed(2));
@@ -1990,7 +1989,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
 </div>
 <p>Estimado/a propietario/a de <strong>${listing.name}</strong>,</p>
 <p>Su período de prueba gratuita vence el <strong>${listing.membership_paid_until}</strong> — en 5 días.</p>
-<p>Para continuar con acceso completo a su listado (fotos, descripción, enlaces de reserva), 
+<p>Para continuar con acceso completo a su listado (fotos, descripción, enlaces de reserva),
    renueve su membresía ahora:</p>
 <table style="border:1px solid #e1e5e9;border-radius:8px;background:#f8f9fa;width:100%;margin:1rem 0;">
     <tr><td style="padding:8px;font-weight:bold;">1 año:</td><td style="padding:8px;"><strong>$24</strong> + ITBMS ($25.68 inclusive)</td></tr>
