@@ -134,7 +134,8 @@
         .app-status { padding: 3px 10px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; }
         .app-status.pending  { background: #7a5c00; color: #FFD700; }
         .app-status.approved { background: #1a5c1a; color: #adf5ad; }
-        .app-status.rejected { background: #7a0000; color: #ffaaaa; }
+        .app-status.rejected    { background: #7a0000; color: #ffaaaa; }
+        .app-status.pending_atp { background: #1a3a6b; color: #7ec8e3; }
         .app-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.82rem; }
         .app-detail-item { color: #ccc; }
         .app-detail-item strong { color: #7ec8e3; }
@@ -410,7 +411,8 @@
                 <button class="filter-tab active" onclick="filterApps('all')"      id="ftab-all">All</button>
                 <button class="filter-tab"        onclick="filterApps('pending')"  id="ftab-pending">⏳ Pending</button>
                 <button class="filter-tab"        onclick="filterApps('approved')" id="ftab-approved">✅ Approved</button>
-                <button class="filter-tab"        onclick="filterApps('rejected')" id="ftab-rejected">❌ Rejected</button>
+                <button class="filter-tab"        onclick="filterApps('rejected')"    id="ftab-rejected">❌ Rejected</button>
+                <button class="filter-tab"        onclick="filterApps('pending_atp')" id="ftab-pending_atp">⏳ Pending ATP</button>
             </div>
             <div class="toolbar">
                 <button class="tbtn primary" onclick="loadApplications()">🔄 Refresh</button>
@@ -928,107 +930,55 @@ async function viewDocument(docPath, docType) {
     } catch(err) { alert('Error: '+err.message); }
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-//  verifyDocuments() function
-// ═════════════════════════════════════════════════════════════════════════════
 async function verifyDocuments(appId) {
     const resultEl = document.getElementById('verify-'+appId);
-    resultEl.innerHTML = '🤖 AI is reading documents... (may take 20-30 seconds)';
+    resultEl.innerHTML = '🤖 AI is reading documents...';
     resultEl.classList.add('visible');
     try {
-        const res  = await adminFetch('/api/admin/verify-documents', {
-            method: 'POST', body: JSON.stringify({ application_id: appId })
-        });
+        const res  = await adminFetch('/api/admin/verify-documents', { method:'POST', body: JSON.stringify({ application_id: appId }) });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-
         const v  = data.verification;
-        const ao = v.aviso_operacion;
-        const ce = v.cedula;
-        const pa = v.payment;
-        const vr = v.verification;
-
-        const resultColor = vr.overall_result==='PASS' ? 'verify-pass'
-            : vr.overall_result==='FAIL'   ? 'verify-fail' : 'verify-warn';
-
-        const row = (icon, label, value, cls='') =>
-            `<div class="verify-row">
-                <span class="verify-icon">${icon}</span>
-                <span class="verify-label">${label}</span>
-                <span class="verify-value ${cls}">${value||'—'}</span>
-            </div>`;
-
-        const section = (title, rows) =>
-            `<div style="margin-bottom:0.8rem;">
-                <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#7ec8e3;
-                            margin-bottom:0.4rem;padding-bottom:3px;border-bottom:1px solid #3d5166;">
-                    ${title}
-                </div>
-                ${rows}
-            </div>`;
-
+        const ov = v.verification;
+        const resultColor = ov.overall_result==='PASS'?'verify-pass':ov.overall_result==='FAIL'?'verify-fail':'verify-warn';
         resultEl.innerHTML = `
-            <div style="font-weight:700;color:#7ec8e3;margin-bottom:1rem;font-size:0.95rem;">
-                🤖 AI Verification Report
-                <span style="font-size:0.72rem;color:#aaa;font-weight:400;margin-left:8px;">
-                    Data auto-saved to listing
+            <div style="font-weight:700;color:#7ec8e3;margin-bottom:0.8rem;">🤖 AI Verification Report</div>
+            ${v.aviso_operacion?`
+            <div class="verify-row">
+                <span class="verify-icon">📋</span>
+                <span class="verify-label">Aviso de Operación</span>
+                <span class="verify-value">${v.aviso_operacion.business_name||'—'}
+                    <br><span style="color:#aaa;font-size:0.75rem;">RUC: ${v.aviso_operacion.ruc||'—'} · Rep: ${v.aviso_operacion.legal_rep||'—'}</span>
                 </span>
+            </div>`:''}
+            ${v.cedula?`
+            <div class="verify-row">
+                <span class="verify-icon">🪪</span>
+                <span class="verify-label">Cédula</span>
+                <span class="verify-value">${v.cedula.id_holder_name||'—'}</span>
+            </div>`:''}
+            ${v.payment?`
+            <div class="verify-row">
+                <span class="verify-icon">💳</span>
+                <span class="verify-label">Comprobante</span>
+                <span class="verify-value">${v.payment.amount||'—'} · ${v.payment.date||'—'}</span>
+            </div>`:''}
+            <div class="verify-row">
+                <span class="verify-icon">${ov.names_match?'✅':'❌'}</span>
+                <span class="verify-label">Nombres coinciden</span>
+                <span class="verify-value ${ov.names_match?'verify-pass':'verify-fail'}">${ov.names_match_detail||'—'}</span>
             </div>
-
-            ${ao?.found ? section('📋 Aviso de Operación', `
-                ${row('🔢', 'Número aviso',      ao.aviso_number)}
-                ${row('📅', 'Fecha emisión',     ao.issue_date)}
-                ${row('🏢', 'Establecimiento',   ao.establishment_name)}
-                ${row('📍', 'Ubicación',          ao.establishment_location)}
-                ${row('🏛️', 'Razón social',      ao.company_name)}
-                ${row('💼', 'RUC',               ao.ruc ? `${ao.ruc} DV-${ao.ruc_dv||'?'}` : null)}
-                ${row('👤', 'Representante',     ao.rep_name)}
-                ${row('🪪', 'Cédula rep.',       ao.rep_cedula)}
-                ${row('🔧', 'Actividad',         ao.activity)}
-                ${ao.notes ? row('⚠️', 'Notas',  ao.notes, 'verify-warn') : ''}
-            `) : row('📋', 'Aviso de Operación', 'No encontrado', 'verify-fail')}
-
-            ${ce?.found ? section('🪪 Cédula / Pasaporte', `
-                ${row('👤', 'Nombre',     ce.id_holder_name)}
-                ${row('🔢', 'Número',     ce.id_number)}
-                ${row('📄', 'Tipo',       ce.id_type)}
-                ${ce.notes ? row('⚠️', 'Notas', ce.notes, 'verify-warn') : ''}
-            `) : row('🪪', 'Cédula', 'No encontrada', 'verify-fail')}
-
-            ${pa?.found ? section('💳 Comprobante de Pago', `
-                ${row('💰', 'Monto',      pa.amount)}
-                ${row('📅', 'Fecha',      pa.date)}
-                ${row('🔢', 'Referencia', pa.reference)}
-                ${row('💳', 'Método',     pa.method)}
-                ${row('💬', 'Mensaje',    pa.payment_message, pa.payment_message && pa.payment_message !== 'empty' ? 'verify-pass' : 'verify-warn')}
-                ${pa.notes ? row('⚠️', 'Notas', pa.notes, 'verify-warn') : ''}
-            `) : ''}
-
-            ${section('🎯 Resultado de Verificación', `
-                ${row(vr.names_match ? '✅' : '❌',
-                    'Nombres coinciden',
-                    vr.names_match_detail,
-                    vr.names_match ? 'verify-pass' : 'verify-fail')}
-                ${row(vr.establishment_matches ? '✅' : '⚠️',
-                    'Establecimiento',
-                    vr.establishment_match_detail,
-                    vr.establishment_matches ? 'verify-pass' : 'verify-warn')}
-                ${row(vr.payment_matches ? '✅' : '⚠️',
-                    'Pago correcto',
-                    vr.payment_match_detail,
-                    vr.payment_matches ? 'verify-pass' : 'verify-warn')}
-                <div class="verify-row" style="background:rgba(0,0,0,0.2);border-radius:4px;padding:6px;margin-top:4px;">
-                    <span class="verify-icon">🎯</span>
-                    <span class="verify-label" style="font-weight:700;">Resultado final</span>
-                    <span class="verify-value ${resultColor}" style="font-weight:700;">
-                        ${vr.overall_result} — ${vr.overall_notes||''}
-                    </span>
-                </div>
-            `)}`;
-
-    } catch(err) {
-        resultEl.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`;
-    }
+            <div class="verify-row">
+                <span class="verify-icon">${ov.payment_matches?'✅':'⚠️'}</span>
+                <span class="verify-label">Pago correcto</span>
+                <span class="verify-value ${ov.payment_matches?'verify-pass':'verify-warn'}">${ov.payment_match_detail||'—'}</span>
+            </div>
+            <div class="verify-row" style="background:rgba(0,0,0,0.2);border-radius:4px;padding:6px;">
+                <span class="verify-icon">🎯</span>
+                <span class="verify-label">Resultado</span>
+                <span class="verify-value ${resultColor}" style="font-weight:700;">${ov.overall_result} — ${ov.overall_notes||''}</span>
+            </div>`;
+    } catch(err) { resultEl.innerHTML=`<span style="color:#ff7070;">Error: ${err.message}</span>`; }
 }
 
 async function approveApplication(appId) {
@@ -1037,21 +987,69 @@ async function approveApplication(appId) {
     resultEl.innerHTML = '⏳ Processing...';
     resultEl.classList.add('visible');
     try {
-        const res  = await adminFetch('/api/admin/approve-application', { method:'POST', body: JSON.stringify({ application_id: appId }) });
+        const res  = await adminFetch('/api/admin/approve-application', {
+            method: 'POST', body: JSON.stringify({ application_id: appId })
+        });
         const data = await res.json();
+
+        // No listing match — set to pending_atp, will auto-activate
+        if (data.pending_atp || data.no_listing) {
+            resultEl.style.background = '#0a1a2a';
+            resultEl.style.border = '1px solid #7ec8e3';
+            resultEl.style.borderRadius = '8px';
+            resultEl.style.padding = '1rem';
+            resultEl.innerHTML = `
+                <div style="color:#7ec8e3;font-weight:700;margin-bottom:0.5rem;">⏳ En espera de registro ATP</div>
+                <div style="font-size:0.82rem;color:#ccc;">
+                    Documentos verificados ✅<br>
+                    ${data.email_sent
+                        ? '📧 Solicitante notificado — recibirá activación automática cuando aparezca en el registro ATP.'
+                        : '📱 Sin correo — texto WhatsApp descargado.'}
+                    <br><br>La membresía de prueba se activará automáticamente cuando la ATP registre su hospedaje.
+                </div>`;
+            if (data.whatsapp_text) {
+                const blob = new Blob([data.whatsapp_text], {type:'text/plain;charset=utf-8'});
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href = url;
+                a.download = `${(data.property_name||'member').replace(/[^a-zA-Z0-9]/g,'_')}_no_listing.txt`;
+                a.click(); URL.revokeObjectURL(url);
+            }
+            const card = document.getElementById('app-card-'+appId);
+            if (card) {
+                card.querySelector('.app-status').textContent = 'PENDING ATP';
+                card.querySelector('.app-status').className   = 'app-status pending_atp';
+                card.querySelector('.app-actions')?.remove();
+                card.querySelector('.reject-form')?.remove();
+            }
+            return;
+        }
+
         if (!res.ok) throw new Error(data.error);
+
         resultEl.innerHTML = `
             <div style="color:#adf5ad;font-weight:700;margin-bottom:0.5rem;">✅ Application approved!</div>
             <div style="font-size:0.82rem;color:#ccc;">
-                Password sent to member: <code style="background:#2c3e50;padding:2px 6px;border-radius:4px;">${data.password}</code><br>
+                Password: <code style="background:#2c3e50;padding:2px 6px;border-radius:4px;">${data.password}</code><br>
                 Membership until: <strong>${data.paid_until}</strong><br>
-                ${data.listing_id?`Listing ID: ${data.listing_id}`:'No ATP listing linked'}
+                Membership ID: <strong>${data.listing_id||'—'}</strong><br>
+                ${data.email_sent ? '📧 Welcome email sent' : '📱 No email — WhatsApp text downloaded'}
             </div>`;
+
+        if (data.whatsapp_text) {
+            const blob = new Blob([data.whatsapp_text], {type:'text/plain;charset=utf-8'});
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href = url;
+            a.download = `${(data.property_name||'member').replace(/[^a-zA-Z0-9]/g,'_')}_bienvenida.txt`;
+            a.click(); URL.revokeObjectURL(url);
+        }
+
         const card = document.getElementById('app-card-'+appId);
         if (card) {
             card.classList.replace('pending','approved');
             card.querySelector('.app-status').textContent = 'APPROVED';
-            card.querySelector('.app-status').className = 'app-status approved';
+            card.querySelector('.app-status').className   = 'app-status approved';
             card.querySelector('.app-actions')?.remove();
             card.querySelector('.reject-form')?.remove();
         }
