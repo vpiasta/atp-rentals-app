@@ -136,6 +136,9 @@
         .app-status.approved { background: #1a5c1a; color: #adf5ad; }
         .app-status.rejected    { background: #7a0000; color: #ffaaaa; }
         .app-status.pending_atp { background: #1a3a6b; color: #7ec8e3; }
+        .reg-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:0.68rem; font-weight:700; margin-left:6px; }
+        .reg-badge.atp  { background:#1a5c1a; color:#adf5ad; }
+        .reg-badge.mici { background:#4a1a6b; color:#d4adf5; }
         .app-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.82rem; }
         .app-detail-item { color: #ccc; }
         .app-detail-item strong { color: #7ec8e3; }
@@ -873,9 +876,12 @@ function renderApplications(apps) {
                     <div class="app-name">${app.property_name}</div>
                     <div class="app-meta">
                         ${app.province} · ${new Date(app.created_at).toLocaleDateString()} · ID: ${app.id}
-                        ${app.listing_id
-                            ? ` · <span style="color:#adf5ad;">ATP: ${app.listing_id}</span>`
-                            : ' · <span style="color:#ff7070;">No ATP match</span>'}
+                        <span class="reg-badge ${app.registration_type === 'mici' ? 'mici' : 'atp'}">${app.registration_type === 'mici' ? 'MiCI' : 'ATP'}</span>
+                        ${app.registration_type === 'mici'
+                            ? ' · <span style="color:#d4adf5;">MiCI — se creará nuevo listado</span>'
+                            : (app.listing_id
+                                ? ` · <span style="color:#adf5ad;">ATP: ${app.listing_id}</span>`
+                                : ' · <span style="color:#ff7070;">No ATP match</span>')}
                     </div>
                 </div>
                 <span class="app-status ${app.status}">${app.status.toUpperCase()}</span>
