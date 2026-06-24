@@ -2250,28 +2250,8 @@ app.get('/api/send-trial-reminders', async (req, res) => {
 });
 
 //========== temporry endpoints ============================
-app.get('/api/db-check', (req, res) => {
-    res.json({
-        service_key_present: !!process.env.SUPABASE_SERVICE_KEY,
-        service_key_length:  process.env.SUPABASE_SERVICE_KEY?.length || 0,
-        supabase_type:       typeof supabase,
-        supabaseAdmin_type:  typeof supabaseAdmin,
-        supabase_has_from:   typeof supabase?.from,
-        admin_has_from:      typeof supabaseAdmin?.from
-    });
-});
 
-app.get('/api/db-test', async (req, res) => {
-    try {
-        const { data, error } = await supabase
-            .from('listings')
-            .select('id')
-            .limit(1);
-        res.json({ success: !error, error: error?.message, count: data?.length });
-    } catch(err) {
-        res.json({ exception: err.message });
-    }
-});
+//==========================================================
 
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
