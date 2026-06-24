@@ -9,7 +9,7 @@ const cors = require('cors');
 const path = require('path');
 const axios = require('axios');
 const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-const supabase = require('./db');   // <-- Supabase client
+const { supabase, supabaseAdmin } = require('./db');   // <-- Supabase client
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
@@ -268,7 +268,7 @@ async function checkPendingAtpApplications() {
             }).eq('id', listing.id);
 
             // Update application
-            await supabase.from('membership_applications').update({
+            await supabaseAdmin.from('membership_applications').update({
                 status:      'approved',
                 listing_id:  listing.id,
                 reviewed_at: new Date().toISOString(),
@@ -1700,7 +1700,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
     const bcrypt = require('bcrypt');
     const { application_id } = req.body;
     if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
-    const { data: app, error: appError } = await supabase.from('membership_applications').select('*').eq('id', application_id).single();
+    const { data: app, error: appError } = await supabaseAdmin.from('membership_applications').select('*').eq('id', application_id).single();
     if (appError || !app) return res.status(404).json({ error: 'Application not found' });
     try {
         const isTrial  = app.membership_type === 'trial';
@@ -1710,7 +1710,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         if (!listingId) {
             const directoryUrl = 'https://trustedpanamastays.com/index_es.html';
 
-            await supabase.from('membership_applications').update({
+            await supabaseAdmin.from('membership_applications').update({
                 status:             'pending_atp',
                 documents_verified: true,
                 auto_activate:      true,
@@ -1767,7 +1767,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         if (isTrial && listingId) {
             const { data: existing } = await supabase.from('listings').select('is_trial, trial_started_at, is_member').eq('id', listingId).single();
             if (existing?.trial_started_at || existing?.is_member) {
-                await supabase.from('membership_applications').update({ status: 'rejected', notes: 'Rechazado automáticamente: ya tuvo prueba o membresía.', reviewed_at: new Date().toISOString(), reviewed_by: 'system' }).eq('id', application_id);
+                await supabaseAdmin.from('membership_applications').update({ status: 'rejected', notes: 'Rechazado automáticamente: ya tuvo prueba o membresía.', reviewed_at: new Date().toISOString(), reviewed_by: 'system' }).eq('id', application_id);
                 await logEvent('application_auto_rejected', { application_id, reason: 'existing_trial_or_membership', listing_id: listingId });
                 return res.status(400).json({ error: 'Este hospedaje ya tuvo una prueba gratuita o membresía. Solicitud rechazada automáticamente.' });
             }
@@ -1811,7 +1811,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         }
 
         // ── Update application status ─────────────────────────────────────
-        await supabase.from('membership_applications').update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', application_id);
+        await supabaseAdmin.from('membership_applications').update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', application_id);
 
         // ── Send welcome email ────────────────────────────────────────────
         const msgType   = isTrial ? 'approved_trial' : 'approved_paid';
@@ -1844,11 +1844,11 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 app.post('/api/admin/reject-application', requireAdmin, async (req, res) => {
     const { application_id, reason, custom_note, is_payment_issue } = req.body;
     if (!application_id || !reason) return res.status(400).json({ error: 'Missing fields' });
-    const { data: app, error: appError } = await supabase.from('membership_applications').select('*').eq('id', application_id).single();
+    const { data: app, error: appError } = await supabaseAdmin.from('membership_applications').select('*').eq('id', application_id).single();
     if (appError || !app) return res.status(404).json({ error: 'Not found' });
 
     const fullReason = reason + (custom_note ? '. ' + custom_note : '');
-    await supabase.from('membership_applications').update({ status: 'rejected', notes: 'Razón: ' + fullReason, reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', application_id);
+    await supabaseAdmin.from('membership_applications').update({ status: 'rejected', notes: 'Razón: ' + fullReason, reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', application_id);
     await logEvent('application_rejected', { application_id, reason, is_payment_issue });
 
     const hasEmail  = !!(app.contact_email && app.contact_email.includes('@'));
@@ -1904,12 +1904,12 @@ app.post('/api/submit-payment',
         if (file) {
             const safeName = file.originalname.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_+/g, '_').toLowerCase();
             const fileName = 'payments/' + listing_id + '/' + Date.now() + '-' + safeName;
-            const { error: uploadError } = await supabase.storage.from('member-documents').upload(fileName, file.buffer, { contentType: file.mimetype, upsert: false });
+            const { error: uploadError } = await supabaseAdmin.storage.from('member-documents').upload(fileName, file.buffer, { contentType: file.mimetype, upsert: false });
             if (!uploadError) documentPath = fileName;
         }
 
         const months = parseInt(duration_months) || 12;
-        const { data: submission } = await supabase.from('membership_applications').insert({
+        const { data: submission } = await supabaseAdmin.from('membership_applications').insert({
             listing_id:      parseInt(listing_id),
             property_name:   listing.name,
             province:        listing.province,
