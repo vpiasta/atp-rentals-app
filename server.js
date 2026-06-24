@@ -2249,6 +2249,18 @@ app.get('/api/send-trial-reminders', async (req, res) => {
     }
 });
 
+//========== temporry endpoint ============================
+app.get('/api/db-check', (req, res) => {
+    res.json({
+        service_key_present: !!process.env.SUPABASE_SERVICE_KEY,
+        service_key_length:  process.env.SUPABASE_SERVICE_KEY?.length || 0,
+        supabase_type:       typeof supabase,
+        supabaseAdmin_type:  typeof supabaseAdmin,
+        supabase_has_from:   typeof supabase?.from,
+        admin_has_from:      typeof supabaseAdmin?.from
+    });
+});
+
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
