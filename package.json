@@ -13,6 +13,6 @@
     "@supabase/supabase-js": "^2.39.0",
     "ws": "^8.18.0",
     "bcrypt": "^5.1.0",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^2.2.0"
   }
 }
