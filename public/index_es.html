@@ -55,9 +55,13 @@
         .card-body { display: flex; gap: 1rem; align-items: flex-start; }
         .member-thumb {
             flex-shrink: 0; width: 120px;
-            border-radius: 8px; overflow: hidden;
+            border-radius: 8px; overflow: visible;
             border: 2px solid #b8860b; cursor: pointer; text-decoration: none;
             display: block; background: white;
+        }
+        .member-thumb-img, .member-thumb-nophoto {
+            border-radius: 6px 6px 0 0;
+            overflow: hidden;
         }
         .member-thumb:hover { border-color: #005ca9; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
         .member-thumb-img {
@@ -83,7 +87,7 @@
 
         @media (max-width: 600px) {
             .card-body { flex-direction: column; gap: 0.6rem; }
-            .member-thumb { width: 100%; border-radius: 8px; }
+            .member-thumb { width: 100%; border-radius: 8px; overflow: visible; }
             .member-thumb-img { height: 160px; object-fit: cover; object-position: center; }
             .member-thumb-nophoto { height: 100px; font-size: 2.5rem; }
             .member-thumb-label { font-size: 0.95rem; padding: 8px 4px; }
