@@ -432,6 +432,18 @@ function displayResults(rentals) {
         resultsContainer.innerHTML = '<div class="no-results"><p>No rentals found. Try a different search.</p></div>';
         return;
     }
+    // Sort: ATP members first, then MiCI members, then others — alphabetical within each group
+    rentals.sort((a, b) => {
+        const rank = r => {
+            const active = r.is_member && r.membership_paid_until && new Date(r.membership_paid_until) >= new Date();
+            if (!active) return 3;
+            if (r.registry_source === 'mici') return 2;
+            return 1;
+        };
+        const ra = rank(a), rb = rank(b);
+        if (ra !== rb) return ra - rb;
+        return (a.name || '').localeCompare(b.name || '');
+    });
     rentals.forEach(rental => {
         const card = document.createElement('div');
         const active = isMemberActive(rental);
