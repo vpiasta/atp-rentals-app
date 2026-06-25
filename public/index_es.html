@@ -340,6 +340,7 @@ function displayResults(rentals) {
                 ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
                 ${active             ? `<span class="result-badge badge-member">⭐ Miembro</span>` : ''}
+                ${active && rental.registry_source === 'mici' ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>` : (rental.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
             </div>
             <div class="card-body">
                 ${thumbHtml}
