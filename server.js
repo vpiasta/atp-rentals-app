@@ -901,7 +901,7 @@ app.get('/api/listing/slug/:slug', async (req, res) => {
     const { slug } = req.params;
     const { data, error } = await supabase
         .from('listings')
-        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links, is_trial, trial_started_at')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links, is_trial, trial_started_at, registry_source')
         .eq('slug', slug)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
@@ -912,7 +912,7 @@ app.get('/api/listing/:id', async (req, res) => {
     const { id } = req.params;
     const { data, error } = await supabase
         .from('listings')
-        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug, is_trial, trial_started_at')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug, is_trial, trial_started_at, registry_source')
         .eq('id', id)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
