@@ -722,14 +722,35 @@ app.get('/api/stats', (req, res) => {
     }
 });
 
-app.get('/api/provinces', (req, res) => {
+
+app.get('/api/provinces', async (req, res) => {
+    // Start with ATP in-memory counts
     const provinceCounts = CURRENT_RENTALS.reduce((acc, rental) => {
         if (rental.province) acc[rental.province] = (acc[rental.province] || 0) + 1;
         return acc;
     }, {});
+
+    // Add MiCI listings from database
+    try {
+        const { data: miciListings } = await supabase
+            .from('listings')
+            .select('province')
+            .eq('registry_source', 'mici')
+            .eq('atp_active', false);
+
+        if (miciListings) {
+            miciListings.forEach(r => {
+                if (r.province) provinceCounts[r.province] = (provinceCounts[r.province] || 0) + 1;
+            });
+        }
+    } catch (err) {
+        console.error('Error fetching MiCI province counts:', err.message);
+    }
+
     const provinces = Object.entries(provinceCounts)
         .map(([province, count]) => ({ province, count }))
         .sort((a, b) => a.province.localeCompare(b.province));
+
     res.json(provinces);
 });
 
