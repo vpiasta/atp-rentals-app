@@ -288,6 +288,10 @@
             <input type="hidden" id="edit-id">
             <div class="edit-grid">
                 <div class="field-group">
+                    <label>Membership ID</label>
+                    <input type="text" id="edit-id-display" readonly style="color:#FFD700;font-family:monospace;font-size:1rem;font-weight:700;">
+                </div>
+                <div class="field-group">
                     <label>Name (read only)</label>
                     <input type="text" id="edit-name" readonly>
                 </div>
@@ -732,6 +736,7 @@ function openEditPanel(id) {
     const m = allMembers.find(x => x.id===id);
     if (!m) return;
     document.getElementById('edit-id').value           = m.id;
+    document.getElementById('edit-id-display').value  = m.id;
     document.getElementById('edit-name').value         = m.name;
     document.getElementById('edit-contact-name').value = m.contact_name||'';
     document.getElementById('edit-is-member').value    = m.is_member?'true':'false';
@@ -742,7 +747,7 @@ function openEditPanel(id) {
     document.getElementById('edit-phone').value        = m.phone||'';
     document.getElementById('edit-email').value        = m.email||'';
     document.getElementById('edit-rental-type').value  = m.rental_type||'';
-    document.getElementById('edit-panel-title').textContent = `Edit: ${m.name}`;
+    document.getElementById('edit-panel-title').textContent = `Edit: ${m.name} (ID: ${m.id})`;
     document.getElementById('edit-msg').style.display  = 'none';
     closePanel('pwd-panel'); closePanel('wa-panel');
     document.getElementById('edit-panel').classList.add('active');
