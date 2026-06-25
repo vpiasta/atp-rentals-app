@@ -231,7 +231,11 @@ function restoreOrDefault() {
                 if (params.search)   searchInput.value    = params.search;
                 if (params.province) provinceFilter.value  = params.province;
                 if (params.type)     typeFilter.value      = params.type;
-                performSearch().then(scrollToResults);
+                const savedScrollY = params.scrollY || 0;
+                performSearch().then(() => {
+                    // Restore exact scroll position
+                    setTimeout(() => window.scrollTo({ top: savedScrollY, behavior: 'instant' }), 50);
+                });
                 return;
             }
         } catch(e) {}
@@ -431,7 +435,8 @@ function saveSearchState() {
     const params = {
         search:   searchInput?.value || '',
         province: provinceFilter?.value || '',
-        type:     typeFilter?.value || ''
+        type:     typeFilter?.value || '',
+        scrollY:  window.scrollY
     };
     sessionStorage.setItem('tps_search_state', JSON.stringify(params));
 }
