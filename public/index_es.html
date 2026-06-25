@@ -248,7 +248,7 @@ async function showDefaultView() {
                             ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Correo</span></a>` : ''}
                             ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                             <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
-                            ${active ? `<a href="${listUrl}" class="contact-button seemore-button"><span class="btn-icon">⭐</span><span class="btn-text"> Ver Más</span></a>` : ''}
+
                         </div>
                     </div>
                 </div>
@@ -355,7 +355,6 @@ function displayResults(rentals) {
                         ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Correo</span></a>` : ''}
                         ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                         <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
-                        ${active && !thumb ? `<a href="${listUrl}" class="contact-button seemore-button"><span class="btn-icon">⭐</span><span class="btn-text"> Ver Más</span></a>` : ''}
                     </div>
                 </div>
             </div>`;
