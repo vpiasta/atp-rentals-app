@@ -103,16 +103,6 @@
             object-position: center;
             display: block;
         }
-        .member-thumb-label {
-            display: block;
-            background: white;
-            color: #111;
-            text-align: center;
-            font-size: 0.82rem;
-            font-weight: 700;
-            padding: 5px 4px;
-            border-top: 1px solid #ddd;
-        }
         .member-thumb-nophoto {
             width: 100%;
             height: 90px;
@@ -132,32 +122,10 @@
             padding: 5px 4px;
             border-top: 1px solid #ddd;
         }
-        .card-info {
-            flex: 1;
-            min-width: 0;
-        }
+        .card-info { flex: 1; min-width: 0; }
         /* Icon-only buttons on narrow screens */
         .contact-button .btn-text { display: inline; }
         .contact-button .btn-icon { display: none; }
-
-            .member-thumb { width: 100%; }
-            .member-thumb-img { height: 160px; }
-            .member-thumb-nophoto { height: 100px; font-size: 2.5rem; }
-            .contact-button { padding: 7px 10px; font-size: 0.8rem; }
-            .contact-button .btn-text { display: none; }
-            .contact-button .btn-icon { display: inline; font-size: 1.1rem; }
-            .contact-buttons { flex-wrap: nowrap; justify-content: center; }
-        }
-
-        /* Icon-only buttons on narrow screens */
-        .contact-button .btn-text { display: inline; }
-        .contact-button .btn-icon { display: none; }
-
-
-        /* Icon-only buttons on narrow screens */
-        .contact-button .btn-text { display: inline; }
-        .contact-button .btn-icon { display: none; }
-
         @media (max-width: 600px) {
             .card-body { flex-direction: column; gap: 0.5rem; }
             .member-thumb { width: 100%; }
@@ -169,13 +137,6 @@
             .contact-button .btn-icon { display: inline; font-size: 1.1rem; }
             .contact-buttons { flex-wrap: nowrap; justify-content: center; }
         }
-        .no-results { text-align: center; padding: 3rem; color: #666; }
-        .loading    { text-align: center; padding: 2rem; color: #005ca9; }
-
-        /* ── Footer ── */
-        footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
-        footer a { color: #7ec8e3; text-decoration: none; }
-        footer a:hover { text-decoration: underline; }
         /* ── UP button ── */
         .up-btn {
             position: fixed; bottom: 20px; right: 16px; z-index: 999;
