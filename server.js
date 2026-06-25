@@ -1295,7 +1295,8 @@ app.post('/api/membership-apply',
     const {
         property_name, province, contact_name, contact_email,
         contact_phone, how_found, membership_type,
-        duration_months, payment_method
+        duration_months, payment_method,
+        registration_type, listing_phone, listing_email
     } = req.body;
 
     if (!property_name || !contact_name || !contact_email || !contact_phone) {
@@ -1306,22 +1307,22 @@ app.post('/api/membership-apply',
              || req.socket.remoteAddress;
 
     try {
-        // ── Try to find matching listing in database ───────────────────────
+        // ── Try to find matching listing (ATP only) ───────────────────────
         let listingId = null;
-        const { data: matchingListings } = await supabase
-            .from('listings')
-            .select('id, name, is_trial, trial_started_at, is_member')
-            .ilike('name', `%${property_name.trim()}%`)
-            .eq('province', province)
-            .limit(1);
+        const isMici  = registration_type === 'mici';
 
-        if (matchingListings && matchingListings.length > 0) {
-            listingId = matchingListings[0].id;
-            const existing = matchingListings[0];
+        if (!isMici) {
+            const { data: matchingListings } = await supabase
+                .from('listings')
+                .select('id, name, is_trial, trial_started_at, is_member')
+                .ilike('name', `%${property_name.trim()}%`)
+                .eq('province', province)
+                .limit(1);
 
-            // ── Block trial if listing already had trial or membership ────
-            if (membership_type === 'trial') {
-                if (existing.trial_started_at || existing.is_member) {
+            if (matchingListings && matchingListings.length > 0) {
+                listingId = matchingListings[0].id;
+                if (membership_type === 'trial' &&
+                    (matchingListings[0].trial_started_at || matchingListings[0].is_member)) {
                     return res.status(400).json({
                         error: 'Este hospedaje ya ha tenido una membresía de prueba o activa. Solo se permite una prueba gratuita por hospedaje. Por favor seleccione un plan de pago.'
                     });
@@ -1345,7 +1346,7 @@ app.post('/api/membership-apply',
                 .replace(/[^a-zA-Z0-9._-]/g, '_')
                 .replace(/_+/g, '_').toLowerCase();
             const fileName = `applications/${Date.now()}-${type}-${safeName}`;
-            const { error: uploadError } = await supabase.storage
+            const { error: uploadError } = await supabaseAdmin.storage
                 .from('member-documents')
                 .upload(fileName, file.buffer, {
                     contentType: file.mimetype,
@@ -1362,23 +1363,31 @@ app.post('/api/membership-apply',
             }
         }
 
+        // ── Build notes string ────────────────────────────────────────────
+        const notesParts = [];
+        if (how_found)     notesParts.push(`Cómo nos conoció: ${how_found}`);
+        if (isMici && listing_phone) notesParts.push(`listing_phone: ${listing_phone}`);
+        if (isMici && listing_email) notesParts.push(`listing_email: ${listing_email}`);
+        const notesStr = notesParts.length ? notesParts.join(' | ') : null;
+
         // ── Save application to database ──────────────────────────────────
-        const { data: application, error: insertError } = await supabase
+        const { data: application, error: insertError } = await supabaseAdmin
             .from('membership_applications')
             .insert({
-                listing_id:      listingId,
-                property_name:   property_name.trim(),
+                listing_id:        listingId,
+                property_name:     property_name.trim(),
                 province,
-                contact_name:    contact_name.trim(),
-                contact_email:   contact_email.trim().toLowerCase(),
-                contact_phone:   contact_phone.trim(),
+                contact_name:      contact_name.trim(),
+                contact_email:     contact_email.trim().toLowerCase(),
+                contact_phone:     contact_phone.trim(),
                 membership_type,
-                duration_months: parseInt(duration_months) || 0,
+                duration_months:   parseInt(duration_months) || 0,
                 payment_method,
-                documents:       documents.length ? documents : null,
-                notes:           how_found ? `Cómo nos conoció: ${how_found}` : null,
-                ip_address:      ip,
-                status:          'pending'
+                documents:         documents.length ? documents : null,
+                notes:             notesStr,
+                ip_address:        ip,
+                status:            'pending',
+                registration_type: isMici ? 'mici' : 'atp'
             })
             .select()
             .single();
@@ -1387,29 +1396,38 @@ app.post('/api/membership-apply',
 
         await logEvent('membership_application_received', {
             application_id: application.id,
-            property_name, membership_type, listing_id: listingId
+            property_name, membership_type,
+            listing_id: listingId,
+            registration_type: isMici ? 'mici' : 'atp'
         });
 
-        // ── Send notification email ───────────────────────────────────────
+        // ── Send notification email to admin ──────────────────────────────
         const planText = membership_type === 'trial'
             ? 'Prueba gratuita 30 días'
             : (duration_months == 24 ? '2 años ($45)' : '1 año ($24)');
 
+        const regBadge = isMici
+            ? '<span style="background:#4a1a6b;color:#d4adf5;padding:2px 8px;border-radius:10px;font-size:12px;">MiCI</span>'
+            : '<span style="background:#1a5c1a;color:#adf5ad;padding:2px 8px;border-radius:10px;font-size:12px;">ATP</span>';
+
         const subject = `Nueva solicitud de membresía: ${property_name}`;
         const message = `
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#005ca9;">Nueva Solicitud de Membresía</h2>
+<h2 style="color:#005ca9;">Nueva Solicitud de Membresía ${regBadge}</h2>
 <table style="border-collapse:collapse;width:100%;max-width:500px;">
-    <tr><td style="padding:6px;font-weight:bold;color:#555;">Hospedaje:</td><td style="padding:6px;">${property_name}</td></tr>
-    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Provincia:</td><td style="padding:6px;">${province}</td></tr>
-    <tr><td style="padding:6px;font-weight:bold;color:#555;">Contacto:</td><td style="padding:6px;">${contact_name}</td></tr>
-    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Correo:</td><td style="padding:6px;">${contact_email}</td></tr>
-    <tr><td style="padding:6px;font-weight:bold;color:#555;">Teléfono:</td><td style="padding:6px;">${contact_phone}</td></tr>
-    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Plan:</td><td style="padding:6px;">${planText}</td></tr>
-    <tr><td style="padding:6px;font-weight:bold;color:#555;">Pago:</td><td style="padding:6px;">${payment_method || 'N/A'}</td></tr>
-    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Documentos:</td><td style="padding:6px;">${documents.length} archivo(s)</td></tr>
-    <tr><td style="padding:6px;font-weight:bold;color:#555;">ATP match:</td><td style="padding:6px;">${listingId ? 'Sí (ID: '+listingId+')' : 'No encontrado'}</td></tr>
-    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">ID Solicitud:</td><td style="padding:6px;">${application.id}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Tipo:</td><td style="padding:6px;">${isMici ? '📄 Solo Aviso de Operación (MiCI)' : '✅ Registrado ATP'}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Hospedaje:</td><td style="padding:6px;">${property_name}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Provincia:</td><td style="padding:6px;">${province}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Contacto:</td><td style="padding:6px;">${contact_name}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Correo:</td><td style="padding:6px;">${contact_email}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Teléfono:</td><td style="padding:6px;">${contact_phone}</td></tr>
+    ${isMici && listing_phone ? `<tr><td style="padding:6px;font-weight:bold;color:#555;">Tel. público:</td><td style="padding:6px;">${listing_phone}</td></tr>` : ''}
+    ${isMici && listing_email ? `<tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Correo público:</td><td style="padding:6px;">${listing_email}</td></tr>` : ''}
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Plan:</td><td style="padding:6px;">${planText}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Pago:</td><td style="padding:6px;">${payment_method || 'N/A'}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Documentos:</td><td style="padding:6px;">${documents.length} archivo(s)</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">ATP match:</td><td style="padding:6px;">${isMici ? 'N/A (MiCI)' : (listingId ? 'Sí (ID: '+listingId+')' : 'No encontrado')}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">ID Solicitud:</td><td style="padding:6px;">${application.id}</td></tr>
 </table>
 <p style="margin-top:1rem;">
     <a href="https://trustedpanamastays.com/admin.html"
@@ -1428,7 +1446,7 @@ app.post('/api/membership-apply',
             await logEvent('notification_email_failed', { application_id: application.id, error: emailErr.message });
         }
 
-        res.json({ success: true, application_id: application.id, listing_found: !!listingId });
+        res.json({ success: true, application_id: application.id, listing_found: !!listingId, registration_type: isMici ? 'mici' : 'atp' });
 
     } catch (err) {
         console.error('Membership application error:', err.message);
@@ -1706,20 +1724,112 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         const isTrial  = app.membership_type === 'trial';
         let listingId  = app.listing_id;
 
-        // ── Block if no ATP listing match — set to pending_atp ────────────
+        // ── No ATP listing match — MiCI creates new listing, ATP sets pending ─
         if (!listingId) {
-            const directoryUrl = 'https://trustedpanamastays.com/index_es.html';
+            const isMiciApp = app.registration_type === 'mici';
 
-            await supabaseAdmin.from('membership_applications').update({
-                status:             'pending_atp',
-                documents_verified: true,
-                auto_activate:      true,
-                notes:              'Documentos verificados. En espera de registro ATP.',
-                reviewed_at:        new Date().toISOString(),
-                reviewed_by:        'admin'
-            }).eq('id', application_id);
+            if (isMiciApp) {
+                // ── MiCI: create a brand new listing ─────────────────────
+                // Extract listing_phone and listing_email from notes
+                const notes = app.notes || '';
+                const extractNote = (key) => {
+                    const match = notes.match(new RegExp(`${key}:\\s*([^|]+)`));
+                    return match ? match[1].trim() : null;
+                };
+                const pubPhone = extractNote('listing_phone') || app.contact_phone;
+                const pubEmail = extractNote('listing_email') || app.contact_email;
 
-            const notFoundMsg = `
+                const chars    = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+                const password = Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+                const hash     = await bcrypt.hash(password, 10);
+
+                const paidUntil = new Date();
+                if (isTrial) paidUntil.setDate(paidUntil.getDate() + 30);
+                else paidUntil.setFullYear(paidUntil.getFullYear() + (app.duration_months === 24 ? 2 : 1));
+                const paidUntilStr = paidUntil.toISOString().split('T')[0];
+                const slug = app.property_name.toLowerCase()
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+                const { data: newListing, error: insertError } = await supabaseAdmin
+                    .from('listings')
+                    .insert({
+                        name:                  app.property_name,
+                        province:              app.province,
+                        registry_source:       'mici',
+                        atp_active:            false,
+                        is_member:             true,
+                        is_trial:              isTrial,
+                        trial_started_at:      isTrial ? new Date().toISOString() : null,
+                        membership_paid_until: paidUntilStr,
+                        member_password:       hash,
+                        contact_name:          app.contact_name,
+                        phone:                 pubPhone,
+                        email:                 pubEmail,
+                        slug,
+                        invitation_status:     'member',
+                        verified_at:           new Date().toISOString(),
+                        verified_by:           'admin'
+                    })
+                    .select()
+                    .single();
+
+                if (insertError) throw new Error('Could not create MiCI listing: ' + insertError.message);
+                listingId = newListing.id;
+
+                // Update application with new listing_id and approved status
+                await supabaseAdmin.from('membership_applications').update({
+                    listing_id:  listingId,
+                    status:      'approved',
+                    reviewed_at: new Date().toISOString(),
+                    reviewed_by: 'admin'
+                }).eq('id', application_id);
+
+                // Log invoice for paid plans
+                if (!isTrial) {
+                    const amount = app.duration_months === 24 ? 45 : 24;
+                    const itbms  = parseFloat((amount * 0.07).toFixed(2));
+                    await supabase.from('event_log').insert({
+                        event_type: 'invoice_pending',
+                        event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: app.duration_months+' months', payment_method: app.payment_method, date: new Date().toISOString() },
+                        created_at: new Date().toISOString()
+                    });
+                }
+
+                // Send welcome email
+                const msgType   = isTrial ? 'approved_trial' : 'approved_paid';
+                const emailHtml = generateEmailHtml({ ...app, listing_id: listingId }, msgType, password, paidUntilStr);
+                const waMsg     = generateWaText({ ...app, listing_id: listingId }, msgType, password, paidUntilStr);
+                const hasEmail  = !!(app.contact_email && app.contact_email.includes('@'));
+                let emailSent   = false;
+                let waText      = null;
+
+                if (hasEmail) {
+                    const notifyPath = path.join(__dirname, 'public', 'notify.php');
+                    try {
+                        await execFileAsync('php', [notifyPath, 'Membresía aprobada - ' + app.property_name, emailHtml, app.contact_email], { timeout: 15000 });
+                        emailSent = true;
+                    } catch (err) { console.error('Welcome email failed:', err.message); waText = waMsg; }
+                } else { waText = waMsg; }
+
+                const phone = app.contact_phone?.replace(/[^\d]/g,'').substring(0,8) || null;
+                await logEvent('application_approved_mici', { application_id, listing_id: listingId, property_name: app.property_name, paid_until: paidUntilStr });
+                return res.json({ success: true, password, paid_until: paidUntilStr, listing_id: listingId, property_name: app.property_name, email_sent: emailSent, whatsapp_text: waText, phone, mici: true });
+
+            } else {
+                // ── ATP: no match found — set to pending_atp ─────────────
+                const directoryUrl = 'https://trustedpanamastays.com/index_es.html';
+
+                await supabaseAdmin.from('membership_applications').update({
+                    status:             'pending_atp',
+                    documents_verified: true,
+                    auto_activate:      true,
+                    notes:              'Documentos verificados. En espera de registro ATP.',
+                    reviewed_at:        new Date().toISOString(),
+                    reviewed_by:        'admin'
+                }).eq('id', application_id);
+
+                const notFoundMsg = `
 <html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
 <div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
     <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
@@ -1740,27 +1850,23 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 <p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
 </body></html>`;
 
-            const hasEmail = !!(app.contact_email && app.contact_email.includes('@'));
-            let emailSent  = false;
-            let waText     = null;
-            const waFallback = `Hola! Somos Trusted Panama Stays.\n\nHemos verificado sus documentos para *${app.property_name}*. Todo está en orden, pero su hospedaje aún no aparece en el registro de la ATP.\n\nCuando la ATP registre su hospedaje, activaremos su membresía de prueba automáticamente.\n\nPara registrarse: https://www.atp.gob.pa/industrias/hoteleros/\n\nPreguntas? info@trustedpanamastays.com`;
+                const hasEmail   = !!(app.contact_email && app.contact_email.includes('@'));
+                let emailSent    = false;
+                let waText       = null;
+                const waFallback = `Hola! Somos Trusted Panama Stays.\n\nHemos verificado sus documentos para *${app.property_name}*. Todo está en orden, pero su hospedaje aún no aparece en el registro de la ATP.\n\nCuando la ATP registre su hospedaje, activaremos su membresía de prueba automáticamente.\n\nPara registrarse: https://www.atp.gob.pa/industrias/hoteleros/\n\nPreguntas? info@trustedpanamastays.com`;
 
-            if (hasEmail) {
-                const notifyPath = path.join(__dirname, 'public', 'notify.php');
-                try {
-                    await execFileAsync('php', [notifyPath, `Solicitud de membresía — ${app.property_name}`, notFoundMsg, app.contact_email], { timeout: 15000 });
-                    emailSent = true;
-                } catch (err) {
-                    console.error('Not-found email failed:', err.message);
-                    waText = waFallback;
-                }
-            } else {
-                waText = waFallback;
+                if (hasEmail) {
+                    const notifyPath = path.join(__dirname, 'public', 'notify.php');
+                    try {
+                        await execFileAsync('php', [notifyPath, `Solicitud de membresía — ${app.property_name}`, notFoundMsg, app.contact_email], { timeout: 15000 });
+                        emailSent = true;
+                    } catch (err) { console.error('Not-found email failed:', err.message); waText = waFallback; }
+                } else { waText = waFallback; }
+
+                await logEvent('application_pending_atp', { application_id, property_name: app.property_name, email_sent: emailSent });
+                const phone = app.contact_phone?.replace(/[^\d]/g,'').substring(0,8) || null;
+                return res.json({ success: true, pending_atp: true, email_sent: emailSent, whatsapp_text: waText, property_name: app.property_name, phone });
             }
-
-            await logEvent('application_pending_atp', { application_id, property_name: app.property_name, email_sent: emailSent });
-            const phone = app.contact_phone?.replace(/[^\d]/g,'').substring(0,8) || null;
-            return res.json({ success: true, pending_atp: true, email_sent: emailSent, whatsapp_text: waText, property_name: app.property_name, phone });
         }
 
         // ── Block duplicate trial ─────────────────────────────────────────
@@ -1943,7 +2049,7 @@ app.post('/api/submit-payment',
 app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
     const { path: filePath } = req.query;
     if (!filePath) return res.status(400).json({ error: 'Missing path' });
-    const { data, error } = await supabase.storage
+    const { data, error } = await supabaseAdmin.storage
         .from('member-documents')
         .createSignedUrl(filePath, 3600);
     if (error) return res.status(500).json({ error: error.message });
@@ -2133,30 +2239,6 @@ app.get('/api/featured-listing', async (req, res) => {
     }
 });
 
-// ═════════════════════════════════════════════════════════════════════════════
-//  featured listing
-// ═════════════════════════════════════════════════════════════════════════════
-app.get('/api/featured-listing', async (req, res) => {
-    try {
-        const { data: setting } = await supabase
-            .from('settings')
-            .select('value')
-            .eq('key', 'featured_listing_id')
-            .single();
-        if (!setting) return res.status(404).json({ error: 'No featured listing configured' });
-
-        const { data: listing, error } = await supabase
-            .from('listings')
-            .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, website_url, booking_url')
-            .eq('id', parseInt(setting.value))
-            .single();
-        if (error || !listing) return res.status(404).json({ error: 'Featured listing not found' });
-
-        res.json(listing);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
 // ── GET /api/send-trial-reminders (called by GitHub Action daily) ─────────────
 app.get('/api/send-trial-reminders', async (req, res) => {
@@ -2249,7 +2331,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
     }
 });
 
-//========== temporry endpoints ============================
+//========== temporary endpoints ============================
 
 //==========================================================
 
