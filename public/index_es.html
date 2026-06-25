@@ -215,10 +215,28 @@ async function loadInitialData() {
     const stats = await fetch(`${API_BASE_URL}/api/stats`).then(r=>r.json()).catch(()=>({total_rentals:0}));
     if (stats.total_rentals === 0) {
         resultsContainer.innerHTML = '<div class="no-results"><p>El servidor está iniciando. Intente de nuevo en unos segundos.</p></div>';
-        setTimeout(async () => { await loadStats(); await loadFilters(); showDefaultView(); }, 3000);
+        setTimeout(async () => { await loadStats(); await loadFilters(); restoreOrDefault(); }, 3000);
     } else {
-        showDefaultView();
+        restoreOrDefault();
     }
+}
+
+function restoreOrDefault() {
+    const saved = sessionStorage.getItem('tps_search_state');
+    if (saved) {
+        try {
+            const params = JSON.parse(saved);
+            sessionStorage.removeItem('tps_search_state');
+            if (params.search || params.province || params.type) {
+                if (params.search)   searchInput.value    = params.search;
+                if (params.province) provinceFilter.value  = params.province;
+                if (params.type)     typeFilter.value      = params.type;
+                performSearch().then(scrollToResults);
+                return;
+            }
+        } catch(e) {}
+    }
+    showDefaultView();
 }
 
 function updatePageDates() {
@@ -436,27 +454,6 @@ window.addEventListener('scroll', () => {
     if (window.scrollY > 200) upBtn.classList.add('visible');
     else upBtn.classList.remove('visible');
 });
-
-// Restore search state if returning from a listing
-(function restoreSearchState() {
-    const saved = sessionStorage.getItem('tps_search_state');
-    if (!saved) return;
-    try {
-        const params = JSON.parse(saved);
-        if (params.search)   { searchInput.value   = params.search;   }
-        if (params.province) { provinceFilter.value = params.province; }
-        if (params.type)     { typeFilter.value     = params.type;     }
-        if (params.search || params.province || params.type) {
-            // Restore was triggered — clear state and perform search
-            sessionStorage.removeItem('tps_search_state');
-            loadInitialData().then(() => {
-                performSearch().then(scrollToResults);
-            });
-            return;
-        }
-    } catch(e) {}
-    sessionStorage.removeItem('tps_search_state');
-})();
 
 loadInitialData();
 </script>
