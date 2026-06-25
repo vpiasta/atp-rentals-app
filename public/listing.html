@@ -591,7 +591,7 @@ function renderView(rental) {
             <div class="badges">
                 ${rental.rental_type ? `<span class="badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="badge badge-province">📍 ${rental.province}</span>` : ''}
-                <span class="badge badge-atp">✅ ATP</span>
+                ${rental.registry_source === 'mici' ? '<span class="badge" style="background:#4a1a6b;color:#d4adf5;padding:3px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;">✅ MiCI</span>' : '<span class="badge badge-atp">✅ ATP</span>'}
                 ${rental.is_member   ? `<span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>` : ''}
             </div>
         </div>
@@ -641,7 +641,7 @@ function renderEdit(rental) {
             <div class="badges">
                 ${rental.rental_type ? `<span class="badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="badge badge-province">📍 ${rental.province}</span>` : ''}
-                <span class="badge badge-atp">✅ ATP</span>
+                ${rental.registry_source === 'mici' ? '<span class="badge" style="background:#4a1a6b;color:#d4adf5;padding:3px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;">✅ MiCI</span>' : '<span class="badge badge-atp">✅ ATP</span>'}
                 <span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>
             </div>
         </div>
