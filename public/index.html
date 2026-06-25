@@ -432,11 +432,12 @@ function displayResults(rentals) {
         resultsContainer.innerHTML = '<div class="no-results"><p>No rentals found. Try a different search.</p></div>';
         return;
     }
-    // Sort: ATP members first, then MiCI members, then others — alphabetical within each group
+    // Sort: 1=paid ATP, 2=paid MiCI, 3=trial, 4=non-members — alphabetical within each
     rentals.sort((a, b) => {
         const rank = r => {
             const active = r.is_member && r.membership_paid_until && new Date(r.membership_paid_until) >= new Date();
-            if (!active) return 3;
+            if (!active) return 4;
+            if (r.is_trial) return 3;
             if (r.registry_source === 'mici') return 2;
             return 1;
         };
