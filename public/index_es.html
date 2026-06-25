@@ -442,9 +442,11 @@ function saveSearchState() {
 }
 
 function scrollToResults() {
-    const results = document.getElementById('results-container');
-    if (!results) return;
-    const y = results.getBoundingClientRect().top + window.scrollY - 8;
+    // Scroll to first result card, not the container top
+    const firstCard = document.querySelector('.result-card');
+    const target    = firstCard || document.getElementById('results-container');
+    if (!target) return;
+    const y = target.getBoundingClientRect().top + window.scrollY - 8;
     window.scrollTo({ top: y, behavior: 'smooth' });
 }
 
