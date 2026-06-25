@@ -842,6 +842,24 @@ app.get('/api/rentals', async (req, res) => {
         console.error('Error fetching MiCI listings:', err.message);
     }
 
+
+    // Deduplicate: MiCI listings may share name with ATP listings
+    // Keep MiCI version (has registry_source) over ATP version when duplicate
+    const seen = new Map();
+    for (const r of filtered) {
+        const key = `${r.name?.toLowerCase().trim()}|${r.province?.toLowerCase().trim()}`;
+        if (!seen.has(key)) {
+            seen.set(key, r);
+        } else {
+            // Prefer the one with registry_source set (MiCI) over bare ATP entry
+            const existing = seen.get(key);
+            if (!existing.registry_source && r.registry_source) {
+                seen.set(key, r);
+            }
+        }
+    }
+    filtered = Array.from(seen.values());
+
     res.json(filtered);
 });
 
