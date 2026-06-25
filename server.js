@@ -744,7 +744,7 @@ app.get('/api/rentals', async (req, res) => {
     // Start from in-memory ATP data
     let filtered = [...CURRENT_RENTALS];
 
-    // Apply filters
+    // Apply filters to ATP listings
     if (search) {
         const s = search.toLowerCase();
         filtered = filtered.filter(r =>
@@ -757,21 +757,18 @@ app.get('/api/rentals', async (req, res) => {
     if (province) filtered = filtered.filter(r => r.province === province);
     if (type)     filtered = filtered.filter(r => r.rental_type === type);
 
-    // Enrich with member data from database in batches
-    // Only fetch member fields for matched results
+    // Enrich ATP listings with member data from database
     try {
         const ids = filtered.map(r => r.id).filter(Boolean);
         if (ids.length > 0) {
-            // Fetch member data for all matching listings
             const { data: memberData } = await supabase
                 .from('listings')
-                .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug')
+                .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type')
                 .in('id', ids);
 
             if (memberData && memberData.length > 0) {
                 const memberMap = {};
                 memberData.forEach(m => { memberMap[m.id] = m; });
-
                 filtered = filtered.map(r => {
                     const m = memberMap[r.id];
                     if (!m) return r;
@@ -783,15 +780,47 @@ app.get('/api/rentals', async (req, res) => {
                         photos:                m.photos || null,
                         is_member:             m.is_member || false,
                         membership_paid_until: m.membership_paid_until || null,
-                        slug:                  m.slug || null
+                        slug:                  m.slug || null,
+                        rental_type:           m.rental_type || r.rental_type
                     };
                 });
             }
         }
     } catch (err) {
         console.error('Error enriching rentals with member data:', err.message);
-        // Return ATP data without member enrichment rather than failing
     }
+
+    // Add MiCI-only listings from database (not in ATP PDF)
+    try {
+        let miciQuery = supabase
+            .from('listings')
+            .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, registry_source, atp_active')
+            .eq('registry_source', 'mici')
+            .eq('atp_active', false);
+
+        // Apply same filters to MiCI listings
+        if (province) miciQuery = miciQuery.eq('province', province);
+        if (type)     miciQuery = miciQuery.eq('rental_type', type);
+
+        const { data: miciListings } = await miciQuery;
+
+        if (miciListings && miciListings.length > 0) {
+            let miciFiltered = miciListings;
+            if (search) {
+                const s = search.toLowerCase();
+                miciFiltered = miciListings.filter(r =>
+                    r.name.toLowerCase().includes(s) ||
+                    (r.email    && r.email.toLowerCase().includes(s)) ||
+                    (r.phone    && r.phone.toLowerCase().includes(s)) ||
+                    (r.province && r.province.toLowerCase().includes(s))
+                );
+            }
+            filtered = [...filtered, ...miciFiltered];
+        }
+    } catch (err) {
+        console.error('Error fetching MiCI listings:', err.message);
+    }
+
     res.json(filtered);
 });
 
@@ -1090,16 +1119,22 @@ app.get('/api/admin/members', requireAdmin, async (req, res) => {
 
 // ── Admin API: update member ──────────────────────────────────────────────────
 app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
-    const { id, is_member, membership_paid_until, contact_name, slug, notes } = req.body;
+    const { id, is_member, membership_paid_until, contact_name,
+            slug, notes, phone, email, rental_type } = req.body;
     if (!id) return res.status(400).json({ error: 'Missing id' });
-    const { error } = await supabase
+
+    const updates = { is_member, membership_paid_until, contact_name, slug, notes };
+    if (phone       !== undefined) updates.phone       = phone || null;
+    if (email       !== undefined) updates.email       = email || null;
+    if (rental_type !== undefined) updates.rental_type = rental_type || null;
+
+    const { error } = await supabaseAdmin
         .from('listings')
-        .update({ is_member, membership_paid_until, contact_name, slug, notes })
+        .update(updates)
         .eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
 
-    // Log the action
-    await logEvent('admin_update_member', { id, is_member, membership_paid_until, contact_name });
+    await logEvent('admin_update_member', { id, is_member, membership_paid_until, contact_name, phone, email, rental_type });
     res.json({ success: true });
 });
 
