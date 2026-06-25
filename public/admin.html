@@ -136,6 +136,9 @@
         .app-status.approved { background: #1a5c1a; color: #adf5ad; }
         .app-status.rejected    { background: #7a0000; color: #ffaaaa; }
         .app-status.pending_atp { background: #1a3a6b; color: #7ec8e3; }
+        .reg-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:0.68rem; font-weight:700; margin-left:6px; }
+        .reg-badge.atp  { background:#1a5c1a; color:#adf5ad; }
+        .reg-badge.mici { background:#4a1a6b; color:#d4adf5; }
         .app-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.82rem; }
         .app-detail-item { color: #ccc; }
         .app-detail-item strong { color: #7ec8e3; }
@@ -285,12 +288,39 @@
             <input type="hidden" id="edit-id">
             <div class="edit-grid">
                 <div class="field-group">
-                    <label>Name (ATP — read only)</label>
+                    <label>Membership ID</label>
+                    <input type="text" id="edit-id-display" readonly style="color:#FFD700;font-family:monospace;font-size:1rem;font-weight:700;">
+                </div>
+                <div class="field-group">
+                    <label>Name (read only)</label>
                     <input type="text" id="edit-name" readonly>
                 </div>
                 <div class="field-group">
                     <label>Contact Name</label>
                     <input type="text" id="edit-contact-name" placeholder="Owner or manager name">
+                </div>
+                <div class="field-group">
+                    <label>Phone (public)</label>
+                    <input type="text" id="edit-phone" placeholder="e.g. 6891-6669">
+                </div>
+                <div class="field-group">
+                    <label>Email (public)</label>
+                    <input type="email" id="edit-email" placeholder="e.g. info@myhostal.com">
+                </div>
+                <div class="field-group">
+                    <label>Rental Type</label>
+                    <select id="edit-rental-type">
+                        <option value="">— select —</option>
+                        <option>Aparthotel</option>
+                        <option>Apartamentos</option>
+                        <option>Hostal</option>
+                        <option>Hostal Familiar</option>
+                        <option>Hotel</option>
+                        <option>Cabaña</option>
+                        <option>Alquiler vacacional</option>
+                        <option>Sitio de acampar</option>
+                        <option>Albergue</option>
+                    </select>
                 </div>
                 <div class="field-group">
                     <label>Member Status</label>
@@ -706,6 +736,7 @@ function openEditPanel(id) {
     const m = allMembers.find(x => x.id===id);
     if (!m) return;
     document.getElementById('edit-id').value           = m.id;
+    document.getElementById('edit-id-display').value  = m.id;
     document.getElementById('edit-name').value         = m.name;
     document.getElementById('edit-contact-name').value = m.contact_name||'';
     document.getElementById('edit-is-member').value    = m.is_member?'true':'false';
@@ -713,7 +744,10 @@ function openEditPanel(id) {
     document.getElementById('edit-inv-status').value   = m.invitation_status||'not_invited';
     document.getElementById('edit-slug').value         = m.slug||'';
     document.getElementById('edit-notes').value        = m.notes||'';
-    document.getElementById('edit-panel-title').textContent = `Edit: ${m.name}`;
+    document.getElementById('edit-phone').value        = m.phone||'';
+    document.getElementById('edit-email').value        = m.email||'';
+    document.getElementById('edit-rental-type').value  = m.rental_type||'';
+    document.getElementById('edit-panel-title').textContent = `Edit: ${m.name} (ID: ${m.id})`;
     document.getElementById('edit-msg').style.display  = 'none';
     closePanel('pwd-panel'); closePanel('wa-panel');
     document.getElementById('edit-panel').classList.add('active');
@@ -873,9 +907,12 @@ function renderApplications(apps) {
                     <div class="app-name">${app.property_name}</div>
                     <div class="app-meta">
                         ${app.province} · ${new Date(app.created_at).toLocaleDateString()} · ID: ${app.id}
-                        ${app.listing_id
-                            ? ` · <span style="color:#adf5ad;">ATP: ${app.listing_id}</span>`
-                            : ' · <span style="color:#ff7070;">No ATP match</span>'}
+                        <span class="reg-badge ${app.registration_type === 'mici' ? 'mici' : 'atp'}">${app.registration_type === 'mici' ? 'MiCI' : 'ATP'}</span>
+                        ${app.registration_type === 'mici'
+                            ? ' · <span style="color:#d4adf5;">MiCI — se creará nuevo listado</span>'
+                            : (app.listing_id
+                                ? ` · <span style="color:#adf5ad;">ATP: ${app.listing_id}</span>`
+                                : ' · <span style="color:#ff7070;">No ATP match</span>')}
                     </div>
                 </div>
                 <span class="app-status ${app.status}">${app.status.toUpperCase()}</span>

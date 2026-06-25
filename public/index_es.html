@@ -54,15 +54,27 @@
         /* ── Member thumbnail ── */
         .card-body { display: flex; gap: 1rem; align-items: flex-start; }
         .member-thumb {
-            flex-shrink: 0; width: 120px; height: 90px;
+            flex-shrink: 0; width: 120px;
             border-radius: 8px; overflow: hidden;
             border: 2px solid #b8860b; cursor: pointer; text-decoration: none;
+            display: block; background: white;
         }
-        .member-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .member-thumb:hover { border-color: #005ca9; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .member-thumb img { width: 100%; height: 90px; object-fit: cover; display: block; }
+        .member-thumb-nophoto {
+            width: 100%; height: 90px; background: #f0f7ff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem;
+        }
         .member-thumb-label {
-            display: block; background: rgba(184,134,11,0.9); color: white;
-            text-align: center; font-size: 0.68rem; font-weight: 700;
-            padding: 2px 0; margin-top: -20px; position: relative;
+            display: block;
+            background: white;
+            color: #111;
+            text-align: center;
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 5px 4px;
+            border-top: 1px solid #ddd;
         }
         .card-info { flex: 1; min-width: 0; }
 
@@ -86,6 +98,17 @@
         footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
         footer a { color: #7ec8e3; text-decoration: none; }
         footer a:hover { text-decoration: underline; }
+        /* ── UP button ── */
+        .up-btn {
+            position: fixed; bottom: 20px; right: 16px; z-index: 999;
+            background: #005ca9; color: white; border: none; border-radius: 50%;
+            width: 42px; height: 42px; font-size: 1.1rem; font-weight: 700;
+            cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: none; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        .up-btn:hover { background: #004885; }
+        .up-btn.visible { display: flex; }
         @media (max-width: 768px) {
             .search-box { flex-direction: column; } .filters { flex-direction: column; }
             .header-inner { gap: 0.8rem; } .header-logo { width: 54px; height: 54px; }
@@ -174,6 +197,9 @@
     </footer>
 </div>
 
+<!-- UP button -->
+<button class="up-btn" id="up-btn" onclick="scrollToTop()" title="Volver arriba">↑</button>
+
 <script>
 const API_BASE_URL = '';
 const searchInput      = document.getElementById('searchInput');
@@ -189,10 +215,32 @@ async function loadInitialData() {
     const stats = await fetch(`${API_BASE_URL}/api/stats`).then(r=>r.json()).catch(()=>({total_rentals:0}));
     if (stats.total_rentals === 0) {
         resultsContainer.innerHTML = '<div class="no-results"><p>El servidor está iniciando. Intente de nuevo en unos segundos.</p></div>';
-        setTimeout(async () => { await loadStats(); await loadFilters(); showDefaultView(); }, 3000);
+        setTimeout(async () => { await loadStats(); await loadFilters(); restoreOrDefault(); }, 3000);
     } else {
-        showDefaultView();
+        restoreOrDefault();
     }
+}
+
+function restoreOrDefault() {
+    const saved = sessionStorage.getItem('tps_search_state');
+    if (saved) {
+        try {
+            const params = JSON.parse(saved);
+            sessionStorage.removeItem('tps_search_state');
+            if (params.search || params.province || params.type) {
+                if (params.search)   searchInput.value    = params.search;
+                if (params.province) provinceFilter.value  = params.province;
+                if (params.type)     typeFilter.value      = params.type;
+                const savedScrollY = params.scrollY || 0;
+                performSearch().then(() => {
+                    // Restore exact scroll position
+                    setTimeout(() => window.scrollTo({ top: savedScrollY, behavior: 'instant' }), 50);
+                });
+                return;
+            }
+        } catch(e) {}
+    }
+    showDefaultView();
 }
 
 function updatePageDates() {
@@ -220,12 +268,12 @@ async function showDefaultView() {
         const photos = Array.isArray(r.photos) ? r.photos : [];
         const thumb  = active && photos.length ? photos[0] : null;
         const listUrl= r.slug ? `listing.html?slug=${r.slug}&lang=es` : `listing.html?id=${r.id}&lang=es`;
-        const thumbHtml = thumb
-            ? `<a href="${listUrl}" class="member-thumb">
-                <img src="${thumb}" alt="${r.name}" loading="lazy">
-                <span class="member-thumb-label">Ver Más</span>
-               </a>`
-            : '';
+        const thumbHtml = `<a href="${listUrl}" class="member-thumb">
+                ${thumb
+                    ? `<img src="${thumb}" alt="${r.name}" loading="lazy">`
+                    : `<div class="member-thumb-nophoto">🏨</div>`}
+                <span class="member-thumb-label">${thumb ? 'Ver Más' : 'Acceso'}</span>
+               </a>`;
         resultsContainer.innerHTML = `
             <div style="font-size:0.78rem;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">⭐ Hospedaje Destacado</div>
             <div class="result-card is-member">
@@ -234,6 +282,7 @@ async function showDefaultView() {
                     ${r.rental_type ? `<span class="result-badge badge-type">${r.rental_type}</span>` : ''}
                     ${r.province    ? `<span class="result-badge badge-province">${r.province}</span>` : ''}
                     ${active        ? `<span class="result-badge badge-member">⭐ Miembro</span>` : ''}
+                ${active && r.registry_source === 'mici' ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>` : (r.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
                 </div>
                 <div class="card-body">
                     ${thumbHtml}
@@ -248,7 +297,7 @@ async function showDefaultView() {
                             ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Correo</span></a>` : ''}
                             ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                             <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
-                            ${active ? `<a href="${listUrl}" class="contact-button seemore-button"><span class="btn-icon">⭐</span><span class="btn-text"> Ver Más</span></a>` : ''}
+
                         </div>
                     </div>
                 </div>
@@ -281,7 +330,7 @@ async function loadFilters() {
     } catch {}
 }
 
-async function performSearch() {
+async function performSearch() { // returns promise for .then() chaining
     const searchTerm = searchInput.value; const province = provinceFilter.value; const type = typeFilter.value;
     if (!searchTerm && !province && !type) { showDefaultView(); updateSelectedCount(null); return; }
     const params = new URLSearchParams();
@@ -325,21 +374,23 @@ function displayResults(rentals) {
         const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name+' '+(rental.province||'')+' Panama')}`;
         const photos  = Array.isArray(rental.photos) ? rental.photos : [];
         const thumb   = active && photos.length ? photos[0] : null;
-        const listUrl = rental.slug
+        const searchState = new URLSearchParams(window.location.search).toString();
+        const listUrl = (rental.slug
             ? `listing.html?slug=${rental.slug}&lang=es`
-            : `listing.html?id=${rental.id}&lang=es`;
-        const thumbHtml = thumb
-            ? `<a href="${listUrl}" class="member-thumb">
-                <img src="${thumb}" alt="${rental.name}" loading="lazy">
-                <span class="member-thumb-label">Ver Más</span>
-               </a>`
-            : '';
+            : `listing.html?id=${rental.id}&lang=es`) + (searchState ? `&from=${encodeURIComponent(window.location.search)}` : '');
+        const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
+                ${thumb
+                    ? `<img src="${thumb}" alt="${rental.name}" loading="lazy">`
+                    : `<div class="member-thumb-nophoto">🏨</div>`}
+                <span class="member-thumb-label">${thumb ? 'Ver Más' : 'Acceso'}</span>
+               </a>` : '';
         card.innerHTML = `
             <h3 class="result-title">${rental.name}</h3>
             <div class="result-badges">
                 ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
                 ${active             ? `<span class="result-badge badge-member">⭐ Miembro</span>` : ''}
+                ${active && rental.registry_source === 'mici' ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>` : (rental.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
             </div>
             <div class="card-body">
                 ${thumbHtml}
@@ -354,7 +405,6 @@ function displayResults(rentals) {
                         ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Correo</span></a>` : ''}
                         ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                         <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
-                        ${active && !thumb ? `<a href="${listUrl}" class="contact-button seemore-button"><span class="btn-icon">⭐</span><span class="btn-text"> Ver Más</span></a>` : ''}
                     </div>
                 </div>
             </div>`;
@@ -368,9 +418,9 @@ function updateSelectedCount(count) {
 }
 
 searchButton.addEventListener('click', performSearch);
-searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') performSearch(); });
-provinceFilter.addEventListener('change', performSearch);
-typeFilter.addEventListener('change', performSearch);
+searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') performSearch().then(scrollToResults); });
+provinceFilter.addEventListener('change', () => performSearch().then(scrollToResults));
+typeFilter.addEventListener('change', () => performSearch().then(scrollToResults));
 function clearSearch() {
     searchInput.value = '';
     provinceFilter.value = '';
@@ -378,6 +428,37 @@ function clearSearch() {
     showDefaultView();
     updateSelectedCount(null);
 }
+
+
+// ── Scroll to results after search ───────────────────────────────────────────
+function saveSearchState() {
+    const params = {
+        search:   searchInput?.value || '',
+        province: provinceFilter?.value || '',
+        type:     typeFilter?.value || '',
+        scrollY:  window.scrollY
+    };
+    sessionStorage.setItem('tps_search_state', JSON.stringify(params));
+}
+
+function scrollToResults() {
+    const results = document.getElementById('results-container');
+    if (!results) return;
+    const y = results.getBoundingClientRect().top + window.scrollY - 8;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+}
+
+function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Show/hide UP button based on scroll position
+window.addEventListener('scroll', () => {
+    const upBtn = document.getElementById('up-btn');
+    if (!upBtn) return;
+    if (window.scrollY > 200) upBtn.classList.add('visible');
+    else upBtn.classList.remove('visible');
+});
 
 loadInitialData();
 </script>

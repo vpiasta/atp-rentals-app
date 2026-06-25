@@ -166,7 +166,7 @@
         .success-screen h2 { font-size: 1.5rem; color: #005ca9; margin-bottom: 1rem; }
         .success-screen p  { color: #444; max-width: 500px; margin: 0 auto 1rem; }
 
-        /* ── Footer ── */
+        /* Footer */
         footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
         footer a { color: #7ec8e3; text-decoration: none; }
         footer a:hover { text-decoration: underline; }
@@ -241,9 +241,30 @@
         <!-- Property info -->
         <div class="form-card">
             <h3>📋 Información del Hospedaje</h3>
+
+            <!-- Registration type selector -->
+            <div style="margin-bottom:1.2rem;">
+                <label style="font-size:0.8rem;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:0.6rem;">
+                    Tipo de registro <span class="required">*</span>
+                </label>
+                <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:0.6rem 1rem;border:2px solid #005ca9;border-radius:8px;background:#f0f7ff;font-size:0.92rem;font-weight:600;">
+                        <input type="radio" name="reg-type" value="atp" id="reg-atp" checked onchange="setRegType('atp')" style="width:16px;height:16px;">
+                        ✅ Registrado con la ATP
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:0.6rem 1rem;border:2px solid #e1e5e9;border-radius:8px;background:#fafafa;font-size:0.92rem;font-weight:600;">
+                        <input type="radio" name="reg-type" value="mici" id="reg-mici" onchange="setRegType('mici')" style="width:16px;height:16px;">
+                        📄 Solo Aviso de Operación (MiCI)
+                    </label>
+                </div>
+                <p id="reg-type-hint" style="font-size:0.78rem;color:#888;margin-top:0.4rem;">
+                    Su hospedaje aparece en el Reporte de Hospedajes Vigentes de la ATP.
+                </p>
+            </div>
+
             <div class="form-grid">
                 <div class="field-group">
-                    <label>Nombre del hospedaje <span class="required">*</span></label>
+                    <label id="property-name-label">Nombre del hospedaje <span class="required">*</span></label>
                     <input type="text" id="property-name" placeholder="Nombre como aparece en el ATP" required>
                     <span class="error-msg">Campo requerido</span>
                 </div>
@@ -267,6 +288,25 @@
                     </select>
                     <span class="error-msg">Campo requerido</span>
                 </div>
+            </div>
+
+            <!-- MiCI-only: public phone and email -->
+            <div id="mici-fields" style="display:none;margin-top:0.5rem;">
+                <div class="form-grid">
+                    <div class="field-group">
+                        <label>Teléfono público <span class="required">*</span></label>
+                        <input type="tel" id="listing-phone" placeholder="6xxx-xxxx o 7xx-xxxx">
+                        <span class="error-msg" id="err-listing-phone">Campo requerido</span>
+                    </div>
+                    <div class="field-group">
+                        <label>Correo público <span class="required">*</span></label>
+                        <input type="email" id="listing-email" placeholder="contacto@mihospedaje.com">
+                        <span class="error-msg" id="err-listing-email">Correo inválido</span>
+                    </div>
+                </div>
+                <p style="font-size:0.78rem;color:#888;margin-top:0.3rem;">
+                    Estos datos serán visibles públicamente en el directorio para que los visitantes puedan contactarle.
+                </p>
             </div>
         </div>
 
@@ -458,7 +498,7 @@
     </div>
 
     <footer>
-        <p style="font-size:0.8rem;">Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>con datos adicionales proporcionados por nuestros miembros</p>
+        <p style="font-size:0.8rem;">Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>y por nuestros miembros</p>
         <p style="margin-top:0.8rem;">
             Trusted Panama Stays es propiedad de Tuscany Real Estates SA<br>
             RUC 1401220-1-627960 DV21<br>
@@ -472,6 +512,39 @@ const API = '';
 let selectedPlan = 'trial';
 let selectedPayment = '';
 let captchaA = 0, captchaB = 0;
+
+// ── Registration type ────────────────────────────────────────────────────────
+let selectedRegType = 'atp';
+
+function setRegType(type) {
+    selectedRegType = type;
+    const isMici = type === 'mici';
+
+    // Update radio button styling
+    document.querySelector('label[for="reg-atp"]') && null; // just visual
+    document.querySelectorAll('label:has(input[name="reg-type"])').forEach(lbl => {
+        const val = lbl.querySelector('input').value;
+        lbl.style.borderColor = val === type ? '#005ca9' : '#e1e5e9';
+        lbl.style.background  = val === type ? '#f0f7ff' : '#fafafa';
+    });
+
+    // Update name field label and placeholder
+    const nameLabel = document.getElementById('property-name-label');
+    const nameInput = document.getElementById('property-name');
+    const hint      = document.getElementById('reg-type-hint');
+    if (isMici) {
+        nameLabel.innerHTML = 'Nombre público de su hospedaje <span class="required">*</span>';
+        nameInput.placeholder = 'Nombre con el que desea aparecer en el directorio';
+        hint.textContent = 'Su hospedaje tiene Aviso de Operación pero no está en el registro de la ATP.';
+    } else {
+        nameLabel.innerHTML = 'Nombre del hospedaje <span class="required">*</span>';
+        nameInput.placeholder = 'Nombre como aparece en el ATP';
+        hint.textContent = 'Su hospedaje aparece en el Reporte de Hospedajes Vigentes de la ATP.';
+    }
+
+    // Show/hide MiCI fields
+    document.getElementById('mici-fields').style.display = isMici ? 'block' : 'none';
+}
 
 // ── Plan selection ────────────────────────────────────────────────────────────
 function selectPlan(plan) {
@@ -550,6 +623,24 @@ function validateForm() {
         valid = false;
     }
 
+    // MiCI-specific fields required
+    if (selectedRegType === 'mici') {
+        const phoneEl = document.getElementById('listing-phone');
+        const emailEl = document.getElementById('listing-email');
+        if (!phoneEl.value.trim()) {
+            document.getElementById('err-listing-phone').style.display = 'block';
+            valid = false;
+        } else {
+            document.getElementById('err-listing-phone').style.display = 'none';
+        }
+        if (!emailEl.value.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailEl.value)) {
+            document.getElementById('err-listing-email').style.display = 'block';
+            valid = false;
+        } else {
+            document.getElementById('err-listing-email').style.display = 'none';
+        }
+    }
+
     // Aviso de Operación required
     if (!document.getElementById('file-aviso').files[0]) {
         document.getElementById('err-aviso').style.display = 'block';
@@ -611,7 +702,10 @@ async function submitForm() {
     showMessage('', '');
 
     const formData = new FormData();
+    formData.append('registration_type', selectedRegType);
     formData.append('property_name',   document.getElementById('property-name').value.trim());
+    formData.append('listing_phone',   document.getElementById('listing-phone')?.value.trim() || '');
+    formData.append('listing_email',   document.getElementById('listing-email')?.value.trim() || '');
     formData.append('province',        document.getElementById('province').value);
     formData.append('contact_name',    document.getElementById('contact-name').value.trim());
     formData.append('contact_email',   document.getElementById('contact-email').value.trim());

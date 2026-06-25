@@ -591,20 +591,11 @@ function renderView(rental) {
             <div class="badges">
                 ${rental.rental_type ? `<span class="badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="badge badge-province">📍 ${rental.province}</span>` : ''}
-                <span class="badge badge-atp">✅ ATP</span>
+                ${rental.registry_source === 'mici' ? '<span class="badge" style="background:#4a1a6b;color:#d4adf5;padding:3px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;">✅ MiCI</span>' : '<span class="badge badge-atp">✅ ATP</span>'}
                 ${rental.is_member   ? `<span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>` : ''}
             </div>
         </div>
         <div class="quick-buttons">${buildQuickButtons(rental, false)}</div>
-        ${rental.is_member && (isExpiringSoon(rental.membership_paid_until) || isExpired(rental.membership_paid_until)) ? `
-        <div style="background:#fffbe6;border:1px solid #FFD700;border-radius:0;padding:0.8rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
-            <span style="font-size:0.85rem;color:#7a5c00;">
-                ⚠️ ${T.renewNote} <strong>${rental.membership_paid_until}</strong>. ${T.renewNote2}
-            </span>
-            <a href="pay.html?id=${rental.id}" style="padding:6px 16px;background:#b8860b;color:white;text-decoration:none;border-radius:6px;font-size:0.82rem;font-weight:700;white-space:nowrap;">
-                ${T.renewBtn}
-            </a>
-        </div>` : ''}
         <div class="section">
             <div class="section-title">${T.contact}</div>
             <div class="info-grid">
@@ -641,7 +632,7 @@ function renderEdit(rental) {
             <div class="badges">
                 ${rental.rental_type ? `<span class="badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="badge badge-province">📍 ${rental.province}</span>` : ''}
-                <span class="badge badge-atp">✅ ATP</span>
+                ${rental.registry_source === 'mici' ? '<span class="badge" style="background:#4a1a6b;color:#d4adf5;padding:3px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;">✅ MiCI</span>' : '<span class="badge badge-atp">✅ ATP</span>'}
                 <span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>
             </div>
         </div>
