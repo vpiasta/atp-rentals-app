@@ -492,7 +492,7 @@ async function updatePdfSource() {
     } catch {}
 }
 
-searchButton.addEventListener('click', performSearch);
+searchButton.addEventListener('click', () => performSearch().then(scrollToResults));
 searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') performSearch().then(scrollToResults); });
 provinceFilter.addEventListener('change', () => performSearch().then(scrollToResults));
 typeFilter.addEventListener('change', () => performSearch().then(scrollToResults));

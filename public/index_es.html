@@ -434,7 +434,7 @@ function updateSelectedCount(count) {
     if (el) el.innerHTML = count === null ? '' : `<strong>${count} seleccionados</strong>`;
 }
 
-searchButton.addEventListener('click', performSearch);
+searchButton.addEventListener('click', () => performSearch().then(scrollToResults));
 searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') performSearch().then(scrollToResults); });
 provinceFilter.addEventListener('change', () => performSearch().then(scrollToResults));
 typeFilter.addEventListener('change', () => performSearch().then(scrollToResults));
