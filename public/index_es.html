@@ -52,18 +52,42 @@
         .seemore-button        { border-color: #b8860b; color: #7a5c00; background: #fffbe6; }
         .seemore-button:hover  { background: #b8860b; color: white; border-color: #b8860b; }
         /* ── Member thumbnail ── */
-        .card-body { display: flex; gap: 1rem; align-items: flex-start; }
-        .member-thumb {
-            flex-shrink: 0; width: 120px;
-            border-radius: 8px; overflow: hidden;
-            border: 2px solid #b8860b; cursor: pointer; text-decoration: none;
-            display: block; background: white;
+        .card-body {
+            display: flex;
+            flex-direction: row;
+            gap: 1rem;
+            align-items: flex-start;
         }
-        .member-thumb:hover { border-color: #005ca9; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        .member-thumb img { width: 100%; height: 90px; object-fit: cover; display: block; }
+        .member-thumb {
+            flex-shrink: 0;
+            width: 120px;
+            border: 2px solid #b8860b;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+        .member-thumb:hover {
+            border-color: #005ca9;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .member-thumb-img {
+            width: 100%;
+            height: 90px;
+            object-fit: cover;
+            object-position: center;
+            display: block;
+        }
         .member-thumb-nophoto {
-            width: 100%; height: 90px; background: #f0f7ff;
-            display: flex; align-items: center; justify-content: center;
+            width: 100%;
+            height: 90px;
+            background: #f0f7ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 2rem;
         }
         .member-thumb-label {
@@ -71,33 +95,26 @@
             background: white;
             color: #111;
             text-align: center;
-            font-size: 0.78rem;
+            font-size: 0.82rem;
             font-weight: 700;
             padding: 5px 4px;
             border-top: 1px solid #ddd;
         }
         .card-info { flex: 1; min-width: 0; }
-
         /* Icon-only buttons on narrow screens */
         .contact-button .btn-text { display: inline; }
         .contact-button .btn-icon { display: none; }
-
         @media (max-width: 600px) {
-            /* Stack thumbnail above info on mobile */
-            .card-body { flex-direction: column; gap: 0.6rem; }
-            .member-thumb { width: 100%; height: 140px; }
-            .member-thumb-label { margin-top: -22px; }
-            /* Buttons: show icons only, fit in one row */
+            .card-body { flex-direction: column; gap: 0.5rem; }
+            .member-thumb { width: 100%; }
+            .member-thumb-img { height: 150px; }
+            .member-thumb-nophoto { height: 80px; }
+            .member-thumb-label { font-size: 0.95rem; padding: 7px 4px; }
             .contact-button { padding: 7px 10px; font-size: 0.8rem; }
             .contact-button .btn-text { display: none; }
             .contact-button .btn-icon { display: inline; font-size: 1.1rem; }
             .contact-buttons { flex-wrap: nowrap; justify-content: center; }
         }
-        .no-results { text-align: center; padding: 3rem; color: #666; }
-        .loading    { text-align: center; padding: 2rem; color: #005ca9; }
-        footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
-        footer a { color: #7ec8e3; text-decoration: none; }
-        footer a:hover { text-decoration: underline; }
         /* ── UP button ── */
         .up-btn {
             position: fixed; bottom: 20px; right: 16px; z-index: 999;
@@ -115,7 +132,12 @@
             .header-text h1 { font-size: 1.2rem; }
             .header-right { margin-left: 0; flex-direction: row; align-items: center; width: 100%; justify-content: space-between; }
         }
-    </style>
+        /* ── Footer ── */
+        footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
+        footer a { color: #7ec8e3; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+        footer p { color: #ccc; }
+        </style>
 </head>
 <body>
 <div class="container">
@@ -270,7 +292,7 @@ async function showDefaultView() {
         const listUrl= r.slug ? `listing.html?slug=${r.slug}&lang=es` : `listing.html?id=${r.id}&lang=es`;
         const thumbHtml = `<a href="${listUrl}" class="member-thumb">
                 ${thumb
-                    ? `<img src="${thumb}" alt="${r.name}" loading="lazy">`
+                    ? `<img src="${thumb}" alt="${r.name}" loading="lazy" class="member-thumb-img">`
                     : `<div class="member-thumb-nophoto">🏨</div>`}
                 <span class="member-thumb-label">${thumb ? 'Ver Más' : 'Acceso'}</span>
                </a>`;
@@ -282,6 +304,7 @@ async function showDefaultView() {
                     ${r.rental_type ? `<span class="result-badge badge-type">${r.rental_type}</span>` : ''}
                     ${r.province    ? `<span class="result-badge badge-province">${r.province}</span>` : ''}
                     ${active        ? `<span class="result-badge badge-member">⭐ Miembro</span>` : ''}
+                ${r.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
                 ${active && r.registry_source === 'mici' ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>` : (r.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
                 </div>
                 <div class="card-body">
@@ -363,6 +386,19 @@ function isMemberActive(rental) {
 function displayResults(rentals) {
     resultsContainer.innerHTML = '';
     if (!rentals.length) { resultsContainer.innerHTML = '<div class="no-results"><p>No se encontraron hospedajes. Intente otra búsqueda.</p></div>'; return; }
+    // Sort: 1=paid ATP, 2=paid MiCI, 3=trial, 4=non-members — alphabetical within each
+    rentals.sort((a, b) => {
+        const rank = r => {
+            const active = r.is_member && r.membership_paid_until && new Date(r.membership_paid_until) >= new Date();
+            if (!active) return 4;
+            if (r.is_trial) return 3;
+            if (r.registry_source === 'mici') return 2;
+            return 1;
+        };
+        const ra = rank(a), rb = rank(b);
+        if (ra !== rb) return ra - rb;
+        return (a.name || '').localeCompare(b.name || '');
+    });
     rentals.forEach(rental => {
         const card = document.createElement('div');
         const active = isMemberActive(rental);
@@ -380,16 +416,17 @@ function displayResults(rentals) {
             : `listing.html?id=${rental.id}&lang=es`) + (searchState ? `&from=${encodeURIComponent(window.location.search)}` : '');
         const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
                 ${thumb
-                    ? `<img src="${thumb}" alt="${rental.name}" loading="lazy">`
+                    ? `<img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">`
                     : `<div class="member-thumb-nophoto">🏨</div>`}
                 <span class="member-thumb-label">${thumb ? 'Ver Más' : 'Acceso'}</span>
                </a>` : '';
         card.innerHTML = `
-            <h3 class="result-title">${rental.name}</h3>
+            <h3 class="result-title">${rental.name} <span style="font-size:0.65rem;color:#bbb;font-weight:400;vertical-align:middle;">#${rental.id||''}</span></h3>
             <div class="result-badges">
                 ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
                 ${active             ? `<span class="result-badge badge-member">⭐ Miembro</span>` : ''}
+                ${rental.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
                 ${active && rental.registry_source === 'mici' ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>` : (rental.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
             </div>
             <div class="card-body">
@@ -417,7 +454,7 @@ function updateSelectedCount(count) {
     if (el) el.innerHTML = count === null ? '' : `<strong>${count} seleccionados</strong>`;
 }
 
-searchButton.addEventListener('click', performSearch);
+searchButton.addEventListener('click', () => performSearch().then(scrollToResults));
 searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') performSearch().then(scrollToResults); });
 provinceFilter.addEventListener('change', () => performSearch().then(scrollToResults));
 typeFilter.addEventListener('change', () => performSearch().then(scrollToResults));
@@ -442,9 +479,11 @@ function saveSearchState() {
 }
 
 function scrollToResults() {
-    const results = document.getElementById('results-container');
-    if (!results) return;
-    const y = results.getBoundingClientRect().top + window.scrollY - 8;
+    // Scroll to first result card, not the container top
+    const firstCard = document.querySelector('.result-card');
+    const target    = firstCard || document.getElementById('results-container');
+    if (!target) return;
+    const y = target.getBoundingClientRect().top + window.scrollY - 8;
     window.scrollTo({ top: y, behavior: 'smooth' });
 }
 

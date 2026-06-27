@@ -802,7 +802,8 @@ app.get('/api/rentals', async (req, res) => {
                         is_member:             m.is_member || false,
                         membership_paid_until: m.membership_paid_until || null,
                         slug:                  m.slug || null,
-                        rental_type:           m.rental_type || r.rental_type
+                        rental_type:           m.rental_type || r.rental_type,
+                        apatel_member:         m.apatel_member || false
                     };
                 });
             }
@@ -841,6 +842,24 @@ app.get('/api/rentals', async (req, res) => {
     } catch (err) {
         console.error('Error fetching MiCI listings:', err.message);
     }
+
+
+    // Deduplicate: MiCI listings may share name with ATP listings
+    // Keep MiCI version (has registry_source) over ATP version when duplicate
+    const seen = new Map();
+    for (const r of filtered) {
+        const key = `${r.name?.toLowerCase().trim()}|${r.province?.toLowerCase().trim()}`;
+        if (!seen.has(key)) {
+            seen.set(key, r);
+        } else {
+            // Prefer the one with registry_source set (MiCI) over bare ATP entry
+            const existing = seen.get(key);
+            if (!existing.registry_source && r.registry_source) {
+                seen.set(key, r);
+            }
+        }
+    }
+    filtered = Array.from(seen.values());
 
     res.json(filtered);
 });
@@ -922,7 +941,7 @@ app.get('/api/listing/slug/:slug', async (req, res) => {
     const { slug } = req.params;
     const { data, error } = await supabase
         .from('listings')
-        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links, is_trial, trial_started_at, registry_source')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links, is_trial, trial_started_at, registry_source, apatel_member')
         .eq('slug', slug)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
@@ -933,7 +952,7 @@ app.get('/api/listing/:id', async (req, res) => {
     const { id } = req.params;
     const { data, error } = await supabase
         .from('listings')
-        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug, is_trial, trial_started_at, registry_source')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug, is_trial, trial_started_at, registry_source, apatel_member')
         .eq('id', id)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
@@ -1127,7 +1146,7 @@ app.get('/api/admin/members', requireAdmin, async (req, res) => {
     while (true) {
         const { data, error } = await supabase
             .from('listings')
-            .select('id, name, email, phone, province, rental_type, is_member, membership_paid_until, invitation_sent_at, atp_active, slug, contact_name, notes, password_changed')
+            .select('id, name, email, phone, province, rental_type, is_member, membership_paid_until, invitation_sent_at, atp_active, slug, contact_name, notes, password_changed, apatel_member')
             .order('name')
             .range(from, from + BATCH - 1);
         if (error) return res.status(500).json({ error: error.message });
@@ -1141,13 +1160,14 @@ app.get('/api/admin/members', requireAdmin, async (req, res) => {
 // ── Admin API: update member ──────────────────────────────────────────────────
 app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
     const { id, is_member, membership_paid_until, contact_name,
-            slug, notes, phone, email, rental_type } = req.body;
+            slug, notes, phone, email, rental_type, apatel_member } = req.body;
     if (!id) return res.status(400).json({ error: 'Missing id' });
 
     const updates = { is_member, membership_paid_until, contact_name, slug, notes };
-    if (phone       !== undefined) updates.phone       = phone || null;
-    if (email       !== undefined) updates.email       = email || null;
-    if (rental_type !== undefined) updates.rental_type = rental_type || null;
+    if (phone         !== undefined) updates.phone         = phone || null;
+    if (email         !== undefined) updates.email         = email || null;
+    if (rental_type   !== undefined) updates.rental_type   = rental_type || null;
+    if (apatel_member !== undefined) updates.apatel_member = !!apatel_member;
 
     const { error } = await supabaseAdmin
         .from('listings')
@@ -1155,7 +1175,7 @@ app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
         .eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
 
-    await logEvent('admin_update_member', { id, is_member, membership_paid_until, contact_name, phone, email, rental_type });
+    await logEvent('admin_update_member', { id, is_member, contact_name, apatel_member });
     res.json({ success: true });
 });
 
@@ -2386,6 +2406,159 @@ app.get('/api/send-trial-reminders', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => {
+    const { filter, dry_run } = req.body;
+    // filter: 'all' | 'apatel' | 'no-email' (for WA list)
+    // dry_run: true = just count, don't send
+
+    try {
+        // Build query
+        let query = supabase
+            .from('listings')
+            .select('id, name, email, province, rental_type, slug, apatel_member, invitation_status, invitation_sent_at, atp_active')
+            .eq('is_member', false)  // non-members only
+            .is('invitation_sent_at', null); // not yet invited
+
+        if (filter === 'apatel') query = query.eq('apatel_member', true);
+        if (filter === 'no-email') query = query.is('email', null);
+        else query = query.not('email', 'is', null); // has email
+
+        const { data: listings, error } = await query;
+        if (error) throw new Error(error.message);
+
+        if (!listings || listings.length === 0)
+            return res.json({ success: true, sent: 0, skipped: 0, message: 'No eligible listings found' });
+
+        if (dry_run)
+            return res.json({ success: true, dry_run: true, count: listings.length,
+                has_email: listings.filter(l => l.email).length,
+                no_email: listings.filter(l => !l.email).length,
+                apatel: listings.filter(l => l.apatel_member).length });
+
+        const notifyPath = path.join(__dirname, 'public', 'notify.php');
+        let sent = 0, skipped = 0, errors = 0;
+
+        for (const listing of listings) {
+            if (!listing.email || !listing.email.includes('@')) { skipped++; continue; }
+
+            const listUrl = listing.slug
+                ? `https://trustedpanamastays.com/listing.html?slug=${listing.slug}&lang=es`
+                : `https://trustedpanamastays.com/listing.html?id=${listing.id}&lang=es`;
+            const joinUrl = 'https://trustedpanamastays.com/join.html';
+
+            const isApatel = listing.apatel_member;
+            const greeting = isApatel
+                ? `Como miembro de APATEL, le escribimos con una invitación especial.`
+                : `Le contactamos porque su hospedaje aparece en el registro oficial de la ATP.`;
+
+            const subject = `Su hospedaje ya está en Trusted Panama Stays — ${listing.name}`;
+            const message = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
+    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
+</div>
+
+<p>Estimado/a propietario/a de <strong>${listing.name}</strong>,</p>
+<p>${greeting}</p>
+<p>Hemos creado <strong>Trusted Panama Stays</strong>, un directorio gratuito para turistas internacionales que buscan hospedajes legalmente registrados en Panamá — sin las comisiones de Booking.com o Airbnb (15–20%).</p>
+
+<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
+    <p style="margin:0 0 0.5rem;font-weight:bold;color:#005ca9;">Su hospedaje ya aparece en nuestro directorio:</p>
+    <p style="margin:0;"><a href="${listUrl}" style="color:#005ca9;font-size:1rem;">${listUrl}</a></p>
+</div>
+
+<p>Con una <strong>membresía de prueba gratuita</strong> (sin costo, sin obligación) puede:</p>
+<ul style="margin:0.5rem 0 1rem 1.5rem;line-height:2;">
+    <li>Agregar hasta <strong>20 fotos</strong> de su hospedaje</li>
+    <li>Publicar una <strong>descripción en inglés y español</strong></li>
+    <li>Mostrar su <strong>dirección completa</strong></li>
+    <li>Incluir enlaces a su <strong>sitio web y sistema de reservas</strong></li>
+</ul>
+
+<p style="text-align:center;margin:1.5rem 0;">
+    <a href="${joinUrl}" style="background:#005ca9;color:white;padding:12px 30px;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;display:inline-block;">
+        Solicitar membresía gratuita →
+    </a>
+</p>
+
+<p style="font-size:0.85rem;color:#666;">
+    El costo después del período de prueba es solo <strong>$24/año + ITBMS</strong> — menos de $2 al mes.<br>
+    Hospedajes informales son excluidos de la plataforma.
+</p>
+
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">
+    Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
+    <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a><br>
+    Para cancelar estas comunicaciones responda con "No gracias".
+</p>
+</body></html>`;
+
+            try {
+                await execFileAsync('php', [
+                    notifyPath, subject, message, listing.email
+                ], { timeout: 15000 });
+
+                // Mark as invited
+                await supabase.from('listings').update({
+                    invitation_status:  'invited',
+                    invitation_sent_at: new Date().toISOString()
+                }).eq('id', listing.id);
+
+                await logEvent('invitation_email_sent', {
+                    listing_id: listing.id,
+                    name:       listing.name,
+                    email:      listing.email,
+                    apatel:     isApatel
+                });
+
+                sent++;
+
+                // Throttle — 1 email per 300ms to avoid SMTP limits
+                await new Promise(r => setTimeout(r, 300));
+
+            } catch (err) {
+                console.error(`Email failed for ${listing.name}:`, err.message);
+                errors++;
+            }
+        }
+
+        res.json({ success: true, sent, skipped, errors, total: listings.length });
+
+    } catch (err) {
+        console.error('Send invitations error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+// ── GET /api/admin/invitation-stats ──────────────────────────────────────────
+app.get('/api/admin/invitation-stats', requireAdmin, async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('listings')
+            .select('id, email, apatel_member, invitation_status, invitation_sent_at, is_member')
+            .eq('is_member', false);
+
+        if (error) throw new Error(error.message);
+
+        const stats = {
+            total_non_members: data.length,
+            has_email:         data.filter(l => l.email && l.email.includes('@')).length,
+            no_email:          data.filter(l => !l.email || !l.email.includes('@')).length,
+            apatel:            data.filter(l => l.apatel_member).length,
+            apatel_email:      data.filter(l => l.apatel_member && l.email && l.email.includes('@')).length,
+            not_invited:       data.filter(l => !l.invitation_sent_at).length,
+            invited:           data.filter(l => !!l.invitation_sent_at).length,
+        };
+        res.json(stats);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 //========== temporary endpoints ============================
 
