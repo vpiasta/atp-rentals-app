@@ -802,7 +802,8 @@ app.get('/api/rentals', async (req, res) => {
                         is_member:             m.is_member || false,
                         membership_paid_until: m.membership_paid_until || null,
                         slug:                  m.slug || null,
-                        rental_type:           m.rental_type || r.rental_type
+                        rental_type:           m.rental_type || r.rental_type,
+                        apatel_member:         m.apatel_member || false
                     };
                 });
             }
