@@ -752,7 +752,7 @@ function renderMembers(members) {
         const waBtn = phone ? `<button class="action-btn wa" onclick="openWaPanel(${m.id})" title="WhatsApp">💬</button>` : '';
         return `<tr>
             <td style="color:#555;font-size:0.72rem;">${m.id}</td>
-            <td><strong style="font-size:0.85rem;">${m.name}</strong>
+            <td><strong style="font-size:0.85rem;cursor:help;" title="ID: ${m.id}">${m.name}</strong>
                 ${m.contact_name?`<br><span style="color:#aaa;font-size:0.72rem;">${m.contact_name}</span>`:''}
                 ${m.slug?`<br><span style="color:#555;font-size:0.68rem;">${m.slug}</span>`:''}
             </td>
