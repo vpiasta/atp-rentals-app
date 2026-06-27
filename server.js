@@ -784,7 +784,7 @@ app.get('/api/rentals', async (req, res) => {
         if (ids.length > 0) {
             const { data: memberData } = await supabase
                 .from('listings')
-                .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type')
+                .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type, apatel_member')
                 .in('id', ids);
 
             if (memberData && memberData.length > 0) {
