@@ -593,6 +593,7 @@ function renderView(rental) {
                 ${rental.province    ? `<span class="badge badge-province">📍 ${rental.province}</span>` : ''}
                 ${rental.registry_source === 'mici' ? '<span class="badge" style="background:#4a1a6b;color:#d4adf5;padding:3px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;">✅ MiCI</span>' : '<span class="badge badge-atp">✅ ATP</span>'}
                 ${rental.is_member   ? `<span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>` : ''}
+                ${rental.apatel_member ? `<span class="badge" style="background:#1a3a6b;color:#7ec8e3;padding:3px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
             </div>
         </div>
         <div class="quick-buttons">${buildQuickButtons(rental, false)}</div>
@@ -634,6 +635,7 @@ function renderEdit(rental) {
                 ${rental.province    ? `<span class="badge badge-province">📍 ${rental.province}</span>` : ''}
                 ${rental.registry_source === 'mici' ? '<span class="badge" style="background:#4a1a6b;color:#d4adf5;padding:3px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;">✅ MiCI</span>' : '<span class="badge badge-atp">✅ ATP</span>'}
                 <span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>
+                ${rental.apatel_member ? `<span class="badge" style="background:#1a3a6b;color:#7ec8e3;padding:3px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
             </div>
         </div>
         <div class="quick-buttons">${buildQuickButtons(rental, true)}</div>
