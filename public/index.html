@@ -13,43 +13,41 @@
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
 
         /* ── Header ── */
-        header {
-            background: linear-gradient(135deg, #005ca9, #00a859);
-            color: white; padding: 1.2rem 1.8rem; border-radius: 10px;
-            margin-bottom: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .header-inner { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
-        .header-logo  { flex-shrink: 0; width: 72px; height: 72px; }
-        .header-text  { flex: 1; min-width: 200px; }
-        .header-text h1 { font-size: 1.6rem; font-weight: 700; line-height: 1.2; margin-bottom: 0.2rem; }
-        .header-text p  { font-size: 0.88rem; opacity: 0.9; }
-        .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; margin-left: auto; }
-
-        .lang-toggle {
-            display: inline-flex; align-items: center; gap: 6px;
-            background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4);
-            border-radius: 20px; padding: 5px 14px; text-decoration: none;
-            color: white; font-size: 0.82rem; font-weight: 600;
-            transition: background 0.3s; white-space: nowrap;
-        }
+        header { background: linear-gradient(135deg, #005ca9, #00a859); color: white; padding: 0.6rem 0.8rem; border-radius: 10px; margin-bottom: 0.6rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header-inner { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+        .header-logo  { flex-shrink: 0; width: 44px; height: 44px; }
+        .header-text  { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+        .header-text h1 { font-size: 1.05rem; font-weight: 700; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .header-text p  { font-size: 0.72rem; opacity: 0.85; margin: 0; white-space: normal; line-height: 1.3; }
+        .header-right { display: flex; flex-direction: row; align-items: center; gap: 5px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; max-width: 45%; }
+        .lang-toggle { display: inline-flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); border-radius: 20px; padding: 4px 9px; text-decoration: none; color: white; font-size: 0.76rem; font-weight: 600; transition: background 0.3s; white-space: nowrap; }
         .lang-toggle:hover { background: rgba(255,255,255,0.28); }
+        .atp-badge { font-size: 0.62rem; opacity: 0.85; flex-basis: 100%; text-align: right; line-height: 1.4; }
+        .atp-badge a { color: white; }
 
-        .atp-badge { font-size: 0.72rem; opacity: 0.85; text-align: right; }
-        .atp-badge a { color: #FFD700; text-decoration: none; }
-        .atp-badge a:hover { text-decoration: underline; }
+        /* Mobile: logo+title row 1, buttons+badge row 2 centered */
+        @media (max-width: 600px) {
+            .header-inner { flex-wrap: wrap; gap: 6px; }
+            .header-logo  { width: 36px; height: 36px; }
+            .header-text  { flex: 1; }
+            .header-text h1 { font-size: 0.9rem; }
+            .header-right { max-width: 100%; width: 100%; justify-content: center; flex-wrap: nowrap; }
+            .atp-badge { display: block; text-align: right; flex-basis: 100%; }
+        }
 
         /* ── Stats ── */
-        .stats { background: white; padding: 0.8rem 1rem; border-radius: 8px; margin-bottom: 1rem; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        .stats { background: white; padding: 0.3rem 0.8rem; border-radius: 8px; margin-bottom: 0.5rem; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.06); font-size: 0.85rem; }
 
         /* ── Search ── */
-        .search-section { background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 1.5rem; }
-        .search-box { display: flex; gap: 10px; margin-bottom: 1rem; }
-        #searchInput { flex: 1; padding: 11px 14px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 15px; transition: border-color 0.3s; font-family: inherit; }
+        .search-section { background: white; padding: 0.6rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 0.6rem; }
+        .search-box { display: flex; gap: 6px; margin-bottom: 0.5rem; flex-wrap: nowrap; align-items: center; }
+        #searchInput { flex: 1; min-width: 0; padding: 7px 10px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 14px; transition: border-color 0.3s; font-family: inherit; }
         #searchInput:focus { outline: none; border-color: #005ca9; }
-        #searchButton { padding: 11px 22px; background: #005ca9; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; transition: background 0.3s; }
+        #searchButton { flex-shrink: 0; padding: 7px 12px; background: #005ca9; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: background 0.3s; white-space: nowrap; }
         #searchButton:hover { background: #004885; }
-        .filters { display: flex; gap: 12px; flex-wrap: wrap; }
-        .filter-group { flex: 1; min-width: 180px; }
+        .filters { display: flex; gap: 8px; flex-wrap: nowrap; }
+        .filter-group { flex: 1; min-width: 0; }
+
         .filter-group label { display: block; margin-bottom: 4px; font-weight: 600; color: #555; font-size: 0.85rem; }
         .filter-group select { width: 100%; padding: 9px 10px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 14px; font-family: inherit; }
 
@@ -73,17 +71,87 @@
         .whatsapp-button:hover { background: #25D366; color: white; }
         .seemore-button        { border-color: #b8860b; color: #7a5c00; background: #fffbe6; }
         .seemore-button:hover  { background: #b8860b; color: white; border-color: #b8860b; }
-        .no-results { text-align: center; padding: 3rem; color: #666; }
-        .loading    { text-align: center; padding: 2rem; color: #005ca9; }
-
-        /* ── Footer ── */
-        footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
-        footer a { color: #7ec8e3; text-decoration: none; }
-        footer a:hover { text-decoration: underline; }
+        /* ── Member thumbnail ── */
+        .card-body {
+            display: flex;
+            flex-direction: row;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+        .member-thumb {
+            flex-shrink: 0;
+            width: 240px;
+            border: 2px solid #b8860b;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+        .member-thumb:hover {
+            border-color: #005ca9;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .member-thumb-img {
+            width: 100%;
+            height: 240px;
+            object-fit: cover;
+            object-position: center;
+            display: block;
+        }
+        .member-thumb-nophoto {
+            width: 100%;
+            height: 240px;
+            background: #f0f7ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+        }
+        .member-thumb-label {
+            display: block;
+            background: white;
+            color: #111;
+            text-align: center;
+            font-size: 0.82rem;
+            font-weight: 700;
+            padding: 5px 4px;
+            border-top: 1px solid #ddd;
+        }
+        .card-info { flex: 1; min-width: 0; }
+        /* Icon-only buttons on narrow screens */
+        .contact-button .btn-text { display: inline; }
+        .contact-button .btn-icon { display: none; }
+        @media (max-width: 600px) {
+            .search-box { flex-wrap: nowrap !important; }
+            #searchButton, #clearButton { flex-shrink: 0; }
+            .card-body { flex-direction: column; gap: 0.5rem; }
+            .member-thumb { width: 100%; }
+            .member-thumb-img { height: 150px; }
+            .member-thumb-nophoto { height: 80px; }
+            .member-thumb-label { font-size: 0.95rem; padding: 7px 4px; }
+            .contact-button { padding: 7px 10px; font-size: 0.8rem; }
+            .contact-button .btn-text { display: none; }
+            .contact-button .btn-icon { display: inline; font-size: 1.1rem; }
+            .contact-buttons { flex-wrap: nowrap; justify-content: center; }
+        }
+        /* ── UP button ── */
+        .up-btn {
+            position: fixed; bottom: 20px; right: 16px; z-index: 999;
+            background: #005ca9; color: white; border: none; border-radius: 50%;
+            width: 42px; height: 42px; font-size: 1.1rem; font-weight: 700;
+            cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: none; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        .up-btn:hover { background: #004885; }
+        .up-btn.visible { display: flex; }
 
         @media (max-width: 768px) {
-            .search-box { flex-direction: column; }
-            .filters { flex-direction: column; }
+            
+            
             .header-inner { gap: 0.8rem; }
             .header-logo { width: 54px; height: 54px; }
             .header-text h1 { font-size: 1.2rem; }
@@ -114,6 +182,7 @@
             </div>
             <!-- Right: lang + ATP note -->
             <div class="header-right">
+                <a href="about.html" class="lang-toggle">About</a>
                 <a href="index_es.html" class="lang-toggle">
                     <svg width="20" height="14" viewBox="0 0 20 14" style="border:1px solid rgba(255,255,255,0.4);flex-shrink:0;">
                         <rect x="0" y="0" width="10" height="7" fill="white"/>
@@ -135,8 +204,9 @@
 
     <section class="search-section">
         <div class="search-box">
-            <input type="text" id="searchInput" placeholder="Search by name, location, type...">
+            <input type="text" id="searchInput" style="flex:1;min-width:60px;width:0;" placeholder="Search by name, location, type...">
             <button id="searchButton">Search</button>
+            <button id="clearButton" style="flex-shrink:0;padding:7px 8px;background:#e1e5e9;color:#555;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;" onclick="clearSearch()">✕ Clear</button>
         </div>
         <div class="filters">
             <div class="filter-group">
@@ -154,8 +224,12 @@
         <div class="no-results"><p>Use the search or filters to find registered rentals</p></div>
     </section>
 
+    <div style="text-align:center;padding:1.2rem 1rem;background:white;border-radius:10px;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <p style="font-size:0.88rem;color:#555;margin-bottom:0.6rem;">Do you own an ATP-registered rental property?</p>
+        <a href="join.html" style="display:inline-block;padding:9px 24px;background:#005ca9;color:white;text-decoration:none;border-radius:7px;font-weight:700;font-size:0.92rem;">List your property →</a>
+    </div>
     <footer>
-        <p style="font-size:0.8rem;">Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a></p>
+        <p style="font-size:0.8rem;">Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>with additional data provided by our members</p>
         <p style="margin-top:0.8rem;">
             Trusted Panama Stays is owned and copyrighted by Tuscany Real Estates SA<br>
             RUC 1401220-1-627960 DV21<br>
@@ -166,6 +240,9 @@
         -->
     </footer>
 </div>
+
+<!-- UP button -->
+<button class="up-btn" id="up-btn" onclick="scrollToTop()" title="Back to top">↑</button>
 
 <script>
 const API_BASE_URL = '';
@@ -179,6 +256,38 @@ const statsPanel       = document.getElementById('statsPanel');
 async function loadInitialData() {
     await loadStats();
     await loadFilters();
+    const stats = await fetch(`${API_BASE_URL}/api/stats`).then(r=>r.json()).catch(()=>({total_rentals:0}));
+    if (stats.total_rentals === 0) {
+        resultsContainer.innerHTML = `<div class="no-results"><p>Server is starting up. Please try again in a few seconds.</p></div>`;
+        setTimeout(async () => {
+            await loadStats();
+            await loadFilters();
+            restoreOrDefault();
+        }, 3000);
+    } else {
+        restoreOrDefault();
+    }
+}
+
+function restoreOrDefault() {
+    const saved = sessionStorage.getItem('tps_search_state');
+    if (saved) {
+        try {
+            const params = JSON.parse(saved);
+            sessionStorage.removeItem('tps_search_state');
+            if (params.search || params.province || params.type) {
+                if (params.search)   searchInput.value    = params.search;
+                if (params.province) provinceFilter.value  = params.province;
+                if (params.type)     typeFilter.value      = params.type;
+                const savedScrollY = params.scrollY || 0;
+                performSearch().then(() => {
+                    // Restore exact scroll position
+                    setTimeout(() => window.scrollTo({ top: savedScrollY, behavior: 'instant' }), 50);
+                });
+                return;
+            }
+        } catch(e) {}
+    }
     showDefaultView();
 }
 
@@ -199,39 +308,89 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePdfSource();
 });
 
-function showDefaultView() {
-    resultsContainer.innerHTML = `
-        <div style="text-align:center;padding:5px;color:#666;">
-            <p>Use the search or filters to find specific rentals</p>
-            <p><small>Example member listing:</small></p>
-        </div>
-        <div class="result-card is-member">
-            <h3 class="result-title">APARTHOTEL BOQUETE</h3>
-            <div class="result-badges">
-                <span class="result-badge badge-type">Aparta-Hotel</span>
-                <span class="result-badge badge-province">CHIRIQUÍ</span>
-                <span class="result-badge badge-member">⭐ Member</span>
-            </div>
-            <div class="result-details">
-                <div class="detail-item"><span>📞</span><span>68916669 / 68916660</span></div>
-                <div class="detail-item"><span>✉️</span><span>info@aparthotel-boquete.com</span></div>
-                <div class="detail-item"><span>📍</span><span>Boquete, Chiriquí, Panama</span></div>
-            </div>
-            <div class="contact-buttons">
-                <a href="tel:+50768916669" class="contact-button">📞 Call</a>
-                <a href="mailto:info@aparthotel-boquete.com" class="contact-button">✉️ Email</a>
-                <a href="https://wa.me/50768916669" target="_blank" class="contact-button whatsapp-button">💬 WhatsApp</a>
-                <a href="https://www.google.com/maps/search/?api=1&query=Aparthotel+Boquete+Chiriqui+Panama" target="_blank" class="contact-button">📍 Maps</a>
-                <a href="listing.html?slug=aparthotel-boquete&lang=en" class="contact-button seemore-button">⭐ See More</a>
-            </div>
-        </div>`;
+async function showDefaultView() {
+    resultsContainer.innerHTML = '<div class="loading">Loading...</div>';
+    try {
+        const res      = await fetch(`${API_BASE_URL}/api/featured-listing`);
+        if (!res.ok) throw new Error();
+        const featured = await res.json();
+        if (!Array.isArray(featured) || !featured.length) throw new Error();
+        featured.sort((a, b) => (b.feature_rank || 0) - (a.feature_rank || 0));
+
+        resultsContainer.innerHTML = '<div style="font-size:0.78rem;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">⭐ Featured Stay</div>';
+
+        featured.forEach(rental => {
+            const active  = isMemberActive(rental);
+            const phone   = active ? (rental.phone_member || rental.phone) : rental.phone;
+            const email   = active ? (rental.email_member || rental.email) : rental.email;
+            const address = active ? (rental.address || '') : '';
+            const ph      = getPhoneNumbers(phone);
+            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name+' '+(rental.province||'')+' Panama')}`;
+            const photos  = Array.isArray(rental.photos) ? rental.photos : [];
+            const thumb   = active && photos.length ? photos[0] : null;
+            const listUrl = rental.slug
+                ? `listing.html?slug=${rental.slug}&lang=en`
+                : `listing.html?id=${rental.id}&lang=en`;
+            const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
+                ${thumb
+                    ? `<img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">`
+                    : `<div class="member-thumb-nophoto">🏨</div>`}
+                <span class="member-thumb-label">${thumb ? 'See More' : 'Access'}</span>
+               </a>` : '';
+
+            const card = document.createElement('div');
+            card.className = 'result-card is-member' + ((rental.feature_rank > 0) ? ' is-featured' : '');
+            card.innerHTML = `
+                <div class="card-body">
+                    ${thumbHtml}
+                    <div class="card-info">
+                        <h3 class="result-title">${rental.name} <span style="font-size:0.65rem;color:#bbb;font-weight:400;vertical-align:middle;">#${rental.id||''}</span></h3>
+                        <div class="result-badges">
+                            ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
+                            ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
+                            ${active             ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
+                            ${rental.registry_source === 'mici'
+                                ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>`
+                                : `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>`}
+                            ${rental.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
+                        </div>
+                        <div class="result-details">
+                            ${ph.display ? `<div class="detail-item"><span>📞</span><span>${ph.display}</span></div>` : ''}
+                            ${email      ? `<div class="detail-item"><span>✉️</span><span>${email}</span></div>` : ''}
+                            ${address    ? `<div class="detail-item"><span>📍</span><span>${address}</span></div>` : ''}
+                        </div>
+                        <div class="contact-buttons">
+                            ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button"><span class="btn-icon">📞</span><span class="btn-text"> Call</span></a>` : ''}
+                            ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Email</span></a>` : ''}
+                            ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
+                            <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
+                        </div>
+                    </div>
+                </div>`;
+            resultsContainer.appendChild(card);
+        });
+
+        const hint = document.createElement('div');
+        hint.className = 'no-results';
+        hint.style.padding = '0.8rem';
+        hint.innerHTML = '<p>Search above to find specific rentals</p>';
+        resultsContainer.appendChild(hint);
+
+    } catch {
+        resultsContainer.innerHTML = '<div class="no-results"><p>Use the search or filters to find registered rentals</p></div>';
+    }
 }
 
 async function loadStats() {
     try {
         const stats = await (await fetch(`${API_BASE_URL}/api/stats`)).json();
-        statsPanel.innerHTML = `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:16px;font-size:0.92rem;">
-            <span>🏨 <strong>${stats.total_rentals}</strong> verified rentals</span>
+        const total = stats.total_rentals || 0;
+        if (total === 0) { statsPanel.innerHTML = ''; return; }
+        const featuredData = await fetch('/api/featured-listing').then(r=>r.ok?r.json():[]).catch(()=>[]);
+        const featuredCount = Array.isArray(featuredData) ? featuredData.length : 0;
+        const featuredText = featuredCount > 0 ? ` · <strong>${featuredCount}</strong> featured` : '';
+        statsPanel.innerHTML = `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:12px;font-size:0.85rem;padding:0.3rem 0;">
+            <span>🏨 <strong>${total}</strong> verified rentals${featuredText}</span>
             <span id="selectedCount"></span></div>`;
     } catch { statsPanel.innerHTML = '<div style="color:#cc0000;">Error loading statistics</div>'; }
 }
@@ -254,7 +413,7 @@ async function loadFilters() {
     } catch {}
 }
 
-async function performSearch() {
+async function performSearch() { // returns promise for .then() chaining
     const searchTerm = searchInput.value;
     const province   = provinceFilter.value;
     const type       = typeFilter.value;
@@ -282,36 +441,75 @@ function getPhoneNumbers(phoneStr) {
     return { display, call, whatsapp };
 }
 
+function isMemberActive(rental) {
+    if (!rental.is_member) return false;
+    if (!rental.membership_paid_until) return false;
+    return new Date(rental.membership_paid_until) >= new Date();
+}
+
 function displayResults(rentals) {
     resultsContainer.innerHTML = '';
     if (!rentals.length) {
         resultsContainer.innerHTML = '<div class="no-results"><p>No rentals found. Try a different search.</p></div>';
         return;
     }
+    // Sort: 1=paid ATP, 2=paid MiCI, 3=trial, 4=non-members — alphabetical within each
+    rentals.sort((a, b) => {
+        const rank = r => {
+            const active = r.is_member && r.membership_paid_until && new Date(r.membership_paid_until) >= new Date();
+            if (!active) return 4;
+            if (r.is_trial) return 3;
+            if (r.registry_source === 'mici') return 2;
+            return 1;
+        };
+        const ra = rank(a), rb = rank(b);
+        if (ra !== rb) return ra - rb;
+        return (a.name || '').localeCompare(b.name || '');
+    });
     rentals.forEach(rental => {
         const card = document.createElement('div');
-        card.className = 'result-card' + (rental.is_member ? ' is-member' : '');
-        const ph = getPhoneNumbers(rental.phone_member || rental.phone);
-        const em = rental.email_member || rental.email;
+        const active = isMemberActive(rental);
+        card.className = 'result-card' + (active ? ' is-member' : '');
+        const phone   = active ? (rental.phone_member || rental.phone) : rental.phone;
+        const email   = active ? (rental.email_member || rental.email) : rental.email;
+        const address = active ? (rental.address || '') : '';
+        const ph      = getPhoneNumbers(phone);
         const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name+' '+(rental.province||'')+' Panama')}`;
+        const photos  = Array.isArray(rental.photos) ? rental.photos : [];
+        const thumb   = active && photos.length ? photos[0] : null;
+        const searchState = new URLSearchParams(window.location.search).toString();
+        const listUrl = (rental.slug
+            ? `listing.html?slug=${rental.slug}&lang=en`
+            : `listing.html?id=${rental.id}&lang=en`) + (searchState ? `&from=${encodeURIComponent(window.location.search)}` : '');
+        const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
+                ${thumb
+                    ? `<img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">`
+                    : `<div class="member-thumb-nophoto">🏨</div>`}
+                <span class="member-thumb-label">${thumb ? 'See More' : 'Access'}</span>
+               </a>` : '';
         card.innerHTML = `
             <h3 class="result-title">${rental.name}</h3>
             <div class="result-badges">
                 ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
-                ${rental.is_member   ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
+                ${active             ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
+                ${active && rental.registry_source === 'mici' ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>` : (rental.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
             </div>
-            <div class="result-details">
-                ${ph.display ? `<div class="detail-item"><span>📞</span><span>${ph.display}</span></div>` : ''}
-                ${em         ? `<div class="detail-item"><span>✉️</span><span>${em}</span></div>` : ''}
-                ${rental.address ? `<div class="detail-item"><span>📍</span><span>${rental.address}</span></div>` : ''}
-            </div>
-            <div class="contact-buttons">
-                ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button">📞 Call</a>` : ''}
-                ${em          ? `<a href="mailto:${em}" class="contact-button">✉️ Email</a>` : ''}
-                ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button">💬 WhatsApp</a>` : ''}
-                <a href="${mapsUrl}" target="_blank" class="contact-button">📍 Maps</a>
-                ${rental.is_member ? `<a href="listing.html?id=${rental.id}&lang=en" class="contact-button seemore-button">⭐ See More</a>` : ''}
+            <div class="card-body">
+                ${thumbHtml}
+                <div class="card-info">
+                    <div class="result-details">
+                        ${ph.display ? `<div class="detail-item"><span>📞</span><span>${ph.display}</span></div>` : ''}
+                        ${email      ? `<div class="detail-item"><span>✉️</span><span>${email}</span></div>` : ''}
+                        ${address    ? `<div class="detail-item"><span>📍</span><span>${address}</span></div>` : ''}
+                    </div>
+                    <div class="contact-buttons">
+                        ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button"><span class="btn-icon">📞</span><span class="btn-text"> Call</span></a>` : ''}
+                        ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Email</span></a>` : ''}
+                        ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
+                        <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
+                    </div>
+                </div>
             </div>`;
         resultsContainer.appendChild(card);
     });
@@ -319,7 +517,8 @@ function displayResults(rentals) {
 
 function updateSelectedCount(count) {
     const el = document.getElementById('selectedCount');
-    if (el) el.innerHTML = count === null ? '' : `<strong>${count} selected</strong>`;
+    if (!el) return;
+    el.innerHTML = count === null ? '' : `· <strong>${count} selected</strong>`;
 }
 
 async function updatePdfSource() {
@@ -328,10 +527,51 @@ async function updatePdfSource() {
     } catch {}
 }
 
-searchButton.addEventListener('click', performSearch);
-searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') performSearch(); });
-provinceFilter.addEventListener('change', performSearch);
-typeFilter.addEventListener('change', performSearch);
+searchButton.addEventListener('click', () => performSearch().then(scrollToResults));
+searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') performSearch().then(scrollToResults); });
+provinceFilter.addEventListener('change', () => performSearch().then(scrollToResults));
+typeFilter.addEventListener('change', () => performSearch().then(scrollToResults));
+function clearSearch() {
+    searchInput.value = '';
+    provinceFilter.value = '';
+    typeFilter.value = '';
+    showDefaultView();
+    updateSelectedCount(null);
+}
+
+
+// ── Scroll to results after search ───────────────────────────────────────────
+function saveSearchState() {
+    const params = {
+        search:   searchInput?.value || '',
+        province: provinceFilter?.value || '',
+        type:     typeFilter?.value || '',
+        scrollY:  window.scrollY
+    };
+    sessionStorage.setItem('tps_search_state', JSON.stringify(params));
+}
+
+function scrollToResults() {
+    // Scroll to first result card, not the container top
+    const firstCard = document.querySelector('.result-card');
+    const target    = firstCard || document.getElementById('results-container');
+    if (!target) return;
+    const y = target.getBoundingClientRect().top + window.scrollY - 8;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+}
+
+function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Show/hide UP button based on scroll position
+window.addEventListener('scroll', () => {
+    const upBtn = document.getElementById('up-btn');
+    if (!upBtn) return;
+    if (window.scrollY > 200) upBtn.classList.add('visible');
+    else upBtn.classList.remove('visible');
+});
+
 loadInitialData();
 </script>
 </body>
