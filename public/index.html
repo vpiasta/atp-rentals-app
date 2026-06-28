@@ -316,36 +316,66 @@ document.addEventListener('DOMContentLoaded', () => {
 async function showDefaultView() {
     resultsContainer.innerHTML = '<div class="loading">Loading...</div>';
     try {
-        const res  = await fetch(`${API_BASE_URL}/api/featured-listing`);
+        const res      = await fetch(`${API_BASE_URL}/api/featured-listing`);
         if (!res.ok) throw new Error();
-        const featured = await res.json();  // array of featured listings
-
-        // Sort featured by feature_rank desc (already sorted by server, but ensure)
+        const featured = await res.json();
         featured.sort((a, b) => (b.feature_rank || 0) - (a.feature_rank || 0));
 
-        // Render featured header + use displayResults for the cards
-        const header = `<div style="font-size:0.78rem;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">⭐ Featured Stay</div>`;
-        resultsContainer.innerHTML = header;
+        // Build HTML using the same card logic as displayResults
+        resultsContainer.innerHTML = `<div style="font-size:0.78rem;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">⭐ Featured Stay</div>`;
 
-        // Create a temporary container, render featured cards into it
-        const tempDiv = document.createElement('div');
-        const origContainer = resultsContainer;
+        featured.forEach(rental => {
+            const active  = isMemberActive(rental);
+            const phone   = active ? (rental.phone_member || rental.phone) : rental.phone;
+            const email   = active ? (rental.email_member || rental.email) : rental.email;
+            const address = active ? (rental.address || '') : '';
+            const ph      = getPhoneNumbers(phone);
+            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name+' '+(rental.province||'')+' Panama')}`;
+            const photos  = Array.isArray(rental.photos) ? rental.photos : [];
+            const thumb   = active && photos.length ? photos[0] : null;
+            const listUrl = rental.slug
+                ? `listing.html?slug=${rental.slug}&lang=en`
+                : `listing.html?id=${rental.id}&lang=en`;
+            const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
+                ${thumb ? `<img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">` : `<div class="member-thumb-nophoto">🏨</div>`}
+                <span class="member-thumb-label">${thumb ? 'See More' : 'Access'}</span>
+               </a>` : '';
 
-        // Temporarily redirect displayResults output
-        const savedContainer = resultsContainer;
-        resultsContainer = tempDiv;
-        displayResults(featured);
-        resultsContainer = savedContainer;
+            const card = document.createElement('div');
+            card.className = 'result-card' + (active ? ' is-member' : '');
+            card.innerHTML = `
+                <h3 class="result-title">${rental.name} <span style="font-size:0.65rem;color:#bbb;font-weight:400;vertical-align:middle;">#${rental.id||''}</span></h3>
+                <div class="result-badges">
+                    ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
+                    ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
+                    ${active             ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
+                    ${active && rental.registry_source === 'mici' ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>` : (rental.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
+                    ${rental.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
+                </div>
+                <div class="card-body">
+                    ${thumbHtml}
+                    <div class="card-info">
+                        <div class="result-details">
+                            ${ph.display ? `<div class="detail-item"><span>📞</span><span>${ph.display}</span></div>` : ''}
+                            ${email      ? `<div class="detail-item"><span>✉️</span><span>${email}</span></div>` : ''}
+                            ${address    ? `<div class="detail-item"><span>📍</span><span>${address}</span></div>` : ''}
+                        </div>
+                        <div class="contact-buttons">
+                            ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button"><span class="btn-icon">📞</span><span class="btn-text"> Call</span></a>` : ''}
+                            ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Email</span></a>` : ''}
+                            ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
+                            <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
+                        </div>
+                    </div>
+                </div>`;
+            resultsContainer.appendChild(card);
+        });
 
-        // Append the rendered cards
-        savedContainer.appendChild(tempDiv);
-
-        // Add hint below
         const hint = document.createElement('div');
         hint.className = 'no-results';
         hint.style.padding = '0.8rem';
         hint.innerHTML = '<p>Search above to find specific rentals</p>';
-        savedContainer.appendChild(hint);
+        resultsContainer.appendChild(hint);
 
     } catch {
         resultsContainer.innerHTML = '<div class="no-results"><p>Use the search or filters to find registered rentals</p></div>';
