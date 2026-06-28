@@ -784,7 +784,7 @@ app.get('/api/rentals', async (req, res) => {
         if (ids.length > 0) {
             const { data: memberData } = await supabase
                 .from('listings')
-                .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type, apatel_member')
+                .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type, apatel_member, feature_rank')
                 .in('id', ids);
 
             if (memberData && memberData.length > 0) {
@@ -803,6 +803,7 @@ app.get('/api/rentals', async (req, res) => {
                         membership_paid_until: m.membership_paid_until || null,
                         slug:                  m.slug || null,
                         rental_type:           m.rental_type || r.rental_type,
+                        feature_rank:          m.feature_rank || 0,
                         apatel_member:         m.apatel_member || false
                     };
                 });
@@ -2292,24 +2293,22 @@ app.post('/api/reset-password', async (req, res) => {
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  Featured listing
+//  Now returns ALL listings with feature_rank > 0, ordered by rank desc
 // ═════════════════════════════════════════════════════════════════════════════
+
 app.get('/api/featured-listing', async (req, res) => {
     try {
-        const { data: setting } = await supabase
-            .from('settings')
-            .select('value')
-            .eq('key', 'featured_listing_id')
-            .single();
-        if (!setting) return res.status(404).json({ error: 'No featured listing configured' });
-
-        const { data: listing, error } = await supabase
+        const { data: listings, error } = await supabase
             .from('listings')
-            .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, website_url, booking_url')
-            .eq('id', parseInt(setting.value))
-            .single();
-        if (error || !listing) return res.status(404).json({ error: 'Featured listing not found' });
+            .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, website_url, booking_url, registry_source, atp_active, apatel_member, is_trial, feature_rank')
+            .gt('feature_rank', 0)
+            .order('feature_rank', { ascending: false });
 
-        res.json(listing);
+        if (error) throw new Error(error.message);
+        if (!listings || listings.length === 0)
+            return res.status(404).json({ error: 'No featured listings' });
+
+        res.json(listings);  // returns array
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
