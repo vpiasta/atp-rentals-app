@@ -23,7 +23,7 @@
         .header-text  { flex: 1; min-width: 200px; }
         .header-text h1 { font-size: 1.6rem; font-weight: 700; line-height: 1.2; margin-bottom: 0.2rem; }
         .header-text p  { font-size: 0.88rem; opacity: 0.9; }
-        .header-right { display: flex; flex-direction: row; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+        .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; margin-left: auto; }
 
         .lang-toggle {
             display: inline-flex; align-items: center; gap: 6px;
@@ -73,81 +73,13 @@
         .whatsapp-button:hover { background: #25D366; color: white; }
         .seemore-button        { border-color: #b8860b; color: #7a5c00; background: #fffbe6; }
         .seemore-button:hover  { background: #b8860b; color: white; border-color: #b8860b; }
-        /* ── Member thumbnail ── */
-        .card-body {
-            display: flex;
-            flex-direction: row;
-            gap: 1rem;
-            align-items: flex-start;
-        }
-        .member-thumb {
-            flex-shrink: 0;
-            width: 120px;
-            border: 2px solid #b8860b;
-            border-radius: 8px;
-            overflow: hidden;
-            cursor: pointer;
-            text-decoration: none;
-            display: flex;
-            flex-direction: column;
-            background: white;
-        }
-        .member-thumb:hover {
-            border-color: #005ca9;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        .member-thumb-img {
-            width: 100%;
-            height: 90px;
-            object-fit: cover;
-            object-position: center;
-            display: block;
-        }
-        .member-thumb-nophoto {
-            width: 100%;
-            height: 90px;
-            background: #f0f7ff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-        }
-        .member-thumb-label {
-            display: block;
-            background: white;
-            color: #111;
-            text-align: center;
-            font-size: 0.82rem;
-            font-weight: 700;
-            padding: 5px 4px;
-            border-top: 1px solid #ddd;
-        }
-        .card-info { flex: 1; min-width: 0; }
-        /* Icon-only buttons on narrow screens */
-        .contact-button .btn-text { display: inline; }
-        .contact-button .btn-icon { display: none; }
-        @media (max-width: 600px) {
-            .card-body { flex-direction: column; gap: 0.5rem; }
-            .member-thumb { width: 100%; }
-            .member-thumb-img { height: 150px; }
-            .member-thumb-nophoto { height: 80px; }
-            .member-thumb-label { font-size: 0.95rem; padding: 7px 4px; }
-            .contact-button { padding: 7px 10px; font-size: 0.8rem; }
-            .contact-button .btn-text { display: none; }
-            .contact-button .btn-icon { display: inline; font-size: 1.1rem; }
-            .contact-buttons { flex-wrap: nowrap; justify-content: center; }
-        }
-        /* ── UP button ── */
-        .up-btn {
-            position: fixed; bottom: 20px; right: 16px; z-index: 999;
-            background: #005ca9; color: white; border: none; border-radius: 50%;
-            width: 42px; height: 42px; font-size: 1.1rem; font-weight: 700;
-            cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            display: none; align-items: center; justify-content: center;
-            transition: background 0.2s;
-        }
-        .up-btn:hover { background: #004885; }
-        .up-btn.visible { display: flex; }
+        .no-results { text-align: center; padding: 3rem; color: #666; }
+        .loading    { text-align: center; padding: 2rem; color: #005ca9; }
+
+        /* ── Footer ── */
+        footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
+        footer a { color: #7ec8e3; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
 
         @media (max-width: 768px) {
             .search-box { flex-direction: column; }
@@ -157,12 +89,7 @@
             .header-text h1 { font-size: 1.2rem; }
             .header-right { margin-left: 0; flex-direction: row; align-items: center; width: 100%; justify-content: space-between; }
         }
-        /* ── Footer ── */
-        footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
-        footer a { color: #7ec8e3; text-decoration: none; }
-        footer a:hover { text-decoration: underline; }
-        footer p { color: #ccc; }
-        </style>
+    </style>
 </head>
 <body>
 <div class="container">
@@ -187,7 +114,6 @@
             </div>
             <!-- Right: lang + ATP note -->
             <div class="header-right">
-                <a href="about.html" class="lang-toggle">About</a>
                 <a href="index_es.html" class="lang-toggle">
                     <svg width="20" height="14" viewBox="0 0 20 14" style="border:1px solid rgba(255,255,255,0.4);flex-shrink:0;">
                         <rect x="0" y="0" width="10" height="7" fill="white"/>
@@ -211,7 +137,6 @@
         <div class="search-box">
             <input type="text" id="searchInput" placeholder="Search by name, location, type...">
             <button id="searchButton">Search</button>
-            <button id="clearButton" style="padding:11px 16px;background:#e1e5e9;color:#555;border:none;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600;transition:background 0.3s;" onclick="clearSearch()">✕ Clear</button>
         </div>
         <div class="filters">
             <div class="filter-group">
@@ -229,12 +154,8 @@
         <div class="no-results"><p>Use the search or filters to find registered rentals</p></div>
     </section>
 
-    <div style="text-align:center;padding:1.2rem 1rem;background:white;border-radius:10px;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <p style="font-size:0.88rem;color:#555;margin-bottom:0.6rem;">Do you own an ATP-registered rental property?</p>
-        <a href="join.html" style="display:inline-block;padding:9px 24px;background:#005ca9;color:white;text-decoration:none;border-radius:7px;font-weight:700;font-size:0.92rem;">List your property →</a>
-    </div>
     <footer>
-        <p style="font-size:0.8rem;">Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>with additional data provided by our members</p>
+        <p style="font-size:0.8rem;">Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a></p>
         <p style="margin-top:0.8rem;">
             Trusted Panama Stays is owned and copyrighted by Tuscany Real Estates SA<br>
             RUC 1401220-1-627960 DV21<br>
@@ -245,9 +166,6 @@
         -->
     </footer>
 </div>
-
-<!-- UP button -->
-<button class="up-btn" id="up-btn" onclick="scrollToTop()" title="Back to top">↑</button>
 
 <script>
 const API_BASE_URL = '';
@@ -261,38 +179,6 @@ const statsPanel       = document.getElementById('statsPanel');
 async function loadInitialData() {
     await loadStats();
     await loadFilters();
-    const stats = await fetch(`${API_BASE_URL}/api/stats`).then(r=>r.json()).catch(()=>({total_rentals:0}));
-    if (stats.total_rentals === 0) {
-        resultsContainer.innerHTML = `<div class="no-results"><p>Server is starting up. Please try again in a few seconds.</p></div>`;
-        setTimeout(async () => {
-            await loadStats();
-            await loadFilters();
-            restoreOrDefault();
-        }, 3000);
-    } else {
-        restoreOrDefault();
-    }
-}
-
-function restoreOrDefault() {
-    const saved = sessionStorage.getItem('tps_search_state');
-    if (saved) {
-        try {
-            const params = JSON.parse(saved);
-            sessionStorage.removeItem('tps_search_state');
-            if (params.search || params.province || params.type) {
-                if (params.search)   searchInput.value    = params.search;
-                if (params.province) provinceFilter.value  = params.province;
-                if (params.type)     typeFilter.value      = params.type;
-                const savedScrollY = params.scrollY || 0;
-                performSearch().then(() => {
-                    // Restore exact scroll position
-                    setTimeout(() => window.scrollTo({ top: savedScrollY, behavior: 'instant' }), 50);
-                });
-                return;
-            }
-        } catch(e) {}
-    }
     showDefaultView();
 }
 
@@ -313,62 +199,32 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePdfSource();
 });
 
-async function showDefaultView() {
-    resultsContainer.innerHTML = '<div class="loading">Loading...</div>';
-    try {
-        const res  = await fetch(`${API_BASE_URL}/api/featured-listing`);
-        const r    = await res.json();
-        if (!res.ok) throw new Error();
-        const active = r.is_member && r.membership_paid_until && new Date(r.membership_paid_until) >= new Date();
-        const phone  = active ? (r.phone_member || r.phone) : r.phone;
-        const email  = active ? (r.email_member || r.email) : r.email;
-        const address= active ? (r.address || '') : '';
-        const ph     = getPhoneNumbers(phone);
-        const mapsUrl= `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.name+' '+(r.province||'')+' Panama')}`;
-        const photos = Array.isArray(r.photos) ? r.photos : [];
-        const thumb  = active && photos.length ? photos[0] : null;
-        const listUrl= r.slug ? `listing.html?slug=${r.slug}&lang=en` : `listing.html?id=${r.id}&lang=en`;
-        const thumbHtml = `<a href="${listUrl}" class="member-thumb">
-                ${thumb
-                    ? `<img src="${thumb}" alt="${r.name}" loading="lazy" class="member-thumb-img">`
-                    : `<div class="member-thumb-nophoto">🏨</div>`}
-                <span class="member-thumb-label">${thumb ? 'See More' : 'Access'}</span>
-               </a>`;
-        resultsContainer.innerHTML = `
-            <div style="font-size:0.78rem;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">⭐ Featured Stay</div>
-            <div class="result-card is-member">
-                <h3 class="result-title">${r.name}</h3>
-                <div class="result-badges">
-                    ${r.rental_type ? `<span class="result-badge badge-type">${r.rental_type}</span>` : ''}
-                    ${r.province    ? `<span class="result-badge badge-province">${r.province}</span>` : ''}
-                    ${active        ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
-                ${r.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
-                ${active && r.registry_source === 'mici' ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>` : (r.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
-                </div>
-                <div class="card-body">
-                    ${thumbHtml}
-                    <div class="card-info">
-                        <div class="result-details">
-                            ${ph.display ? `<div class="detail-item"><span>📞</span><span>${ph.display}</span></div>` : ''}
-                            ${email      ? `<div class="detail-item"><span>✉️</span><span>${email}</span></div>` : ''}
-                            ${address    ? `<div class="detail-item"><span>📍</span><span>${address}</span></div>` : ''}
-                        </div>
-                        <div class="contact-buttons">
-                            ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button"><span class="btn-icon">📞</span><span class="btn-text"> Call</span></a>` : ''}
-                            ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Email</span></a>` : ''}
-                            ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
-                            <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
-
-                        </div>
-                    </div>
-                </div>
+function showDefaultView() {
+    resultsContainer.innerHTML = `
+        <div style="text-align:center;padding:5px;color:#666;">
+            <p>Use the search or filters to find specific rentals</p>
+            <p><small>Example member listing:</small></p>
+        </div>
+        <div class="result-card is-member">
+            <h3 class="result-title">APARTHOTEL BOQUETE</h3>
+            <div class="result-badges">
+                <span class="result-badge badge-type">Aparta-Hotel</span>
+                <span class="result-badge badge-province">CHIRIQUÍ</span>
+                <span class="result-badge badge-member">⭐ Member</span>
             </div>
-            <div class="no-results" style="padding:0.8rem;">
-                <p>Search above to find specific rentals</p>
-            </div>`;
-    } catch {
-        resultsContainer.innerHTML = '<div class="no-results"><p>Use the search or filters to find registered rentals</p></div>';
-    }
+            <div class="result-details">
+                <div class="detail-item"><span>📞</span><span>68916669 / 68916660</span></div>
+                <div class="detail-item"><span>✉️</span><span>info@aparthotel-boquete.com</span></div>
+                <div class="detail-item"><span>📍</span><span>Boquete, Chiriquí, Panama</span></div>
+            </div>
+            <div class="contact-buttons">
+                <a href="tel:+50768916669" class="contact-button">📞 Call</a>
+                <a href="mailto:info@aparthotel-boquete.com" class="contact-button">✉️ Email</a>
+                <a href="https://wa.me/50768916669" target="_blank" class="contact-button whatsapp-button">💬 WhatsApp</a>
+                <a href="https://www.google.com/maps/search/?api=1&query=Aparthotel+Boquete+Chiriqui+Panama" target="_blank" class="contact-button">📍 Maps</a>
+                <a href="listing.html?slug=aparthotel-boquete&lang=en" class="contact-button seemore-button">⭐ See More</a>
+            </div>
+        </div>`;
 }
 
 async function loadStats() {
@@ -398,7 +254,7 @@ async function loadFilters() {
     } catch {}
 }
 
-async function performSearch() { // returns promise for .then() chaining
+async function performSearch() {
     const searchTerm = searchInput.value;
     const province   = provinceFilter.value;
     const type       = typeFilter.value;
@@ -426,76 +282,36 @@ function getPhoneNumbers(phoneStr) {
     return { display, call, whatsapp };
 }
 
-function isMemberActive(rental) {
-    if (!rental.is_member) return false;
-    if (!rental.membership_paid_until) return false;
-    return new Date(rental.membership_paid_until) >= new Date();
-}
-
 function displayResults(rentals) {
     resultsContainer.innerHTML = '';
     if (!rentals.length) {
         resultsContainer.innerHTML = '<div class="no-results"><p>No rentals found. Try a different search.</p></div>';
         return;
     }
-    // Sort: 1=paid ATP, 2=paid MiCI, 3=trial, 4=non-members — alphabetical within each
-    rentals.sort((a, b) => {
-        const rank = r => {
-            const active = r.is_member && r.membership_paid_until && new Date(r.membership_paid_until) >= new Date();
-            if (!active) return 4;
-            if (r.is_trial) return 3;
-            if (r.registry_source === 'mici') return 2;
-            return 1;
-        };
-        const ra = rank(a), rb = rank(b);
-        if (ra !== rb) return ra - rb;
-        return (a.name || '').localeCompare(b.name || '');
-    });
     rentals.forEach(rental => {
         const card = document.createElement('div');
-        const active = isMemberActive(rental);
-        card.className = 'result-card' + (active ? ' is-member' : '');
-        const phone   = active ? (rental.phone_member || rental.phone) : rental.phone;
-        const email   = active ? (rental.email_member || rental.email) : rental.email;
-        const address = active ? (rental.address || '') : '';
-        const ph      = getPhoneNumbers(phone);
+        card.className = 'result-card' + (rental.is_member ? ' is-member' : '');
+        const ph = getPhoneNumbers(rental.phone_member || rental.phone);
+        const em = rental.email_member || rental.email;
         const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name+' '+(rental.province||'')+' Panama')}`;
-        const photos  = Array.isArray(rental.photos) ? rental.photos : [];
-        const thumb   = active && photos.length ? photos[0] : null;
-        const searchState = new URLSearchParams(window.location.search).toString();
-        const listUrl = (rental.slug
-            ? `listing.html?slug=${rental.slug}&lang=en`
-            : `listing.html?id=${rental.id}&lang=en`) + (searchState ? `&from=${encodeURIComponent(window.location.search)}` : '');
-        const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
-                ${thumb
-                    ? `<img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">`
-                    : `<div class="member-thumb-nophoto">🏨</div>`}
-                <span class="member-thumb-label">${thumb ? 'See More' : 'Access'}</span>
-               </a>` : '';
         card.innerHTML = `
-            <h3 class="result-title">${rental.name} <span style="font-size:0.65rem;color:#bbb;font-weight:400;vertical-align:middle;">#${rental.id||''}</span></h3>
+            <h3 class="result-title">${rental.name}</h3>
             <div class="result-badges">
                 ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
-                ${active             ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
-                ${rental.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
-                ${active && rental.registry_source === 'mici' ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>` : (rental.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
+                ${rental.is_member   ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
             </div>
-            <div class="card-body">
-                ${thumbHtml}
-                <div class="card-info">
-                    <div class="result-details">
-                        ${ph.display ? `<div class="detail-item"><span>📞</span><span>${ph.display}</span></div>` : ''}
-                        ${email      ? `<div class="detail-item"><span>✉️</span><span>${email}</span></div>` : ''}
-                        ${address    ? `<div class="detail-item"><span>📍</span><span>${address}</span></div>` : ''}
-                    </div>
-                    <div class="contact-buttons">
-                        ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button"><span class="btn-icon">📞</span><span class="btn-text"> Call</span></a>` : ''}
-                        ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Email</span></a>` : ''}
-                        ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
-                        <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
-                    </div>
-                </div>
+            <div class="result-details">
+                ${ph.display ? `<div class="detail-item"><span>📞</span><span>${ph.display}</span></div>` : ''}
+                ${em         ? `<div class="detail-item"><span>✉️</span><span>${em}</span></div>` : ''}
+                ${rental.address ? `<div class="detail-item"><span>📍</span><span>${rental.address}</span></div>` : ''}
+            </div>
+            <div class="contact-buttons">
+                ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button">📞 Call</a>` : ''}
+                ${em          ? `<a href="mailto:${em}" class="contact-button">✉️ Email</a>` : ''}
+                ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button">💬 WhatsApp</a>` : ''}
+                <a href="${mapsUrl}" target="_blank" class="contact-button">📍 Maps</a>
+                ${rental.is_member ? `<a href="listing.html?id=${rental.id}&lang=en" class="contact-button seemore-button">⭐ See More</a>` : ''}
             </div>`;
         resultsContainer.appendChild(card);
     });
@@ -512,51 +328,10 @@ async function updatePdfSource() {
     } catch {}
 }
 
-searchButton.addEventListener('click', () => performSearch().then(scrollToResults));
-searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') performSearch().then(scrollToResults); });
-provinceFilter.addEventListener('change', () => performSearch().then(scrollToResults));
-typeFilter.addEventListener('change', () => performSearch().then(scrollToResults));
-function clearSearch() {
-    searchInput.value = '';
-    provinceFilter.value = '';
-    typeFilter.value = '';
-    showDefaultView();
-    updateSelectedCount(null);
-}
-
-
-// ── Scroll to results after search ───────────────────────────────────────────
-function saveSearchState() {
-    const params = {
-        search:   searchInput?.value || '',
-        province: provinceFilter?.value || '',
-        type:     typeFilter?.value || '',
-        scrollY:  window.scrollY
-    };
-    sessionStorage.setItem('tps_search_state', JSON.stringify(params));
-}
-
-function scrollToResults() {
-    // Scroll to first result card, not the container top
-    const firstCard = document.querySelector('.result-card');
-    const target    = firstCard || document.getElementById('results-container');
-    if (!target) return;
-    const y = target.getBoundingClientRect().top + window.scrollY - 8;
-    window.scrollTo({ top: y, behavior: 'smooth' });
-}
-
-function scrollToTop() {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-// Show/hide UP button based on scroll position
-window.addEventListener('scroll', () => {
-    const upBtn = document.getElementById('up-btn');
-    if (!upBtn) return;
-    if (window.scrollY > 200) upBtn.classList.add('visible');
-    else upBtn.classList.remove('visible');
-});
-
+searchButton.addEventListener('click', performSearch);
+searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') performSearch(); });
+provinceFilter.addEventListener('change', performSearch);
+typeFilter.addEventListener('change', performSearch);
 loadInitialData();
 </script>
 </body>
