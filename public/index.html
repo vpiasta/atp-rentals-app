@@ -312,33 +312,45 @@ document.addEventListener('DOMContentLoaded', () => {
 async function showDefaultView() {
     resultsContainer.innerHTML = '<div class="loading">Loading...</div>';
     try {
-        const res  = await fetch(`${API_BASE_URL}/api/featured-listing`);
-        const r    = await res.json();
+        const res      = await fetch(`${API_BASE_URL}/api/featured-listing`);
         if (!res.ok) throw new Error();
-        const active = r.is_member && r.membership_paid_until && new Date(r.membership_paid_until) >= new Date();
-        const phone  = active ? (r.phone_member || r.phone) : r.phone;
-        const email  = active ? (r.email_member || r.email) : r.email;
-        const address= active ? (r.address || '') : '';
-        const ph     = getPhoneNumbers(phone);
-        const mapsUrl= `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.name+' '+(r.province||'')+' Panama')}`;
-        const photos = Array.isArray(r.photos) ? r.photos : [];
-        const thumb  = active && photos.length ? photos[0] : null;
-        const listUrl= r.slug ? `listing.html?slug=${r.slug}&lang=en` : `listing.html?id=${r.id}&lang=en`;
-        const thumbHtml = `<a href="${listUrl}" class="member-thumb">
+        const featured = await res.json();
+        if (!Array.isArray(featured) || !featured.length) throw new Error();
+        featured.sort((a, b) => (b.feature_rank || 0) - (a.feature_rank || 0));
+
+        resultsContainer.innerHTML = '<div style="font-size:0.78rem;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">⭐ Featured Stay</div>';
+
+        featured.forEach(rental => {
+            const active  = isMemberActive(rental);
+            const phone   = active ? (rental.phone_member || rental.phone) : rental.phone;
+            const email   = active ? (rental.email_member || rental.email) : rental.email;
+            const address = active ? (rental.address || '') : '';
+            const ph      = getPhoneNumbers(phone);
+            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name+' '+(rental.province||'')+' Panama')}`;
+            const photos  = Array.isArray(rental.photos) ? rental.photos : [];
+            const thumb   = active && photos.length ? photos[0] : null;
+            const listUrl = rental.slug
+                ? `listing.html?slug=${rental.slug}&lang=en`
+                : `listing.html?id=${rental.id}&lang=en`;
+            const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
                 ${thumb
-                    ? `<img src="${thumb}" alt="${r.name}" loading="lazy" class="member-thumb-img">`
+                    ? `<img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">`
                     : `<div class="member-thumb-nophoto">🏨</div>`}
                 <span class="member-thumb-label">${thumb ? 'See More' : 'Access'}</span>
-               </a>`;
-        resultsContainer.innerHTML = `
-            <div style="font-size:0.78rem;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">⭐ Featured Stay</div>
-            <div class="result-card is-member">
-                <h3 class="result-title">${r.name}</h3>
+               </a>` : '';
+
+            const card = document.createElement('div');
+            card.className = 'result-card is-member' + ((rental.feature_rank > 0) ? ' is-featured' : '');
+            card.innerHTML = `
+                <h3 class="result-title">${rental.name} <span style="font-size:0.65rem;color:#bbb;font-weight:400;vertical-align:middle;">#${rental.id||''}</span></h3>
                 <div class="result-badges">
-                    ${r.rental_type ? `<span class="result-badge badge-type">${r.rental_type}</span>` : ''}
-                    ${r.province    ? `<span class="result-badge badge-province">${r.province}</span>` : ''}
-                    ${active        ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
-                ${active && r.registry_source === 'mici' ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>` : (r.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
+                    ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
+                    ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
+                    ${active             ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
+                    ${rental.registry_source === 'mici'
+                        ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>`
+                        : `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>`}
+                    ${rental.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
                 </div>
                 <div class="card-body">
                     ${thumbHtml}
@@ -353,14 +365,18 @@ async function showDefaultView() {
                             ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Email</span></a>` : ''}
                             ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                             <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
-
                         </div>
                     </div>
-                </div>
-            </div>
-            <div class="no-results" style="padding:0.8rem;">
-                <p>Search above to find specific rentals</p>
-            </div>`;
+                </div>`;
+            resultsContainer.appendChild(card);
+        });
+
+        const hint = document.createElement('div');
+        hint.className = 'no-results';
+        hint.style.padding = '0.8rem';
+        hint.innerHTML = '<p>Search above to find specific rentals</p>';
+        resultsContainer.appendChild(hint);
+
     } catch {
         resultsContainer.innerHTML = '<div class="no-results"><p>Use the search or filters to find registered rentals</p></div>';
     }
