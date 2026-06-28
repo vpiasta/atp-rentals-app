@@ -12,12 +12,16 @@
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #111; background: #f8f9fa; }
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
         header { background: linear-gradient(135deg, #005ca9, #00a859); color: white; padding: 0.7rem 1rem; border-radius: 10px; margin-bottom: 0.8rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .header-inner { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
+        .header-inner { display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; }
         .header-logo  { flex-shrink: 0; width: 72px; height: 72px; }
         .header-text  { flex: 1; min-width: 200px; }
         .header-text h1 { font-size: 1.6rem; font-weight: 700; line-height: 1.2; margin-bottom: 0.2rem; }
         .header-text p  { font-size: 0.88rem; opacity: 0.9; }
-        .header-right { display: flex; flex-direction: row; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+        .header-right { display: flex; flex-direction: row; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
+        .atp-badge { flex-basis: 100%; text-align: right; }
+        @media (min-width: 600px) {
+            .atp-badge { flex-basis: auto; }
+        }
         .lang-toggle { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); border-radius: 20px; padding: 5px 14px; text-decoration: none; color: white; font-size: 0.82rem; font-weight: 600; transition: background 0.3s; white-space: nowrap; }
         .lang-toggle:hover { background: rgba(255,255,255,0.28); }
         .atp-badge { font-size: 0.68rem; opacity: 0.85; white-space: nowrap; }
@@ -179,7 +183,7 @@
 
     <section class="search-section">
         <div class="search-box">
-            <input type="text" id="searchInput" style="flex:1;min-width:0;" placeholder="Buscar por nombre, ubicación, tipo...">
+            <input type="text" id="searchInput" style="flex:1;min-width:60px;width:0;" placeholder="Buscar por nombre, ubicación, tipo...">
             <button id="searchButton">Buscar</button>
             <button id="clearButton" style="padding:11px 16px;background:#e1e5e9;color:#555;border:none;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600;transition:background 0.3s;" onclick="clearSearch()">✕ Limpiar</button>
         </div>
@@ -350,14 +354,13 @@ async function loadStats() {
         const stats = await (await fetch(`${API_BASE_URL}/api/stats`)).json();
         const total = stats.total_rentals || 0;
         if (total === 0) { statsPanel.innerHTML = ''; return; }
+        // Fetch featured count in parallel
+        const featuredData = await fetch('/api/featured-listing').then(r=>r.ok?r.json():[]).catch(()=>[]);
+        const featuredCount = Array.isArray(featuredData) ? featuredData.length : 0;
+        const featuredText = featuredCount > 0 ? ` · <strong>${featuredCount}</strong> destacado${featuredCount>1?'s':''}` : '';
         statsPanel.innerHTML = `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:12px;font-size:0.85rem;padding:0.3rem 0;">
-            <span>🏨 <strong>${total}</strong> hospedajes verificados</span>
-            <span id="selectedCount"><span id="featuredCount"></span></span></div>`;
-        // Load featured count
-        fetch('/api/featured-listing').then(r=>r.ok?r.json():[]).then(f=>{
-            const fc = document.getElementById('featuredCount');
-            if (fc && Array.isArray(f) && f.length) fc.innerHTML = `· <strong>${f.length}</strong> destacado${f.length>1?'s':''}`;
-        }).catch(()=>{});
+            <span>🏨 <strong>${total}</strong> hospedajes verificados${featuredText}</span>
+            <span id="selectedCount"></span></div>`;
     } catch { statsPanel.innerHTML = '<div style="color:#cc0000;">Error al cargar estadísticas</div>'; }
 }
 
