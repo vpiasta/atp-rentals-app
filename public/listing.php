@@ -154,8 +154,8 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
         .info-value { font-weight:600; color:#111; }
         /* ── Gallery ── */
         .gallery-wrap { padding:12px 12px 0; }
-        .gallery-main { position:relative; display:flex; align-items:center; justify-content:center; background:#111; border-radius:10px; overflow:hidden; }
-        .gallery-main img { max-width:100%; max-height:420px; object-fit:contain; display:block; width:100%; }
+        .gallery-main { position:relative; display:flex; align-items:center; justify-content:center; background:#f8f9fa; border-radius:10px; overflow:hidden; padding:8px; }
+        .gallery-main img { max-width:80%; max-height:420px; object-fit:contain; display:block; border:1px solid #ccc; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
         .gallery-nav { position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.55); color:white; border:none; border-radius:50%; width:36px; height:36px; font-size:1.2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s; }
         .gallery-nav:hover { background:rgba(0,0,0,0.8); }
         .gallery-nav.prev { left:8px; }
@@ -175,8 +175,8 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
         footer { background:#2c3e50; color:#ccc; border-radius:10px; padding:1.2rem 1.5rem; text-align:center; font-size:0.85rem; line-height:1.8; }
         footer a { color:#7ec8e3; text-decoration:none; }
         footer p { color:#ccc; }
-        .js-version { background:#fffbe6; border:1px solid #FFD700; border-radius:8px; padding:0.8rem 1.5rem; margin-bottom:1rem; font-size:0.85rem; color:#7a5c00; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; }
-        .js-version a { color:#005ca9; font-weight:600; }
+
+
     </style>
 </head>
 <body>
@@ -190,14 +190,7 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     <a href="<?= $lang === 'es' ? 'index_es.html' : 'index.html' ?>" class="back-link">← <?= $lang === 'es' ? 'Volver' : 'Back' ?></a>
 </header>
 
-<?php if ($active): ?>
-<div class="js-version">
-    <span><?= $lang === 'es' ? '🔐 ¿Es usted el propietario?' : '🔐 Are you the owner?' ?></span>
-    <a href="<?= h($listing_url) ?>" style="padding:6px 16px;background:#b8860b;color:white;text-decoration:none;border-radius:6px;font-size:0.82rem;font-weight:700;">
-        <?= $lang === 'es' ? 'Acceder a mi listado' : 'Access my listing' ?>
-    </a>
-</div>
-<?php endif; ?>
+
 
 <div class="card">
     <div class="name-row">
@@ -216,17 +209,7 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
         <?php if ($email): ?><a href="mailto:<?= h($email) ?>" class="btn">✉️ <?= $lang === 'es' ? 'Correo' : 'Email' ?></a><?php endif; ?>
         <?php if ($phone_wa): ?><a href="https://wa.me/507<?= h($phone_wa) ?>" target="_blank" class="btn wa">💬 WhatsApp</a><?php endif; ?>
         <a href="<?= h($maps_url) ?>" target="_blank" class="btn">📍 Maps</a>
-        <?php if (!empty($listing['website_url'])): ?><a href="<?= h($listing['website_url']) ?>" target="_blank" class="btn">🌐 <?= $lang === 'es' ? 'Sitio Web' : 'Website' ?></a><?php endif; ?>
-        <?php if (!empty($listing['booking_url'])): ?><a href="<?= h($listing['booking_url']) ?>" target="_blank" class="btn">🔗 <?= $lang === 'es' ? 'Reservar' : 'Book Now' ?></a><?php endif; ?>
-        <?php
-        $custom = is_array($listing['custom_links']) ? $listing['custom_links'] : json_decode($listing['custom_links'] ?? '[]', true) ?? [];
-        foreach ($custom as $link):
-            if (empty($link['url'])) continue;
-        ?>
-        <a href="<?= h($link['url']) ?>" target="_blank" class="btn" style="border-color:#666;color:#444;">
-            <?= h(($link['emoji'] ?? '') . ' ' . ($link['label'] ?? '')) ?>
-        </a>
-        <?php endforeach; ?>
+        <a href="<?= h($listing_url) ?>" class="btn" style="border-color:#a07800;color:#a07800;background:#fffbe6;margin-left:auto;">🔐 <?= $lang === 'es' ? 'Acceso' : 'Login' ?></a>
     </div>
 
     <div class="section">
@@ -281,12 +264,20 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     var galleryCur = 0;
     function galleryGo(i) {
         galleryCur = (i + galleryPhotos.length) % galleryPhotos.length;
-        document.getElementById('gallery-img').src = galleryPhotos[galleryCur];
+        var img = document.getElementById('gallery-img');
+        img.src = galleryPhotos[galleryCur];
         document.getElementById('gallery-cur').textContent = galleryCur + 1;
         var thumbs = document.querySelectorAll('#gallery-thumbs img');
         thumbs.forEach(function(t, idx) { t.classList.toggle('active', idx === galleryCur); });
-        // Scroll active thumb into view
-        if (thumbs[galleryCur]) thumbs[galleryCur].scrollIntoView({inline:'center', behavior:'smooth'});
+        // Scroll only the thumb strip horizontally, not the page
+        if (thumbs[galleryCur]) {
+            thumbs[galleryCur].scrollIntoView({inline:'center', behavior:'smooth', block:'nearest'});
+        }
+        // Scroll page only if main image is not visible
+        var rect = img.getBoundingClientRect();
+        if (rect.top < 0 || rect.bottom > window.innerHeight) {
+            img.scrollIntoView({behavior:'smooth', block:'nearest'});
+        }
     }
     function galleryMove(dir) { galleryGo(galleryCur + dir); }
     // Keyboard navigation
@@ -305,6 +296,30 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     <?php endif; ?>
 
 </div>
+
+<?php
+$custom = is_array($listing['custom_links']) ? $listing['custom_links'] : json_decode($listing['custom_links'] ?? '[]', true) ?? [];
+$has_links = !empty($listing['website_url']) || !empty($listing['booking_url']) || !empty($custom);
+if ($has_links): ?>
+<div class="card">
+    <div class="section" style="border:none;">
+        <div class="section-title"><?= $lang === 'es' ? 'Enlaces' : 'Links' ?></div>
+        <div class="buttons" style="padding:0;border:none;">
+            <?php if (!empty($listing['website_url'])): ?>
+            <a href="<?= h($listing['website_url']) ?>" target="_blank" class="btn">🌐 <?= $lang === 'es' ? 'Sitio Web' : 'Website' ?></a>
+            <?php endif; ?>
+            <?php if (!empty($listing['booking_url'])): ?>
+            <a href="<?= h($listing['booking_url']) ?>" target="_blank" class="btn">🔗 <?= $lang === 'es' ? 'Reservar' : 'Book Now' ?></a>
+            <?php endif; ?>
+            <?php foreach ($custom as $link): if (empty($link['url'])) continue; ?>
+            <a href="<?= h($link['url']) ?>" target="_blank" class="btn" style="border-color:#666;color:#444;">
+                <?= h(($link['emoji'] ?? '') . ' ' . ($link['label'] ?? '')) ?>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <footer>
     <p style="font-size:0.8rem;">
