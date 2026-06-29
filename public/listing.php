@@ -187,7 +187,21 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
         <h1>Trusted Panama Stays</h1>
         <p style="font-size:0.8rem;opacity:0.85;"><?= $lang === 'es' ? 'Hospedajes verificados en Panamá' : 'Verified accommodations in Panama' ?></p>
     </div>
-    <a href="<?= $lang === 'es' ? 'index_es.html' : 'index.html' ?>" class="back-link">← <?= $lang === 'es' ? 'Volver' : 'Back' ?></a>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <a href="<?= $lang === 'es' ? 'index_es.html' : 'index.html' ?>" class="back-link">← <?= $lang === 'es' ? 'Volver' : 'Back' ?></a>
+        <?php
+        $other_lang = $lang === 'es' ? 'en' : 'es';
+        $lang_url   = $slug_val
+            ? 'listing.php?slug=' . urlencode($slug_val) . '&lang=' . $other_lang
+            : 'listing.php?id=' . $listing['id'] . '&lang=' . $other_lang;
+        ?>
+        <a href="<?= h($lang_url) ?>" class="back-link">
+            <?= $lang === 'es'
+                ? '<svg width="18" height="13" viewBox="0 0 20 14" style="vertical-align:middle;margin-right:3px;"><rect x="0" y="0" width="20" height="14" fill="#B22234"/><rect x="0" y="2" width="20" height="2" fill="white"/><rect x="0" y="6" width="20" height="2" fill="white"/><rect x="0" y="10" width="20" height="2" fill="white"/><rect x="0" y="0" width="8" height="8" fill="#3C3B6E"/></svg> English'
+                : '<svg width="18" height="13" viewBox="0 0 20 14" style="vertical-align:middle;margin-right:3px;border:1px solid rgba(255,255,255,0.4);"><rect x="0" y="0" width="10" height="7" fill="white"/><rect x="10" y="0" width="10" height="7" fill="#cc0000"/><rect x="0" y="7" width="10" height="7" fill="#1a3a6b"/><rect x="10" y="7" width="10" height="7" fill="white"/></svg> Español'
+            ?>
+        </a>
+    </div>
 </header>
 
 
