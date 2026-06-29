@@ -894,8 +894,8 @@ function setWaLang(lang) {
     if (!currentWaMember) return;
     const m = currentWaMember;
     const listingUrl = m.slug
-        ? `https://trustedpanamastays.com/listing.html?slug=${m.slug}&lang=${lang}`
-        : `https://trustedpanamastays.com/listing.html?id=${m.id}&lang=${lang}`;
+        ? `https://trustedpanamastays.com/listing.php?slug=${m.slug}&lang=${lang}`
+        : `https://trustedpanamastays.com/listing.php?id=${m.id}&lang=${lang}`;
     const msgEs = `Hola! Su hospedaje *${m.name}* aparece en *Trusted Panama Stays*, el directorio oficial de hospedajes registrados ante la ATP en Panamá.\n\nCon una membresía anual de solo $24 puede agregar fotos, descripción completa y enlaces de reserva a su perfil.\n\nMás información: https://trustedpanamastays.com/about.html?lang=es\n\nVer su listado actual: ${listingUrl}\n\n¿Le interesa? Con gusto le ayudamos a configurar su perfil.`;
     const msgEn = `Hello! Your property *${m.name}* is listed on *Trusted Panama Stays*, the official directory of ATP-registered accommodations in Panama.\n\nFor just $24/year you can add photos, a full description and booking links to your profile.\n\nMore info: https://trustedpanamastays.com/about.html\n\nView your current listing: ${listingUrl}\n\nInterested? We're happy to help you set up your profile.`;
     const msg = lang==='es' ? msgEs : msgEn;

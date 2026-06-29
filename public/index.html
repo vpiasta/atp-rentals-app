@@ -329,8 +329,8 @@ async function showDefaultView() {
             const photos  = Array.isArray(rental.photos) ? rental.photos : [];
             const thumb   = active && photos.length ? photos[0] : null;
             const listUrl = rental.slug
-                ? `listing.html?slug=${rental.slug}&lang=en`
-                : `listing.html?id=${rental.id}&lang=en`;
+                ? `listing.php?slug=${rental.slug}&lang=en`
+                : `listing.php?id=${rental.id}&lang=en`;
             const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
                 ${thumb
                     ? `<img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">`
@@ -479,8 +479,8 @@ function displayResults(rentals) {
         const thumb   = active && photos.length ? photos[0] : null;
         const searchState = new URLSearchParams(window.location.search).toString();
         const listUrl = (rental.slug
-            ? `listing.html?slug=${rental.slug}&lang=en`
-            : `listing.html?id=${rental.id}&lang=en`) + (searchState ? `&from=${encodeURIComponent(window.location.search)}` : '');
+            ? `listing.php?slug=${rental.slug}&lang=en`
+            : `listing.php?id=${rental.id}&lang=en`) + (searchState ? `&from=${encodeURIComponent(window.location.search)}` : '');
         const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
                 ${thumb
                     ? `<img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">`
