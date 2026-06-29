@@ -156,7 +156,7 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
         .photo-gallery img { max-width:100%; max-height:400px; object-fit:contain; border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,0.18); }
         .photo-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; padding:1rem 1.5rem; }
         .photo-grid img { width:100%; height:150px; object-fit:cover; border-radius:8px; }
-        .description { color:#444; line-height:1.8; }
+        .description { color:#444; line-height:1.8; font-size:0.95rem; }
         .description a { color:#005ca9; }
         .buttons { display:flex; gap:8px; flex-wrap:wrap; padding:1rem 1.5rem; border-bottom:1px solid #e1e5e9; }
         .btn { padding:7px 14px; border:2px solid #005ca9; border-radius:7px; text-decoration:none; color:#005ca9; font-weight:600; font-size:0.85rem; display:inline-flex; align-items:center; gap:5px; }
@@ -166,7 +166,7 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
         footer { background:#2c3e50; color:#ccc; border-radius:10px; padding:1.2rem 1.5rem; text-align:center; font-size:0.85rem; line-height:1.8; }
         footer a { color:#7ec8e3; text-decoration:none; }
         footer p { color:#ccc; }
-        .js-version { background:#fffbe6; border:1px solid #FFD700; border-radius:8px; padding:0.8rem 1.5rem; margin-bottom:1rem; font-size:0.85rem; color:#7a5c00; }
+        .js-version { background:#fffbe6; border:1px solid #FFD700; border-radius:8px; padding:0.8rem 1.5rem; margin-bottom:1rem; font-size:0.85rem; color:#7a5c00; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; }
         .js-version a { color:#005ca9; font-weight:600; }
     </style>
 </head>
@@ -183,9 +183,10 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
 
 <?php if ($active): ?>
 <div class="js-version">
-    <?= $lang === 'es'
-        ? '🔐 ¿Es usted el propietario? <a href="' . h($listing_url) . '">Acceda a su listado completo</a> para editar fotos, descripción y más.'
-        : '🔐 Are you the owner? <a href="' . h($listing_url) . '">Access your full listing</a> to edit photos, description and more.' ?>
+    <span><?= $lang === 'es' ? '🔐 ¿Es usted el propietario?' : '🔐 Are you the owner?' ?></span>
+    <a href="<?= h($listing_url) ?>" style="padding:6px 16px;background:#b8860b;color:white;text-decoration:none;border-radius:6px;font-size:0.82rem;font-weight:700;">
+        <?= $lang === 'es' ? 'Acceder a mi listado' : 'Access my listing' ?>
+    </a>
 </div>
 <?php endif; ?>
 
@@ -208,6 +209,15 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
         <a href="<?= h($maps_url) ?>" target="_blank" class="btn">📍 Maps</a>
         <?php if (!empty($listing['website_url'])): ?><a href="<?= h($listing['website_url']) ?>" target="_blank" class="btn">🌐 <?= $lang === 'es' ? 'Sitio Web' : 'Website' ?></a><?php endif; ?>
         <?php if (!empty($listing['booking_url'])): ?><a href="<?= h($listing['booking_url']) ?>" target="_blank" class="btn">🔗 <?= $lang === 'es' ? 'Reservar' : 'Book Now' ?></a><?php endif; ?>
+        <?php
+        $custom = is_array($listing['custom_links']) ? $listing['custom_links'] : json_decode($listing['custom_links'] ?? '[]', true) ?? [];
+        foreach ($custom as $link):
+            if (empty($link['url'])) continue;
+        ?>
+        <a href="<?= h($link['url']) ?>" target="_blank" class="btn" style="border-color:#666;color:#444;">
+            <?= h(($link['emoji'] ?? '') . ' ' . ($link['label'] ?? '')) ?>
+        </a>
+        <?php endforeach; ?>
     </div>
 
     <div class="section">
@@ -243,7 +253,7 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     </div>
     <?php if (count($photos) > 1): ?>
     <div class="photo-grid">
-        <?php foreach (array_slice($photos, 1, 8) as $photo): ?>
+        <?php foreach (array_slice($photos, 1, 19) as $photo): ?>
         <img src="<?= h($photo) ?>" alt="<?= h($name) ?>" loading="lazy">
         <?php endforeach; ?>
     </div>
@@ -262,11 +272,12 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
 <footer>
     <p style="font-size:0.8rem;">
         <?= $lang === 'es'
-            ? 'Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>'
-            : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a>' ?>
+            ? 'Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>con datos adicionales proporcionados por nuestros miembros'
+            : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>with additional data provided by our members' ?>
     </p>
     <p style="margin-top:0.8rem;color:#ccc;">
-        Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
+        Trusted Panama Stays is owned and copyrighted by Tuscany Real Estates SA<br>
+        RUC 1401220-1-627960 DV21<br>
         <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a>
     </p>
 </footer>
