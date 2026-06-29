@@ -152,10 +152,19 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
         .info-icon { font-size:1.1rem; flex-shrink:0; }
         .info-label { font-size:0.75rem; color:#888; }
         .info-value { font-weight:600; color:#111; }
-        .photo-gallery { padding:12px; display:flex; justify-content:center; }
-        .photo-gallery img { max-width:100%; max-height:400px; object-fit:contain; border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,0.18); }
-        .photo-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; padding:1rem 1.5rem; }
-        .photo-grid img { width:100%; height:150px; object-fit:cover; border-radius:8px; }
+        /* ── Gallery ── */
+        .gallery-wrap { padding:12px 12px 0; }
+        .gallery-main { position:relative; display:flex; align-items:center; justify-content:center; background:#111; border-radius:10px; overflow:hidden; }
+        .gallery-main img { max-width:100%; max-height:420px; object-fit:contain; display:block; width:100%; }
+        .gallery-nav { position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.55); color:white; border:none; border-radius:50%; width:36px; height:36px; font-size:1.2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s; }
+        .gallery-nav:hover { background:rgba(0,0,0,0.8); }
+        .gallery-nav.prev { left:8px; }
+        .gallery-nav.next { right:8px; }
+        .gallery-count { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.55); color:white; padding:2px 10px; border-radius:12px; font-size:0.78rem; }
+        .gallery-thumbs { display:flex; gap:6px; padding:8px 0 12px; overflow-x:auto; scrollbar-width:thin; }
+        .gallery-thumbs img { width:72px; height:54px; object-fit:cover; border-radius:6px; cursor:pointer; flex-shrink:0; opacity:0.65; transition:opacity 0.2s, outline 0.2s; outline:2px solid transparent; }
+        .gallery-thumbs img.active { opacity:1; outline:2px solid #b8860b; }
+        .gallery-thumbs img:hover { opacity:1; }
         .description { color:#444; line-height:1.8; font-size:0.95rem; }
         .description a { color:#005ca9; }
         .buttons { display:flex; gap:8px; flex-wrap:wrap; padding:1rem 1.5rem; border-bottom:1px solid #e1e5e9; }
@@ -248,16 +257,44 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     </div>
 
     <?php if (!empty($photos)): ?>
-    <div class="photo-gallery">
-        <img src="<?= h($photos[0]) ?>" alt="<?= h($name) ?>" loading="eager">
+    <div class="gallery-wrap">
+        <div class="gallery-main">
+            <img id="gallery-img" src="<?= h($photos[0]) ?>" alt="<?= h($name) ?>">
+            <?php if (count($photos) > 1): ?>
+            <button class="gallery-nav prev" onclick="galleryMove(-1)">‹</button>
+            <button class="gallery-nav next" onclick="galleryMove(1)">›</button>
+            <div class="gallery-count"><span id="gallery-cur">1</span> / <?= count($photos) ?></div>
+            <?php endif; ?>
+        </div>
+        <?php if (count($photos) > 1): ?>
+        <div class="gallery-thumbs" id="gallery-thumbs">
+            <?php foreach ($photos as $i => $photo): ?>
+            <img src="<?= h($photo) ?>" alt="<?= h($name) ?> <?= $i+1 ?>"
+                 class="<?= $i === 0 ? 'active' : '' ?>"
+                 onclick="galleryGo(<?= $i ?>)" loading="<?= $i < 4 ? 'eager' : 'lazy' ?>">
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
     </div>
-    <?php if (count($photos) > 1): ?>
-    <div class="photo-grid">
-        <?php foreach (array_slice($photos, 1, 19) as $photo): ?>
-        <img src="<?= h($photo) ?>" alt="<?= h($name) ?>" loading="lazy">
-        <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
+    <script>
+    var galleryPhotos = <?= json_encode($photos) ?>;
+    var galleryCur = 0;
+    function galleryGo(i) {
+        galleryCur = (i + galleryPhotos.length) % galleryPhotos.length;
+        document.getElementById('gallery-img').src = galleryPhotos[galleryCur];
+        document.getElementById('gallery-cur').textContent = galleryCur + 1;
+        var thumbs = document.querySelectorAll('#gallery-thumbs img');
+        thumbs.forEach(function(t, idx) { t.classList.toggle('active', idx === galleryCur); });
+        // Scroll active thumb into view
+        if (thumbs[galleryCur]) thumbs[galleryCur].scrollIntoView({inline:'center', behavior:'smooth'});
+    }
+    function galleryMove(dir) { galleryGo(galleryCur + dir); }
+    // Keyboard navigation
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowLeft')  galleryMove(-1);
+        if (e.key === 'ArrowRight') galleryMove(1);
+    });
+    </script>
     <?php endif; ?>
 
     <?php if ($description): ?>
