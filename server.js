@@ -2540,8 +2540,7 @@ app.get('/api/admin/invitation-stats', requireAdmin, async (req, res) => {
         const { data, error } = await supabase
             .from('listings')
             .select('id, email, apatel_member, invitation_status, invitation_sent_at, is_member')
-            .eq('is_member', false);
-            .limit(5000);
+            .eq('is_member', false) .limit(5000);
 
         if (error) throw new Error(error.message);
 
