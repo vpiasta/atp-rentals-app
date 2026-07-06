@@ -1338,6 +1338,100 @@ if (adminToken) {
 } else {
     showLogin();
 }
+
+async function loadCampaignStats() {
+    const el = document.getElementById('campaign-stats');
+    if (!el) return;
+    try {
+        const res  = await adminFetch('/api/admin/invitation-stats');
+        const data = await res.json();
+        document.getElementById('cs-total').textContent   = data.total_non_members || 0;
+        document.getElementById('cs-email').textContent   = data.has_email || 0;
+        document.getElementById('cs-noemail').textContent = data.no_email || 0;
+        document.getElementById('cs-apatel').textContent  = data.apatel_email || 0;
+        document.getElementById('cs-invited').textContent = data.invited || 0;
+    } catch(e) { console.error('Campaign stats error:', e); }
+}
+
+async function loadAnalytics(days) {
+    const el = document.getElementById('analytics-content');
+    if (!el) return;
+    el.innerHTML = '<span style="color:#aaa;">⏳ Loading...</span>';
+    try {
+        const res  = await adminFetch('/api/admin/analytics?days=' + days);
+        const data = await res.json();
+        const c    = data.counts || {};
+        el.innerHTML = `<h4 style="color:#FFD700;margin-bottom:0.8rem;">Last ${days} days</h4>
+            <table style="width:100%;border-collapse:collapse;margin-bottom:1.5rem;">
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Site visits</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.site_visit||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Listing views</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.listing_view||0}</strong></td></tr>
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">WhatsApp clicks</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.whatsapp_click||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Email clicks</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.email_click||0}</strong></td></tr>
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Website clicks</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.website_click||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Photo browses</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.photo_browse||0}</strong></td></tr>
+            </table>`;
+    } catch(err) { el.innerHTML = '<span style="color:#ff7070;">Error: ' + err.message + '</span>'; }
+}
+
+async function dryRunCampaign(filter) {
+    const resultEl = document.getElementById('campaign-result');
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<span style="color:#aaa;">⏳ Counting...</span>';
+    const res  = await adminFetch('/api/admin/send-invitation-emails', {method:'POST',body:JSON.stringify({filter,dry_run:true})});
+    const data = await res.json();
+    resultEl.innerHTML = `<span style="color:#adf5ad;">Would send to <strong>${data.count}</strong> listings.</span>`;
+}
+
+async function runCampaign(filter) {
+    const resultEl = document.getElementById('campaign-result');
+    if (!confirm('Send invitation emails?')) return;
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<span style="color:#FFD700;">⏳ Sending...</span>';
+    const res  = await adminFetch('/api/admin/send-invitation-emails', {method:'POST',body:JSON.stringify({filter,dry_run:false})});
+    const data = await res.json();
+    resultEl.innerHTML = `<span style="color:#adf5ad;">✅ Done: <strong>${data.sent}</strong> sent, ${data.errors} errors.</span>`;
+}
+
+async function dryRunApatel() {
+    const resultEl = document.getElementById('campaign-result');
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<span style="color:#aaa;">⏳ Previewing...</span>';
+    const res  = await adminFetch('/api/admin/send-apatel-campaign', {method:'POST',body:JSON.stringify({dry_run:true})});
+    const data = await res.json();
+    resultEl.innerHTML = `<span style="color:#adf5ad;">Would send to <strong>${data.sent}</strong> APATEL members.</span>`;
+}
+
+async function runApatelCampaign() {
+    const resultEl = document.getElementById('campaign-result');
+    if (!confirm('Send to all 121 APATEL members?')) return;
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<span style="color:#FFD700;">⏳ Sending APATEL campaign...</span>';
+    const res  = await adminFetch('/api/admin/send-apatel-campaign', {method:'POST',body:JSON.stringify({dry_run:false})});
+    const data = await res.json();
+    resultEl.innerHTML = `<span style="color:#adf5ad;">✅ Done: <strong>${data.sent}</strong> sent.</span>`;
+}
+
+async function downloadNoEmailList() {
+    const res2 = await adminFetch('/api/admin/members');
+    const all  = await res2.json();
+    const noEmail = all.filter(m => !m.is_member && (!m.email || !m.email.includes('@')));
+    const csv = 'ID,Name,Province,Phone,APATEL\n' +
+        noEmail.map(m => `${m.id},"${m.name}","${m.province||''}","${m.phone||''}",${m.apatel_member?'Yes':'No'}`).join('\n');
+    const blob = new Blob([csv],{type:'text/csv'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href=url; a.download='no_email_listings.csv'; a.click();
+}
+
+async function loadApatelStats() {
+    try {
+        const res  = await adminFetch('/api/admin/apatel-campaign-stats');
+        const data = await res.json();
+        const el   = document.getElementById('apatel-campaign-stats');
+        if (el) el.innerHTML = `Sent: <strong>${data.sent}</strong> / ${data.total} · Remaining: <strong>${data.remaining}</strong>`;
+    } catch(e) {}
+}
+
 </script>
 </body>
 </html>
