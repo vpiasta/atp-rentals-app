@@ -53,7 +53,7 @@ try {
 
     $mail->setFrom('info@trustedpanamastays.com', 'Trusted Panama Stays');
     $mail->addAddress($to);
-    $mail->addCC('maria.de.piasta@gmail.com');
+    $mail->addCC('info@trustedpanamastays.com');
     $mail->Subject = $subject;
     $mail->Body    = $message;
     $mail->isHTML(true);
