@@ -2541,7 +2541,7 @@ app.get('/api/admin/invitation-stats', requireAdmin, async (req, res) => {
             .from('listings')
             .select('id, email, apatel_member, invitation_status, invitation_sent_at, is_member')
             .eq('is_member', false);
-            .limit(5000);
+            .limit(5000)
 
         if (error) throw new Error(error.message);
 
