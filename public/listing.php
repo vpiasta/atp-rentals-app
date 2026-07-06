@@ -14,6 +14,21 @@ if (!$slug && !$id) {
     exit('Listing not found');
 }
 
+// ── Track page view (fire-and-forget via curl) ────────────────────────────────
+function track_event($event_type, $listing_id = null) {
+    $payload = json_encode(['event_type' => $event_type, 'listing_id' => $listing_id]);
+    $ch = curl_init('http://localhost:3000/api/track');
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 2,  // don't block page load
+    ]);
+    curl_exec($ch);
+    curl_close($ch);
+}
+
 // ── Fetch from Supabase ───────────────────────────────────────────────────────
 function supabase_get($path) {
     $url = SUPABASE_URL . '/rest/v1/' . $path;
@@ -46,6 +61,9 @@ if (!$listing) {
     http_response_code(404);
     exit('Listing not found');
 }
+
+// Track this page view
+track_event('listing_view', $listing['id']);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
@@ -349,5 +367,35 @@ if ($has_links): ?>
 </footer>
 
 </div>
+<script>
+function track(eventType) {
+    var listingId = <?= $listing['id'] ?>;
+    fetch('/api/track', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({event_type: eventType, listing_id: listingId})
+    }).catch(function(){});
+}
+// Track button clicks
+document.querySelectorAll('a.btn').forEach(function(btn) {
+    var href = btn.getAttribute('href') || '';
+    var type = null;
+    if (href.startsWith('https://wa.me'))   type = 'whatsapp_click';
+    else if (href.startsWith('mailto:'))     type = 'email_click';
+    else if (href.startsWith('tel:'))        type = 'phone_click';
+    else if (href.includes('maps.google'))   type = 'maps_click';
+    else if (btn.textContent.includes('Website') || btn.textContent.includes('Sitio'))  type = 'website_click';
+    else if (btn.textContent.includes('Book') || btn.textContent.includes('Reservar'))  type = 'booking_click';
+    if (type) btn.addEventListener('click', function(){ track(type); });
+});
+// Track photo browsing (patch galleryGo)
+if (typeof galleryGo !== 'undefined') {
+    var _origGalleryGo = galleryGo;
+    galleryGo = function(i) {
+        _origGalleryGo(i);
+        if (i !== 0) track('photo_browse');
+    };
+}
+</script>
 </body>
 </html>

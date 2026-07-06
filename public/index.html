@@ -29,6 +29,7 @@
         footer a { color: #7ec8e3; text-decoration: none; }
         footer a:hover { text-decoration: underline; }
 
+
         /* Mobile: logo+title row 1, buttons+badge row 2 centered */
         @media (max-width: 600px) {
             .header-inner { flex-wrap: wrap; gap: 6px; }
@@ -155,7 +156,7 @@
 
         @media (max-width: 768px) {
 
-
+            .filters { flex-direction: column; }
             .header-inner { gap: 0.8rem; }
             .header-logo { width: 54px; height: 54px; }
             .header-text h1 { font-size: 1.2rem; }
@@ -333,8 +334,8 @@ async function showDefaultView() {
             const photos  = Array.isArray(rental.photos) ? rental.photos : [];
             const thumb   = active && photos.length ? photos[0] : null;
             const listUrl = rental.slug
-                ? `listing.php?slug=${rental.slug}&lang=en`
-                : `listing.php?id=${rental.id}&lang=en`;
+                ? `listing.html?slug=${rental.slug}&lang=en`
+                : `listing.html?id=${rental.id}&lang=en`;
             const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
                 ${thumb
                     ? `<img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">`
@@ -483,8 +484,8 @@ function displayResults(rentals) {
         const thumb   = active && photos.length ? photos[0] : null;
         const searchState = new URLSearchParams(window.location.search).toString();
         const listUrl = (rental.slug
-            ? `listing.php?slug=${rental.slug}&lang=en`
-            : `listing.php?id=${rental.id}&lang=en`) + (searchState ? `&from=${encodeURIComponent(window.location.search)}` : '');
+            ? `listing.html?slug=${rental.slug}&lang=en`
+            : `listing.html?id=${rental.id}&lang=en`) + (searchState ? `&from=${encodeURIComponent(window.location.search)}` : '');
         const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
                 ${thumb
                     ? `<img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">`
@@ -577,6 +578,13 @@ window.addEventListener('scroll', () => {
 });
 
 loadInitialData();
+
+// Track site visit
+fetch('/api/track', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({event_type: 'site_visit'})
+}).catch(function(){});
 </script>
 </body>
 </html>

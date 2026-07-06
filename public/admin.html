@@ -475,6 +475,22 @@
             </div>
         </div>
 
+        <!-- Analytics tab -->
+        <div id="tab-analytics" class="tab-content" style="display:none;">
+            <div style="background:#1a2a3a;border-radius:10px;padding:1.5rem;margin-bottom:1rem;">
+                <h3 style="color:#FFD700;margin-bottom:1rem;">📊 Analytics</h3>
+                <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;">
+                    <button onclick="loadAnalytics(7)"  class="action-btn edit">Last 7 days</button>
+                    <button onclick="loadAnalytics(30)" class="action-btn edit">Last 30 days</button>
+                    <button onclick="loadAnalytics(90)" class="action-btn edit">Last 90 days</button>
+                    <button onclick="sendWeeklyReport()" class="action-btn" style="background:#005ca9;margin-left:auto;">📧 Send report now</button>
+                </div>
+                <div id="analytics-content" style="color:#ccc;font-size:0.85rem;">
+                    Click a period above to load analytics.
+                </div>
+            </div>
+        </div>
+
         <!-- Campaign tab -->
         <div id="tab-campaign" class="tab-content" style="display:none;">
             <div style="background:#1a2a3a;border-radius:10px;padding:1.5rem;margin-bottom:1rem;">
