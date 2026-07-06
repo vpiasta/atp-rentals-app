@@ -478,7 +478,7 @@
         </div>
 
         <!-- Analytics tab -->
-        <div id="tab-analytics" class="tab-content" style="display:none;">
+        <div id="content-analytics" class="tab-content" style="display:none;">
             <div style="background:#1a2a3a;border-radius:10px;padding:1.5rem;margin-bottom:1rem;">
                 <h3 style="color:#FFD700;margin-bottom:1rem;">📊 Analytics</h3>
                 <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;">
@@ -494,7 +494,7 @@
         </div>
 
         <!-- Campaign tab -->
-        <div id="tab-campaign" class="tab-content" style="display:none;">
+        <div id="content-campaign" class="tab-content" style="display:none;">
             <div style="background:#1a2a3a;border-radius:10px;padding:1.5rem;margin-bottom:1rem;">
                 <h3 style="color:#FFD700;margin-bottom:1rem;">📧 Email Invitation Campaign</h3>
 
@@ -667,6 +667,8 @@ function showTab(name) {
     if (name === 'ip')           loadIPInfo();
     if (name === 'applications') loadApplications();
     if (name === 'invoices')     loadInvoiceLog();
+    if (name === 'campaign')    loadCampaignStats();
+    if (name === 'analytics')   loadAnalytics(7);
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
