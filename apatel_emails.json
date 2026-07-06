@@ -1,0 +1,607 @@
+[
+  {
+    "hotel": "ALBROOK INN",
+    "email": "gerencia@albrookinn.com",
+    "manager": "LARISSA BEITIA"
+  },
+  {
+    "hotel": "ALOFT PANAMA HOTEL",
+    "email": "sara.pardo@nuevoshoteles.com",
+    "manager": "SARA PARDO"
+  },
+  {
+    "hotel": "AMERICAN TRADE",
+    "email": "andrea.obediente@americantradehotel.com",
+    "manager": "ANDREA OBEDIENTE RICARDO MOLINA"
+  },
+  {
+    "hotel": "APARTOTEL BOQUETE",
+    "email": "info@aparthotel-boquete.com",
+    "manager": "HANS DIETER VOLKER PIASTA"
+  },
+  {
+    "hotel": "ARANJUEZ HOTEL & SUITES",
+    "email": "jrodriguez@hotel-aranjuez.com",
+    "manager": "JOSÉ LUIS RODRÍGUEZ TABOADA"
+  },
+  {
+    "hotel": "BACPACKERS LAS 24",
+    "email": "costainn@cwpanama.net",
+    "manager": "JOSE CARLOS CARREIRO"
+  },
+  {
+    "hotel": "BAHIA SUITES",
+    "email": "gerencia@hotelbahiasuites.com",
+    "manager": "NORIS PËREZ"
+  },
+  {
+    "hotel": "BAMBITO RESORT",
+    "email": "gerencia@hotelbambito.com",
+    "manager": "LEONARDO MARTINEZ"
+  },
+  {
+    "hotel": "BAY VIEW HOTEL & RESORT",
+    "email": "hegogolcher@gmail.com",
+    "manager": "HÉCTOR GOLCHER"
+  },
+  {
+    "hotel": "BENIDORM",
+    "email": "jcblanco@hotelbenidorm.com.pa",
+    "manager": "PATRICIA BLANCO"
+  },
+  {
+    "hotel": "BEST WESTERN EL DORADO PANAMÁ",
+    "email": "veroushkab@unesa.com",
+    "manager": "VEROUSHKA BADILLO"
+  },
+  {
+    "hotel": "BEST WESTERN PLUS PANAMA ZEN HOTEL",
+    "email": "gerencia@bwpanamazenhotel.com",
+    "manager": "ENRIQUE MORCILLO"
+  },
+  {
+    "hotel": "BOCAS DEL TORO",
+    "email": "h_bocasdeltoro@hotmail.com",
+    "manager": "DENILKA POMARES"
+  },
+  {
+    "hotel": "BOCAS DIVERS PARADISE",
+    "email": "reservations@diversparadise.com",
+    "manager": "ELENA CARON"
+  },
+  {
+    "hotel": "BOQUETE TREE TREK MONTAIN RESORT",
+    "email": "ebonilla@aventurist.com",
+    "manager": "EUDORO BONILLA"
+  },
+  {
+    "hotel": "BRISTOL",
+    "email": "msteffens@bristolpanama.com",
+    "manager": "MARCELA STEFFENS CARMEN JAIMES Gerente de Operaciones"
+  },
+  {
+    "hotel": "CABAÑAS GAVILÁN GUARDIAN",
+    "email": "aracelidelaguardia@gmail.com",
+    "manager": "ARACELI DE LA GUARDIA"
+  },
+  {
+    "hotel": "CAMPESTRE",
+    "email": "ahincapie@hotelcampestre.com",
+    "manager": "ANTONIO HINCAPIE"
+  },
+  {
+    "hotel": "CANOPY TOWER",
+    "email": "birding@canopytower.com",
+    "manager": "RAUL ARIAS"
+  },
+  {
+    "hotel": "CASA DE CAMPO",
+    "email": "hostalcasadecampo@gmail.com",
+    "manager": "ALBERTO LEMOS JORGE SANCHIZ"
+  },
+  {
+    "hotel": "CASA MAHANA LODGE & RESTAURANT",
+    "email": "ventas@toursmahana.com",
+    "manager": "KIRIA BRAVO"
+  },
+  {
+    "hotel": "CASA SIMONA",
+    "email": "generalmanager@casasimona.com",
+    "manager": "PATRICIA MEJÍA NILKA SANCHEZ"
+  },
+  {
+    "hotel": "CENTRAL HOTEL PANAMÁ",
+    "email": "torrelles@me.com",
+    "manager": "TOMÁS TORRELLES ANGELICA CUSATTI"
+  },
+  {
+    "hotel": "CIELITO SUR  B & B INN",
+    "email": "glenn@cielitosur.com",
+    "manager": "GLENN LEE"
+  },
+  {
+    "hotel": "CIUDAD DE DAVID",
+    "email": "jmtaboada@hotelciudaddedavid.com",
+    "manager": "JOSÉ MANUEL TABOADA"
+  },
+  {
+    "hotel": "COCLÉ",
+    "email": "info@hotelcocle.com",
+    "manager": "ROSARIO AYALA"
+  },
+  {
+    "hotel": "COFFEE ESTATE INN",
+    "email": "info@coffeeestateinn.com",
+    "manager": "ALEXANDRA GONZALEZ"
+  },
+  {
+    "hotel": "CORAL SUITES",
+    "email": "coralsuites@coralsuitespanama.com",
+    "manager": "OMAR NUÑEZ"
+  },
+  {
+    "hotel": "CORONADO GOLF AND COUNTRY CLUB",
+    "email": "gerencia@coronadogolfclub.com",
+    "manager": "MAGDIELYS AGUILAR Dir. de Operaciones."
+  },
+  {
+    "hotel": "COSTA INN",
+    "email": "costainn@cwpanama.net",
+    "manager": "JOSÉ CARREIRO"
+  },
+  {
+    "hotel": "COURTYARD BY MARRIOTT PANAMA MULTIPLAZA",
+    "email": "floribeth.gutierrez@R-HR.com",
+    "manager": "FLORIBETH GUTIERREZ"
+  },
+  {
+    "hotel": "CROWNE PLAZA PANAMÁ",
+    "email": "gsingh@bernhotelspanama.com",
+    "manager": "WILLIAM ALBARRÁN GAMIL SINGH Directora Comercial"
+  },
+  {
+    "hotel": "DECAMERON",
+    "email": "antonio.manfredonio@decameron.com",
+    "manager": "KATHERINE LUBO"
+  },
+  {
+    "hotel": "DIMS HOSTAL",
+    "email": "mirely@iname.com",
+    "manager": "MIRNA BATISTA"
+  },
+  {
+    "hotel": "DOS RIOS",
+    "email": "administracion@hotel2rios.com",
+    "manager": "CEILA SANTAMARIA EDUARDO VACCARO"
+  },
+  {
+    "hotel": "EL EJECUTIVO",
+    "email": "jescobar@elejecutivo.com",
+    "manager": "JHOSCELYN ESCOBAR"
+  },
+  {
+    "hotel": "EL OASIS",
+    "email": "info@oasisboquete.com",
+    "manager": "MARIANELA OLAVE"
+  },
+  {
+    "hotel": "EL OTRO LADO",
+    "email": "jlemus@elotrolado.com.pa",
+    "manager": "JESÚS LEMUS"
+  },
+  {
+    "hotel": "EXE ORIENTAL PANAMÁ",
+    "email": "ventas@exeorientalpanama.com",
+    "manager": "MARCELLA TANNUS MAYLIN RUÍZ Directora Comercial"
+  },
+  {
+    "hotel": "FELICIDAD",
+    "email": "fmojica@montesolsa.com",
+    "manager": "FELICIDAD MÓJICA"
+  },
+  {
+    "hotel": "FINCA LERIDA",
+    "email": "gerencia@fincalerida.com",
+    "manager": "XAVIER ALMENGOR"
+  },
+  {
+    "hotel": "GAMBOA RAINFOREST RESOT",
+    "email": "edgar.perez@gamboaresort.com",
+    "manager": "EDGAR PÉREZ Gerente General"
+  },
+  {
+    "hotel": "GLOBAL HOTEL PANAMÁ",
+    "email": "gm@globalhotelpanama.com",
+    "manager": "WALKIRIA RAMOS"
+  },
+  {
+    "hotel": "GRAN EVENIA BIJAO",
+    "email": "nina.guirado@eveniahotels.com",
+    "manager": "ANGELA GUIRADO"
+  },
+  {
+    "hotel": "GRAN EVENIA PANAMÁ",
+    "email": "amayasanchez@eveniahotels.com",
+    "manager": "AMAYA SANCHEZ"
+  },
+  {
+    "hotel": "GRAN HOTEL AZUERO",
+    "email": "gerente@hotelazuero.com",
+    "manager": "LUIS MELÉNDEZ CARLOS CASTILLERO"
+  },
+  {
+    "hotel": "GRAN HOTEL BAHIA",
+    "email": "lissury@ghbahia.com",
+    "manager": "LISSURY LASSO"
+  },
+  {
+    "hotel": "GRAN HOTEL NACIONAL",
+    "email": "hotelnacional1945@gmail.com",
+    "manager": "OSCAR JIMENEZ"
+  },
+  {
+    "hotel": "HACIENDA DEL MAR",
+    "email": "info@haciendadelmar.net",
+    "manager": "DIANA STAGG"
+  },
+  {
+    "hotel": "HACIENDA LOS MOLINOS BOUTIQUE HOTEL",
+    "email": "gerencia@losmolinoshotel.com",
+    "manager": "MARÍA EUGENIA VILANOVA"
+  },
+  {
+    "hotel": "HACIENDA MI MONTAÑITA  cerro Azul",
+    "email": "haciendamimontanita@gmail.com",
+    "manager": "YONLY LIAO YAU"
+  },
+  {
+    "hotel": "HAMPTON INN by HILTON DAVID",
+    "email": "carla.labasta@hilton.com",
+    "manager": "CARLA LABASTA"
+  },
+  {
+    "hotel": "HILTON GARDEN INN",
+    "email": "diego.sarro@hgipty.com",
+    "manager": "DIEGO SARRO"
+  },
+  {
+    "hotel": "HILTON PANAMA",
+    "email": "andres.korngold@hilton.com",
+    "manager": "ANDRES KORNGOLD"
+  },
+  {
+    "hotel": "HOLIDAY INN PANAMÁ DISTRITO FINANCIERO",
+    "email": "aosorio@grupovictoria.com.pa",
+    "manager": "AMADOR OSORIO"
+  },
+  {
+    "hotel": "HOSTAL DORAZ   Boquete",
+    "email": "jorgezago889@gmail.com",
+    "manager": "JORGE ELIECER GONZALEZ"
+  },
+  {
+    "hotel": "HOSTAL PARAÍSO DEL MAR",
+    "email": "paraisodelmarhotel@gmail.com",
+    "manager": "JOEL DOMÍNGUEZ"
+  },
+  {
+    "hotel": "HYATT REGENCY PANAMÁ CITY",
+    "email": "Diego.andrade@hyatt.com",
+    "manager": "DIEGO ANDRADE"
+  },
+  {
+    "hotel": "INTERCONTINENTAL MIRAMAR",
+    "email": "giovanni.cerabona@miramarpanama.com",
+    "manager": "GIOVANNI CERABONA MIGUEL NOVO Vicepresidente"
+  },
+  {
+    "hotel": "JW MARRIOTT PANAMÁ",
+    "email": "demetrio.maduro@marriott.com",
+    "manager": "DEMETRIO MADURO"
+  },
+  {
+    "hotel": "LA CRESTA INN",
+    "email": "lacrestainn@cwpanama.net",
+    "manager": "CONSTANTINO VASQUEZ"
+  },
+  {
+    "hotel": "LADERA",
+    "email": "gerencia@hotel-ladera.com",
+    "manager": "ALIS ACOSTA"
+  },
+  {
+    "hotel": "LA HACIENDA",
+    "email": "elvia-castillo11@hotmail.com",
+    "manager": "ELVIA CASTILLO"
+  },
+  {
+    "hotel": "LA PRADERA",
+    "email": "hotelapradera@gmail.com",
+    "manager": "CARLA JAIME"
+  },
+  {
+    "hotel": "LAS AMERICAS GOLDEN TOWER",
+    "email": "gerentegeneral@lasamericasgoldentower.com",
+    "manager": "JUAN GARRIDO"
+  },
+  {
+    "hotel": "LAS OLAS BEACH RESORT",
+    "email": "eventos@lasolasresort.com",
+    "manager": "MANUEL MONTENEGRO Gerente Encargado"
+  },
+  {
+    "hotel": "LAS CLEMENTINAS",
+    "email": "manager@lasclementinas.com",
+    "manager": "FABIOLA NANETT"
+  },
+  {
+    "hotel": "LE MERIDIEN PANAMÁ",
+    "email": "pilar.castro@lemeridienpanama.com",
+    "manager": "PILAR CASTRO Gerente General"
+  },
+  {
+    "hotel": "LOS BREZOS",
+    "email": "gerencia@losbrezosvolcan.com",
+    "manager": "PEDRO RODRÍGUEZ"
+  },
+  {
+    "hotel": "LOS QUETZALES ECOLODGE & SPA",
+    "email": "calfaro@losquetzales.com",
+    "manager": "CARLOS ALFARO"
+  },
+  {
+    "hotel": "LUCERO GOLF & COUNTRY CLUB",
+    "email": "hr@lucero.com.pa",
+    "manager": "CRISTELA DEL CID"
+  },
+  {
+    "hotel": "AC BY MARRIOTT PANAMA CITY",
+    "email": "katherine.solis@marriott.com",
+    "manager": "KATHERINE SOLIS"
+  },
+  {
+    "hotel": "MARINN PLACE FINANCIAL DISTRICT",
+    "email": "anabel.guillen@marinnhotels.com",
+    "manager": "ANABEL GUILLÉN"
+  },
+  {
+    "hotel": "MARRIOTT EXECUTIVE APARTMENTS -FINISTERRE",
+    "email": "katherine.solis@marriott.com",
+    "manager": "KATHERINE SOLIS"
+  },
+  {
+    "hotel": "MARRIOTT PANAMA ALBROOK MALL HOTEL & CONVENTION CENTER",
+    "email": "gsimon@verdeazulhotels.com",
+    "manager": "GLENN SIMON"
+  },
+  {
+    "hotel": "NAYARA BOCAS DEL TORO",
+    "email": "jorge@nayarabocasdeltoro.com",
+    "manager": "JIORGE MENDEZ"
+  },
+  {
+    "hotel": "NOVOTEL",
+    "email": "Vielka.FLOREZ@accor.com",
+    "manager": "VIELKA FLOREZ"
+  },
+  {
+    "hotel": "PALMA ROYALE",
+    "email": "Kelly@palmaroyale.com",
+    "manager": "KELLY DE CARO"
+  },
+  {
+    "hotel": "PANAMONTE",
+    "email": "myolanda@panamonte.com",
+    "manager": "MARIA YOLANDA TRASLAVIÑA"
+  },
+  {
+    "hotel": "PARK EDEN BED",
+    "email": "parkeden@cwpanama.net",
+    "manager": "MONICA ALEMÁN"
+  },
+  {
+    "hotel": "PLAYA BLANCA HOTEL & RESORT",
+    "email": "gerencia@playablancaresort.com",
+    "manager": "FAUSTINO GONZALEZ"
+  },
+  {
+    "hotel": "PLAZA PAITILLA INN",
+    "email": "danielsarria@hotmail.com",
+    "manager": "DANIEL SARRIA"
+  },
+  {
+    "hotel": "PRESIDENTE",
+    "email": "jarosemena@hotelpresidente.com.pa",
+    "manager": "JAVIER AROSEMENA"
+  },
+  {
+    "hotel": "PUNTA CARACOL",
+    "email": "manager@puntacaracol.com",
+    "manager": "JOSE LUIS BORDAS"
+  },
+  {
+    "hotel": "RADISSON COLON 2000",
+    "email": "fernando.castro@radissoncolon2000.com",
+    "manager": "FERNANDO CASTRO"
+  },
+  {
+    "hotel": "RADISSON PANAMA CANAL",
+    "email": "Alexandra.guevara@ghlhoteles.com",
+    "manager": "ALEJANDRA GUEVARA"
+  },
+  {
+    "hotel": "RADISSON RIVIERA PANAMÁ",
+    "email": "comercial@playacaracolrentals.com",
+    "manager": "ISABELLA GORMAZ"
+  },
+  {
+    "hotel": "RAMADA PLAZA PANAMÁ",
+    "email": "eperalta@ramadaplazapanama.com",
+    "manager": "EDWARD PERALTA"
+  },
+  {
+    "hotel": "RENAISSANCE PANAMA DITY",
+    "email": "demetrio.maduro@marriott.com",
+    "manager": "DEMETRIO MADURO"
+  },
+  {
+    "hotel": "RESIDENCE INN BY MARRIOTT",
+    "email": "Myriam.palmadelalastra@marriott.com",
+    "manager": "LIZZIE PALMA"
+  },
+  {
+    "hotel": "RESIDENCIAL PALAZZO",
+    "email": "palazzohoteladm@gmail.com",
+    "manager": "AARON CERDEIRA FERNÁNDEZ"
+  },
+  {
+    "hotel": "RESIDENCIAL LA MEJORANA",
+    "email": "hotellamejorana@hotmail.com",
+    "manager": "GISELA BARRIOS"
+  },
+  {
+    "hotel": "RIANDE URBAN HOTEL",
+    "email": "alejandrovictoriar@gmail.com",
+    "manager": "ALEJANDRO VICTORIA RIANDE"
+  },
+  {
+    "hotel": "RIANDE AEROPUERTO",
+    "email": "alfonsovictoriar@gmail.com",
+    "manager": "ALFONSO VICTORIA RIANDE"
+  },
+  {
+    "hotel": "RIU PANAMA PLAZA",
+    "email": "hotel.plazapanama@riu.com",
+    "manager": "ANXO VÁSQUEZ PABLO FERNÁNDEZ MAROTO Director Comercial"
+  },
+  {
+    "hotel": "ROYAL CITY",
+    "email": "costainn@cwpanama.net",
+    "manager": "JOSE CARLOS CARREIRO"
+  },
+  {
+    "hotel": "SAN FELIPE",
+    "email": "joel@thesanfelipehotel.com",
+    "manager": "JOEL CASTRO"
+  },
+  {
+    "hotel": "SANTA MARÍA HOTEL",
+    "email": "hrodriguez@thesantamariahotel.com",
+    "manager": "HÉCTOR RODRÍGUEZ"
+  },
+  {
+    "hotel": "SARITA",
+    "email": "fccosme@yahoo.com",
+    "manager": "FÁTIMA COSME"
+  },
+  {
+    "hotel": "SEAGULL COVE RESORT",
+    "email": "juan@seagullcoveresort.com",
+    "manager": "JUAN QUIEL"
+  },
+  {
+    "hotel": "SHERATON GRAND PANAMA",
+    "email": "sara.pardo@nuevoshoteles.com",
+    "manager": "SARA PARDO"
+  },
+  {
+    "hotel": "SOFITEL LEGEND CASCO VIEJO PANAMÁ",
+    "email": "Esteli.aguilar@sofitel.com",
+    "manager": "ESTELI AGUILAR LIZMARIE SAAD Asist. Gerencia BELEN FOLGUEIRA Dir. Operaciones"
+  },
+  {
+    "hotel": "SUITES AMBASSADOR  CERRADO",
+    "email": "ambassadorsuitesh@gmail.com",
+    "manager": "KATHYA VEGA"
+  },
+  {
+    "hotel": "SUMMIT RAINFOREST",
+    "email": "Mmirpuri@summitrainforestpanama.com",
+    "manager": "YOEL BARRIA Gte. ENCARGADO MELISHA MIRPURI"
+  },
+  {
+    "hotel": "/THE BEACH HOUSE",
+    "email": "gerencia@thebeachhousepanama.net",
+    "manager": "DALYS CAJAR"
+  },
+  {
+    "hotel": "THE BUENAVENTURA GOLF & BEACH RESORT",
+    "email": "vconcepcion@buenaventuraresort.com",
+    "manager": "VICTOR CONCEPCIÓN"
+  },
+  {
+    "hotel": "THE HAVEN BOQUETE",
+    "email": "leidis@havenboquete.com",
+    "manager": "LEIDIS PITTI"
+  },
+  {
+    "hotel": "THE RIVER SIDE INN",
+    "email": "jsenne@ssh-corp.com",
+    "manager": "JORGE SENNE Operaciones DAISY CASTILLO Mercadeo SHIRLEY LESCURE"
+  },
+  {
+    "hotel": "THE MARINA HOTEL AT SHELTER BAY (SSH)",
+    "email": "jsenne@ssh-corp.com",
+    "manager": "JORGE SENNE Operaciones ADELO CABALLERO"
+  },
+  {
+    "hotel": "THE WALDORF ASTORIA PANAMA",
+    "email": "claudia.arias@hilton.com",
+    "manager": "ANDRES KORNGOLD"
+  },
+  {
+    "hotel": "TRAVELERS HOSTAL",
+    "email": "marlaclv@icloud.com",
+    "manager": "MARLA LIMA"
+  },
+  {
+    "hotel": "TRYP PANAMA CENTRO",
+    "email": "jcalvo@tryppanamacentro.com",
+    "manager": "JOSE CALVO"
+  },
+  {
+    "hotel": "VALLE ESCONDIDO",
+    "email": "Gerencia@valleescondidoboquete.com",
+    "manager": "KATHERINE MORALES NAYSLETH MIRANDA"
+  },
+  {
+    "hotel": "VIA ESPAÑA",
+    "email": "hviaespana@cwpanama.net",
+    "manager": "JOSE CARLOS CARREIRO"
+  },
+  {
+    "hotel": "VICTORIA HOTEL & SUITES (CLARION)",
+    "email": "ptejada@grupovictoria.com.pa",
+    "manager": "PASTOR TEJADA"
+  },
+  {
+    "hotel": "VILLA DEL MAR",
+    "email": "krinachory@hotmail.com",
+    "manager": "KARINA CERDEIRA"
+  },
+  {
+    "hotel": "VILLA ESPERANZA",
+    "email": "jacintochang@hotmail.com",
+    "manager": "JACINTO CHANG"
+  },
+  {
+    "hotel": "VILLA MARINA",
+    "email": "crivas@villamarina.com.pa",
+    "manager": "CLAUDIA RIVAS"
+  },
+  {
+    "hotel": "VILLA TAVIDA",
+    "email": "villatavida@gmail.com",
+    "manager": "ALFONSO JAEN"
+  },
+  {
+    "hotel": "VISTA MAR",
+    "email": "hotelvistamar@cwpanama.net",
+    "manager": "LISSETTE ARANA"
+  },
+  {
+    "hotel": "W PANAMÁ HOTEL",
+    "email": "Andre.aparicio@whotels.com",
+    "manager": "ANDRÉ APARICIO"
+  }
+]
