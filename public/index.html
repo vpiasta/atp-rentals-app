@@ -150,7 +150,7 @@
         .up-btn.visible { display: flex; }
 
         @media (max-width: 768px) {
-            
+
             .filters { flex-direction: column; }
             .header-inner { gap: 0.8rem; }
             .header-logo { width: 54px; height: 54px; }
@@ -349,6 +349,7 @@ async function showDefaultView() {
                             ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
                             ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
                             ${active             ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
+                            ${rental.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
                             ${rental.registry_source === 'mici'
                                 ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>`
                                 : `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>`}
@@ -493,6 +494,7 @@ function displayResults(rentals) {
                 ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
                 ${active             ? `<span class="result-badge badge-member">⭐ Member</span>` : ''}
+                ${rental.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
                 ${active && rental.registry_source === 'mici' ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>` : (rental.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
             </div>
             <div class="card-body">
