@@ -2537,12 +2537,20 @@ app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => 
 // ── GET /api/admin/invitation-stats ──────────────────────────────────────────
 app.get('/api/admin/invitation-stats', requireAdmin, async (req, res) => {
     try {
-        const { data, error } = await supabase
-            .from('listings')
-            .select('id, email, apatel_member, invitation_status, invitation_sent_at, is_member')
-            .eq('is_member', false) .limit(5000);
-
-        if (error) throw new Error(error.message);
+      let data = [];
+      let from = 0;
+      const BATCH = 1000;
+      while (true) {
+          const { data: batch, error } = await supabase
+              .from('listings')
+              .select('id, email, apatel_member, invitation_status, invitation_sent_at, is_member')
+              .eq('is_member', false)
+              .range(from, from + BATCH - 1);
+          if (error) throw new Error(error.message);
+          data = data.concat(batch);
+          if (batch.length < BATCH) break;
+          from += BATCH;
+      }
 
         const stats = {
             total_non_members: data.length,
