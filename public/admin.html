@@ -662,8 +662,9 @@ function showTab(name) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     const btn = document.getElementById('tab-'+name);
-    if (btn) btn.classList.add('active');
-    document.getElementById('content-'+name).classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+    const contentEl = document.getElementById('content-'+name);
+    if (contentEl) contentEl.style.display = 'block';
     if (name === 'log')          loadLog();
     if (name === 'ip')           loadIPInfo();
     if (name === 'applications') loadApplications();
