@@ -459,7 +459,7 @@ function displayResults(rentals) {
                 <span class="member-thumb-label">${thumb ? 'Ver Más' : 'Acceso'}</span>
                </a>` : '';
         card.innerHTML = `
-            <h3 class="result-title">${rental.name}</h3>
+            <h3 class="result-title">${rental.name} <span style="font-size:0.65rem;color:#bbb;font-weight:400;vertical-align:middle;">#${rental.id||''}</span></h3>
             <div class="result-badges">
                 ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
                 ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
