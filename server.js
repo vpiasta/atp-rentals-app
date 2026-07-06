@@ -2558,6 +2558,211 @@ app.get('/api/admin/invitation-stats', requireAdmin, async (req, res) => {
     }
 });
 
+// ── POST /api/track ───────────────────────────────────────────────────────────
+// Lightweight event tracking — no auth required, rate limited by IP
+const trackRateLimit = new Map(); // ip -> {count, reset}
+
+app.post('/api/track', async (req, res) => {
+    const { event_type, listing_id } = req.body;
+    if (!event_type) return res.status(400).json({ error: 'Missing event_type' });
+
+    // Rate limit: max 60 events per IP per minute
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
+    const now = Date.now();
+    const rl  = trackRateLimit.get(ip) || { count: 0, reset: now + 60000 };
+    if (now > rl.reset) { rl.count = 0; rl.reset = now + 60000; }
+    rl.count++;
+    trackRateLimit.set(ip, rl);
+    if (rl.count > 60) return res.status(429).json({ error: 'Rate limited' });
+
+    // Clean up old entries periodically
+    if (trackRateLimit.size > 10000) {
+        for (const [k, v] of trackRateLimit) {
+            if (now > v.reset) trackRateLimit.delete(k);
+        }
+    }
+
+    try {
+        await supabase.from('listing_events').insert({
+            event_type,
+            listing_id: listing_id ? parseInt(listing_id) : null,
+            created_at: new Date().toISOString()
+        });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+// ── GET /api/admin/analytics ──────────────────────────────────────────────────
+app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
+    const days = parseInt(req.query.days) || 7;
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+    try {
+        // Total counts by event type
+        const { data: totals } = await supabaseAdmin
+            .from('listing_events')
+            .select('event_type')
+            .gte('created_at', since);
+
+        const counts = {};
+        (totals || []).forEach(e => {
+            counts[e.event_type] = (counts[e.event_type] || 0) + 1;
+        });
+
+        // Top listings by views
+        const { data: views } = await supabaseAdmin
+            .from('listing_events')
+            .select('listing_id')
+            .eq('event_type', 'listing_view')
+            .gte('created_at', since)
+            .not('listing_id', 'is', null);
+
+        const listingCounts = {};
+        (views || []).forEach(e => {
+            listingCounts[e.listing_id] = (listingCounts[e.listing_id] || 0) + 1;
+        });
+
+        const topListings = Object.entries(listingCounts)
+            .sort(([,a],[,b]) => b - a)
+            .slice(0, 20)
+            .map(([id, count]) => ({ listing_id: parseInt(id), views: count }));
+
+        // Enrich with listing names
+        if (topListings.length > 0) {
+            const ids = topListings.map(l => l.listing_id);
+            const { data: names } = await supabase
+                .from('listings')
+                .select('id, name, province, slug')
+                .in('id', ids);
+            const nameMap = {};
+            (names || []).forEach(l => { nameMap[l.id] = l; });
+            topListings.forEach(l => {
+                const info = nameMap[l.listing_id] || {};
+                l.name     = info.name || '—';
+                l.province = info.province || '';
+                l.slug     = info.slug || '';
+            });
+        }
+
+        res.json({ days, since, counts, top_listings: topListings });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+// ── GET /api/admin/analytics/listing/:id ─────────────────────────────────────
+app.get('/api/admin/analytics/listing/:id', requireAdmin, async (req, res) => {
+    const listingId = parseInt(req.params.id);
+    const days      = parseInt(req.query.days) || 30;
+    const since     = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+    try {
+        const { data: events } = await supabaseAdmin
+            .from('listing_events')
+            .select('event_type, created_at')
+            .eq('listing_id', listingId)
+            .gte('created_at', since)
+            .order('created_at', { ascending: false });
+
+        const counts = {};
+        (events || []).forEach(e => {
+            counts[e.event_type] = (counts[e.event_type] || 0) + 1;
+        });
+
+        // Daily breakdown
+        const daily = {};
+        (events || []).forEach(e => {
+            const day = e.created_at.split('T')[0];
+            if (!daily[day]) daily[day] = {};
+            daily[day][e.event_type] = (daily[day][e.event_type] || 0) + 1;
+        });
+
+        res.json({ listing_id: listingId, days, counts, daily });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+// ── GET /api/admin/send-weekly-report ─────────────────────────────────────────
+app.get('/api/admin/send-weekly-report', async (req, res) => {
+    const { secret } = req.query;
+    if (secret !== process.env.ADMIN_SECRET) return res.status(403).send('Denied');
+
+    try {
+        const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+        const { data: events } = await supabaseAdmin
+            .from('listing_events')
+            .select('event_type, listing_id, created_at')
+            .gte('created_at', since);
+
+        const counts = {};
+        const listingCounts = {};
+        (events || []).forEach(e => {
+            counts[e.event_type] = (counts[e.event_type] || 0) + 1;
+            if (e.listing_id) {
+                listingCounts[e.listing_id] = (listingCounts[e.listing_id] || 0) + 1;
+            }
+        });
+
+        const topListings = Object.entries(listingCounts)
+            .sort(([,a],[,b]) => b - a)
+            .slice(0, 10);
+
+        // Get listing names
+        if (topListings.length > 0) {
+            const ids = topListings.map(([id]) => parseInt(id));
+            const { data: names } = await supabase.from('listings').select('id, name').in('id', ids);
+            const nameMap = {};
+            (names || []).forEach(l => { nameMap[l.id] = l.name; });
+
+            const rows = topListings.map(([id, count]) =>
+                `<tr><td style="padding:6px 12px;">${nameMap[id] || id}</td><td style="padding:6px 12px;text-align:center;"><strong>${count}</strong></td></tr>`
+            ).join('');
+
+            const message = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;">📊 Weekly Analytics Report</h1>
+    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;">Trusted Panama Stays · Last 7 days</p>
+</div>
+<h3 style="color:#005ca9;">Summary</h3>
+<table style="border-collapse:collapse;width:100%;margin-bottom:1.5rem;">
+    <tr style="background:#f8f9fa;"><td style="padding:6px 12px;">Site visits</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.site_visit || 0}</strong></td></tr>
+    <tr><td style="padding:6px 12px;">Listing views</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.listing_view || 0}</strong></td></tr>
+    <tr style="background:#f8f9fa;"><td style="padding:6px 12px;">WhatsApp clicks</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.whatsapp_click || 0}</strong></td></tr>
+    <tr><td style="padding:6px 12px;">Email clicks</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.email_click || 0}</strong></td></tr>
+    <tr style="background:#f8f9fa;"><td style="padding:6px 12px;">Website clicks</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.website_click || 0}</strong></td></tr>
+    <tr><td style="padding:6px 12px;">Booking clicks</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.booking_click || 0}</strong></td></tr>
+    <tr style="background:#f8f9fa;"><td style="padding:6px 12px;">Photo browses</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.photo_browse || 0}</strong></td></tr>
+</table>
+<h3 style="color:#005ca9;">Top Listings by Activity</h3>
+<table style="border-collapse:collapse;width:100%;">
+    <tr style="background:#005ca9;color:white;"><th style="padding:6px 12px;text-align:left;">Listing</th><th style="padding:6px 12px;">Events</th></tr>
+    ${rows}
+</table>
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA</p>
+</body></html>`;
+
+            const notifyPath = require('path').join(__dirname, 'public', 'notify.php');
+            await execFileAsync('php', [notifyPath, 'Weekly Analytics Report — Trusted Panama Stays', message, 'info@trustedpanamastays.com'], { timeout: 15000 });
+        }
+
+        res.json({ success: true, events: events?.length || 0, counts });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 //========== temporary endpoints ============================
 

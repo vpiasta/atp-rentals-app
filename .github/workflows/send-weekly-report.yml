@@ -1,0 +1,14 @@
+name: Send Weekly Analytics Report
+
+on:
+  schedule:
+    - cron: '0 13 * * 1'   # Every Monday 8am Panama time (UTC-5)
+  workflow_dispatch:         # Allow manual trigger
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send weekly analytics report
+        run: |
+          curl -s "https://trustedpanamastays.com/api/admin/send-weekly-report?secret=${{ secrets.ADMIN_SECRET }}"

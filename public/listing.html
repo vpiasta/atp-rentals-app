@@ -375,7 +375,7 @@ langLink.addEventListener('click', e => {
     e.preventDefault();
     const newLang = isEs ? 'en' : 'es';
     const param = slugParam ? `slug=${slugParam}` : `id=${listingId}`;
-    window.location.href = `listing.html?${param}&lang=${newLang}`;
+    window.location.href = `listing.php?${param}&lang=${newLang}`;
 });
 
 function restoreSession(id) {
