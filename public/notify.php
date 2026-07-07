@@ -47,13 +47,13 @@ try {
     $mail->SMTPAuth   = true;
     $mail->Username   = env('SMTP_TPS_USERNAME');
     $mail->Password   = env('SMTP_TPS_PASSWORD');
-    $mail->SMTPSecure = 'ssl';
+    $mail->SMTPSecure = 'tls';
     $mail->Port       = env('SMTP_TPS_PORT');
     $mail->SMTPDebug  = 0;
 
     $mail->setFrom('info@trustedpanamastays.com', 'Trusted Panama Stays');
     $mail->addAddress($to);
-    $mail->addCC('maria.de.piasta@gmail.com');
+    // $mail->addCC('info@trustedpanamastays.com');
     $mail->Subject = $subject;
     $mail->Body    = $message;
     $mail->isHTML(true);
