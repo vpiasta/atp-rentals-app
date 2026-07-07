@@ -2925,6 +2925,132 @@ app.get('/api/admin/apatel-campaign-stats', requireAdmin, async (req, res) => {
     }
 });
 
+// ── POST /api/admin/send-followup-test ───────────────────────────────────────
+// Send test email to info@ only
+app.post('/api/admin/send-followup-test', requireAdmin, async (req, res) => {
+    const { subject, body } = req.body;
+    if (!subject || !body) return res.status(400).json({ error: 'Missing subject or body' });
+
+    const fullHtml = buildFollowupHtml('HOTEL EJEMPLO', 'Juan García', body);
+    const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    try {
+        await execFileAsync('php', [
+            notifyPath,
+            '[TEST] ' + subject,
+            fullHtml,
+            'info@trustedpanamastays.com'
+        ], { timeout: 15000 });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+// ── POST /api/admin/send-followup-all ────────────────────────────────────────
+// Send follow-up to all APATEL members
+app.post('/api/admin/send-followup-all', requireAdmin, async (req, res) => {
+    const { subject, body } = req.body;
+    if (!subject || !body) return res.status(400).json({ error: 'Missing subject or body' });
+
+    const APATEL_ROSTER = require('./apatel_emails.json');
+    const notifyPath    = path.join(__dirname, 'public', 'notify.php');
+    let sent = 0, errors = 0;
+
+    // Send in background, return immediately
+    res.json({ success: true, message: 'Campaign started', total: APATEL_ROSTER.length });
+
+    for (const member of APATEL_ROSTER) {
+        if (!member.email || !member.email.includes('@')) continue;
+        try {
+            const html = buildFollowupHtml(member.hotel, member.manager, body);
+            await execFileAsync('php', [notifyPath, subject, html, member.email], { timeout: 15000 });
+            await logEvent('followup_sent', { hotel: member.hotel, email: member.email });
+            sent++;
+            await new Promise(r => setTimeout(r, 600));
+        } catch (err) {
+            errors++;
+            console.error(`Follow-up failed for ${member.hotel}:`, err.message);
+        }
+    }
+
+    // Send completion report to admin
+    const report = `<p>Follow-up campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${APATEL_ROSTER.length} total.</p>`;
+    execFileAsync('php', [notifyPath, 'Follow-up campaign complete — Trusted Panama Stays', report, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(console.error);
+    console.log(`Follow-up done: ${sent} sent, ${errors} errors`);
+});
+
+
+// ── Helper: wrap body content in full email template ─────────────────────────
+function buildFollowupHtml(hotel, manager, bodyContent) {
+    const firstName = (manager || '').split(' ')[0];
+    const greeting  = firstName && firstName.length > 2 ? firstName : 'propietario/a';
+    return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
+    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
+</div>
+<p>Estimado/a <strong>${greeting}</strong>,</p>
+${bodyContent}
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">
+    Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
+    <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a><br>
+    Para cancelar estas comunicaciones responda con "No gracias".
+</p>
+</body></html>`;
+}
+
+const TEMPLATES_DIR = path.join(__dirname, 'public', 'templates');
+
+// Ensure templates directory exists
+const fs = require('fs');
+if (!fs.existsSync(TEMPLATES_DIR)) {
+    fs.mkdirSync(TEMPLATES_DIR, { recursive: true });
+}
+
+// ── GET /api/admin/templates ──────────────────────────────────────────────────
+app.get('/api/admin/templates', requireAdmin, (req, res) => {
+    try {
+        const files = fs.readdirSync(TEMPLATES_DIR)
+            .filter(f => f.endsWith('.html'))
+            .sort();
+        res.json({ templates: files });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── GET /api/admin/templates/:name ───────────────────────────────────────────
+app.get('/api/admin/templates/:name', requireAdmin, (req, res) => {
+    try {
+        const name = req.params.name.replace(/[^a-z0-9_.-]/gi, '_');
+        const filePath = path.join(TEMPLATES_DIR, name);
+        if (!filePath.startsWith(TEMPLATES_DIR)) return res.status(403).json({ error: 'Invalid path' });
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Template not found' });
+        const content = fs.readFileSync(filePath, 'utf8');
+        res.json({ name, content });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── POST /api/admin/templates/:name ──────────────────────────────────────────
+app.post('/api/admin/templates/:name', requireAdmin, (req, res) => {
+    try {
+        const name = req.params.name.replace(/[^a-z0-9_.-]/gi, '_');
+        if (!name.endsWith('.html')) return res.status(400).json({ error: 'Must be .html file' });
+        const filePath = path.join(TEMPLATES_DIR, name);
+        if (!filePath.startsWith(TEMPLATES_DIR)) return res.status(403).json({ error: 'Invalid path' });
+        const { content } = req.body;
+        if (!content) return res.status(400).json({ error: 'Missing content' });
+        fs.writeFileSync(filePath, content, 'utf8');
+        res.json({ success: true, name });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 //========== temporary endpoints ============================
 
 //==========================================================
