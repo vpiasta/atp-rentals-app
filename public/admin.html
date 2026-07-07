@@ -235,14 +235,12 @@
             <div><h1>Admin Panel</h1><p id="session-info">Session active</p></div>
         </div>
         <div class="header-right">
-          <button class="hbtn" onclick="showTab('members')">👥 Members</button>
-          <button class="hbtn" onclick="showTab('applications')">📨 Applications</button>
-          <button class="hbtn" onclick="showTab('invoices')">🧾 Invoices</button>
-          <button class="hbtn" onclick="showTab('log')">📋 Log</button>
-          <button class="hbtn" onclick="showTab('campaign')">📧 Campaign</button>
-          <button class="hbtn" onclick="showTab('analytics')">📊 Analytics</button>
-          <button class="hbtn" onclick="showTab('ip')">🌐 IP</button>
-          <button class="hbtn danger" onclick="doLogout()">Log Out</button>
+            <button class="hbtn" onclick="showTab('members')">👥 Members</button>
+            <button class="hbtn" onclick="showTab('applications')">📨 Applications</button>
+            <button class="hbtn" onclick="showTab('invoices')">🧾 Invoices</button>
+            <button class="hbtn" onclick="showTab('log')">📋 Log</button>
+            <button class="hbtn" onclick="showTab('ip')">🌐 IP</button>
+            <button class="hbtn danger" onclick="doLogout()">Log Out</button>
         </div>
     </header>
 
@@ -478,7 +476,7 @@
         </div>
 
         <!-- Analytics tab -->
-        <div id="content-analytics" class="tab-content" style="display:none;">
+        <div id="tab-analytics" class="tab-content" style="display:none;">
             <div style="background:#1a2a3a;border-radius:10px;padding:1.5rem;margin-bottom:1rem;">
                 <h3 style="color:#FFD700;margin-bottom:1rem;">📊 Analytics</h3>
                 <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;">
@@ -494,7 +492,7 @@
         </div>
 
         <!-- Campaign tab -->
-        <div id="content-campaign" class="tab-content" style="display:none;">
+        <div id="tab-campaign" class="tab-content" style="display:none;">
             <div style="background:#1a2a3a;border-radius:10px;padding:1.5rem;margin-bottom:1rem;">
                 <h3 style="color:#FFD700;margin-bottom:1rem;">📧 Email Invitation Campaign</h3>
 
@@ -555,6 +553,68 @@
                 </div>
 
                 <div id="campaign-result" style="margin-top:1rem;padding:1rem;background:#2c3e50;border-radius:8px;display:none;"></div>
+
+                    <div style="background:#1a1a2a;border:1px solid #3a3a6b;border-radius:8px;padding:1rem;margin-top:1rem;">
+                        <h4 style="color:#d4adf5;margin-bottom:1rem;">📝 Compose Follow-up Email</h4>
+
+                        <!-- Subject -->
+                        <div style="margin-bottom:0.8rem;">
+                            <label style="display:block;font-size:0.75rem;color:#aaa;margin-bottom:4px;">SUBJECT</label>
+                            <input id="followup-subject" type="text" value="Información adicional — Trusted Panama Stays"
+                                style="width:100%;padding:8px;background:#2c3e50;border:1px solid #555;border-radius:6px;color:white;font-size:0.88rem;box-sizing:border-box;">
+                        </div>
+
+                        <!-- Toolbar -->
+                        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px;">
+                            <button onclick="fmt('bold')"          title="Bold"          style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;font-weight:700;">B</button>
+                            <button onclick="fmt('italic')"        title="Italic"        style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;font-style:italic;">I</button>
+                            <button onclick="fmt('underline')"     title="Underline"     style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;text-decoration:underline;">U</button>
+                            <button onclick="fmtLink()"            title="Insert link"   style="padding:4px 8px;background:#2c3e50;color:#7ec8e3;border:1px solid #555;border-radius:4px;cursor:pointer;">🔗</button>
+                            <button onclick="fmt('insertUnorderedList')" title="Bullet list" style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">• List</button>
+                            <button onclick="fmtBlock('h3')"       title="Heading"       style="padding:4px 8px;background:#2c3e50;color:#FFD700;border:1px solid #555;border-radius:4px;cursor:pointer;">H3</button>
+                            <button onclick="fmtBlock('p')"        title="Paragraph"     style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">¶</button>
+                            <button onclick="insertHighlight()"    title="Yellow box"    style="padding:4px 8px;background:#7a5c00;color:#FFD700;border:1px solid #555;border-radius:4px;cursor:pointer;">⚠ Box</button>
+                            <button onclick="insertCTA()"          title="Call to action button" style="padding:4px 8px;background:#005ca9;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">→ CTA</button>
+                        </div>
+
+                        <!-- Rich text editor -->
+                        <div id="followup-editor"
+                            contenteditable="true"
+                            style="min-height:300px;background:white;color:#111;padding:1rem;border:2px solid #555;border-radius:6px;font-family:Arial,sans-serif;font-size:14px;line-height:1.7;overflow-y:auto;max-height:500px;"
+                            oninput="updatePreview()">
+                        </div>
+
+                        <!-- Char count -->
+                        <div style="font-size:0.72rem;color:#888;text-align:right;margin-top:2px;" id="followup-charcount">0 characters</div>
+
+                        <!-- Tabs: Edit / Preview / HTML -->
+                        <div style="display:flex;gap:6px;margin-top:1rem;margin-bottom:0.5rem;">
+                            <button onclick="showEditorTab('preview')" style="padding:5px 12px;background:#005ca9;color:white;border:none;border-radius:5px;cursor:pointer;font-size:0.82rem;">👁 Preview email</button>
+                            <button onclick="showEditorTab('html')"    style="padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">‹/› HTML</button>
+                            <button onclick="showEditorTab('edit')"    style="padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">✏️ Edit</button>
+                            <button onclick="loadFollowupTemplate()"   style="padding:5px 12px;background:#2c3e50;color:#adf5ad;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">📄 Load template</button>
+                        </div>
+
+                        <!-- Preview panel -->
+                        <div id="followup-preview" style="display:none;border:2px solid #005ca9;border-radius:8px;overflow:hidden;">
+                            <div style="background:#005ca9;color:white;padding:6px 12px;font-size:0.78rem;">📧 Email preview — as recipients will see it</div>
+                            <iframe id="followup-iframe" style="width:100%;height:400px;border:none;background:white;"></iframe>
+                        </div>
+
+                        <!-- HTML panel -->
+                        <div id="followup-html-panel" style="display:none;">
+                            <textarea id="followup-html-source" rows="10"
+                                style="width:100%;padding:8px;background:#111;color:#adf5ad;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.78rem;box-sizing:border-box;"
+                                oninput="syncFromHTML()"></textarea>
+                        </div>
+
+                        <!-- Send controls -->
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:1rem;align-items:center;">
+                            <button onclick="sendTestFollowup()" class="action-btn edit">📨 Send test to info@</button>
+                            <button onclick="sendFollowupToAll()" class="action-btn" style="background:#1a5c1a;">📨 Send to all APATEL (121)</button>
+                        </div>
+                        <div id="followup-result" style="margin-top:0.8rem;font-size:0.85rem;"></div>
+                    </div>
             </div>
         </div>
 
@@ -661,16 +721,12 @@ function showAdminScreen() {
 function showTab(name) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    const btn = document.getElementById('tab-'+name);
-    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
-    const contentEl = document.getElementById('content-'+name);
-    if (contentEl) contentEl.style.display = 'block';
+    document.getElementById('tab-'+name).classList.add('active');
+    document.getElementById('content-'+name).classList.add('active');
     if (name === 'log')          loadLog();
     if (name === 'ip')           loadIPInfo();
     if (name === 'applications') loadApplications();
     if (name === 'invoices')     loadInvoiceLog();
-    if (name === 'campaign')    loadCampaignStats();
-    if (name === 'analytics')   loadAnalytics(7);
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -1339,100 +1395,6 @@ if (adminToken) {
 } else {
     showLogin();
 }
-
-async function loadCampaignStats() {
-    const el = document.getElementById('campaign-stats');
-    if (!el) return;
-    try {
-        const res  = await adminFetch('/api/admin/invitation-stats');
-        const data = await res.json();
-        document.getElementById('cs-total').textContent   = data.total_non_members || 0;
-        document.getElementById('cs-email').textContent   = data.has_email || 0;
-        document.getElementById('cs-noemail').textContent = data.no_email || 0;
-        document.getElementById('cs-apatel').textContent  = data.apatel_email || 0;
-        document.getElementById('cs-invited').textContent = data.invited || 0;
-    } catch(e) { console.error('Campaign stats error:', e); }
-}
-
-async function loadAnalytics(days) {
-    const el = document.getElementById('analytics-content');
-    if (!el) return;
-    el.innerHTML = '<span style="color:#aaa;">⏳ Loading...</span>';
-    try {
-        const res  = await adminFetch('/api/admin/analytics?days=' + days);
-        const data = await res.json();
-        const c    = data.counts || {};
-        el.innerHTML = `<h4 style="color:#FFD700;margin-bottom:0.8rem;">Last ${days} days</h4>
-            <table style="width:100%;border-collapse:collapse;margin-bottom:1.5rem;">
-                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Site visits</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.site_visit||0}</strong></td></tr>
-                <tr><td style="padding:6px 10px;">Listing views</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.listing_view||0}</strong></td></tr>
-                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">WhatsApp clicks</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.whatsapp_click||0}</strong></td></tr>
-                <tr><td style="padding:6px 10px;">Email clicks</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.email_click||0}</strong></td></tr>
-                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Website clicks</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.website_click||0}</strong></td></tr>
-                <tr><td style="padding:6px 10px;">Photo browses</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.photo_browse||0}</strong></td></tr>
-            </table>`;
-    } catch(err) { el.innerHTML = '<span style="color:#ff7070;">Error: ' + err.message + '</span>'; }
-}
-
-async function dryRunCampaign(filter) {
-    const resultEl = document.getElementById('campaign-result');
-    resultEl.style.display = 'block';
-    resultEl.innerHTML = '<span style="color:#aaa;">⏳ Counting...</span>';
-    const res  = await adminFetch('/api/admin/send-invitation-emails', {method:'POST',body:JSON.stringify({filter,dry_run:true})});
-    const data = await res.json();
-    resultEl.innerHTML = `<span style="color:#adf5ad;">Would send to <strong>${data.count}</strong> listings.</span>`;
-}
-
-async function runCampaign(filter) {
-    const resultEl = document.getElementById('campaign-result');
-    if (!confirm('Send invitation emails?')) return;
-    resultEl.style.display = 'block';
-    resultEl.innerHTML = '<span style="color:#FFD700;">⏳ Sending...</span>';
-    const res  = await adminFetch('/api/admin/send-invitation-emails', {method:'POST',body:JSON.stringify({filter,dry_run:false})});
-    const data = await res.json();
-    resultEl.innerHTML = `<span style="color:#adf5ad;">✅ Done: <strong>${data.sent}</strong> sent, ${data.errors} errors.</span>`;
-}
-
-async function dryRunApatel() {
-    const resultEl = document.getElementById('campaign-result');
-    resultEl.style.display = 'block';
-    resultEl.innerHTML = '<span style="color:#aaa;">⏳ Previewing...</span>';
-    const res  = await adminFetch('/api/admin/send-apatel-campaign', {method:'POST',body:JSON.stringify({dry_run:true})});
-    const data = await res.json();
-    resultEl.innerHTML = `<span style="color:#adf5ad;">Would send to <strong>${data.sent}</strong> APATEL members.</span>`;
-}
-
-async function runApatelCampaign() {
-    const resultEl = document.getElementById('campaign-result');
-    if (!confirm('Send to all 121 APATEL members?')) return;
-    resultEl.style.display = 'block';
-    resultEl.innerHTML = '<span style="color:#FFD700;">⏳ Sending APATEL campaign...</span>';
-    const res  = await adminFetch('/api/admin/send-apatel-campaign', {method:'POST',body:JSON.stringify({dry_run:false})});
-    const data = await res.json();
-    resultEl.innerHTML = `<span style="color:#adf5ad;">✅ Done: <strong>${data.sent}</strong> sent.</span>`;
-}
-
-async function downloadNoEmailList() {
-    const res2 = await adminFetch('/api/admin/members');
-    const all  = await res2.json();
-    const noEmail = all.filter(m => !m.is_member && (!m.email || !m.email.includes('@')));
-    const csv = 'ID,Name,Province,Phone,APATEL\n' +
-        noEmail.map(m => `${m.id},"${m.name}","${m.province||''}","${m.phone||''}",${m.apatel_member?'Yes':'No'}`).join('\n');
-    const blob = new Blob([csv],{type:'text/csv'});
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href=url; a.download='no_email_listings.csv'; a.click();
-}
-
-async function loadApatelStats() {
-    try {
-        const res  = await adminFetch('/api/admin/apatel-campaign-stats');
-        const data = await res.json();
-        const el   = document.getElementById('apatel-campaign-stats');
-        if (el) el.innerHTML = `Sent: <strong>${data.sent}</strong> / ${data.total} · Remaining: <strong>${data.remaining}</strong>`;
-    } catch(e) {}
-}
-
 </script>
 </body>
 </html>
