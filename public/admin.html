@@ -239,6 +239,8 @@
             <button class="hbtn" onclick="showTab('applications')">📨 Applications</button>
             <button class="hbtn" onclick="showTab('invoices')">🧾 Invoices</button>
             <button class="hbtn" onclick="showTab('log')">📋 Log</button>
+            <button class="hbtn" onclick="showTab('campaign')">📧 Campaign</button>
+            <button class="hbtn" onclick="showTab('analytics')">📊 Analytics</button>
             <button class="hbtn" onclick="showTab('ip')">🌐 IP</button>
             <button class="hbtn danger" onclick="doLogout()">Log Out</button>
         </div>
@@ -346,6 +348,10 @@
                     <label>Slug (URL identifier)</label>
                     <input type="text" id="edit-slug" placeholder="e.g. aparthotel-boquete">
                 </div>
+                <div class="field-group">
+                    <label>APATEL Member</label>
+                    <label style="display:flex;align-items:center;gap:8px;padding:8px 0;"><input type="checkbox" id="edit-apatel" style="width:18px;height:18px;"><span style="font-size:0.85rem;">Mark as APATEL member</span></label>
+                </div>
                 <div class="field-group" style="grid-column:1/-1;">
                     <label>Notes (internal)</label>
                     <textarea id="edit-notes" placeholder="Internal notes..."></textarea>
@@ -399,6 +405,8 @@
             <button class="tab"        onclick="showTab('applications')" id="tab-applications">📨 Applications</button>
             <button class="tab"        onclick="showTab('invoices')"     id="tab-invoices">🧾 Invoices</button>
             <button class="tab"        onclick="showTab('log')"          id="tab-log">📋 Event Log</button>
+            <button class="tab"        onclick="showTab('campaign')"     id="tab-campaign">📧 Campaign</button>
+            <button class="tab"        onclick="showTab('analytics')"    id="tab-analytics">📊 Analytics</button>
             <button class="tab"        onclick="showTab('ip')"           id="tab-ip">🌐 IP</button>
         </div>
 
@@ -476,7 +484,7 @@
         </div>
 
         <!-- Analytics tab -->
-        <div id="tab-analytics" class="tab-content" style="display:none;">
+        <div id="content-analytics" class="tab-content" style="display:none;">
             <div style="background:#1a2a3a;border-radius:10px;padding:1.5rem;margin-bottom:1rem;">
                 <h3 style="color:#FFD700;margin-bottom:1rem;">📊 Analytics</h3>
                 <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;">
@@ -492,7 +500,7 @@
         </div>
 
         <!-- Campaign tab -->
-        <div id="tab-campaign" class="tab-content" style="display:none;">
+        <div id="content-campaign" class="tab-content" style="display:none;">
             <div style="background:#1a2a3a;border-radius:10px;padding:1.5rem;margin-bottom:1rem;">
                 <h3 style="color:#FFD700;margin-bottom:1rem;">📧 Email Invitation Campaign</h3>
 
@@ -524,16 +532,16 @@
                         <h4 style="color:#adf5ad;margin-bottom:0.5rem;">📨 All non-members with email</h4>
                         <p style="font-size:0.82rem;color:#aaa;margin-bottom:0.8rem;">Standard invitation email to all ATP-registered non-members who have an email address and haven't been invited yet.</p>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                            <button onclick="dryRunCampaign('all')" class="action-btn edit">🔍 Preview count</button>
-                            <button onclick="runCampaign('all')" class="action-btn" style="background:#005ca9;">📨 Send emails</button>
+                            <button onclick="dryRunCampaign('all')" class="action-btn edit">🔍 Count recipients</button>
+                            <button onclick="runCampaign('all')" class="action-btn" style="background:#005ca9;">📨 Send campaign</button>
                         </div>
                     </div>
                     <div style="background:#2c3e50;border-radius:8px;padding:1rem;">
                         <h4 style="color:#7ec8e3;margin-bottom:0.5rem;">📨 APATEL members only</h4>
                         <p style="font-size:0.82rem;color:#aaa;margin-bottom:0.8rem;">Personalized email mentioning APATEL, sent only to listings marked as APATEL members.</p>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                            <button onclick="dryRunCampaign('apatel')" class="action-btn edit">🔍 Preview count</button>
-                            <button onclick="runCampaign('apatel')" class="action-btn" style="background:#1a3a6b;">📨 Send APATEL emails</button>
+                            <button onclick="dryRunCampaign('apatel')" class="action-btn edit">🔍 Count recipients</button>
+                            <button onclick="runCampaign('apatel')" class="action-btn" style="background:#1a3a6b;">📨 Send campaign</button>
                         </div>
                     </div>
                     <div style="background:#2c3e50;border-radius:8px;padding:1rem;">
@@ -588,11 +596,22 @@
                         <div style="font-size:0.72rem;color:#888;text-align:right;margin-top:2px;" id="followup-charcount">0 characters</div>
 
                         <!-- Tabs: Edit / Preview / HTML -->
-                        <div style="display:flex;gap:6px;margin-top:1rem;margin-bottom:0.5rem;">
+                        <!-- Template manager -->
+                        <div style="background:#111;border-radius:6px;padding:0.7rem;margin-bottom:0.5rem;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                            <label style="font-size:0.75rem;color:#aaa;flex-shrink:0;">Template:</label>
+                            <select id="template-selector" style="flex:1;min-width:150px;padding:5px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;font-size:0.82rem;">
+                                <option value="">— select —</option>
+                            </select>
+                            <button onclick="loadTemplate()" style="padding:5px 10px;background:#2c3e50;color:#adf5ad;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">📂 Load</button>
+                            <button onclick="saveTemplate()" style="padding:5px 10px;background:#1a5c1a;color:white;border:none;border-radius:5px;cursor:pointer;font-size:0.82rem;">💾 Save</button>
+                            <button onclick="newTemplate()"  style="padding:5px 10px;background:#2c3e50;color:#FFD700;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">+ New</button>
+                            <span id="template-status" style="font-size:0.75rem;color:#aaa;"></span>
+                        </div>
+
+                        <div style="display:flex;gap:6px;margin-bottom:0.5rem;flex-wrap:wrap;">
                             <button onclick="showEditorTab('preview')" style="padding:5px 12px;background:#005ca9;color:white;border:none;border-radius:5px;cursor:pointer;font-size:0.82rem;">👁 Preview email</button>
                             <button onclick="showEditorTab('html')"    style="padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">‹/› HTML</button>
                             <button onclick="showEditorTab('edit')"    style="padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">✏️ Edit</button>
-                            <button onclick="loadFollowupTemplate()"   style="padding:5px 12px;background:#2c3e50;color:#adf5ad;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">📄 Load template</button>
                         </div>
 
                         <!-- Preview panel -->
@@ -720,13 +739,17 @@ function showAdminScreen() {
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function showTab(name) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.getElementById('tab-'+name).classList.add('active');
-    document.getElementById('content-'+name).classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+    const btn = document.getElementById('tab-'+name);
+    if (btn) btn.classList.add('active');
+    const panel = document.getElementById('content-'+name);
+    if (panel) panel.style.display = 'block';
     if (name === 'log')          loadLog();
     if (name === 'ip')           loadIPInfo();
     if (name === 'applications') loadApplications();
     if (name === 'invoices')     loadInvoiceLog();
+    if (name === 'campaign')     { loadCampaignStats(); loadTemplateList(); }
+    if (name === 'analytics')    loadAnalytics(7);
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -915,6 +938,7 @@ async function saveMember() {
         contact_name:          document.getElementById('edit-contact-name').value.trim()||null,
         slug:                  document.getElementById('edit-slug').value.trim()||null,
         notes:                 document.getElementById('edit-notes').value.trim()||null,
+        apatel_member:         document.getElementById('edit-apatel').checked,
     };
     try {
         const res  = await adminFetch('/api/admin/update-member', { method:'POST', body: JSON.stringify(payload) });
@@ -1395,6 +1419,359 @@ if (adminToken) {
 } else {
     showLogin();
 }
+
+// ── Analytics ────────────────────────────────────────────────────────────────
+async function loadAnalytics(days) {
+    const el = document.getElementById('analytics-content');
+    if (!el) return;
+    el.innerHTML = '<span style="color:#aaa;">⏳ Loading...</span>';
+    try {
+        const res  = await adminFetch('/api/admin/analytics?days=' + days);
+        const data = await res.json();
+        const c    = data.counts || {};
+        el.innerHTML = `<h4 style="color:#FFD700;margin-bottom:0.8rem;">Last ${days} days</h4>
+            <table style="width:100%;border-collapse:collapse;margin-bottom:1.5rem;">
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Site visits</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.site_visit||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Listing views</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.listing_view||0}</strong></td></tr>
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">WhatsApp clicks</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.whatsapp_click||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Email clicks</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.email_click||0}</strong></td></tr>
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Website clicks</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.website_click||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Photo browses</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.photo_browse||0}</strong></td></tr>
+            </table>
+            ${data.top_listings?.length ? `
+            <h4 style="color:#FFD700;margin-bottom:0.8rem;">Top Listings</h4>
+            <table style="width:100%;border-collapse:collapse;">
+                <tr style="background:#005ca9;color:white;font-size:0.78rem;">
+                    <th style="padding:5px 8px;text-align:left;">Listing</th>
+                    <th style="padding:5px 8px;">Views</th>
+                    <th style="padding:5px 8px;">Detail</th>
+                </tr>
+                ${data.top_listings.map(l => `
+                <tr style="border-bottom:1px solid #2c3e50;">
+                    <td style="padding:5px 8px;">${l.name} <span style="color:#888;font-size:0.72rem;">${l.province}</span></td>
+                    <td style="padding:5px 8px;text-align:center;color:white;"><strong>${l.views}</strong></td>
+                    <td style="padding:5px 8px;text-align:center;">
+                        <button onclick="loadListingAnalytics(${l.listing_id},'${(l.name||'').replace(/'/g,'')}')" class="action-btn edit" style="padding:2px 8px;font-size:0.72rem;">Detail</button>
+                    </td>
+                </tr>`).join('')}
+            </table>` : '<p style="color:#888;">No activity yet.</p>'}`;
+    } catch(err) { el.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`; }
+}
+
+async function loadListingAnalytics(id, name) {
+    const el = document.getElementById('analytics-content');
+    el.innerHTML = `<span style="color:#aaa;">⏳ Loading ${name}...</span>`;
+    try {
+        const res  = await adminFetch(`/api/admin/analytics/listing/${id}?days=30`);
+        const data = await res.json();
+        const c    = data.counts || {};
+        el.innerHTML = `
+            <button onclick="loadAnalytics(30)" style="background:none;border:none;color:#7ec8e3;cursor:pointer;margin-bottom:1rem;">← Back</button>
+            <h4 style="color:#FFD700;margin-bottom:0.8rem;">${name} — Last 30 days</h4>
+            <table style="width:100%;border-collapse:collapse;">
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Views</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.listing_view||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">WhatsApp</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.whatsapp_click||0}</strong></td></tr>
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Email</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.email_click||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Website</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.website_click||0}</strong></td></tr>
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Booking</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.booking_click||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Photos</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.photo_browse||0}</strong></td></tr>
+            </table>`;
+    } catch(err) { el.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`; }
+}
+
+// ── Campaign ──────────────────────────────────────────────────────────────────
+async function loadCampaignStats() {
+    try {
+        const res  = await adminFetch('/api/admin/invitation-stats');
+        const data = await res.json();
+        document.getElementById('cs-total').textContent   = data.total_non_members || 0;
+        document.getElementById('cs-email').textContent   = data.has_email || 0;
+        document.getElementById('cs-noemail').textContent = data.no_email || 0;
+        document.getElementById('cs-apatel').textContent  = data.apatel_email || 0;
+        document.getElementById('cs-invited').textContent = data.invited || 0;
+    } catch(e) { console.error('Campaign stats error:', e); }
+}
+
+async function dryRunCampaign(filter) {
+    const resultEl = document.getElementById('campaign-result');
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<span style="color:#aaa;">⏳ Counting...</span>';
+    const res  = await adminFetch('/api/admin/send-invitation-emails', {method:'POST',body:JSON.stringify({filter,dry_run:true})});
+    const data = await res.json();
+    resultEl.innerHTML = `<span style="color:#adf5ad;">Would send to <strong>${data.count||0}</strong> listings.</span>`;
+}
+
+async function runCampaign(filter) {
+    const resultEl = document.getElementById('campaign-result');
+    if (!confirm('Send invitation emails?')) return;
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<span style="color:#FFD700;">⏳ Sending...</span>';
+    const res  = await adminFetch('/api/admin/send-invitation-emails', {method:'POST',body:JSON.stringify({filter,dry_run:false})});
+    const data = await res.json();
+    resultEl.innerHTML = `<span style="color:#adf5ad;">✅ Done: <strong>${data.sent}</strong> sent, ${data.errors} errors.</span>`;
+    loadCampaignStats();
+}
+
+async function dryRunApatel() {
+    const resultEl = document.getElementById('campaign-result');
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<span style="color:#aaa;">⏳ Previewing...</span>';
+    const res  = await adminFetch('/api/admin/send-apatel-campaign', {method:'POST',body:JSON.stringify({dry_run:true})});
+    const data = await res.json();
+    resultEl.innerHTML = `<span style="color:#adf5ad;">Would send to <strong>${data.sent}</strong> APATEL members.</span>`;
+}
+
+async function runApatelCampaign() {
+    const resultEl = document.getElementById('campaign-result');
+    if (!confirm('Send to all 121 APATEL members?')) return;
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<span style="color:#FFD700;">⏳ Sending APATEL campaign...</span>';
+    const res  = await adminFetch('/api/admin/send-apatel-campaign', {method:'POST',body:JSON.stringify({dry_run:false})});
+    const data = await res.json();
+    resultEl.innerHTML = `<span style="color:#adf5ad;">✅ Done: <strong>${data.sent}</strong> sent.</span>`;
+}
+
+async function downloadNoEmailList() {
+    const res2 = await adminFetch('/api/admin/members');
+    const all  = await res2.json();
+    const noEmail = all.filter(m => !m.is_member && (!m.email || !m.email.includes('@')));
+    const csv = 'ID,Name,Province,Phone,APATEL\n' +
+        noEmail.map(m => `${m.id},"${m.name}","${m.province||''}","${m.phone||''}",${m.apatel_member?'Yes':'No'}`).join('\n');
+    const blob = new Blob([csv],{type:'text/csv'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href=url; a.download='no_email_listings.csv'; a.click();
+}
+
+async function loadApatelStats() {
+    try {
+        const res  = await adminFetch('/api/admin/apatel-campaign-stats');
+        const data = await res.json();
+        const el   = document.getElementById('apatel-campaign-stats');
+        if (el) el.innerHTML = `Sent: <strong>${data.sent}</strong> / ${data.total} · Remaining: <strong>${data.remaining}</strong>`;
+    } catch(e) {}
+}
+
+// ── Follow-up email editor ────────────────────────────────────────────────────
+function fmt(cmd) {
+    document.getElementById('followup-editor').focus();
+    document.execCommand(cmd, false, null);
+    updatePreview();
+}
+function fmtBlock(tag) {
+    document.getElementById('followup-editor').focus();
+    document.execCommand('formatBlock', false, tag);
+    updatePreview();
+}
+function fmtLink() {
+    const url = prompt('URL:');
+    if (url) { document.getElementById('followup-editor').focus(); document.execCommand('createLink', false, url); updatePreview(); }
+}
+function insertHighlight() {
+    const box = '<div style="background:#fffbe6;border:1px solid #FFD700;border-radius:8px;padding:1rem;margin:1rem 0;"><p style="margin:0;color:#7a5c00;">Escriba aquí el contenido del recuadro destacado</p></div>';
+    document.getElementById('followup-editor').focus();
+    document.execCommand('insertHTML', false, box);
+    updatePreview();
+}
+function insertCTA() {
+    const url   = prompt('URL del botón:', 'https://trustedpanamastays.com/join.html');
+    const label = prompt('Texto del botón:', 'Solicitar membresía gratuita →');
+    if (url && label) {
+        const btn = `<p style="text-align:center;margin:1.5rem 0;"><a href="${url}" style="background:#005ca9;color:white;padding:12px 30px;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;display:inline-block;">${label}</a></p>`;
+        document.getElementById('followup-editor').focus();
+        document.execCommand('insertHTML', false, btn);
+        updatePreview();
+    }
+}
+function updatePreview() {
+    const charCount = (document.getElementById('followup-editor')||{}).innerText?.length || 0;
+    const el = document.getElementById('followup-charcount');
+    if (el) el.textContent = charCount + ' characters';
+}
+function showEditorTab(tab) {
+    const editor  = document.getElementById('followup-editor');
+    const preview = document.getElementById('followup-preview');
+    const htmlPan = document.getElementById('followup-html-panel');
+    if (editor)  editor.style.display  = tab === 'edit'    ? 'block' : 'none';
+    if (preview) preview.style.display = tab === 'preview' ? 'block' : 'none';
+    if (htmlPan) htmlPan.style.display = tab === 'html'    ? 'block' : 'none';
+    if (tab === 'preview') {
+        const body = buildFullEmail(document.getElementById('followup-editor').innerHTML);
+        const iframe = document.getElementById('followup-iframe');
+        if (iframe) iframe.srcdoc = body;
+    }
+    if (tab === 'html') {
+        const src = document.getElementById('followup-html-source');
+        if (src) src.value = document.getElementById('followup-editor').innerHTML;
+    }
+}
+function syncFromHTML() {
+    const src = document.getElementById('followup-html-source');
+    const ed  = document.getElementById('followup-editor');
+    if (src && ed) { ed.innerHTML = src.value; updatePreview(); }
+}
+function buildFullEmail(bodyContent) {
+    return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;padding:20px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
+    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
+</div>
+<p>Estimados miembros APATEL,</p>
+${bodyContent}
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">
+    Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
+    <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a><br>
+    Para cancelar estas comunicaciones responda con "No gracias".
+</p>
+</body></html>`;
+}
+function loadFollowupTemplate() {
+    const template = `<p>Es posible que algunos de ustedes hayan recibido un correo con informaci&oacute;n incompleta sobre la plataforma Trusted Panama Stays. Les pido disculpas por el inconveniente. Por favor, ignoren el mensaje anterior.</p>
+
+<p>Perm&iacute;tanme explicarles en qu&eacute; consiste este proyecto.</p>
+
+<p><strong>Trusted Panama Stays</strong> nace como una alternativa a las OTAs como Airbnb, que promueven miles de hospedajes informales ocultando su identidad e impidiendo el contacto directo entre hu&eacute;sped y anfitri&oacute;n, obligando a uno o ambos a pagar una comisi&oacute;n. Recientemente, Booking.com aument&oacute; su comisi&oacute;n en un 10%.</p>
+
+<p>Muchos turistas quieren evitar hospedajes informales, pero las OTAs no hacen esta distinci&oacute;n. Airbnb es un refugio para alquileres clandestinos e informales.</p>
+
+<p><strong>Trusted Panama Stays</strong> se basa en el registro oficial de la ATP y ofrece al turista una forma directa de contactar &uacute;nicamente hospedajes registrados y con licencia legal. Pero ofrece mucho m&aacute;s:</p>
+
+<p>Los miembros pueden enriquecer su informaci&oacute;n creando una p&aacute;gina individual visible a trav&eacute;s de la aplicaci&oacute;n web de Trusted Panama Stays, con:</p>
+
+<ul style="line-height:2;margin:0.5rem 0 1rem 1.5rem;">
+    <li>Hasta <strong>20 fotos</strong> de su hospedaje, una de las cuales aparecer&aacute; en los resultados de b&uacute;squeda</li>
+    <li>Una <strong>descripci&oacute;n detallada</strong> de su propiedad</li>
+    <li>Una lista de <strong>t&eacute;rminos de b&uacute;squeda</strong> que facilitan encontrarle</li>
+    <li>Hasta <strong>6 botones</strong> con funciones a su elecci&oacute;n (reservas, sitio web, WhatsApp, etc.)</li>
+</ul>
+
+<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
+    <p style="margin:0 0 0.5rem;font-weight:bold;color:#005ca9;">Para m&aacute;s detalles, visiten:</p>
+    <p style="margin:0;"><a href="https://trustedpanamastays.com/about.html?lang=es" style="color:#005ca9;">https://trustedpanamastays.com/about.html?lang=es</a></p>
+</div>
+
+<p>Si est&aacute;n registrados con la ATP, su propiedad ya aparece en el directorio. Por una peque&ntilde;a contribuci&oacute;n pueden convertirse en miembro de apoyo y disfrutar de todas las funciones mejoradas.</p>
+
+<p>Para mantener esta base de datos &uacute;nica, cobramos solo <strong>$2.00/mes</strong>, o incluso menos si se comprometen por 2 a&ntilde;os. Tambi&eacute;n pueden probar estas funciones durante <strong>30 d&iacute;as sin ning&uacute;n compromiso</strong>.</p>
+
+<div style="background:#fffbe6;border:1px solid #FFD700;border-radius:8px;padding:1rem;margin:1rem 0;">
+    <p style="margin:0 0 0.5rem;font-weight:bold;color:#7a5c00;">&#11088; Oferta especial para los primeros 10 miembros</p>
+    <p style="margin:0;font-size:0.9rem;">Los primeros 10 hospedajes en registrarse ser&aacute;n <strong>destacados gratuitamente</strong> en la p&aacute;gina principal durante su primer mes, en orden cronol&oacute;gico de suscripci&oacute;n.</p>
+</div>
+
+<p style="text-align:center;margin:1.5rem 0;"><a href="https://trustedpanamastays.com/join.html" style="background:#005ca9;color:white;padding:12px 30px;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;display:inline-block;">Solicitar membres&iacute;a gratuita &rarr;</a></p>
+
+<p>Trusted Panama Stays tambi&eacute;n mantiene una <strong>p&aacute;gina de Facebook</strong> y un <strong>grupo de Facebook</strong> con el mismo nombre. S&iacute;ganlos para conocer m&aacute;s sobre este proyecto.</p>
+
+<p style="font-size:0.85rem;color:#666;">Creado por <strong>Volker Piasta</strong>, propietario del Aparthotel Boquete y miembro de APATEL.</p>`;
+    document.getElementById('followup-editor').innerHTML = template;
+    updatePreview();
+}
+
+// ── Template manager ──────────────────────────────────────────────────────────
+async function loadTemplateList() {
+    try {
+        const res = await adminFetch('/api/admin/templates');
+        const data = await res.json();
+        const sel = document.getElementById('template-selector');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">— select —</option>';
+        (data.templates || []).forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t;
+            opt.textContent = t.replace('.html','').replace(/_/g,' ');
+            sel.appendChild(opt);
+        });
+    } catch(e) {}
+}
+
+async function loadTemplate() {
+    const sel = document.getElementById('template-selector');
+    const name = sel ? sel.value : '';
+    if (!name) { alert('Select a template first'); return; }
+    const status = document.getElementById('template-status');
+    try {
+        const res = await adminFetch('/api/admin/templates/' + encodeURIComponent(name));
+        const data = await res.json();
+        const ed = document.getElementById('followup-editor');
+        if (ed) ed.innerHTML = data.content || '';
+        if (status) status.textContent = 'Loaded: ' + name;
+        updatePreview();
+    } catch(e) {
+        if (status) status.textContent = 'Error loading template';
+    }
+}
+
+async function saveTemplate() {
+    const sel = document.getElementById('template-selector');
+    const name = sel ? sel.value : '';
+    if (!name) { alert('Select a template first, or create a new one'); return; }
+    const ed = document.getElementById('followup-editor');
+    const content = ed ? ed.innerHTML : '';
+    if (!content || content.trim().length < 20) { alert('Editor is empty'); return; }
+    const status = document.getElementById('template-status');
+    try {
+        const res = await adminFetch('/api/admin/templates/' + encodeURIComponent(name), {
+            method: 'POST',
+            body: JSON.stringify({ content })
+        });
+        const data = await res.json();
+        if (status) status.textContent = data.success ? 'Saved: ' + name : 'Error: ' + (data.error||'');
+    } catch(e) {
+        if (status) status.textContent = 'Error saving';
+    }
+}
+
+async function newTemplate() {
+    const name = prompt('Template filename (without .html):', 'apatel_followup_2');
+    if (!name) return;
+    const filename = name.replace(/[^a-z0-9_-]/gi,'_') + '.html';
+    const sel = document.getElementById('template-selector');
+    // Add to selector and select it
+    if (sel) {
+        const opt = document.createElement('option');
+        opt.value = filename;
+        opt.textContent = name;
+        sel.appendChild(opt);
+        sel.value = filename;
+    }
+    const status = document.getElementById('template-status');
+    if (status) status.textContent = 'New template — write content and click Save';
+    // Clear editor for new template
+    const ed = document.getElementById('followup-editor');
+    if (ed) ed.innerHTML = '<p>Write your email content here...</p>';
+}
+
+async function sendTestFollowup() {
+    const subject  = document.getElementById('followup-subject').value;
+    const body     = document.getElementById('followup-editor').innerHTML;
+    const resultEl = document.getElementById('followup-result');
+    resultEl.innerHTML = '<span style="color:#aaa;">&#9203; Sending test...</span>';
+    try {
+        const res  = await adminFetch('/api/admin/send-followup-test', {method:'POST',body:JSON.stringify({subject,body})});
+        const data = await res.json();
+        resultEl.innerHTML = data.success
+            ? '<span style="color:#adf5ad;">&#10003; Test sent to info@trustedpanamastays.com</span>'
+            : `<span style="color:#ff7070;">&#10007; ${data.error||'Error'}</span>`;
+    } catch(err) { resultEl.innerHTML = `<span style="color:#ff7070;">&#10007; ${err.message}</span>`; }
+}
+async function sendFollowupToAll() {
+    const subject  = document.getElementById('followup-subject').value;
+    const body     = document.getElementById('followup-editor').innerHTML;
+    const resultEl = document.getElementById('followup-result');
+    if (!subject || !body || body.trim().length < 50) { alert('Please write the email content first.'); return; }
+    if (!confirm('Send this email to all 121 APATEL members? Preview it first.')) return;
+    resultEl.innerHTML = '<span style="color:#FFD700;">&#9203; Sending to all APATEL members... do not close this page.</span>';
+    try {
+        const res  = await adminFetch('/api/admin/send-followup-all', {method:'POST',body:JSON.stringify({subject,body})});
+        const data = await res.json();
+        resultEl.innerHTML = data.success
+            ? `<span style="color:#adf5ad;">&#10003; Sending in background. You will receive a completion report by email.</span>`
+            : `<span style="color:#ff7070;">&#10007; ${data.error||'Error'}</span>`;
+    } catch(err) { resultEl.innerHTML = `<span style="color:#ff7070;">&#10007; ${err.message}</span>`; }
+}
+
 </script>
 </body>
 </html>
