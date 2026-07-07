@@ -3051,6 +3051,20 @@ app.post('/api/admin/templates/:name', requireAdmin, (req, res) => {
     }
 });
 
+// ── POST /api/admin/send-welcome-manual ──────────────────────────────────────
+app.post('/api/admin/send-welcome-manual', requireAdmin, async (req, res) => {
+    const { listing_id, contact_name, property_name, email, password, paid_until, type } = req.body;
+    const appData = { listing_id, contact_name, property_name, email, duration_months: 0 };
+    const html = generateEmailHtml(appData, type || 'approved_trial', password, paid_until);
+    const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    try {
+        await execFileAsync('php', [notifyPath, 'Membresía aprobada — ' + property_name, html, email], { timeout: 15000 });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 //========== temporary endpoints ============================
 
 //==========================================================
