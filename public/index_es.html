@@ -110,6 +110,25 @@
             justify-content: center;
             font-size: 2rem;
         }
+        .member-thumb-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 80px;
+            padding: 8px 10px;
+            background: #b8860b;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            border: 2px solid #a07000;
+            cursor: pointer;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .member-thumb-btn:hover { background: #a07000; }
         .member-thumb-label {
             display: block;
             background: white;
@@ -131,7 +150,26 @@
             .member-thumb { width: 100%; }
             .member-thumb-img { height: 150px; }
             .member-thumb-nophoto { height: 80px; }
-            .member-thumb-label { font-size: 0.95rem; padding: 7px 4px; }
+            .member-thumb-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 80px;
+            padding: 8px 10px;
+            background: #b8860b;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            border: 2px solid #a07000;
+            cursor: pointer;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .member-thumb-btn:hover { background: #a07000; }
+        .member-thumb-label { font-size: 0.95rem; padding: 7px 4px; }
             .contact-button { padding: 7px 10px; font-size: 0.8rem; }
             .contact-button .btn-text { display: none; }
             .contact-button .btn-icon { display: inline; font-size: 1.1rem; }
@@ -314,12 +352,16 @@ async function showDefaultView() {
             const listUrl = rental.slug
                 ? `listing.html?slug=${rental.slug}&lang=es`
                 : `listing.html?id=${rental.id}&lang=es`;
-            const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
-                ${thumb
-                    ? `<img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">`
-                    : `<div class="member-thumb-nophoto">🏨</div>`}
-                <span class="member-thumb-label">${thumb ? 'Ver Más' : 'Acceso'}</span>
-               </a>` : '';
+            const thumbHtml = active
+                ? thumb
+                    ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
+                        <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">
+                        <span class="member-thumb-label">Ver Más</span>
+                       </a>`
+                    : `<a href="${listUrl}" class="member-thumb-btn" onclick="saveSearchState()">
+                        🏨 Acceso
+                       </a>`
+                : '';
 
             const card = document.createElement('div');
             card.className = 'result-card is-member' + ((rental.feature_rank > 0) ? ' is-featured' : '');
@@ -452,12 +494,16 @@ function displayResults(rentals) {
         const listUrl = (rental.slug
             ? `listing.html?slug=${rental.slug}&lang=es`
             : `listing.html?id=${rental.id}&lang=es`) + (searchState ? `&from=${encodeURIComponent(window.location.search)}` : '');
-        const thumbHtml = active ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
-                ${thumb
-                    ? `<img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">`
-                    : `<div class="member-thumb-nophoto">🏨</div>`}
-                <span class="member-thumb-label">${thumb ? 'Ver Más' : 'Acceso'}</span>
-               </a>` : '';
+        const thumbHtml = active
+                ? thumb
+                    ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
+                        <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">
+                        <span class="member-thumb-label">Ver Más</span>
+                       </a>`
+                    : `<a href="${listUrl}" class="member-thumb-btn" onclick="saveSearchState()">
+                        🏨 Acceso
+                       </a>`
+                : '';
         card.innerHTML = `
             <h3 class="result-title">${rental.name} <span style="font-size:0.65rem;color:#bbb;font-weight:400;vertical-align:middle;">#${rental.id||''}</span></h3>
             <div class="result-badges">
