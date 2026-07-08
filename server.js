@@ -3068,6 +3068,111 @@ app.post('/api/admin/send-welcome-manual', requireAdmin, async (req, res) => {
     }
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  Smart campaign recipient endpoints
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ── GET /api/admin/apatel-roster-count ───────────────────────────────────────
+app.get('/api/admin/apatel-roster-count', requireAdmin, (req, res) => {
+    try {
+        const roster = require('./apatel_emails.json');
+        res.json({ count: roster.filter(m => m.email && m.email.includes('@')).length });
+    } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── GET /api/admin/apatel-not-contacted-count ─────────────────────────────────
+// Returns count of APATEL roster members whose email is NOT in any invited listing
+app.get('/api/admin/apatel-not-contacted-count', requireAdmin, async (req, res) => {
+    try {
+        const roster = require('./apatel_emails.json');
+        // Get all invited listing emails from DB
+        const { data } = await supabaseAdmin
+            .from('listings')
+            .select('email, email_member')
+            .eq('apatel_member', true)
+            .not('invitation_sent_at', 'is', null);
+        const contactedEmails = new Set();
+        (data||[]).forEach(l => {
+            if (l.email) contactedEmails.add(l.email.toLowerCase());
+            if (l.email_member) contactedEmails.add(l.email_member.toLowerCase());
+        });
+        const notContacted = roster.filter(m => m.email && !contactedEmails.has(m.email.toLowerCase()));
+        res.json({ count: notContacted.length });
+    } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── POST /api/admin/send-followup-new ────────────────────────────────────────
+// Send to APATEL roster members not yet contacted
+app.post('/api/admin/send-followup-new', requireAdmin, async (req, res) => {
+    const { subject, body } = req.body;
+    if (!subject || !body) return res.status(400).json({ error: 'Missing subject or body' });
+
+    const roster = require('./apatel_emails.json');
+    // Get contacted emails from DB
+    const { data } = await supabaseAdmin
+        .from('listings')
+        .select('email, email_member')
+        .eq('apatel_member', true)
+        .not('invitation_sent_at', 'is', null);
+    const contactedEmails = new Set();
+    (data||[]).forEach(l => {
+        if (l.email) contactedEmails.add(l.email.toLowerCase());
+        if (l.email_member) contactedEmails.add(l.email_member.toLowerCase());
+    });
+    const targets = roster.filter(m => m.email && !contactedEmails.has(m.email.toLowerCase()));
+
+    res.json({ success: true, message: `Sending to ${targets.length} not-yet-contacted APATEL members`, total: targets.length });
+    await sendToRosterList(targets, subject, body);
+});
+
+// ── POST /api/admin/send-followup-specific ────────────────────────────────────
+// Send to a specific list of emails
+app.post('/api/admin/send-followup-specific', requireAdmin, async (req, res) => {
+    const { subject, body, emails } = req.body;
+    if (!subject || !body || !emails?.length) return res.status(400).json({ error: 'Missing fields' });
+
+    // Build targets from roster where possible, otherwise use email only
+    const roster = require('./apatel_emails.json');
+    const rosterMap = {};
+    roster.forEach(m => { if (m.email) rosterMap[m.email.toLowerCase()] = m; });
+
+    const targets = emails.map(email => {
+        const match = rosterMap[email.toLowerCase()];
+        return match || { hotel: email, email, manager: '' };
+    });
+
+    res.json({ success: true, message: `Sending to ${targets.length} specific recipients`, total: targets.length });
+    await sendToRosterList(targets, subject, body);
+});
+
+// ── Helper: send to a list of roster-format members ───────────────────────────
+async function sendToRosterList(targets, subject, body) {
+    const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    let sent = 0, errors = 0;
+
+    for (const member of targets) {
+        if (!member.email || !member.email.includes('@')) continue;
+        try {
+            const firstName = (member.manager || '').split(' ')[0];
+            const greeting  = firstName && firstName.length > 2 ? firstName : 'propietario/a';
+            const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', body);
+            await execFileAsync('php', [notifyPath, subject, html, member.email], { timeout: 15000 });
+            await logEvent('followup_sent', { hotel: member.hotel, email: member.email });
+            sent++;
+            await new Promise(r => setTimeout(r, 600));
+        } catch (err) {
+            errors++;
+            console.error(`Failed for ${member.hotel||member.email}:`, err.message);
+        }
+    }
+
+    // Completion report to admin
+    const report = `<p>Campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${targets.length} total.</p>`;
+    execFileAsync('php', [path.join(__dirname, 'public', 'notify.php'),
+        'Campaign complete — Trusted Panama Stays', report, 'info@trustedpanamastays.com'],
+        { timeout: 15000 }).catch(console.error);
+    console.log(`Campaign done: ${sent} sent, ${errors} errors`);
+}
 
 //========== temporary endpoints ============================
 

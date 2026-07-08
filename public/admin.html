@@ -628,9 +628,45 @@
                         </div>
 
                         <!-- Send controls -->
-                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:1rem;align-items:center;">
-                            <button onclick="sendTestFollowup()" class="action-btn edit">📨 Send test to info@</button>
-                            <button onclick="sendFollowupToAll()" class="action-btn" style="background:#1a5c1a;">📨 Send to all APATEL (121)</button>
+                        <div style="margin-top:1rem;">
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.8rem;">
+                                <button onclick="sendTestFollowup()" class="action-btn edit">📨 Send test to info@</button>
+                                <button onclick="openRecipientSelector()" class="action-btn" style="background:#1a5c1a;">📨 Send campaign...</button>
+                            </div>
+
+                            <!-- Recipient selector modal -->
+                            <div id="recipient-selector" style="display:none;background:#111;border:1px solid #3a5a3a;border-radius:8px;padding:1rem;">
+                                <h4 style="color:#adf5ad;margin-bottom:0.8rem;">Select recipients:</h4>
+                                <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                                        <input type="radio" name="recipient-type" value="apatel_all" checked>
+                                        <span style="font-size:0.85rem;">All APATEL members (from official roster)</span>
+                                        <span id="rc-apatel-all-count" style="color:#aaa;font-size:0.75rem;"></span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                                        <input type="radio" name="recipient-type" value="apatel_new">
+                                        <span style="font-size:0.85rem;">APATEL members not yet contacted</span>
+                                        <span id="rc-apatel-new-count" style="color:#aaa;font-size:0.75rem;"></span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                                        <input type="radio" name="recipient-type" value="atp_non_members">
+                                        <span style="font-size:0.85rem;">All ATP non-members with email</span>
+                                        <span id="rc-atp-count" style="color:#aaa;font-size:0.75rem;"></span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                                        <input type="radio" name="recipient-type" value="specific">
+                                        <span style="font-size:0.85rem;">Specific emails (comma-separated):</span>
+                                    </label>
+                                    <textarea id="specific-emails" rows="3" placeholder="email1@hotel.com, email2@hotel.com, ..."
+                                        style="width:100%;padding:6px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;font-family:monospace;box-sizing:border-box;"
+                                        onclick="document.querySelector('[value=specific]').checked=true"></textarea>
+                                </div>
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    <button onclick="confirmAndSend()" class="action-btn" style="background:#1a5c1a;">✅ Confirm &amp; Send</button>
+                                    <button onclick="document.getElementById('recipient-selector').style.display='none'" class="action-btn edit">Cancel</button>
+                                    <span id="rc-preview" style="font-size:0.78rem;color:#aaa;"></span>
+                                </div>
+                            </div>
                         </div>
                         <div id="followup-result" style="margin-top:0.8rem;font-size:0.85rem;"></div>
                     </div>
@@ -1770,6 +1806,89 @@ async function sendFollowupToAll() {
             ? `<span style="color:#adf5ad;">&#10003; Sending in background. You will receive a completion report by email.</span>`
             : `<span style="color:#ff7070;">&#10007; ${data.error||'Error'}</span>`;
     } catch(err) { resultEl.innerHTML = `<span style="color:#ff7070;">&#10007; ${err.message}</span>`; }
+}
+
+
+// ── Recipient selector ────────────────────────────────────────────────────────
+async function openRecipientSelector() {
+    const body = (document.getElementById('followup-editor')||{}).innerHTML||'';
+    if (!body || body.trim().length < 50) { alert('Write or load email content first.'); return; }
+    const sel = document.getElementById('recipient-selector');
+    sel.style.display = sel.style.display === 'none' ? 'block' : 'none';
+    if (sel.style.display === 'block') loadRecipientCounts();
+}
+
+async function loadRecipientCounts() {
+    // APATEL all count
+    try {
+        const res = await adminFetch('/api/admin/apatel-roster-count');
+        const d = await res.json();
+        const el = document.getElementById('rc-apatel-all-count');
+        if (el) el.textContent = '(' + (d.count||0) + ' members)';
+    } catch(e) {}
+
+    // APATEL not contacted
+    try {
+        const res = await adminFetch('/api/admin/apatel-not-contacted-count');
+        const d = await res.json();
+        const el = document.getElementById('rc-apatel-new-count');
+        if (el) el.textContent = '(' + (d.count||0) + ' not yet contacted)';
+    } catch(e) {}
+
+    // ATP non-members count
+    try {
+        const res = await adminFetch('/api/admin/invitation-stats');
+        const d = await res.json();
+        const el = document.getElementById('rc-atp-count');
+        if (el) el.textContent = '(' + (d.has_email||0) + ' listings)';
+    } catch(e) {}
+}
+
+async function confirmAndSend() {
+    const type = document.querySelector('[name=recipient-type]:checked')?.value;
+    const subject = document.getElementById('followup-subject').value;
+    const body = (document.getElementById('followup-editor')||{}).innerHTML||'';
+    const result = document.getElementById('followup-result');
+
+    if (!subject || body.trim().length < 50) { alert('Email content is missing.'); return; }
+
+    let confirmMsg = '';
+    let endpoint = '';
+    let extra = {};
+
+    if (type === 'apatel_all') {
+        confirmMsg = 'Send to ALL APATEL members from the official roster?';
+        endpoint = '/api/admin/send-followup-all';
+    } else if (type === 'apatel_new') {
+        confirmMsg = 'Send to APATEL members not yet contacted?';
+        endpoint = '/api/admin/send-followup-new';
+    } else if (type === 'atp_non_members') {
+        confirmMsg = 'Send to all ATP non-members with email? This may be 1000+ emails.';
+        endpoint = '/api/admin/send-invitation-emails';
+        extra = { filter: 'all', dry_run: false };
+    } else if (type === 'specific') {
+        const emails = document.getElementById('specific-emails').value
+            .split(',').map(e => e.trim()).filter(e => e.includes('@'));
+        if (!emails.length) { alert('Enter at least one valid email.'); return; }
+        confirmMsg = 'Send to ' + emails.length + ' specific email(s)?';
+        endpoint = '/api/admin/send-followup-specific';
+        extra = { emails };
+    }
+
+    if (!confirm(confirmMsg)) return;
+    document.getElementById('recipient-selector').style.display = 'none';
+    result.innerHTML = '<span style="color:#FFD700;">Sending... do not close this page.</span>';
+
+    try {
+        const res = await adminFetch(endpoint, {
+            method: 'POST',
+            body: JSON.stringify({ subject, body, ...extra })
+        });
+        const d = await res.json();
+        result.innerHTML = d.success
+            ? '<span style="color:#adf5ad;">Sending in background. Report coming by email.</span>'
+            : '<span style="color:#ff7070;">Error: ' + (d.error||'unknown') + '</span>';
+    } catch(e) { result.innerHTML = '<span style="color:#ff7070;">' + e.message + '</span>'; }
 }
 
 </script>
