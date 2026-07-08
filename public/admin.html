@@ -1376,7 +1376,7 @@ function exportInvoiceCSV() {
         ].map(v=>`"${v||''}"`).join(',');
     });
     const csv  = [headers.join(','),...rows].join('\n');
-    const blob = new Blob([csv],{type:'text/csv'});
+    const blob = new Blob([csv],{type:"text/csv;charset=utf-8"});
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href=url; a.download=`tps-invoices-${new Date().toISOString().split('T')[0]}.csv`;
@@ -1571,9 +1571,9 @@ async function downloadNoEmailList() {
     const res2 = await adminFetch('/api/admin/members');
     const all  = await res2.json();
     const noEmail = all.filter(m => !m.is_member && (!m.email || !m.email.includes('@')));
-    const csv = 'ID,Name,Province,Phone,APATEL\n' +
-        noEmail.map(m => `${m.id},"${m.name}","${m.province||''}","${m.phone||''}",${m.apatel_member?'Yes':'No'}`).join('\n');
-    const blob = new Blob([csv],{type:'text/csv'});
+    const csv = 'ID;Name;Province;Phone;APATEL\n' +
+        noEmail.map(m => `${m.id};"${m.name}";"${m.province||''}";"${m.phone||''}",${m.apatel_member?'Yes':'No'}`).join('\n');
+    const blob = new Blob([csv],{type:"text/csv;charset=utf-8"});
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href=url; a.download='no_email_listings.csv'; a.click();
