@@ -433,6 +433,30 @@ async function loadFilters() {
 async function performSearch() { // returns promise for .then() chaining
     const searchTerm = searchInput.value; const province = provinceFilter.value; const type = typeFilter.value;
     if (!searchTerm && !province && !type) { showDefaultView(); updateSelectedCount(null); return; }
+    // Special filters (= prefix)
+    if (searchTerm.startsWith('=')) {
+        const cmd = searchTerm.toLowerCase().trim();
+        resultsContainer.innerHTML = '<div class="loading">Buscando...</div>';
+        try {
+            const allRentals = await (await fetch(`${API_BASE_URL}/api/rentals?search=`)).json();
+            let filtered = allRentals;
+            if      (cmd === '=no-email')  filtered = allRentals.filter(r => !r.email || !r.email.includes('@'));
+            else if (cmd === '=apatel')    filtered = allRentals.filter(r => r.apatel_member);
+            else if (cmd === '=member')    filtered = allRentals.filter(r => isMemberActive(r));
+            else if (cmd === '=trial')     filtered = allRentals.filter(r => r.is_trial && isMemberActive(r));
+            else if (cmd === '=no-phone')  filtered = allRentals.filter(r => !r.phone || r.phone.replace(/[^\d]/g,'').length < 7);
+            else                           filtered = [];
+            if (!filtered.length) {
+                resultsContainer.innerHTML = '<div class="no-results"><p>No se encontraron hospedajes con ese filtro.</p></div>';
+            } else {
+                displayResults(filtered);
+                updateSelectedCount(filtered.length);
+            }
+        } catch(e) { resultsContainer.innerHTML = '<div class="no-results"><p>Error: ' + e.message + '</p></div>'; }
+        return;
+    }
+    // End special filters
+
     const params = new URLSearchParams();
     if (searchTerm) params.append('search', searchTerm);
     if (province)   params.append('province', province);
