@@ -3085,18 +3085,18 @@ app.get('/api/admin/apatel-roster-count', requireAdmin, (req, res) => {
 app.get('/api/admin/apatel-not-contacted-count', requireAdmin, async (req, res) => {
     try {
         const roster = require('./apatel_emails.json');
-        // Get all invited listing emails from DB
+        // Get all APATEL listings that have been contacted
         const { data } = await supabaseAdmin
             .from('listings')
             .select('email, email_member')
             .eq('apatel_member', true)
-            .not('invitation_sent_at', 'is', null);
+            .not('apatel_contacted_at', 'is', null);
         const contactedEmails = new Set();
         (data||[]).forEach(l => {
-            if (l.email) contactedEmails.add(l.email.toLowerCase());
-            if (l.email_member) contactedEmails.add(l.email_member.toLowerCase());
+            if (l.email) contactedEmails.add(l.email.toLowerCase().trim());
+            if (l.email_member) contactedEmails.add(l.email_member.toLowerCase().trim());
         });
-        const notContacted = roster.filter(m => m.email && !contactedEmails.has(m.email.toLowerCase()));
+        const notContacted = roster.filter(m => m.email && !contactedEmails.has(m.email.toLowerCase().trim()));
         res.json({ count: notContacted.length });
     } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -3153,10 +3153,15 @@ async function sendToRosterList(targets, subject, body) {
     for (const member of targets) {
         if (!member.email || !member.email.includes('@')) continue;
         try {
-            const firstName = (member.manager || '').split(' ')[0];
-            const greeting  = firstName && firstName.length > 2 ? firstName : 'propietario/a';
             const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', body);
             await execFileAsync('php', [notifyPath, subject, html, member.email], { timeout: 15000 });
+
+            // Mark as contacted in DB
+            await supabase.from('listings')
+                .update({ apatel_contacted_at: new Date().toISOString() })
+                .or(`email.ilike.%${member.email}%,email_member.ilike.%${member.email}%`)
+                .eq('apatel_member', true);
+
             await logEvent('followup_sent', { hotel: member.hotel, email: member.email });
             sent++;
             await new Promise(r => setTimeout(r, 600));
