@@ -3068,39 +3068,6 @@ app.post('/api/admin/send-welcome-manual', requireAdmin, async (req, res) => {
     }
 });
 
-// ── Template endpoints ─────────────────────────────────────────────────────────
-const TEMPLATES_DIR = path.join(__dirname, 'public', 'templates');
-const fs = require('fs');
-if (!fs.existsSync(TEMPLATES_DIR)) fs.mkdirSync(TEMPLATES_DIR, { recursive: true });
-
-app.get('/api/admin/templates', requireAdmin, (req, res) => {
-    try {
-        const files = fs.readdirSync(TEMPLATES_DIR).filter(f => f.endsWith('.html')).sort();
-        res.json({ templates: files });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/admin/templates/:name', requireAdmin, (req, res) => {
-    try {
-        const name = req.params.name.replace(/[^a-z0-9_.-]/gi, '_');
-        const filePath = path.join(TEMPLATES_DIR, name);
-        if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
-        res.json({ name, content: fs.readFileSync(filePath, 'utf8') });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/admin/templates/:name', requireAdmin, (req, res) => {
-    try {
-        const name = req.params.name.replace(/[^a-z0-9_.-]/gi, '_');
-        if (!name.endsWith('.html')) return res.status(400).json({ error: 'Must be .html' });
-        const filePath = path.join(TEMPLATES_DIR, name);
-        const { content } = req.body;
-        if (!content) return res.status(400).json({ error: 'Missing content' });
-        fs.writeFileSync(filePath, content, 'utf8');
-        res.json({ success: true, name });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 
 //========== temporary endpoints ============================
 
