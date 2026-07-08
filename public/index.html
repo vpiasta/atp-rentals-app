@@ -369,15 +369,11 @@ async function showDefaultView() {
             const listUrl = rental.slug
                 ? `listing.html?slug=${rental.slug}&lang=en`
                 : `listing.html?id=${rental.id}&lang=en`;
-            const thumbHtml = active
-                ? thumb
-                    ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
-                        <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">
-                        <span class="member-thumb-label">See More</span>
-                       </a>`
-                    : `<a href="${listUrl}" class="member-thumb-btn" onclick="saveSearchState()">
-                        🏨 Access
-                       </a>`
+            const thumbHtml = (active && thumb)
+                ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
+                    <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">
+                    <span class="member-thumb-label">See More</span>
+                   </a>`
                 : '';
 
             const card = document.createElement('div');
@@ -407,6 +403,7 @@ async function showDefaultView() {
                             ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Email</span></a>` : ''}
                             ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                             <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
+                            ${active ? `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 Access</a>` : ''}
                         </div>
                     </div>
                 </div>`;
@@ -524,15 +521,11 @@ function displayResults(rentals) {
         const listUrl = (rental.slug
             ? `listing.html?slug=${rental.slug}&lang=en`
             : `listing.html?id=${rental.id}&lang=en`) + (searchState ? `&from=${encodeURIComponent(window.location.search)}` : '');
-        const thumbHtml = active
-                ? thumb
-                    ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
-                        <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">
-                        <span class="member-thumb-label">See More</span>
-                       </a>`
-                    : `<a href="${listUrl}" class="member-thumb-btn" onclick="saveSearchState()">
-                        🏨 Access
-                       </a>`
+        const thumbHtml = (active && thumb)
+                ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
+                    <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">
+                    <span class="member-thumb-label">See More</span>
+                   </a>`
                 : '';
         card.innerHTML = `
             <h3 class="result-title">${rental.name} <span style="font-size:0.65rem;color:#bbb;font-weight:400;vertical-align:middle;">#${rental.id||''}</span></h3>
@@ -556,6 +549,7 @@ function displayResults(rentals) {
                         ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Email</span></a>` : ''}
                         ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                         <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
+                            ${active ? `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 Access</a>` : ''}
                     </div>
                 </div>
             </div>`;
