@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin.html
 Disallow: /api/
 
-Sitemap: https://trustedpanamastays.com/sitemap.xml
+Sitemap: https://trustedpanamastays.com/sitemap.php
