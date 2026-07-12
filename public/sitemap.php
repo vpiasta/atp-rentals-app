@@ -23,17 +23,7 @@
   <priority>0.80</priority>
 </url>
 <url>
-  <loc>https://trustedpanamastays.com/index.html</loc>
-  <lastmod>2026-06-13T21:23:52+00:00</lastmod>
-  <priority>0.64</priority>
-</url>
-<url>
   <loc>https://trustedpanamastays.com/about.html?lang=es</loc>
-  <lastmod>2026-06-13T21:23:52+00:00</lastmod>
-  <priority>0.64</priority>
-</url>
-<url>
-  <loc>https://trustedpanamastays.com/pay.html</loc>
   <lastmod>2026-06-13T21:23:52+00:00</lastmod>
   <priority>0.64</priority>
 </url>
