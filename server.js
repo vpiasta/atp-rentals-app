@@ -215,12 +215,19 @@ async function checkPendingAtpApplications() {
 
         for (const app of pending) {
             // Try to find matching listing by name similarity
-            const { data: matches } = await supabase
+            // Normalize accents for matching
+            const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+            const cleanName = normalize(app.property_name);
+            // Get candidates from province, then filter by normalized name
+            const { data: candidates } = await supabaseAdmin
                 .from('listings')
                 .select('id, name, province, is_member')
-                .ilike('name', `%${app.property_name.trim()}%`)
                 .eq('province', app.province)
-                .limit(3);
+                .limit(100);
+            const matches = (candidates || []).filter(l =>
+                normalize(l.name).includes(cleanName.split(' ')[0]) ||
+                cleanName.includes(normalize(l.name).split(' ')[0])
+            ).slice(0, 3);
 
             if (!matches || matches.length === 0) {
                 console.log(`⏳ No ATP match yet for: ${app.property_name}`);
