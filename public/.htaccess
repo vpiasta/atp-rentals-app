@@ -1,0 +1,14 @@
+RewriteEngine On
+RewriteCond %{HTTP_HOST} ^www\.trustedpanamastays\.com$ [NC]
+RewriteRule ^(.*)$ https://trustedpanamastays.com/$1 [L,R=301]
+
+
+PassengerAppRoot /home/u945180857/domains/trustedpanamastays.com/nodejs
+PassengerAppType node
+PassengerNodejs /opt/alt/alt-nodejs22/root/bin/node
+PassengerStartupFile server.js
+PassengerBaseURI /
+PassengerRestartDir /home/u945180857/domains/trustedpanamastays.com/nodejs/tmp
+SetEnv NODE_OPTIONS "--require /home/u945180857/domains/trustedpanamastays.com/public_html/.builds/config/preload-timestamp.js"
+SetEnv LSNODE_CONSOLE_LOG console.log
+RewriteRule ^\.builds - [F,L]
