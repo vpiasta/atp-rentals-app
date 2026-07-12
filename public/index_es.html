@@ -337,7 +337,7 @@ async function showDefaultView() {
         if (!res.ok) throw new Error();
         const featured = await res.json();
         if (!Array.isArray(featured) || !featured.length) throw new Error();
-        featured.sort((a, b) => (b.feature_rank || 0) - (a.feature_rank || 0));
+        featured.sort((a, b) => (a.feature_rank || 0) - (b.feature_rank || 0));
 
         resultsContainer.innerHTML = '<div style="font-size:0.78rem;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">⭐ Hospedaje Destacado</div>';
 
