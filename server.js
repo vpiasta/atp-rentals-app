@@ -3217,6 +3217,146 @@ app.get('/api/admin/recalculate-ranks', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── GET /api/admin/document-url ───────────────────────────────────────────────
+app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
+    const { path: docPath } = req.query;
+    if (!docPath) return res.status(400).json({ error: 'Missing path' });
+    try {
+        const { data, error } = await supabaseAdmin.storage
+            .from('member-documents')
+            .createSignedUrl(docPath, 300); // 5 min expiry
+        if (error) return res.status(500).json({ error: error.message });
+        res.json({ url: data.signedUrl });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── POST /api/admin/verify-documents ──────────────────────────────────────────
+app.post('/api/admin/verify-documents', requireAdmin, async (req, res) => {
+    const { application_id } = req.body;
+    if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
+
+    const { data: app, error: appError } = await supabaseAdmin
+        .from('membership_applications')
+        .select('*')
+        .eq('id', application_id)
+        .single();
+    if (appError || !app) return res.status(404).json({ error: 'Application not found' });
+    if (!app.documents || !app.documents.length)
+        return res.status(400).json({ error: 'No documents to verify' });
+
+    try {
+        const imageContents = [];
+
+        // Download each document from Supabase Storage
+        for (const doc of app.documents) {
+            const { data: fileData, error: dlError } = await supabaseAdmin.storage
+                .from('member-documents')
+                .download(doc.path);
+            if (dlError) { console.error('Doc download error:', dlError.message); continue; }
+
+            const arrayBuffer = await fileData.arrayBuffer();
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+            // Claude Vision handles jpg/png/webp/gif — skip PDFs
+            if (doc.mime !== 'application/pdf') {
+                imageContents.push({
+                    type: 'image',
+                    source: { type: 'base64', media_type: doc.mime, data: base64 }
+                });
+                imageContents.push({
+                    type: 'text',
+                    text: `The above image is the: ${doc.type.replace(/_/g,' ').toUpperCase()}`
+                });
+            }
+        }
+
+        if (!imageContents.length) {
+            return res.status(400).json({
+                error: 'No image documents available for AI verification. PDF documents must be reviewed manually.'
+            });
+        }
+
+        const prompt = `You are verifying membership application documents for a Panama tourism rental directory.
+
+Application details:
+- Property name: ${app.property_name}
+- Contact/representative name: ${app.contact_name}
+- Province: ${app.province}
+- Plan: ${app.membership_type === 'trial' ? 'Free trial' : app.duration_months + ' months paid'}
+- Payment method: ${app.payment_method || 'none'}
+- Amount expected: ${app.duration_months === 24 ? '$45' : app.duration_months === 12 ? '$24' : 'none (trial)'}
+
+Please verify the documents and return ONLY a JSON object with this structure:
+{
+  "aviso_operacion": {
+    "found": true/false,
+    "business_name": "name as shown on document",
+    "ruc": "RUC number",
+    "ruc_dv": "DV digit",
+    "legal_rep": "legal representative name",
+    "license_number": "license number",
+    "valid": true/false,
+    "notes": "any issues found"
+  },
+  "cedula": {
+    "found": true/false,
+    "id_holder_name": "name on ID",
+    "id_number": "ID number",
+    "notes": "any issues"
+  },
+  "payment": {
+    "found": true/false,
+    "amount": "amount shown",
+    "date": "payment date",
+    "method": "payment method detected",
+    "notes": "any issues"
+  },
+  "verification": {
+    "names_match": true/false,
+    "names_match_detail": "explanation",
+    "payment_matches": true/false,
+    "payment_match_detail": "explanation",
+    "overall_result": "PASS/FAIL/REVIEW",
+    "overall_notes": "summary recommendation"
+  }
+}
+Return ONLY the JSON, no other text.`;
+
+        const response = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-opus-4-5',
+            max_tokens: 1500,
+            messages: [{
+                role: 'user',
+                content: [...imageContents, { type: 'text', text: prompt }]
+            }]
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            timeout: 60000
+        });
+
+        const content = response.data.content[0].text;
+        const clean   = content.replace(/```json\n?|\n?```/g, '').trim();
+        const result  = JSON.parse(clean);
+
+        await logEvent('ai_verification_completed', {
+            application_id,
+            result: result.verification?.overall_result
+        });
+
+        res.json({ success: true, verification: result });
+
+    } catch (err) {
+        console.error('AI verification error:', err.message);
+        res.status(500).json({ error: 'AI verification failed: ' + err.message });
+    }
+});
+
 //========== temporary endpoints ============================
 
 //==========================================================
