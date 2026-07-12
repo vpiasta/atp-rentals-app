@@ -90,7 +90,7 @@ $province    = $listing['province'] ?? '';
 $type        = $listing['rental_type'] ?? '';
 $slug_val    = $listing['slug'] ?? '';
 $listing_url = $slug_val ? SITE_URL . '/listing.html?slug=' . urlencode($slug_val) . '&lang=' . $lang : SITE_URL . '/listing.html?id=' . $listing['id'] . '&lang=' . $lang;
-$canonical   = SITE_URL . '/l.php?slug=' . urlencode($slug_val) . '&lang=' . $lang;
+$canonical   = SITE_URL . '/listing.php?slug=' . urlencode($slug_val) . '&lang=' . $lang;
 
 $title_en    = $name . ' — Trusted Panama Stays';
 $title_es    = $name . ' — Trusted Panama Stays';
@@ -142,7 +142,7 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
             "addressCountry": "PA"
             <?php if ($address): ?>, "streetAddress": <?= json_encode($address) ?><?php endif; ?>
         },
-        "url": <?= json_encode($listing_url) ?>
+        "url": <?= json_encode($canonical) ?>
         <?php if ($phone): ?>, "telephone": <?= json_encode($phone) ?><?php endif; ?>
         <?php if ($email): ?>, "email": <?= json_encode($email) ?><?php endif; ?>
         <?php if ($first_photo): ?>, "image": <?= json_encode($first_photo) ?><?php endif; ?>
