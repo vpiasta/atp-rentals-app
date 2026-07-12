@@ -2015,6 +2015,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 
         const phone = app.contact_phone?.replace(/[^\d]/g,'').substring(0,8) || null;
         await logEvent('application_approved', { application_id, listing_id: listingId, membership_type: app.membership_type, paid_until: paidUntilStr });
+        await recalculateFeatureRanks();
         res.json({ success: true, password, paid_until: paidUntilStr, listing_id: listingId, property_name: app.property_name, email_sent: emailSent, whatsapp_text: waText, phone });
 
     } catch (err) {
@@ -3178,6 +3179,36 @@ async function sendToRosterList(targets, subject, body) {
         { timeout: 15000 }).catch(console.error);
     console.log(`Campaign done: ${sent} sent, ${errors} errors`);
 }
+
+// ── Recalculate feature ranks for all featured listings ───────────────────────
+async function recalculateFeatureRanks() {
+    try {
+        const { data: featured } = await supabaseAdmin
+            .from('listings')
+            .select('id, is_trial, membership_paid_until')
+            .gt('feature_rank', 0)
+            .order('is_trial', { ascending: true })      // paid first
+            .order('membership_paid_until', { ascending: true }); // earliest first
+
+        if (!featured || !featured.length) return;
+
+        for (let i = 0; i < featured.length; i++) {
+            await supabaseAdmin
+                .from('listings')
+                .update({ feature_rank: i + 1 })
+                .eq('id', featured[i].id);
+        }
+        console.log(`Feature ranks recalculated for ${featured.length} listings`);
+    } catch (err) {
+        console.error('recalculateFeatureRanks error:', err.message);
+    }
+}
+
+// ── GET /api/admin/recalculate-ranks ─────────────────────────────────────────
+app.get('/api/admin/recalculate-ranks', requireAdmin, async (req, res) => {
+    await recalculateFeatureRanks();
+    res.json({ success: true });
+});
 
 //========== temporary endpoints ============================
 
