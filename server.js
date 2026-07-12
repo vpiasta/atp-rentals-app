@@ -1539,7 +1539,7 @@ app.post('/api/membership-apply',
 
 // ── Get all applications ──────────────────────────────────────────────────────
 app.get('/api/admin/applications', requireAdmin, async (req, res) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from('membership_applications')
         .select('*')
         .order('created_at', { ascending: false });
@@ -1549,7 +1549,7 @@ app.get('/api/admin/applications', requireAdmin, async (req, res) => {
 
 // ── Get single application ────────────────────────────────────────────────────
 app.get('/api/admin/application/:id', requireAdmin, async (req, res) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from('membership_applications')
         .select('*')
         .eq('id', req.params.id)
@@ -1562,7 +1562,7 @@ app.get('/api/admin/application/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/application-status', requireAdmin, async (req, res) => {
     const { id, status, notes } = req.body;
     if (!id || !status) return res.status(400).json({ error: 'Missing fields' });
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
         .from('membership_applications')
         .update({ status, notes, reviewed_at: new Date().toISOString(), reviewed_by: 'admin' })
         .eq('id', id);
