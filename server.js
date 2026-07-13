@@ -1,4 +1,4 @@
-supabaseAdmin.from// TrustedPanamaStays.com - server.js
+// TrustedPanamaStays.com - server.js
 // Updated to use Supabase database:
 //   - On startup: serve from DB immediately, check PDF URL in background
 //   - Only re-parse PDF when ATP publishes a new one (URL changes)
@@ -262,7 +262,7 @@ async function checkPendingAtpApplications() {
                 .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
             // Activate listing
-            await supabaseAdmin.from('listings').update({
+            await supabase.from('listings').update({
                 is_member:             true,
                 is_trial:              true,
                 trial_started_at:      new Date().toISOString(),
@@ -908,7 +908,7 @@ app.post('/api/reload-pdf', async (req, res) => {
     try {
         console.log('🔄 Manual PDF reload triggered...');
         // Force re-check by temporarily clearing saved URL
-        await supabaseAdmin.from('pdf_meta').update({ pdf_url: 'force-reload' }).neq('id', 0);
+        await supabase.from('pdf_meta').update({ pdf_url: 'force-reload' }).neq('id', 0);
         await checkForPdfUpdate();
         res.json({
             success: true,
@@ -1223,7 +1223,7 @@ app.post('/api/admin/set-invitation-status', requireAdmin, async (req, res) => {
     const updates = { invitation_status: status };
     if (status === 'invited') updates.invitation_sent_at = new Date().toISOString();
     if (status === 'refused') updates.refused_at = new Date().toISOString();
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
         .from('listings')
         .update(updates)
         .eq('id', id);
@@ -1235,7 +1235,7 @@ app.post('/api/admin/set-invitation-status', requireAdmin, async (req, res) => {
 // ── Event logger ──────────────────────────────────────────────────────────────
 async function logEvent(type, data) {
     try {
-        await supabaseAdmin.from('event_log').insert({
+        await supabase.from('event_log').insert({
             event_type: type,
             event_data: data,
             created_at: new Date().toISOString()
@@ -1874,7 +1874,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
                 if (!isTrial) {
                     const amount = app.duration_months === 24 ? 45 : 24;
                     const itbms  = parseFloat((amount * 0.07).toFixed(2));
-                    await supabaseAdmin.from('event_log').insert({
+                    await supabase.from('event_log').insert({
                         event_type: 'invoice_pending',
                         event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: app.duration_months+' months', payment_method: app.payment_method, date: new Date().toISOString() },
                         created_at: new Date().toISOString()
@@ -1956,7 +1956,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 
         // ── Block duplicate trial ─────────────────────────────────────────
         if (isTrial && listingId) {
-            const { data: existing } = await supabaseAdmin.from('listings').select('is_trial, trial_started_at, is_member').eq('id', listingId).single();
+            const { data: existing } = await supabase.from('listings').select('is_trial, trial_started_at, is_member').eq('id', listingId).single();
             if (existing?.trial_started_at || existing?.is_member) {
                 await supabaseAdmin.from('membership_applications').update({ status: 'rejected', notes: 'Rechazado automáticamente: ya tuvo prueba o membresía.', reviewed_at: new Date().toISOString(), reviewed_by: 'system' }).eq('id', application_id);
                 await logEvent('application_auto_rejected', { application_id, reason: 'existing_trial_or_membership', listing_id: listingId });
@@ -1977,7 +1977,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         const slug = app.property_name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
         // ── Update listing ────────────────────────────────────────────────
-        await supabaseAdmin.from('listings').update({
+        await supabase.from('listings').update({
             is_member:             true,
             is_trial:              isTrial,
             trial_started_at:      isTrial ? new Date().toISOString() : null,
@@ -1994,7 +1994,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         if (!isTrial) {
             const amount = app.duration_months === 24 ? 45 : 24;
             const itbms  = parseFloat((amount * 0.07).toFixed(2));
-            await supabaseAdmin.from('event_log').insert({
+            await supabase.from('event_log').insert({
                 event_type: 'invoice_pending',
                 event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: app.duration_months+' months', payment_method: app.payment_method, date: new Date().toISOString() },
                 created_at: new Date().toISOString()
@@ -2510,7 +2510,7 @@ app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => 
                 ], { timeout: 15000 });
 
                 // Mark as invited
-                await supabaseAdmin.from('listings').update({
+                await supabase.from('listings').update({
                     invitation_status:  'invited',
                     invitation_sent_at: new Date().toISOString()
                 }).eq('id', listing.id);
@@ -2600,7 +2600,7 @@ app.post('/api/track', async (req, res) => {
     }
 
     try {
-        await supabaseAdmin.from('listing_events').insert({
+        await supabase.from('listing_events').insert({
             event_type,
             listing_id: listing_id ? parseInt(listing_id) : null,
             created_at: new Date().toISOString()
@@ -2736,7 +2736,7 @@ app.get('/api/admin/send-weekly-report', async (req, res) => {
         // Get listing names
         if (topListings.length > 0) {
             const ids = topListings.map(([id]) => parseInt(id));
-            const { data: names } = await supabaseAdmin.from('listings').select('id, name').in('id', ids);
+            const { data: names } = await supabase.from('listings').select('id, name').in('id', ids);
             const nameMap = {};
             (names || []).forEach(l => { nameMap[l.id] = l.name; });
 
@@ -2874,7 +2874,7 @@ app.post('/api/admin/send-apatel-campaign', requireAdmin, async (req, res) => {
 
                 // Mark as invited in DB if listing found
                 if (listing) {
-                    await supabaseAdmin.from('listings').update({
+                    await supabase.from('listings').update({
                         invitation_status:  'invited',
                         invitation_sent_at: new Date().toISOString()
                     }).eq('id', listing.id);
@@ -3165,7 +3165,7 @@ async function sendToRosterList(targets, subject, body) {
             await execFileAsync('php', [notifyPath, subject, html, member.email], { timeout: 15000 });
 
             // Mark as contacted in DB
-            await supabaseAdmin.from('listings')
+            await supabase.from('listings')
                 .update({ apatel_contacted_at: new Date().toISOString() })
                 .or(`email.ilike.%${member.email}%,email_member.ilike.%${member.email}%`)
                 .eq('apatel_member', true);
