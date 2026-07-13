@@ -981,14 +981,10 @@ async function saveMember() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error||'Save failed');
         const m = allMembers.find(x => x.id===parseInt(id));
-        await adminFetch('/api/admin/set-invitation-status', {
-            method:'POST',
-            body: JSON.stringify({ id: parseInt(id), status: invStatus })
-        });
-        if (m) {
+        if (m && invStatus!==(m.invitation_status||'not_invited')) {
+            await adminFetch('/api/admin/set-invitation-status', { method:'POST', body: JSON.stringify({ id: parseInt(id), status: invStatus }) });
             m.invitation_status = invStatus;
             if (invStatus==='invited') m.invitation_sent_at = new Date().toISOString();
-        }
         }
         msg.textContent='✅ Saved'; msg.className='panel-msg ok'; msg.style.display='inline-block';
         Object.assign(m||{}, payload);
