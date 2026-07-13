@@ -959,6 +959,7 @@ function openEditPanel(id) {
     document.getElementById('edit-email').value        = m.email||'';
     document.getElementById('edit-rental-type').value  = m.rental_type||'';
     document.getElementById('edit-apatel').checked     = !!m.apatel_member;
+    document.getElementById('edit-featured').checked = (m.feature_rank > 0);
     document.getElementById('edit-panel-title').textContent = `Edit: ${m.name} (ID: ${m.id})`;
     document.getElementById('edit-msg').style.display  = 'none';
     closePanel('pwd-panel'); closePanel('wa-panel');
