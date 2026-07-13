@@ -1987,7 +1987,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         const slug = app.property_name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
         // ── Update listing ────────────────────────────────────────────────
-        await supabase.from('listings').update({
+        await supabaseAdmin.from('listings').update({
             is_member:             true,
             is_trial:              isTrial,
             trial_started_at:      isTrial ? new Date().toISOString() : null,
