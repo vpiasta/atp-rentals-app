@@ -1223,7 +1223,7 @@ app.post('/api/admin/set-invitation-status', requireAdmin, async (req, res) => {
     const updates = { invitation_status: status };
     if (status === 'invited') updates.invitation_sent_at = new Date().toISOString();
     if (status === 'refused') updates.refused_at = new Date().toISOString();
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
         .from('listings')
         .update(updates)
         .eq('id', id);
