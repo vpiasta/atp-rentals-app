@@ -1155,7 +1155,7 @@ app.get('/api/admin/members', requireAdmin, async (req, res) => {
     while (true) {
         const { data, error } = await supabase
             .from('listings')
-            .select('id, name, email, phone, province, rental_type, is_member, membership_paid_until, invitation_sent_at, invitation_status, atp_active, slug, contact_name, notes, password_changed, apatel_member')
+            .select('id, name, email, phone, province, rental_type, is_member, membership_paid_until, invitation_sent_at, invitation_status, atp_active, slug, contact_name, notes, password_changed, apatel_member, feature_rank')
             .order('name')
             .range(from, from + BATCH - 1);
         if (error) return res.status(500).json({ error: error.message });
@@ -1169,22 +1169,32 @@ app.get('/api/admin/members', requireAdmin, async (req, res) => {
 // ── Admin API: update member ──────────────────────────────────────────────────
 app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
     const { id, is_member, membership_paid_until, contact_name,
-            slug, notes, phone, email, rental_type, apatel_member } = req.body;
+            slug, notes, phone, email, rental_type, apatel_member, set_featured } = req.body;
     if (!id) return res.status(400).json({ error: 'Missing id' });
-
     const updates = { is_member, membership_paid_until, contact_name, slug, notes };
     if (phone         !== undefined) updates.phone         = phone || null;
     if (email         !== undefined) updates.email         = email || null;
     if (rental_type   !== undefined) updates.rental_type   = rental_type || null;
     if (apatel_member !== undefined) updates.apatel_member = !!apatel_member;
-
+    if (set_featured  !== undefined) {
+        if (!set_featured) {
+            updates.feature_rank = 0;
+        } else {
+            // Check if already featured
+            const { data: current } = await supabaseAdmin
+                .from('listings').select('feature_rank').eq('id', id).single();
+            if (!current?.feature_rank || current.feature_rank === 0) {
+                updates.feature_rank = 999; // Will be recalculated
+            }
+        }
+    }
     const { error } = await supabaseAdmin
         .from('listings')
         .update(updates)
         .eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
-
-    await logEvent('admin_update_member', { id, is_member, contact_name, apatel_member });
+    if (set_featured !== undefined) await recalculateFeatureRanks();
+    await logEvent('admin_update_member', { id, is_member, contact_name, apatel_member, set_featured });
     res.json({ success: true });
 });
 
