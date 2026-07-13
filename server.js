@@ -9,7 +9,7 @@ const cors = require('cors');
 const path = require('path');
 const axios = require('axios');
 const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-const { supabase, supabaseAdmin } = require('./db');   // <-- Supabase client
+const supabase = require('./db');   // <-- Supabase client
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
@@ -20,7 +20,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const https = require('https');
 const http = require('http');
-const APATEL_ROSTER = require('./apatel_emails.json');
 
 app.use(cors());
 app.use(express.json());
@@ -215,19 +214,12 @@ async function checkPendingAtpApplications() {
 
         for (const app of pending) {
             // Try to find matching listing by name similarity
-            // Normalize accents for matching
-            const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
-            const cleanName = normalize(app.property_name);
-            // Get candidates from province, then filter by normalized name
-            const { data: candidates } = await supabaseAdmin
+            const { data: matches } = await supabase
                 .from('listings')
                 .select('id, name, province, is_member')
+                .ilike('name', `%${app.property_name.trim()}%`)
                 .eq('province', app.province)
-                .limit(100);
-            const matches = (candidates || []).filter(l =>
-                normalize(l.name).includes(cleanName.split(' ')[0]) ||
-                cleanName.includes(normalize(l.name).split(' ')[0])
-            ).slice(0, 3);
+                .limit(3);
 
             if (!matches || matches.length === 0) {
                 console.log(`⏳ No ATP match yet for: ${app.property_name}`);
@@ -276,7 +268,7 @@ async function checkPendingAtpApplications() {
             }).eq('id', listing.id);
 
             // Update application
-            await supabaseAdmin.from('membership_applications').update({
+            await supabase.from('membership_applications').update({
                 status:      'approved',
                 listing_id:  listing.id,
                 reviewed_at: new Date().toISOString(),
@@ -730,35 +722,14 @@ app.get('/api/stats', (req, res) => {
     }
 });
 
-
-app.get('/api/provinces', async (req, res) => {
-    // Start with ATP in-memory counts
+app.get('/api/provinces', (req, res) => {
     const provinceCounts = CURRENT_RENTALS.reduce((acc, rental) => {
         if (rental.province) acc[rental.province] = (acc[rental.province] || 0) + 1;
         return acc;
     }, {});
-
-    // Add MiCI listings from database
-    try {
-        const { data: miciListings } = await supabase
-            .from('listings')
-            .select('province')
-            .eq('registry_source', 'mici')
-            .eq('atp_active', false);
-
-        if (miciListings) {
-            miciListings.forEach(r => {
-                if (r.province) provinceCounts[r.province] = (provinceCounts[r.province] || 0) + 1;
-            });
-        }
-    } catch (err) {
-        console.error('Error fetching MiCI province counts:', err.message);
-    }
-
     const provinces = Object.entries(provinceCounts)
         .map(([province, count]) => ({ province, count }))
         .sort((a, b) => a.province.localeCompare(b.province));
-
     res.json(provinces);
 });
 
@@ -773,7 +744,7 @@ app.get('/api/rentals', async (req, res) => {
     // Start from in-memory ATP data
     let filtered = [...CURRENT_RENTALS];
 
-    // Apply filters to ATP listings
+    // Apply filters
     if (search) {
         const s = search.toLowerCase();
         filtered = filtered.filter(r =>
@@ -786,18 +757,21 @@ app.get('/api/rentals', async (req, res) => {
     if (province) filtered = filtered.filter(r => r.province === province);
     if (type)     filtered = filtered.filter(r => r.rental_type === type);
 
-    // Enrich ATP listings with member data from database
+    // Enrich with member data from database in batches
+    // Only fetch member fields for matched results
     try {
         const ids = filtered.map(r => r.id).filter(Boolean);
         if (ids.length > 0) {
+            // Fetch member data for all matching listings
             const { data: memberData } = await supabase
                 .from('listings')
-                .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type, apatel_member, feature_rank')
+                .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug')
                 .in('id', ids);
 
             if (memberData && memberData.length > 0) {
                 const memberMap = {};
                 memberData.forEach(m => { memberMap[m.id] = m; });
+
                 filtered = filtered.map(r => {
                     const m = memberMap[r.id];
                     if (!m) return r;
@@ -809,67 +783,15 @@ app.get('/api/rentals', async (req, res) => {
                         photos:                m.photos || null,
                         is_member:             m.is_member || false,
                         membership_paid_until: m.membership_paid_until || null,
-                        slug:                  m.slug || null,
-                        rental_type:           m.rental_type || r.rental_type,
-                        feature_rank:          m.feature_rank || 0,
-                        apatel_member:         m.apatel_member || false
+                        slug:                  m.slug || null
                     };
                 });
             }
         }
     } catch (err) {
         console.error('Error enriching rentals with member data:', err.message);
+        // Return ATP data without member enrichment rather than failing
     }
-
-    // Add MiCI-only listings from database (not in ATP PDF)
-    try {
-        let miciQuery = supabase
-            .from('listings')
-            .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, registry_source, atp_active')
-            .eq('registry_source', 'mici')
-            .eq('atp_active', false);
-
-        // Apply same filters to MiCI listings
-        if (province) miciQuery = miciQuery.eq('province', province);
-        if (type)     miciQuery = miciQuery.eq('rental_type', type);
-
-        const { data: miciListings } = await miciQuery;
-
-        if (miciListings && miciListings.length > 0) {
-            let miciFiltered = miciListings;
-            if (search) {
-                const s = search.toLowerCase();
-                miciFiltered = miciListings.filter(r =>
-                    r.name.toLowerCase().includes(s) ||
-                    (r.email    && r.email.toLowerCase().includes(s)) ||
-                    (r.phone    && r.phone.toLowerCase().includes(s)) ||
-                    (r.province && r.province.toLowerCase().includes(s))
-                );
-            }
-            filtered = [...filtered, ...miciFiltered];
-        }
-    } catch (err) {
-        console.error('Error fetching MiCI listings:', err.message);
-    }
-
-
-    // Deduplicate: MiCI listings may share name with ATP listings
-    // Keep MiCI version (has registry_source) over ATP version when duplicate
-    const seen = new Map();
-    for (const r of filtered) {
-        const key = `${r.name?.toLowerCase().trim()}|${r.province?.toLowerCase().trim()}`;
-        if (!seen.has(key)) {
-            seen.set(key, r);
-        } else {
-            // Prefer the one with registry_source set (MiCI) over bare ATP entry
-            const existing = seen.get(key);
-            if (!existing.registry_source && r.registry_source) {
-                seen.set(key, r);
-            }
-        }
-    }
-    filtered = Array.from(seen.values());
-
     res.json(filtered);
 });
 
@@ -950,7 +872,7 @@ app.get('/api/listing/slug/:slug', async (req, res) => {
     const { slug } = req.params;
     const { data, error } = await supabase
         .from('listings')
-        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links, is_trial, trial_started_at, registry_source, apatel_member')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links, is_trial, trial_started_at')
         .eq('slug', slug)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
@@ -961,7 +883,7 @@ app.get('/api/listing/:id', async (req, res) => {
     const { id } = req.params;
     const { data, error } = await supabase
         .from('listings')
-        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug, is_trial, trial_started_at, registry_source, apatel_member')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug, is_trial, trial_started_at')
         .eq('id', id)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
@@ -1155,7 +1077,7 @@ app.get('/api/admin/members', requireAdmin, async (req, res) => {
     while (true) {
         const { data, error } = await supabase
             .from('listings')
-            .select('id, name, email, phone, province, rental_type, is_member, membership_paid_until, invitation_sent_at, atp_active, slug, contact_name, notes, password_changed, apatel_member')
+            .select('id, name, email, phone, province, rental_type, is_member, membership_paid_until, invitation_sent_at, atp_active, slug, contact_name, notes, password_changed')
             .order('name')
             .range(from, from + BATCH - 1);
         if (error) return res.status(500).json({ error: error.message });
@@ -1168,23 +1090,16 @@ app.get('/api/admin/members', requireAdmin, async (req, res) => {
 
 // ── Admin API: update member ──────────────────────────────────────────────────
 app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
-    const { id, is_member, membership_paid_until, contact_name,
-            slug, notes, phone, email, rental_type, apatel_member } = req.body;
+    const { id, is_member, membership_paid_until, contact_name, slug, notes } = req.body;
     if (!id) return res.status(400).json({ error: 'Missing id' });
-
-    const updates = { is_member, membership_paid_until, contact_name, slug, notes };
-    if (phone         !== undefined) updates.phone         = phone || null;
-    if (email         !== undefined) updates.email         = email || null;
-    if (rental_type   !== undefined) updates.rental_type   = rental_type || null;
-    if (apatel_member !== undefined) updates.apatel_member = !!apatel_member;
-
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
         .from('listings')
-        .update(updates)
+        .update({ is_member, membership_paid_until, contact_name, slug, notes })
         .eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
 
-    await logEvent('admin_update_member', { id, is_member, contact_name, apatel_member });
+    // Log the action
+    await logEvent('admin_update_member', { id, is_member, membership_paid_until, contact_name });
     res.json({ success: true });
 });
 
@@ -1380,8 +1295,7 @@ app.post('/api/membership-apply',
     const {
         property_name, province, contact_name, contact_email,
         contact_phone, how_found, membership_type,
-        duration_months, payment_method,
-        registration_type, listing_phone, listing_email
+        duration_months, payment_method
     } = req.body;
 
     if (!property_name || !contact_name || !contact_email || !contact_phone) {
@@ -1392,22 +1306,22 @@ app.post('/api/membership-apply',
              || req.socket.remoteAddress;
 
     try {
-        // ── Try to find matching listing (ATP only) ───────────────────────
+        // ── Try to find matching listing in database ───────────────────────
         let listingId = null;
-        const isMici  = registration_type === 'mici';
+        const { data: matchingListings } = await supabase
+            .from('listings')
+            .select('id, name, is_trial, trial_started_at, is_member')
+            .ilike('name', `%${property_name.trim()}%`)
+            .eq('province', province)
+            .limit(1);
 
-        if (!isMici) {
-            const { data: matchingListings } = await supabase
-                .from('listings')
-                .select('id, name, is_trial, trial_started_at, is_member')
-                .ilike('name', `%${property_name.trim()}%`)
-                .eq('province', province)
-                .limit(1);
+        if (matchingListings && matchingListings.length > 0) {
+            listingId = matchingListings[0].id;
+            const existing = matchingListings[0];
 
-            if (matchingListings && matchingListings.length > 0) {
-                listingId = matchingListings[0].id;
-                if (membership_type === 'trial' &&
-                    (matchingListings[0].trial_started_at || matchingListings[0].is_member)) {
+            // ── Block trial if listing already had trial or membership ────
+            if (membership_type === 'trial') {
+                if (existing.trial_started_at || existing.is_member) {
                     return res.status(400).json({
                         error: 'Este hospedaje ya ha tenido una membresía de prueba o activa. Solo se permite una prueba gratuita por hospedaje. Por favor seleccione un plan de pago.'
                     });
@@ -1431,7 +1345,7 @@ app.post('/api/membership-apply',
                 .replace(/[^a-zA-Z0-9._-]/g, '_')
                 .replace(/_+/g, '_').toLowerCase();
             const fileName = `applications/${Date.now()}-${type}-${safeName}`;
-            const { error: uploadError } = await supabaseAdmin.storage
+            const { error: uploadError } = await supabase.storage
                 .from('member-documents')
                 .upload(fileName, file.buffer, {
                     contentType: file.mimetype,
@@ -1448,31 +1362,23 @@ app.post('/api/membership-apply',
             }
         }
 
-        // ── Build notes string ────────────────────────────────────────────
-        const notesParts = [];
-        if (how_found)     notesParts.push(`Cómo nos conoció: ${how_found}`);
-        if (isMici && listing_phone) notesParts.push(`listing_phone: ${listing_phone}`);
-        if (isMici && listing_email) notesParts.push(`listing_email: ${listing_email}`);
-        const notesStr = notesParts.length ? notesParts.join(' | ') : null;
-
         // ── Save application to database ──────────────────────────────────
-        const { data: application, error: insertError } = await supabaseAdmin
+        const { data: application, error: insertError } = await supabase
             .from('membership_applications')
             .insert({
-                listing_id:        listingId,
-                property_name:     property_name.trim(),
+                listing_id:      listingId,
+                property_name:   property_name.trim(),
                 province,
-                contact_name:      contact_name.trim(),
-                contact_email:     contact_email.trim().toLowerCase(),
-                contact_phone:     contact_phone.trim(),
+                contact_name:    contact_name.trim(),
+                contact_email:   contact_email.trim().toLowerCase(),
+                contact_phone:   contact_phone.trim(),
                 membership_type,
-                duration_months:   parseInt(duration_months) || 0,
+                duration_months: parseInt(duration_months) || 0,
                 payment_method,
-                documents:         documents.length ? documents : null,
-                notes:             notesStr,
-                ip_address:        ip,
-                status:            'pending',
-                registration_type: isMici ? 'mici' : 'atp'
+                documents:       documents.length ? documents : null,
+                notes:           how_found ? `Cómo nos conoció: ${how_found}` : null,
+                ip_address:      ip,
+                status:          'pending'
             })
             .select()
             .single();
@@ -1481,38 +1387,29 @@ app.post('/api/membership-apply',
 
         await logEvent('membership_application_received', {
             application_id: application.id,
-            property_name, membership_type,
-            listing_id: listingId,
-            registration_type: isMici ? 'mici' : 'atp'
+            property_name, membership_type, listing_id: listingId
         });
 
-        // ── Send notification email to admin ──────────────────────────────
+        // ── Send notification email ───────────────────────────────────────
         const planText = membership_type === 'trial'
             ? 'Prueba gratuita 30 días'
             : (duration_months == 24 ? '2 años ($45)' : '1 año ($24)');
 
-        const regBadge = isMici
-            ? '<span style="background:#4a1a6b;color:#d4adf5;padding:2px 8px;border-radius:10px;font-size:12px;">MiCI</span>'
-            : '<span style="background:#1a5c1a;color:#adf5ad;padding:2px 8px;border-radius:10px;font-size:12px;">ATP</span>';
-
         const subject = `Nueva solicitud de membresía: ${property_name}`;
         const message = `
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#005ca9;">Nueva Solicitud de Membresía ${regBadge}</h2>
+<h2 style="color:#005ca9;">Nueva Solicitud de Membresía</h2>
 <table style="border-collapse:collapse;width:100%;max-width:500px;">
-    <tr><td style="padding:6px;font-weight:bold;color:#555;">Tipo:</td><td style="padding:6px;">${isMici ? '📄 Solo Aviso de Operación (MiCI)' : '✅ Registrado ATP'}</td></tr>
-    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Hospedaje:</td><td style="padding:6px;">${property_name}</td></tr>
-    <tr><td style="padding:6px;font-weight:bold;color:#555;">Provincia:</td><td style="padding:6px;">${province}</td></tr>
-    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Contacto:</td><td style="padding:6px;">${contact_name}</td></tr>
-    <tr><td style="padding:6px;font-weight:bold;color:#555;">Correo:</td><td style="padding:6px;">${contact_email}</td></tr>
-    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Teléfono:</td><td style="padding:6px;">${contact_phone}</td></tr>
-    ${isMici && listing_phone ? `<tr><td style="padding:6px;font-weight:bold;color:#555;">Tel. público:</td><td style="padding:6px;">${listing_phone}</td></tr>` : ''}
-    ${isMici && listing_email ? `<tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Correo público:</td><td style="padding:6px;">${listing_email}</td></tr>` : ''}
-    <tr><td style="padding:6px;font-weight:bold;color:#555;">Plan:</td><td style="padding:6px;">${planText}</td></tr>
-    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Pago:</td><td style="padding:6px;">${payment_method || 'N/A'}</td></tr>
-    <tr><td style="padding:6px;font-weight:bold;color:#555;">Documentos:</td><td style="padding:6px;">${documents.length} archivo(s)</td></tr>
-    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">ATP match:</td><td style="padding:6px;">${isMici ? 'N/A (MiCI)' : (listingId ? 'Sí (ID: '+listingId+')' : 'No encontrado')}</td></tr>
-    <tr><td style="padding:6px;font-weight:bold;color:#555;">ID Solicitud:</td><td style="padding:6px;">${application.id}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Hospedaje:</td><td style="padding:6px;">${property_name}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Provincia:</td><td style="padding:6px;">${province}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Contacto:</td><td style="padding:6px;">${contact_name}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Correo:</td><td style="padding:6px;">${contact_email}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Teléfono:</td><td style="padding:6px;">${contact_phone}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Plan:</td><td style="padding:6px;">${planText}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">Pago:</td><td style="padding:6px;">${payment_method || 'N/A'}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">Documentos:</td><td style="padding:6px;">${documents.length} archivo(s)</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;color:#555;">ATP match:</td><td style="padding:6px;">${listingId ? 'Sí (ID: '+listingId+')' : 'No encontrado'}</td></tr>
+    <tr style="background:#f5f5f5;"><td style="padding:6px;font-weight:bold;color:#555;">ID Solicitud:</td><td style="padding:6px;">${application.id}</td></tr>
 </table>
 <p style="margin-top:1rem;">
     <a href="https://trustedpanamastays.com/admin.html"
@@ -1531,7 +1428,7 @@ app.post('/api/membership-apply',
             await logEvent('notification_email_failed', { application_id: application.id, error: emailErr.message });
         }
 
-        res.json({ success: true, application_id: application.id, listing_found: !!listingId, registration_type: isMici ? 'mici' : 'atp' });
+        res.json({ success: true, application_id: application.id, listing_found: !!listingId });
 
     } catch (err) {
         console.error('Membership application error:', err.message);
@@ -1546,7 +1443,7 @@ app.post('/api/membership-apply',
 
 // ── Get all applications ──────────────────────────────────────────────────────
 app.get('/api/admin/applications', requireAdmin, async (req, res) => {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
         .from('membership_applications')
         .select('*')
         .order('created_at', { ascending: false });
@@ -1556,7 +1453,7 @@ app.get('/api/admin/applications', requireAdmin, async (req, res) => {
 
 // ── Get single application ────────────────────────────────────────────────────
 app.get('/api/admin/application/:id', requireAdmin, async (req, res) => {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
         .from('membership_applications')
         .select('*')
         .eq('id', req.params.id)
@@ -1569,7 +1466,7 @@ app.get('/api/admin/application/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/application-status', requireAdmin, async (req, res) => {
     const { id, status, notes } = req.body;
     if (!id || !status) return res.status(400).json({ error: 'Missing fields' });
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
         .from('membership_applications')
         .update({ status, notes, reviewed_at: new Date().toISOString(), reviewed_by: 'admin' })
         .eq('id', id);
@@ -1803,118 +1700,26 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
     const bcrypt = require('bcrypt');
     const { application_id } = req.body;
     if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
-    const { data: app, error: appError } = await supabaseAdmin.from('membership_applications').select('*').eq('id', application_id).single();
+    const { data: app, error: appError } = await supabase.from('membership_applications').select('*').eq('id', application_id).single();
     if (appError || !app) return res.status(404).json({ error: 'Application not found' });
     try {
         const isTrial  = app.membership_type === 'trial';
         let listingId  = app.listing_id;
 
-        // ── No ATP listing match — MiCI creates new listing, ATP sets pending ─
+        // ── Block if no ATP listing match — set to pending_atp ────────────
         if (!listingId) {
-            const isMiciApp = app.registration_type === 'mici';
+            const directoryUrl = 'https://trustedpanamastays.com/index_es.html';
 
-            if (isMiciApp) {
-                // ── MiCI: create a brand new listing ─────────────────────
-                // Extract listing_phone and listing_email from notes
-                const notes = app.notes || '';
-                const extractNote = (key) => {
-                    const match = notes.match(new RegExp(`${key}:\\s*([^|]+)`));
-                    return match ? match[1].trim() : null;
-                };
-                const pubPhone = extractNote('listing_phone') || app.contact_phone;
-                const pubEmail = extractNote('listing_email') || app.contact_email;
+            await supabase.from('membership_applications').update({
+                status:             'pending_atp',
+                documents_verified: true,
+                auto_activate:      true,
+                notes:              'Documentos verificados. En espera de registro ATP.',
+                reviewed_at:        new Date().toISOString(),
+                reviewed_by:        'admin'
+            }).eq('id', application_id);
 
-                const chars    = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-                const password = Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-                const hash     = await bcrypt.hash(password, 10);
-
-                const paidUntil = new Date();
-                if (isTrial) paidUntil.setDate(paidUntil.getDate() + 30);
-                else paidUntil.setFullYear(paidUntil.getFullYear() + (app.duration_months === 24 ? 2 : 1));
-                const paidUntilStr = paidUntil.toISOString().split('T')[0];
-                const slug = app.property_name.toLowerCase()
-                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-
-                const { data: newListing, error: insertError } = await supabaseAdmin
-                    .from('listings')
-                    .insert({
-                        name:                  app.property_name,
-                        province:              app.province,
-                        registry_source:       'mici',
-                        atp_active:            false,
-                        is_member:             true,
-                        is_trial:              isTrial,
-                        trial_started_at:      isTrial ? new Date().toISOString() : null,
-                        membership_paid_until: paidUntilStr,
-                        member_password:       hash,
-                        contact_name:          app.contact_name,
-                        phone:                 pubPhone,
-                        email:                 pubEmail,
-                        slug,
-                        invitation_status:     'member',
-                        verified_at:           new Date().toISOString(),
-                        verified_by:           'admin'
-                    })
-                    .select()
-                    .single();
-
-                if (insertError) throw new Error('Could not create MiCI listing: ' + insertError.message);
-                listingId = newListing.id;
-
-                // Update application with new listing_id and approved status
-                await supabaseAdmin.from('membership_applications').update({
-                    listing_id:  listingId,
-                    status:      'approved',
-                    reviewed_at: new Date().toISOString(),
-                    reviewed_by: 'admin'
-                }).eq('id', application_id);
-
-                // Log invoice for paid plans
-                if (!isTrial) {
-                    const amount = app.duration_months === 24 ? 45 : 24;
-                    const itbms  = parseFloat((amount * 0.07).toFixed(2));
-                    await supabase.from('event_log').insert({
-                        event_type: 'invoice_pending',
-                        event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: app.duration_months+' months', payment_method: app.payment_method, date: new Date().toISOString() },
-                        created_at: new Date().toISOString()
-                    });
-                }
-
-                // Send welcome email
-                const msgType   = isTrial ? 'approved_trial' : 'approved_paid';
-                const emailHtml = generateEmailHtml({ ...app, listing_id: listingId }, msgType, password, paidUntilStr);
-                const waMsg     = generateWaText({ ...app, listing_id: listingId }, msgType, password, paidUntilStr);
-                const hasEmail  = !!(app.contact_email && app.contact_email.includes('@'));
-                let emailSent   = false;
-                let waText      = null;
-
-                if (hasEmail) {
-                    const notifyPath = path.join(__dirname, 'public', 'notify.php');
-                    try {
-                        await execFileAsync('php', [notifyPath, 'Membresía aprobada - ' + app.property_name, emailHtml, app.contact_email], { timeout: 15000 });
-                        emailSent = true;
-                    } catch (err) { console.error('Welcome email failed:', err.message); waText = waMsg; }
-                } else { waText = waMsg; }
-
-                const phone = app.contact_phone?.replace(/[^\d]/g,'').substring(0,8) || null;
-                await logEvent('application_approved_mici', { application_id, listing_id: listingId, property_name: app.property_name, paid_until: paidUntilStr });
-                return res.json({ success: true, password, paid_until: paidUntilStr, listing_id: listingId, property_name: app.property_name, email_sent: emailSent, whatsapp_text: waText, phone, mici: true });
-
-            } else {
-                // ── ATP: no match found — set to pending_atp ─────────────
-                const directoryUrl = 'https://trustedpanamastays.com/index_es.html';
-
-                await supabaseAdmin.from('membership_applications').update({
-                    status:             'pending_atp',
-                    documents_verified: true,
-                    auto_activate:      true,
-                    notes:              'Documentos verificados. En espera de registro ATP.',
-                    reviewed_at:        new Date().toISOString(),
-                    reviewed_by:        'admin'
-                }).eq('id', application_id);
-
-                const notFoundMsg = `
+            const notFoundMsg = `
 <html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
 <div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
     <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
@@ -1935,30 +1740,34 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 <p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
 </body></html>`;
 
-                const hasEmail   = !!(app.contact_email && app.contact_email.includes('@'));
-                let emailSent    = false;
-                let waText       = null;
-                const waFallback = `Hola! Somos Trusted Panama Stays.\n\nHemos verificado sus documentos para *${app.property_name}*. Todo está en orden, pero su hospedaje aún no aparece en el registro de la ATP.\n\nCuando la ATP registre su hospedaje, activaremos su membresía de prueba automáticamente.\n\nPara registrarse: https://www.atp.gob.pa/industrias/hoteleros/\n\nPreguntas? info@trustedpanamastays.com`;
+            const hasEmail = !!(app.contact_email && app.contact_email.includes('@'));
+            let emailSent  = false;
+            let waText     = null;
+            const waFallback = `Hola! Somos Trusted Panama Stays.\n\nHemos verificado sus documentos para *${app.property_name}*. Todo está en orden, pero su hospedaje aún no aparece en el registro de la ATP.\n\nCuando la ATP registre su hospedaje, activaremos su membresía de prueba automáticamente.\n\nPara registrarse: https://www.atp.gob.pa/industrias/hoteleros/\n\nPreguntas? info@trustedpanamastays.com`;
 
-                if (hasEmail) {
-                    const notifyPath = path.join(__dirname, 'public', 'notify.php');
-                    try {
-                        await execFileAsync('php', [notifyPath, `Solicitud de membresía — ${app.property_name}`, notFoundMsg, app.contact_email], { timeout: 15000 });
-                        emailSent = true;
-                    } catch (err) { console.error('Not-found email failed:', err.message); waText = waFallback; }
-                } else { waText = waFallback; }
-
-                await logEvent('application_pending_atp', { application_id, property_name: app.property_name, email_sent: emailSent });
-                const phone = app.contact_phone?.replace(/[^\d]/g,'').substring(0,8) || null;
-                return res.json({ success: true, pending_atp: true, email_sent: emailSent, whatsapp_text: waText, property_name: app.property_name, phone });
+            if (hasEmail) {
+                const notifyPath = path.join(__dirname, 'public', 'notify.php');
+                try {
+                    await execFileAsync('php', [notifyPath, `Solicitud de membresía — ${app.property_name}`, notFoundMsg, app.contact_email], { timeout: 15000 });
+                    emailSent = true;
+                } catch (err) {
+                    console.error('Not-found email failed:', err.message);
+                    waText = waFallback;
+                }
+            } else {
+                waText = waFallback;
             }
+
+            await logEvent('application_pending_atp', { application_id, property_name: app.property_name, email_sent: emailSent });
+            const phone = app.contact_phone?.replace(/[^\d]/g,'').substring(0,8) || null;
+            return res.json({ success: true, pending_atp: true, email_sent: emailSent, whatsapp_text: waText, property_name: app.property_name, phone });
         }
 
         // ── Block duplicate trial ─────────────────────────────────────────
         if (isTrial && listingId) {
             const { data: existing } = await supabase.from('listings').select('is_trial, trial_started_at, is_member').eq('id', listingId).single();
             if (existing?.trial_started_at || existing?.is_member) {
-                await supabaseAdmin.from('membership_applications').update({ status: 'rejected', notes: 'Rechazado automáticamente: ya tuvo prueba o membresía.', reviewed_at: new Date().toISOString(), reviewed_by: 'system' }).eq('id', application_id);
+                await supabase.from('membership_applications').update({ status: 'rejected', notes: 'Rechazado automáticamente: ya tuvo prueba o membresía.', reviewed_at: new Date().toISOString(), reviewed_by: 'system' }).eq('id', application_id);
                 await logEvent('application_auto_rejected', { application_id, reason: 'existing_trial_or_membership', listing_id: listingId });
                 return res.status(400).json({ error: 'Este hospedaje ya tuvo una prueba gratuita o membresía. Solicitud rechazada automáticamente.' });
             }
@@ -2002,7 +1811,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         }
 
         // ── Update application status ─────────────────────────────────────
-        await supabaseAdmin.from('membership_applications').update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', application_id);
+        await supabase.from('membership_applications').update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', application_id);
 
         // ── Send welcome email ────────────────────────────────────────────
         const msgType   = isTrial ? 'approved_trial' : 'approved_paid';
@@ -2022,7 +1831,6 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 
         const phone = app.contact_phone?.replace(/[^\d]/g,'').substring(0,8) || null;
         await logEvent('application_approved', { application_id, listing_id: listingId, membership_type: app.membership_type, paid_until: paidUntilStr });
-        await recalculateFeatureRanks();
         res.json({ success: true, password, paid_until: paidUntilStr, listing_id: listingId, property_name: app.property_name, email_sent: emailSent, whatsapp_text: waText, phone });
 
     } catch (err) {
@@ -2036,11 +1844,11 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 app.post('/api/admin/reject-application', requireAdmin, async (req, res) => {
     const { application_id, reason, custom_note, is_payment_issue } = req.body;
     if (!application_id || !reason) return res.status(400).json({ error: 'Missing fields' });
-    const { data: app, error: appError } = await supabaseAdmin.from('membership_applications').select('*').eq('id', application_id).single();
+    const { data: app, error: appError } = await supabase.from('membership_applications').select('*').eq('id', application_id).single();
     if (appError || !app) return res.status(404).json({ error: 'Not found' });
 
     const fullReason = reason + (custom_note ? '. ' + custom_note : '');
-    await supabaseAdmin.from('membership_applications').update({ status: 'rejected', notes: 'Razón: ' + fullReason, reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', application_id);
+    await supabase.from('membership_applications').update({ status: 'rejected', notes: 'Razón: ' + fullReason, reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', application_id);
     await logEvent('application_rejected', { application_id, reason, is_payment_issue });
 
     const hasEmail  = !!(app.contact_email && app.contact_email.includes('@'));
@@ -2096,12 +1904,12 @@ app.post('/api/submit-payment',
         if (file) {
             const safeName = file.originalname.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_+/g, '_').toLowerCase();
             const fileName = 'payments/' + listing_id + '/' + Date.now() + '-' + safeName;
-            const { error: uploadError } = await supabaseAdmin.storage.from('member-documents').upload(fileName, file.buffer, { contentType: file.mimetype, upsert: false });
+            const { error: uploadError } = await supabase.storage.from('member-documents').upload(fileName, file.buffer, { contentType: file.mimetype, upsert: false });
             if (!uploadError) documentPath = fileName;
         }
 
         const months = parseInt(duration_months) || 12;
-        const { data: submission } = await supabaseAdmin.from('membership_applications').insert({
+        const { data: submission } = await supabase.from('membership_applications').insert({
             listing_id:      parseInt(listing_id),
             property_name:   listing.name,
             province:        listing.province,
@@ -2135,7 +1943,7 @@ app.post('/api/submit-payment',
 app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
     const { path: filePath } = req.query;
     if (!filePath) return res.status(400).json({ error: 'Missing path' });
-    const { data, error } = await supabaseAdmin.storage
+    const { data, error } = await supabase.storage
         .from('member-documents')
         .createSignedUrl(filePath, 3600);
     if (error) return res.status(500).json({ error: error.message });
@@ -2302,27 +2110,53 @@ app.post('/api/reset-password', async (req, res) => {
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  Featured listing
-//  Now returns ALL listings with feature_rank > 0, ordered by rank desc
 // ═════════════════════════════════════════════════════════════════════════════
-
 app.get('/api/featured-listing', async (req, res) => {
     try {
-        const { data: listings, error } = await supabase
+        const { data: setting } = await supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'featured_listing_id')
+            .single();
+        if (!setting) return res.status(404).json({ error: 'No featured listing configured' });
+
+        const { data: listing, error } = await supabase
             .from('listings')
-            .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, website_url, booking_url, registry_source, atp_active, apatel_member, is_trial, feature_rank')
-            .gt('feature_rank', 0)
-            .order('feature_rank', { ascending: false });
+            .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, website_url, booking_url')
+            .eq('id', parseInt(setting.value))
+            .single();
+        if (error || !listing) return res.status(404).json({ error: 'Featured listing not found' });
 
-        if (error) throw new Error(error.message);
-        if (!listings || listings.length === 0)
-            return res.status(404).json({ error: 'No featured listings' });
-
-        res.json(listings);  // returns array
+        res.json(listing);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  featured listing
+// ═════════════════════════════════════════════════════════════════════════════
+app.get('/api/featured-listing', async (req, res) => {
+    try {
+        const { data: setting } = await supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'featured_listing_id')
+            .single();
+        if (!setting) return res.status(404).json({ error: 'No featured listing configured' });
+
+        const { data: listing, error } = await supabase
+            .from('listings')
+            .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, website_url, booking_url')
+            .eq('id', parseInt(setting.value))
+            .single();
+        if (error || !listing) return res.status(404).json({ error: 'Featured listing not found' });
+
+        res.json(listing);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // ── GET /api/send-trial-reminders (called by GitHub Action daily) ─────────────
 app.get('/api/send-trial-reminders', async (req, res) => {
@@ -2414,952 +2248,6 @@ app.get('/api/send-trial-reminders', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => {
-    const { filter, dry_run } = req.body;
-    // filter: 'all' | 'apatel' | 'no-email' (for WA list)
-    // dry_run: true = just count, don't send
-
-    try {
-        // Build query
-        let query = supabase
-            .from('listings')
-            .select('id, name, email, province, rental_type, slug, apatel_member, invitation_status, invitation_sent_at, atp_active')
-            .eq('is_member', false)  // non-members only
-            .is('invitation_sent_at', null); // not yet invited
-
-        if (filter === 'apatel') query = query.eq('apatel_member', true);
-        if (filter === 'no-email') query = query.is('email', null);
-        else query = query.not('email', 'is', null); // has email
-
-        const { data: listings, error } = await query;
-        if (error) throw new Error(error.message);
-
-        if (!listings || listings.length === 0)
-            return res.json({ success: true, sent: 0, skipped: 0, message: 'No eligible listings found' });
-
-        if (dry_run)
-            return res.json({ success: true, dry_run: true, count: listings.length,
-                has_email: listings.filter(l => l.email).length,
-                no_email: listings.filter(l => !l.email).length,
-                apatel: listings.filter(l => l.apatel_member).length });
-
-        const notifyPath = path.join(__dirname, 'public', 'notify.php');
-        let sent = 0, skipped = 0, errors = 0;
-
-        for (const listing of listings) {
-            if (!listing.email || !listing.email.includes('@')) { skipped++; continue; }
-
-            const listUrl = listing.slug
-                ? `https://trustedpanamastays.com/listing.html?slug=${listing.slug}&lang=es`
-                : `https://trustedpanamastays.com/listing.html?id=${listing.id}&lang=es`;
-            const joinUrl = 'https://trustedpanamastays.com/join.html';
-
-            const isApatel = listing.apatel_member;
-            const greeting = isApatel
-                ? `Como miembro de APATEL, le escribimos con una invitación especial.`
-                : `Le contactamos porque su hospedaje aparece en el registro oficial de la ATP.`;
-
-            const subject = `Su hospedaje ya está en Trusted Panama Stays — ${listing.name}`;
-            const message = `
-<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
-<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
-    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
-    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
-</div>
-
-<p>Estimado/a propietario/a de <strong>${listing.name}</strong>,</p>
-<p>${greeting}</p>
-<p>Hemos creado <strong>Trusted Panama Stays</strong>, un directorio gratuito para turistas internacionales que buscan hospedajes legalmente registrados en Panamá — sin las comisiones de Booking.com o Airbnb (15–20%).</p>
-
-<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
-    <p style="margin:0 0 0.5rem;font-weight:bold;color:#005ca9;">Su hospedaje ya aparece en nuestro directorio:</p>
-    <p style="margin:0;"><a href="${listUrl}" style="color:#005ca9;font-size:1rem;">${listUrl}</a></p>
-</div>
-
-<p>Con una <strong>membresía de prueba gratuita</strong> (sin costo, sin obligación) puede:</p>
-<ul style="margin:0.5rem 0 1rem 1.5rem;line-height:2;">
-    <li>Agregar hasta <strong>20 fotos</strong> de su hospedaje</li>
-    <li>Publicar una <strong>descripción en inglés y español</strong></li>
-    <li>Mostrar su <strong>dirección completa</strong></li>
-    <li>Incluir enlaces a su <strong>sitio web y sistema de reservas</strong></li>
-</ul>
-
-<p style="text-align:center;margin:1.5rem 0;">
-    <a href="${joinUrl}" style="background:#005ca9;color:white;padding:12px 30px;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;display:inline-block;">
-        Solicitar membresía gratuita →
-    </a>
-</p>
-
-<p style="font-size:0.85rem;color:#666;">
-    El costo después del período de prueba es solo <strong>$24/año + ITBMS</strong> — menos de $2 al mes.<br>
-    Hospedajes informales son excluidos de la plataforma.
-</p>
-
-<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
-<p style="color:#888;font-size:0.78rem;">
-    Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
-    <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a><br>
-    Para cancelar estas comunicaciones responda con "No gracias".
-</p>
-</body></html>`;
-
-            try {
-                await execFileAsync('php', [
-                    notifyPath, subject, message, listing.email
-                ], { timeout: 15000 });
-
-                // Mark as invited
-                await supabase.from('listings').update({
-                    invitation_status:  'invited',
-                    invitation_sent_at: new Date().toISOString()
-                }).eq('id', listing.id);
-
-                await logEvent('invitation_email_sent', {
-                    listing_id: listing.id,
-                    name:       listing.name,
-                    email:      listing.email,
-                    apatel:     isApatel
-                });
-
-                sent++;
-
-                // Throttle — 1 email per 300ms to avoid SMTP limits
-                await new Promise(r => setTimeout(r, 300));
-
-            } catch (err) {
-                console.error(`Email failed for ${listing.name}:`, err.message);
-                errors++;
-            }
-        }
-
-        res.json({ success: true, sent, skipped, errors, total: listings.length });
-
-    } catch (err) {
-        console.error('Send invitations error:', err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-// ── GET /api/admin/invitation-stats ──────────────────────────────────────────
-app.get('/api/admin/invitation-stats', requireAdmin, async (req, res) => {
-    try {
-      let data = [];
-      let from = 0;
-      const BATCH = 1000;
-      while (true) {
-          const { data: batch, error } = await supabase
-              .from('listings')
-              .select('id, email, apatel_member, invitation_status, invitation_sent_at, is_member')
-              .eq('is_member', false)
-              .range(from, from + BATCH - 1);
-          if (error) throw new Error(error.message);
-          data = data.concat(batch);
-          if (batch.length < BATCH) break;
-          from += BATCH;
-      }
-
-        const stats = {
-            total_non_members: data.length,
-            has_email:         data.filter(l => l.email && l.email.includes('@')).length,
-            no_email:          data.filter(l => !l.email || !l.email.includes('@')).length,
-            apatel:            data.filter(l => l.apatel_member).length,
-            apatel_email:      data.filter(l => l.apatel_member && l.email && l.email.includes('@')).length,
-            not_invited:       data.filter(l => !l.invitation_sent_at).length,
-            invited:           data.filter(l => !!l.invitation_sent_at).length,
-        };
-        res.json(stats);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ── POST /api/track ───────────────────────────────────────────────────────────
-// Lightweight event tracking — no auth required, rate limited by IP
-const trackRateLimit = new Map(); // ip -> {count, reset}
-
-app.post('/api/track', async (req, res) => {
-    const { event_type, listing_id } = req.body;
-    if (!event_type) return res.status(400).json({ error: 'Missing event_type' });
-
-    // Rate limit: max 60 events per IP per minute
-    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
-    const now = Date.now();
-    const rl  = trackRateLimit.get(ip) || { count: 0, reset: now + 60000 };
-    if (now > rl.reset) { rl.count = 0; rl.reset = now + 60000; }
-    rl.count++;
-    trackRateLimit.set(ip, rl);
-    if (rl.count > 60) return res.status(429).json({ error: 'Rate limited' });
-
-    // Clean up old entries periodically
-    if (trackRateLimit.size > 10000) {
-        for (const [k, v] of trackRateLimit) {
-            if (now > v.reset) trackRateLimit.delete(k);
-        }
-    }
-
-    try {
-        await supabase.from('listing_events').insert({
-            event_type,
-            listing_id: listing_id ? parseInt(listing_id) : null,
-            created_at: new Date().toISOString()
-        });
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-// ── GET /api/admin/analytics ──────────────────────────────────────────────────
-app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
-    const days = parseInt(req.query.days) || 7;
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-    try {
-        // Total counts by event type
-        const { data: totals } = await supabaseAdmin
-            .from('listing_events')
-            .select('event_type')
-            .gte('created_at', since);
-
-        const counts = {};
-        (totals || []).forEach(e => {
-            counts[e.event_type] = (counts[e.event_type] || 0) + 1;
-        });
-
-        // Top listings by views
-        const { data: views } = await supabaseAdmin
-            .from('listing_events')
-            .select('listing_id')
-            .eq('event_type', 'listing_view')
-            .gte('created_at', since)
-            .not('listing_id', 'is', null);
-
-        const listingCounts = {};
-        (views || []).forEach(e => {
-            listingCounts[e.listing_id] = (listingCounts[e.listing_id] || 0) + 1;
-        });
-
-        const topListings = Object.entries(listingCounts)
-            .sort(([,a],[,b]) => b - a)
-            .slice(0, 20)
-            .map(([id, count]) => ({ listing_id: parseInt(id), views: count }));
-
-        // Enrich with listing names
-        if (topListings.length > 0) {
-            const ids = topListings.map(l => l.listing_id);
-            const { data: names } = await supabase
-                .from('listings')
-                .select('id, name, province, slug')
-                .in('id', ids);
-            const nameMap = {};
-            (names || []).forEach(l => { nameMap[l.id] = l; });
-            topListings.forEach(l => {
-                const info = nameMap[l.listing_id] || {};
-                l.name     = info.name || '—';
-                l.province = info.province || '';
-                l.slug     = info.slug || '';
-            });
-        }
-
-        res.json({ days, since, counts, top_listings: topListings });
-
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-// ── GET /api/admin/analytics/listing/:id ─────────────────────────────────────
-app.get('/api/admin/analytics/listing/:id', requireAdmin, async (req, res) => {
-    const listingId = parseInt(req.params.id);
-    const days      = parseInt(req.query.days) || 30;
-    const since     = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-    try {
-        const { data: events } = await supabaseAdmin
-            .from('listing_events')
-            .select('event_type, created_at')
-            .eq('listing_id', listingId)
-            .gte('created_at', since)
-            .order('created_at', { ascending: false });
-
-        const counts = {};
-        (events || []).forEach(e => {
-            counts[e.event_type] = (counts[e.event_type] || 0) + 1;
-        });
-
-        // Daily breakdown
-        const daily = {};
-        (events || []).forEach(e => {
-            const day = e.created_at.split('T')[0];
-            if (!daily[day]) daily[day] = {};
-            daily[day][e.event_type] = (daily[day][e.event_type] || 0) + 1;
-        });
-
-        res.json({ listing_id: listingId, days, counts, daily });
-
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-// ── GET /api/admin/send-weekly-report ─────────────────────────────────────────
-app.get('/api/admin/send-weekly-report', async (req, res) => {
-    const { secret } = req.query;
-    if (secret !== process.env.ADMIN_SECRET) return res.status(403).send('Denied');
-
-    try {
-        const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-        const { data: events } = await supabaseAdmin
-            .from('listing_events')
-            .select('event_type, listing_id, created_at')
-            .gte('created_at', since);
-
-        const counts = {};
-        const listingCounts = {};
-        (events || []).forEach(e => {
-            counts[e.event_type] = (counts[e.event_type] || 0) + 1;
-            if (e.listing_id) {
-                listingCounts[e.listing_id] = (listingCounts[e.listing_id] || 0) + 1;
-            }
-        });
-
-        const topListings = Object.entries(listingCounts)
-            .sort(([,a],[,b]) => b - a)
-            .slice(0, 10);
-
-        // Get listing names
-        if (topListings.length > 0) {
-            const ids = topListings.map(([id]) => parseInt(id));
-            const { data: names } = await supabase.from('listings').select('id, name').in('id', ids);
-            const nameMap = {};
-            (names || []).forEach(l => { nameMap[l.id] = l.name; });
-
-            const rows = topListings.map(([id, count]) =>
-                `<tr><td style="padding:6px 12px;">${nameMap[id] || id}</td><td style="padding:6px 12px;text-align:center;"><strong>${count}</strong></td></tr>`
-            ).join('');
-
-            const message = `
-<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
-<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
-    <h1 style="color:white;margin:0;">📊 Weekly Analytics Report</h1>
-    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;">Trusted Panama Stays · Last 7 days</p>
-</div>
-<h3 style="color:#005ca9;">Summary</h3>
-<table style="border-collapse:collapse;width:100%;margin-bottom:1.5rem;">
-    <tr style="background:#f8f9fa;"><td style="padding:6px 12px;">Site visits</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.site_visit || 0}</strong></td></tr>
-    <tr><td style="padding:6px 12px;">Listing views</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.listing_view || 0}</strong></td></tr>
-    <tr style="background:#f8f9fa;"><td style="padding:6px 12px;">WhatsApp clicks</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.whatsapp_click || 0}</strong></td></tr>
-    <tr><td style="padding:6px 12px;">Email clicks</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.email_click || 0}</strong></td></tr>
-    <tr style="background:#f8f9fa;"><td style="padding:6px 12px;">Website clicks</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.website_click || 0}</strong></td></tr>
-    <tr><td style="padding:6px 12px;">Booking clicks</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.booking_click || 0}</strong></td></tr>
-    <tr style="background:#f8f9fa;"><td style="padding:6px 12px;">Photo browses</td><td style="padding:6px 12px;text-align:center;"><strong>${counts.photo_browse || 0}</strong></td></tr>
-</table>
-<h3 style="color:#005ca9;">Top Listings by Activity</h3>
-<table style="border-collapse:collapse;width:100%;">
-    <tr style="background:#005ca9;color:white;"><th style="padding:6px 12px;text-align:left;">Listing</th><th style="padding:6px 12px;">Events</th></tr>
-    ${rows}
-</table>
-<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
-<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA</p>
-</body></html>`;
-
-            const notifyPath = require('path').join(__dirname, 'public', 'notify.php');
-            await execFileAsync('php', [notifyPath, 'Weekly Analytics Report — Trusted Panama Stays', message, 'info@trustedpanamastays.com'], { timeout: 15000 });
-        }
-
-        res.json({ success: true, events: events?.length || 0, counts });
-
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/admin/send-apatel-campaign', requireAdmin, async (req, res) => {
-    const { dry_run, start_from } = req.body;
-    const startIndex = parseInt(start_from) || 0;
-
-    try {
-        const notifyPath = path.join(__dirname, 'public', 'notify.php');
-        let sent = 0, skipped = 0, errors = 0;
-        const results = [];
-
-        for (let i = startIndex; i < APATEL_ROSTER.length; i++) {
-            const member = APATEL_ROSTER[i];
-            if (!member.email || !member.email.includes('@')) {
-                skipped++;
-                continue;
-            }
-
-            // Find their listing in DB to get the listing URL
-            const { data: listings } = await supabase
-                .from('listings')
-                .select('id, name, slug, apatel_member')
-                .eq('apatel_member', true)
-                .ilike('name', `%${member.hotel.substring(0, 15)}%`)
-                .limit(1);
-
-            const listing   = listings?.[0];
-            const listingUrl = listing?.slug
-                ? `https://trustedpanamastays.com/listing.php?slug=${listing.slug}&lang=es`
-                : listing
-                ? `https://trustedpanamastays.com/listing.php?id=${listing.id}&lang=es`
-                : 'https://trustedpanamastays.com/index_es.html';
-
-            const joinUrl = 'https://trustedpanamastays.com/join.html';
-
-            // Manager first name
-            const firstName = member.manager.split(' ')[0];
-            const greeting  = firstName && firstName.length > 2
-                ? `Estimado/a <strong>${firstName}</strong>`
-                : `Estimado/a propietario/a`;
-
-            const subject = `${member.hotel} ya aparece en Trusted Panama Stays`;
-            const message = `
-<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
-<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
-    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
-    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
-</div>
-
-<p>${greeting},</p>
-<p>Como miembro de <strong>APATEL</strong>, le escribimos con una invitación especial.</p>
-<p>Hemos creado <strong>Trusted Panama Stays</strong>, un directorio en línea para turistas internacionales que buscan hospedajes legalmente registrados en Panamá — sin las comisiones de Booking.com o Airbnb (15–20%).</p>
-
-<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
-    <p style="margin:0 0 0.5rem;font-weight:bold;color:#005ca9;">Su hospedaje ya aparece en nuestro directorio:</p>
-    <p style="margin:0;"><a href="${listingUrl}" style="color:#005ca9;font-size:0.95rem;">${listingUrl}</a></p>
-</div>
-
-<p>Con una <strong>membresía de prueba gratuita</strong> (sin costo, sin obligación) puede agregar:</p>
-<ul style="margin:0.5rem 0 1rem 1.5rem;line-height:2;">
-    <li>Hasta <strong>20 fotos</strong> de su hospedaje</li>
-    <li>Descripción en <strong>inglés y español</strong></li>
-    <li>Dirección completa y enlaces a su sitio web</li>
-    <li>Botones de contacto directo (WhatsApp, correo, reservas)</li>
-</ul>
-
-<p style="text-align:center;margin:1.5rem 0;">
-    <a href="${joinUrl}" style="background:#005ca9;color:white;padding:12px 30px;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;display:inline-block;">
-        Solicitar membresía gratuita →
-    </a>
-</p>
-
-<p style="font-size:0.85rem;color:#666;">
-    Creado por Volker Piasta, propietario del <strong>Aparthotel Boquete</strong> y miembro de APATEL.<br>
-    El costo después de la prueba es solo <strong>$24/año + ITBMS</strong> — menos de $2 al mes.
-</p>
-
-<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
-<p style="color:#888;font-size:0.78rem;">
-    Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
-    <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a><br>
-    Para cancelar estas comunicaciones responda con "No gracias".
-</p>
-</body></html>`;
-
-            if (dry_run) {
-                results.push({ index: i, hotel: member.hotel, email: member.email, listing_found: !!listing });
-                sent++;
-                continue;
-            }
-
-            try {
-                await execFileAsync('php', [notifyPath, subject, message, member.email], { timeout: 15000 });
-
-                // Mark as invited in DB if listing found
-                if (listing) {
-                    await supabase.from('listings').update({
-                        invitation_status:  'invited',
-                        invitation_sent_at: new Date().toISOString()
-                    }).eq('id', listing.id);
-                }
-
-                await logEvent('apatel_campaign_sent', {
-                    hotel:      member.hotel,
-                    email:      member.email,
-                    listing_id: listing?.id || null,
-                    index:      i
-                });
-
-                sent++;
-                results.push({ index: i, hotel: member.hotel, email: member.email, status: 'sent' });
-
-                // Throttle — 1 email per 500ms
-                await new Promise(r => setTimeout(r, 500));
-
-            } catch (err) {
-                console.error(`Campaign email failed for ${member.hotel}:`, err.message);
-                errors++;
-                results.push({ index: i, hotel: member.hotel, email: member.email, status: 'error', error: err.message });
-            }
-        }
-
-        res.json({
-            success: true, dry_run: !!dry_run,
-            sent, skipped, errors,
-            total: APATEL_ROSTER.length,
-            results: dry_run ? results : results.slice(-5) // return last 5 if live
-        });
-
-    } catch (err) {
-        console.error('APATEL campaign error:', err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-// ── GET /api/admin/apatel-campaign-stats ──────────────────────────────────────
-app.get('/api/admin/apatel-campaign-stats', requireAdmin, async (req, res) => {
-    try {
-        const { data } = await supabaseAdmin
-            .from('event_log')
-            .select('event_data')
-            .eq('event_type', 'apatel_campaign_sent')
-            .order('created_at', { ascending: false });
-
-        const sent      = data?.length || 0;
-        const remaining = 121 - sent;
-        const lastSent  = data?.[0]?.event_data;
-
-        res.json({ sent, remaining, total: 121, last_sent: lastSent });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ── POST /api/admin/send-followup-test ───────────────────────────────────────
-// Send test email to info@ only
-app.post('/api/admin/send-followup-test', requireAdmin, async (req, res) => {
-    const { subject, body } = req.body;
-    if (!subject || !body) return res.status(400).json({ error: 'Missing subject or body' });
-
-    const fullHtml = buildFollowupHtml('HOTEL EJEMPLO', 'Juan García', body);
-    const notifyPath = path.join(__dirname, 'public', 'notify.php');
-    try {
-        await execFileAsync('php', [
-            notifyPath,
-            '[TEST] ' + subject,
-            fullHtml,
-            'info@trustedpanamastays.com'
-        ], { timeout: 15000 });
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-// ── POST /api/admin/send-followup-all ────────────────────────────────────────
-// Send follow-up to all APATEL members
-app.post('/api/admin/send-followup-all', requireAdmin, async (req, res) => {
-    const { subject, body } = req.body;
-    if (!subject || !body) return res.status(400).json({ error: 'Missing subject or body' });
-
-    const APATEL_ROSTER = require('./apatel_emails.json');
-    const notifyPath    = path.join(__dirname, 'public', 'notify.php');
-    let sent = 0, errors = 0;
-
-    // Send in background, return immediately
-    res.json({ success: true, message: 'Campaign started', total: APATEL_ROSTER.length });
-
-    for (const member of APATEL_ROSTER) {
-        if (!member.email || !member.email.includes('@')) continue;
-        try {
-            const html = buildFollowupHtml(member.hotel, member.manager, body);
-            await execFileAsync('php', [notifyPath, subject, html, member.email], { timeout: 15000 });
-            await logEvent('followup_sent', { hotel: member.hotel, email: member.email });
-            sent++;
-            await new Promise(r => setTimeout(r, 600));
-        } catch (err) {
-            errors++;
-            console.error(`Follow-up failed for ${member.hotel}:`, err.message);
-        }
-    }
-
-    // Send completion report to admin
-    const report = `<p>Follow-up campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${APATEL_ROSTER.length} total.</p>`;
-    execFileAsync('php', [notifyPath, 'Follow-up campaign complete — Trusted Panama Stays', report, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(console.error);
-    console.log(`Follow-up done: ${sent} sent, ${errors} errors`);
-});
-
-
-// ── Helper: wrap body content in full email template ─────────────────────────
-function buildFollowupHtml(hotel, manager, bodyContent) {
-    const firstName = (manager || '').split(' ')[0];
-    const greeting  = firstName && firstName.length > 2 ? firstName : 'propietario/a';
-    return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;">
-<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
-    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
-    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
-</div>
-<p>Estimado/a <strong>${greeting}</strong>,</p>
-${bodyContent}
-<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
-<p style="color:#888;font-size:0.78rem;">
-    Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
-    <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a><br>
-    Para cancelar estas comunicaciones responda con "No gracias".
-</p>
-</body></html>`;
-}
-
-const TEMPLATES_DIR = path.join(__dirname, 'public', 'templates');
-
-// Ensure templates directory exists
-const fs = require('fs');
-if (!fs.existsSync(TEMPLATES_DIR)) {
-    fs.mkdirSync(TEMPLATES_DIR, { recursive: true });
-}
-
-// ── GET /api/admin/templates ──────────────────────────────────────────────────
-app.get('/api/admin/templates', requireAdmin, (req, res) => {
-    try {
-        const files = fs.readdirSync(TEMPLATES_DIR)
-            .filter(f => f.endsWith('.html'))
-            .sort();
-        res.json({ templates: files });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ── GET /api/admin/templates/:name ───────────────────────────────────────────
-app.get('/api/admin/templates/:name', requireAdmin, (req, res) => {
-    try {
-        const name = req.params.name.replace(/[^a-z0-9_.-]/gi, '_');
-        const filePath = path.join(TEMPLATES_DIR, name);
-        if (!filePath.startsWith(TEMPLATES_DIR)) return res.status(403).json({ error: 'Invalid path' });
-        if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Template not found' });
-        const content = fs.readFileSync(filePath, 'utf8');
-        res.json({ name, content });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ── POST /api/admin/templates/:name ──────────────────────────────────────────
-app.post('/api/admin/templates/:name', requireAdmin, (req, res) => {
-    try {
-        const name = req.params.name.replace(/[^a-z0-9_.-]/gi, '_');
-        if (!name.endsWith('.html')) return res.status(400).json({ error: 'Must be .html file' });
-        const filePath = path.join(TEMPLATES_DIR, name);
-        if (!filePath.startsWith(TEMPLATES_DIR)) return res.status(403).json({ error: 'Invalid path' });
-        const { content } = req.body;
-        if (!content) return res.status(400).json({ error: 'Missing content' });
-        fs.writeFileSync(filePath, content, 'utf8');
-        res.json({ success: true, name });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-app.post('/api/admin/send-welcome-manual', requireAdmin, async (req, res) => {
-    const { listing_id, contact_name, property_name, email, password, paid_until, type } = req.body;
-    const appData = { listing_id, contact_name, property_name, email, duration_months: 0 };
-    const html = generateEmailHtml(appData, type || 'approved_trial', password, paid_until);
-    const notifyPath = path.join(__dirname, 'public', 'notify.php');
-    try {
-        // Send to member
-        await execFileAsync('php', [notifyPath, 'Membresía aprobada — ' + property_name, html, email], { timeout: 15000 });
-        // Send CC to admin
-        await execFileAsync('php', [notifyPath, '[COPIA] Membresía aprobada — ' + property_name, html, 'info@trustedpanamastays.com'], { timeout: 15000 });
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  Smart campaign recipient endpoints
-// ═════════════════════════════════════════════════════════════════════════════
-
-// ── GET /api/admin/apatel-roster-count ───────────────────────────────────────
-app.get('/api/admin/apatel-roster-count', requireAdmin, (req, res) => {
-    try {
-        const roster = require('./apatel_emails.json');
-        res.json({ count: roster.filter(m => m.email && m.email.includes('@')).length });
-    } catch(err) { res.status(500).json({ error: err.message }); }
-});
-
-// ── GET /api/admin/apatel-not-contacted-count ─────────────────────────────────
-// Returns count of APATEL roster members whose email is NOT in any invited listing
-app.get('/api/admin/apatel-not-contacted-count', requireAdmin, async (req, res) => {
-    try {
-        const roster = require('./apatel_emails.json');
-        // Get all APATEL listings that have been contacted
-        const { data } = await supabaseAdmin
-            .from('listings')
-            .select('email, email_member')
-            .eq('apatel_member', true)
-            .not('apatel_contacted_at', 'is', null);
-        const contactedEmails = new Set();
-        (data||[]).forEach(l => {
-            if (l.email) contactedEmails.add(l.email.toLowerCase().trim());
-            if (l.email_member) contactedEmails.add(l.email_member.toLowerCase().trim());
-        });
-        const notContacted = roster.filter(m => m.email && !contactedEmails.has(m.email.toLowerCase().trim()));
-        res.json({ count: notContacted.length });
-    } catch(err) { res.status(500).json({ error: err.message }); }
-});
-
-// ── POST /api/admin/send-followup-new ────────────────────────────────────────
-// Send to APATEL roster members not yet contacted
-app.post('/api/admin/send-followup-new', requireAdmin, async (req, res) => {
-    const { subject, body } = req.body;
-    if (!subject || !body) return res.status(400).json({ error: 'Missing subject or body' });
-
-    const roster = require('./apatel_emails.json');
-    // Get contacted emails from DB
-    const { data } = await supabaseAdmin
-        .from('listings')
-        .select('email, email_member')
-        .eq('apatel_member', true)
-        .not('invitation_sent_at', 'is', null);
-    const contactedEmails = new Set();
-    (data||[]).forEach(l => {
-        if (l.email) contactedEmails.add(l.email.toLowerCase());
-        if (l.email_member) contactedEmails.add(l.email_member.toLowerCase());
-    });
-    const targets = roster.filter(m => m.email && !contactedEmails.has(m.email.toLowerCase()));
-
-    res.json({ success: true, message: `Sending to ${targets.length} not-yet-contacted APATEL members`, total: targets.length });
-    await sendToRosterList(targets, subject, body);
-});
-
-// ── POST /api/admin/send-followup-specific ────────────────────────────────────
-// Send to a specific list of emails
-app.post('/api/admin/send-followup-specific', requireAdmin, async (req, res) => {
-    const { subject, body, emails } = req.body;
-    if (!subject || !body || !emails?.length) return res.status(400).json({ error: 'Missing fields' });
-
-    // Build targets from roster where possible, otherwise use email only
-    const roster = require('./apatel_emails.json');
-    const rosterMap = {};
-    roster.forEach(m => { if (m.email) rosterMap[m.email.toLowerCase()] = m; });
-
-    const targets = emails.map(email => {
-        const match = rosterMap[email.toLowerCase()];
-        return match || { hotel: email, email, manager: '' };
-    });
-
-    res.json({ success: true, message: `Sending to ${targets.length} specific recipients`, total: targets.length });
-    await sendToRosterList(targets, subject, body);
-});
-
-// ── Helper: send to a list of roster-format members ───────────────────────────
-async function sendToRosterList(targets, subject, body) {
-    const notifyPath = path.join(__dirname, 'public', 'notify.php');
-    let sent = 0, errors = 0;
-
-    for (const member of targets) {
-        if (!member.email || !member.email.includes('@')) continue;
-        try {
-            const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', body);
-            await execFileAsync('php', [notifyPath, subject, html, member.email], { timeout: 15000 });
-
-            // Mark as contacted in DB
-            await supabase.from('listings')
-                .update({ apatel_contacted_at: new Date().toISOString() })
-                .or(`email.ilike.%${member.email}%,email_member.ilike.%${member.email}%`)
-                .eq('apatel_member', true);
-
-            await logEvent('followup_sent', { hotel: member.hotel, email: member.email });
-            sent++;
-            await new Promise(r => setTimeout(r, 600));
-        } catch (err) {
-            errors++;
-            console.error(`Failed for ${member.hotel||member.email}:`, err.message);
-        }
-    }
-
-    // Completion report to admin
-    const report = `<p>Campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${targets.length} total.</p>`;
-    execFileAsync('php', [path.join(__dirname, 'public', 'notify.php'),
-        'Campaign complete — Trusted Panama Stays', report, 'info@trustedpanamastays.com'],
-        { timeout: 15000 }).catch(console.error);
-    console.log(`Campaign done: ${sent} sent, ${errors} errors`);
-}
-
-// ── Recalculate feature ranks for all featured listings ───────────────────────
-async function recalculateFeatureRanks() {
-    try {
-        const { data: featured } = await supabaseAdmin
-            .from('listings')
-            .select('id, is_trial, membership_paid_until')
-            .gt('feature_rank', 0)
-            .order('is_trial', { ascending: true })      // paid first
-            .order('membership_paid_until', { ascending: true }); // earliest first
-
-        if (!featured || !featured.length) return;
-
-        for (let i = 0; i < featured.length; i++) {
-            await supabaseAdmin
-                .from('listings')
-                .update({ feature_rank: i + 1 })
-                .eq('id', featured[i].id);
-        }
-        console.log(`Feature ranks recalculated for ${featured.length} listings`);
-    } catch (err) {
-        console.error('recalculateFeatureRanks error:', err.message);
-    }
-}
-
-// ── GET /api/admin/recalculate-ranks ─────────────────────────────────────────
-app.get('/api/admin/recalculate-ranks', requireAdmin, async (req, res) => {
-    await recalculateFeatureRanks();
-    res.json({ success: true });
-});
-
-// ── GET /api/admin/document-url ───────────────────────────────────────────────
-app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
-    const { path: docPath } = req.query;
-    if (!docPath) return res.status(400).json({ error: 'Missing path' });
-    try {
-        const { data, error } = await supabaseAdmin.storage
-            .from('member-documents')
-            .createSignedUrl(docPath, 300); // 5 min expiry
-        if (error) return res.status(500).json({ error: error.message });
-        res.json({ url: data.signedUrl });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ── POST /api/admin/verify-documents ──────────────────────────────────────────
-app.post('/api/admin/verify-documents', requireAdmin, async (req, res) => {
-    const { application_id } = req.body;
-    if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
-
-    const { data: app, error: appError } = await supabaseAdmin
-        .from('membership_applications')
-        .select('*')
-        .eq('id', application_id)
-        .single();
-    if (appError || !app) return res.status(404).json({ error: 'Application not found' });
-    if (!app.documents || !app.documents.length)
-        return res.status(400).json({ error: 'No documents to verify' });
-
-    try {
-        const imageContents = [];
-
-        // Download each document from Supabase Storage
-        for (const doc of app.documents) {
-            const { data: fileData, error: dlError } = await supabaseAdmin.storage
-                .from('member-documents')
-                .download(doc.path);
-            if (dlError) { console.error('Doc download error:', dlError.message); continue; }
-
-            const arrayBuffer = await fileData.arrayBuffer();
-            const base64 = Buffer.from(arrayBuffer).toString('base64');
-
-            // Claude Vision handles jpg/png/webp/gif — skip PDFs
-            if (doc.mime !== 'application/pdf') {
-                imageContents.push({
-                    type: 'image',
-                    source: { type: 'base64', media_type: doc.mime, data: base64 }
-                });
-                imageContents.push({
-                    type: 'text',
-                    text: `The above image is the: ${doc.type.replace(/_/g,' ').toUpperCase()}`
-                });
-            }
-        }
-
-        if (!imageContents.length) {
-            return res.status(400).json({
-                error: 'No image documents available for AI verification. PDF documents must be reviewed manually.'
-            });
-        }
-
-        const prompt = `You are verifying membership application documents for a Panama tourism rental directory.
-
-Application details:
-- Property name: ${app.property_name}
-- Contact/representative name: ${app.contact_name}
-- Province: ${app.province}
-- Plan: ${app.membership_type === 'trial' ? 'Free trial' : app.duration_months + ' months paid'}
-- Payment method: ${app.payment_method || 'none'}
-- Amount expected: ${app.duration_months === 24 ? '$45' : app.duration_months === 12 ? '$24' : 'none (trial)'}
-
-Please verify the documents and return ONLY a JSON object with this structure:
-{
-  "aviso_operacion": {
-    "found": true/false,
-    "business_name": "name as shown on document",
-    "ruc": "RUC number",
-    "ruc_dv": "DV digit",
-    "legal_rep": "legal representative name",
-    "license_number": "license number",
-    "valid": true/false,
-    "notes": "any issues found"
-  },
-  "cedula": {
-    "found": true/false,
-    "id_holder_name": "name on ID",
-    "id_number": "ID number",
-    "notes": "any issues"
-  },
-  "payment": {
-    "found": true/false,
-    "amount": "amount shown",
-    "date": "payment date",
-    "method": "payment method detected",
-    "notes": "any issues"
-  },
-  "verification": {
-    "names_match": true/false,
-    "names_match_detail": "explanation",
-    "payment_matches": true/false,
-    "payment_match_detail": "explanation",
-    "overall_result": "PASS/FAIL/REVIEW",
-    "overall_notes": "summary recommendation"
-  }
-}
-Return ONLY the JSON, no other text.`;
-
-        const response = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-opus-4-5',
-            max_tokens: 1500,
-            messages: [{
-                role: 'user',
-                content: [...imageContents, { type: 'text', text: prompt }]
-            }]
-        }, {
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': process.env.ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01'
-            },
-            timeout: 60000
-        });
-
-        const content = response.data.content[0].text;
-        const clean   = content.replace(/```json\n?|\n?```/g, '').trim();
-        const result  = JSON.parse(clean);
-
-        await logEvent('ai_verification_completed', {
-            application_id,
-            result: result.verification?.overall_result
-        });
-
-        res.json({ success: true, verification: result });
-
-    } catch (err) {
-        console.error('AI verification error:', err.message);
-        res.status(500).json({ error: 'AI verification failed: ' + err.message });
-    }
-});
-
-//========== temporary endpoints ============================
-
-//==========================================================
 
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
