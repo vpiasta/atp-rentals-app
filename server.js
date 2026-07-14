@@ -1280,18 +1280,21 @@ function generateEmailHtml(app, type, password, paidUntil, rejectReason) {
         const trialNote = type === 'approved_trial'
             ? '<p style="background:#fffbe6;padding:1rem;border-radius:6px;border:1px solid #FFD700;margin-top:1rem;"><strong>Recordatorio:</strong> Su prueba vence el <strong>' + paidUntil + '</strong>. Para renovar visite: <a href="' + payUrl + '">' + payUrl + '</a> · N° membresía: <strong>' + app.listing_id + '</strong></p>'
             : '';
-        return '<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">' + hdr +
-            '<p>Estimado/a <strong>' + app.contact_name + '</strong>,</p>' +
-            '<p>Su ' + planText + ' para <strong>' + app.property_name + '</strong> está activa hasta el <strong>' + paidUntil + '</strong>.</p>' +
-            '<h3 style="color:#005ca9;">Sus datos de acceso:</h3>' +
-            '<table style="border:1px solid #e1e5e9;border-radius:8px;background:#f8f9fa;width:100%;margin-bottom:1rem;">' +
-            '<tr><td style="padding:8px;font-weight:bold;">URL:</td><td><a href="' + listingUrl + '">' + listingUrl + '</a></td></tr>' +
-            '<tr><td style="padding:8px;font-weight:bold;">Contraseña:</td><td style="font-family:monospace;font-size:1.1rem;"><strong>' + password + '</strong></td></tr>' +
-            '<tr><td style="padding:8px;font-weight:bold;">N° membresía:</td><td style="font-family:monospace;"><strong>' + app.listing_id + '</strong></td></tr>' +
-            '</table>' + trialNote +
-            '<p>Para editar su listado, haga clic en Acceso en el enlace arriba.</p>' +
-            '<p>Preguntas? <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>' + ftr + '</body></html>';
-    }
+            const addendumPath = path.join(__dirname, 'public', 'templates', 'welcome_addendum.html');
+            let addendum = '';
+            try { addendum = require('fs').readFileSync(addendumPath, 'utf8'); } catch(e) {}
+            return '<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">' + hdr +
+                '<p>Estimado/a <strong>' + app.contact_name + '</strong>,</p>' +
+                '<p>Su ' + planText + ' para <strong>' + app.property_name + '</strong> está activa hasta el <strong>' + paidUntil + '</strong>.</p>' +
+                '<h3 style="color:#005ca9;">Sus datos de acceso:</h3>' +
+                '<table style="border:1px solid #e1e5e9;border-radius:8px;background:#f8f9fa;width:100%;margin-bottom:1rem;">' +
+                '<tr><td style="padding:8px;font-weight:bold;">URL:</td><td><a href="' + listingUrl + '">' + listingUrl + '</a></td></tr>' +
+                '<tr><td style="padding:8px;font-weight:bold;">Contraseña:</td><td style="font-family:monospace;font-size:1.1rem;"><strong>' + password + '</strong></td></tr>' +
+                '<tr><td style="padding:8px;font-weight:bold;">N° membresía:</td><td style="font-family:monospace;"><strong>' + app.listing_id + '</strong></td></tr>' +
+                '</table>' + trialNote + addendum +
+                '<p>Para editar su listado, haga clic en Acceso en el enlace arriba.</p>' +
+                '<p>Preguntas? <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>' + ftr + '</body></html>';
+
     if (type === 'rejected_payment') {
         return '<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">' + hdr +
             '<p>Estimado/a <strong>' + app.contact_name + '</strong>,</p>' +
