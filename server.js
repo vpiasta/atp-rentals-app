@@ -3078,15 +3078,20 @@ Application details:
 - Payment method: ${app.payment_method || 'none'}
 - Amount expected: ${app.duration_months === 24 ? '$45' : app.duration_months === 12 ? '$24' : 'none (trial)'}
 
+IMPORTANT - Panamanian Aviso de Operación document layout:
+- LEFT box labeled "Aviso de Operación No." contains the LICENSE NUMBER (not the RUC)
+- RIGHT box labeled "Expedido a favor de" contains the owner/company name and below it the RUC number
+- RUC format examples: 8-822-1374 or 1401220-1-627960 (short number, NOT the full aviso number)
+- The DV (dígito verificador) appears after the RUC separated by a dash
 Please verify the documents and return ONLY a JSON object with this structure:
 {
   "aviso_operacion": {
     "found": true/false,
     "business_name": "name as shown on document",
-    "ruc": "RUC number",
+    "ruc": "RUC number from the RIGHT box 'Expedido a favor de' (format: 8-822-1374 or 1401220-1-627960)",
     "ruc_dv": "DV digit",
     "legal_rep": "legal representative name",
-    "license_number": "license number",
+    "license_number": "Aviso de Operación number from the LEFT box 'Aviso de Operación No.' (this is NOT the RUC)",
     "valid": true/false,
     "notes": "any issues found"
   },
