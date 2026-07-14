@@ -21,6 +21,7 @@ const PORT = process.env.PORT || 3000;
 const https = require('https');
 const http = require('http');
 const APATEL_ROSTER = require('./apatel_emails.json');
+const fs = require('fs');
 
 app.use(cors());
 app.use(express.json());
@@ -1276,6 +1277,9 @@ function generateEmailHtml(app, type, password, paidUntil, rejectReason) {
     const ftr = '<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;"><p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>';
 
     if (type === 'approved_trial' || type === 'approved_paid') {
+        const addendumPath = path.join(__dirname, 'public', 'templates', 'welcome_addendum.html');
+              let addendum = '';
+              try { addendum = fs.readFileSync(addendumPath, 'utf8'); } catch(e) {}
         const planText = type === 'approved_trial' ? 'prueba gratuita de 30 días' : (app.duration_months === 24 ? 'membresía de 2 años' : 'membresía de 1 año');
         const trialNote = type === 'approved_trial'
             ? '<p style="background:#fffbe6;padding:1rem;border-radius:6px;border:1px solid #FFD700;margin-top:1rem;"><strong>Recordatorio:</strong> Su prueba vence el <strong>' + paidUntil + '</strong>. Para renovar visite: <a href="' + payUrl + '">' + payUrl + '</a> · N° membresía: <strong>' + app.listing_id + '</strong></p>'
@@ -1288,7 +1292,7 @@ function generateEmailHtml(app, type, password, paidUntil, rejectReason) {
             '<tr><td style="padding:8px;font-weight:bold;">URL:</td><td><a href="' + listingUrl + '">' + listingUrl + '</a></td></tr>' +
             '<tr><td style="padding:8px;font-weight:bold;">Contraseña:</td><td style="font-family:monospace;font-size:1.1rem;"><strong>' + password + '</strong></td></tr>' +
             '<tr><td style="padding:8px;font-weight:bold;">N° membresía:</td><td style="font-family:monospace;"><strong>' + app.listing_id + '</strong></td></tr>' +
-            '</table>' + trialNote +
+            '</table>' + trialNote + addendum + 
             '<p>Para editar su listado, haga clic en Acceso en el enlace arriba.</p>' +
             '<p>Preguntas? <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>' + ftr + '</body></html>';
     }
@@ -2802,7 +2806,6 @@ ${bodyContent}
 const TEMPLATES_DIR = path.join(__dirname, 'public', 'templates');
 
 // Ensure templates directory exists
-const fs = require('fs');
 if (!fs.existsSync(TEMPLATES_DIR)) {
     fs.mkdirSync(TEMPLATES_DIR, { recursive: true });
 }
