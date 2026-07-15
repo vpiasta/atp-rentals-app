@@ -866,9 +866,20 @@ app.get('/api/rentals', async (req, res) => {
                   const p = normalize(r.phone);
                   const v = normalize(r.province);
                   let score = 0;
-                  if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 3;
-                  else if (words.length > 1 && words.every(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 2;
-                  else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 1;
+                  if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 30;
+                    else if (words.length > 1 && words.every(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 20;
+                    else if (words.some(w => {
+                        // Full word match scores higher than partial
+                        const fullWord = new RegExp('\\b' + w + '\\b');
+                        return fullWord.test(n) || fullWord.test(e) || fullWord.test(p) || fullWord.test(v);
+                    })) score = 15;
+                    else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 10;
+                    // Tiebreaker: add bonus for ATP and APATEL
+                    if (score > 0) {
+                        if (r.is_member) score += 5;
+                        if (r.atp_active) score += 2;
+                        if (r.apatel_member) score += 1;
+                    }
                   return { r, score };
               }).filter(x => words.length > 1 ? x.score >= 2 : x.score > 0);
               scored.sort((a, b) => b.score - a.score);
