@@ -785,26 +785,32 @@ app.get('/api/rentals', async (req, res) => {
         const words = s.split(/\s+/).filter(w => w.length >= 3);
         const normalize = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-        // Score each listing: exact match=3, all words match=2, any word matches=1
+        // Score each listing
+        const tokenize = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[\s@._\-\/]+/).filter(t => t.length > 0);
         const scored = filtered.map(r => {
             const n = normalize(r.name);
-            const e = normalize(r.email);
-            const p = normalize(r.phone);
-            const v = normalize(r.province);
+            const e = normalize(r.email||'');
+            const p = normalize(r.phone||'');
+            const v = normalize(r.province||'');
+            const allTokens = [...tokenize(r.name), ...tokenize(r.email||''), ...tokenize(r.phone||''), ...tokenize(r.province||'')];
             let score = 0;
-            if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 3;
-            else if (words.length > 1 && words.every(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 2;
-            else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 1;
+            if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 100;
+            else if (words.every(w => allTokens.some(t => t === w))) score = 80;
+            else if (words.every(w => allTokens.some(t => t.startsWith(w)))) score = 60;
+            else if (words.some(w => allTokens.some(t => t === w))) score = 40;
+            else if (words.some(w => allTokens.some(t => t.startsWith(w)))) score = 20;
+            else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 5;
+            if (score > 0) {
+                if (r.is_member)     score += 3;
+                if (r.apatel_member) score += 2;
+                if (r.atp_active)    score += 1;
+            }
             return { r, score };
-          });
-          const goodMatches = scored.filter(x => x.score >= 20);
-          const partialMatches = scored.filter(x => x.score > 0 && x.score < 20);
-          const finalScored = [...goodMatches, ...partialMatches];
-          filtered = finalScored.map(x => x.r);
-
-        // Sort by score descending (best match first)
-        scored.sort((a, b) => b.score - a.score);
-        filtered = scored.map(x => x.r);
+        });
+        const atpGood = scored.filter(x => x.score >= 60);
+        const atpFinal = atpGood.length > 0 ? atpGood : scored.filter(x => x.score > 0);
+        atpFinal.sort((a, b) => b.score - a.score);
+        filtered = atpFinal.map(x => x.r);
     }
     if (province) filtered = filtered.filter(r => r.province === province);
     if (type)     filtered = filtered.filter(r => r.rental_type === type);
@@ -864,31 +870,31 @@ app.get('/api/rentals', async (req, res) => {
               const s = search.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
               const words = s.split(/\s+/).filter(w => w.length >= 3);
               const normalize = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              const tokenizeMici = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[\s@._\-\/]+/).filter(t => t.length > 0);
               const scored = miciListings.map(r => {
                   const n = normalize(r.name);
-                  const e = normalize(r.email);
-                  const p = normalize(r.phone);
-                  const v = normalize(r.province);
+                  const e = normalize(r.email||'');
+                  const p = normalize(r.phone||'');
+                  const v = normalize(r.province||'');
+                  const allTokens = [...tokenizeMici(r.name), ...tokenizeMici(r.email||''), ...tokenizeMici(r.phone||''), ...tokenizeMici(r.province||'')];
                   let score = 0;
-                  if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 30;
-                    else if (words.length > 1 && words.every(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 20;
-                    else if (words.some(w => {
-                      const fullWord = new RegExp('(^|\\s)' + w + '(\\s|$)');
-                      return fullWord.test(n) || fullWord.test(e) || fullWord.test(p) || fullWord.test(v);
-                  })) score = 15;
-                    else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 10;
-                    // Tiebreaker: add bonus for ATP and APATEL
-                    if (score > 0) {
-                        if (r.is_member) score += 5;
-                        if (r.atp_active) score += 2;
-                        if (r.apatel_member) score += 1;
-                    }
+                  if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 100;
+                  else if (words.every(w => allTokens.some(t => t === w))) score = 80;
+                  else if (words.every(w => allTokens.some(t => t.startsWith(w)))) score = 60;
+                  else if (words.some(w => allTokens.some(t => t === w))) score = 40;
+                  else if (words.some(w => allTokens.some(t => t.startsWith(w)))) score = 20;
+                  else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 5;
+                  if (score > 0) {
+                      if (r.is_member)     score += 3;
+                      if (r.apatel_member) score += 2;
+                      if (r.atp_active)    score += 1;
+                  }
                   return { r, score };
-                }).filter(x => words.length > 1 ? x.score >= 20 : x.score > 10);
-                scored.sort((a, b) => b.score - a.score);
-                miciFiltered = scored.map(x => x.r);
-              scored.sort((a, b) => b.score - a.score);
-              miciFiltered = scored.map(x => x.r);
+              });
+              const miciGood = scored.filter(x => x.score >= 60);
+              const miciFinal = miciGood.length > 0 ? miciGood : scored.filter(x => x.score > 0);
+              miciFinal.sort((a, b) => b.score - a.score);
+              miciFiltered = miciFinal.map(x => x.r);
           }
           filtered = [...filtered, ...miciFiltered];
       }
