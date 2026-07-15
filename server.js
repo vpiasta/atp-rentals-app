@@ -862,7 +862,7 @@ app.get('/api/rentals', async (req, res) => {
               const normalize = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
               // Score each listing: exact match=3, all words match=2, any word matches=1
-              const scored = filtered.map(r => {
+              const scored = miciListings.map(r => {
                   const n = normalize(r.name);
                   const e = normalize(r.email);
                   const p = normalize(r.phone);
