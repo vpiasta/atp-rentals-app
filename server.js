@@ -869,10 +869,9 @@ app.get('/api/rentals', async (req, res) => {
                   if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 30;
                     else if (words.length > 1 && words.every(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 20;
                     else if (words.some(w => {
-                        // Full word match scores higher than partial
-                        const fullWord = new RegExp('\\b' + w + '\\b');
-                        return fullWord.test(n) || fullWord.test(e) || fullWord.test(p) || fullWord.test(v);
-                    })) score = 15;
+                      const fullWord = new RegExp('(^|\\s)' + w + '(\\s|$)');
+                      return fullWord.test(n) || fullWord.test(e) || fullWord.test(p) || fullWord.test(v);
+                  })) score = 15;
                     else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 10;
                     // Tiebreaker: add bonus for ATP and APATEL
                     if (score > 0) {
@@ -881,7 +880,7 @@ app.get('/api/rentals', async (req, res) => {
                         if (r.apatel_member) score += 1;
                     }
                   return { r, score };
-              }).filter(x => words.length > 1 ? x.score >= 2 : x.score > 0);
+              }).filter(x => words.length > 1 ? x.score >= 20 : x.score > 10);
               scored.sort((a, b) => b.score - a.score);
               miciFiltered = scored.map(x => x.r);
           }
