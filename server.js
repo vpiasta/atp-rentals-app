@@ -796,18 +796,15 @@ app.get('/api/rentals', async (req, res) => {
             let score = 0;
             if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 100;
             else if (words.every(w => allTokens.some(t => t === w))) score = 80;
-            else if (words.every(w => allTokens.some(t => t.startsWith(w)))) score = 60;
             else if (words.some(w => allTokens.some(t => t === w))) score = 40;
-            else if (words.some(w => allTokens.some(t => t.startsWith(w)))) score = 20;
             else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 5;
             if (score > 0) {
-                if (r.is_member)     score += 3;
                 if (r.apatel_member) score += 2;
                 if (r.atp_active)    score += 1;
             }
             return { r, score };
         });
-        const atpGood = scored.filter(x => x.score >= 60);
+        const atpGood = scored.filter(x => x.score >= 40);
         const atpFinal = atpGood.length > 0 ? atpGood : scored.filter(x => x.score > 0);
         atpFinal.sort((a, b) => b.score - a.score);
         filtered = atpFinal.map(x => x.r);
@@ -880,18 +877,15 @@ app.get('/api/rentals', async (req, res) => {
                   let score = 0;
                   if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 100;
                   else if (words.every(w => allTokens.some(t => t === w))) score = 80;
-                  else if (words.every(w => allTokens.some(t => t.startsWith(w)))) score = 60;
                   else if (words.some(w => allTokens.some(t => t === w))) score = 40;
-                  else if (words.some(w => allTokens.some(t => t.startsWith(w)))) score = 20;
                   else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 5;
                   if (score > 0) {
-                      if (r.is_member)     score += 3;
                       if (r.apatel_member) score += 2;
                       if (r.atp_active)    score += 1;
                   }
                   return { r, score };
               });
-              const miciGood = scored.filter(x => x.score >= 60);
+              const miciGood = scored.filter(x => x.score >= 40);
               const miciFinal = miciGood.length > 0 ? miciGood : scored.filter(x => x.score > 0);
               miciFinal.sort((a, b) => b.score - a.score);
               miciFiltered = miciFinal.map(x => x.r);
