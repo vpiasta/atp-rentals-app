@@ -721,7 +721,68 @@ function renderEdit(rental) {
                 <p class="custom-link-hint">${T.linkHint}</p>
             </div>
         </div>
-    </div>`;
+
+        <!-- Keywords section -->
+        <div class="edit-section">
+            <div class="section-title">🏷️ ${T.keywordsLabel || (isEs ? 'Características' : 'Features')}</div>
+            <p style="font-size:0.85rem;color:#888;margin-bottom:0.8rem;">${T.keywordsHint || (isEs ? 'Seleccione las características que mejor describen su hospedaje. Los huéspedes pueden filtrar por estas características.' : 'Select the features that best describe your property. Guests can filter by these features.')}</p>
+            <div id="keyword-checkboxes" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+        </div>
+    </div>
+</div>\`;
+}
+
+
+// ── Keywords ──────────────────────────────────────────────────────────────────
+let allKeywords = [];
+
+async function loadKeywordsForEdit(selectedSlugs) {
+    try {
+        allKeywords = await (await fetch(API_BASE_URL + '/api/keywords')).json();
+        renderKeywordCheckboxes(selectedSlugs || []);
+    } catch(e) { console.error('Keywords load error:', e); }
+}
+
+function renderKeywordCheckboxes(selectedSlugs) {
+    const container = document.getElementById('keyword-checkboxes');
+    if (!container) return;
+    // Group by category
+    const categories = {};
+    allKeywords.forEach(k => {
+        const cat = isEs ? k.category_es : k.category_en;
+        if (!categories[cat]) categories[cat] = [];
+        categories[cat].push(k);
+    });
+    container.innerHTML = Object.entries(categories).map(([cat, items]) => `
+        <div style="width:100%;margin-top:0.5rem;">
+            <div style="font-size:0.75rem;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:4px;">${cat}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                ${items.map(k => `
+                    <label style="display:flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid #ddd;border-radius:20px;cursor:pointer;font-size:0.82rem;background:${selectedSlugs.includes(k.slug)?'#005ca9':'white'};color:${selectedSlugs.includes(k.slug)?'white':'#333'};">
+                        <input type="checkbox" value="${k.slug}" ${selectedSlugs.includes(k.slug)?'checked':''} style="display:none;" onchange="updateKeywordStyle(this)">
+                        ${isEs ? k.label_es : k.label_en}
+                    </label>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateKeywordStyle(checkbox) {
+    const label = checkbox.parentElement;
+    if (checkbox.checked) {
+        label.style.background = '#005ca9';
+        label.style.color = 'white';
+    } else {
+        label.style.background = 'white';
+        label.style.color = '#333';
+    }
+    markUnsaved();
+}
+
+function getSelectedKeywords() {
+    return Array.from(document.querySelectorAll('#keyword-checkboxes input[type=checkbox]:checked'))
+        .map(cb => cb.value);
 }
 
 async function saveChanges() {
@@ -744,6 +805,7 @@ async function saveChanges() {
         booking_url:    document.getElementById('edit-booking')?.value.trim() || null,
         photos:         editPhotos.length ? editPhotos : null,
         custom_links:   savedLinks.length ? savedLinks : null,
+        listing_keywords: getSelectedKeywords(),
     };
     try {
         const res  = await fetch(`${API_BASE_URL}/api/listing-update`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
@@ -837,7 +899,7 @@ function renderPage(rental) {
     if (isLoggedIn && rental.is_member) {
         document.getElementById('listing-content').innerHTML = renderEdit(rental);
         saveBar.style.display = 'block';
-        wireUploadZone(); renderCustomLinks();
+        wireUploadZone(); renderCustomLinks(); loadKeywordsForEdit(rental.listing_keywords || []);
         setTimeout(() => initQuill(rental), 100);
     } else {
         document.getElementById('listing-content').innerHTML = renderView(rental);
