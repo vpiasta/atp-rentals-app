@@ -301,7 +301,11 @@ $t = [
             </div>
             <div class="filter-group">
                 <label for="keywordFilter"><?= $t['keyword_lbl'] ?></label>
-                <select id="keywordFilter" onchange="performSearch()"><option value=""><?= $t['keyword_all'] ?></option></select>
+                <div style="display:flex;gap:5px;align-items:center;">
+                    <select id="keywordFilter" style="flex:1;"><option value=""><?= $t['keyword_all'] ?></option></select>
+                    <button type="button" onclick="addKeywordTag()" style="padding:6px 10px;background:#005ca9;color:white;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:700;flex-shrink:0;">+</button>
+                </div>
+                <div id="keyword-active-tags" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;"></div>
             </div>
         </div>
     </section>
@@ -511,8 +515,7 @@ async function performSearch() { // returns promise for .then() chaining
 
     const params = new URLSearchParams();
     if (searchTerm) params.append('search', searchTerm);
-    const kw = document.getElementById('keywordFilter')?.value;
-    if (kw) params.append('keyword', kw);
+    selectedKeywords.forEach(kw => params.append('keyword', kw));
     if (province)   params.append('province', province);
     if (type)       params.append('type', type);
     try {
@@ -667,13 +670,54 @@ window.addEventListener('scroll', () => {
 loadInitialData();
 
 // ── Load keyword filter ───────────────────────────────────────────────────────
+let selectedKeywords = new Set();
+let keywordData = [];
+
 async function loadKeywords() {
     try {
-        const kw = await (await fetch(API_BASE_URL + '/api/keywords')).json();
+        keywordData = await (await fetch(API_BASE_URL + '/api/keywords')).json();
         const sel = document.getElementById('keywordFilter');
-        if (!sel || !kw.length) return;
-        // Group by category
+        if (!sel || !keywordData.length) return;
         const categories = {};
+        keywordData.forEach(k => {
+            const cat = LANG === 'en' ? k.category_en : k.category_es;
+            if (!categories[cat]) categories[cat] = [];
+            categories[cat].push(k);
+        });
+        Object.entries(categories).forEach(([cat, items]) => {
+            const grp = document.createElement('optgroup');
+            grp.label = cat;
+            items.forEach(k => {
+                const opt = document.createElement('option');
+                opt.value = k.slug;
+                opt.textContent = LANG === 'en' ? k.label_en : k.label_es;
+                grp.appendChild(opt);
+            });
+            sel.appendChild(grp);
+        });
+    } catch(e) { console.error('Keywords load error:', e); }
+}
+
+function addKeywordTag() {
+    const sel = document.getElementById('keywordFilter');
+    const slug = sel.value;
+    if (!slug || selectedKeywords.has(slug)) return;
+    selectedKeywords.add(slug);
+    const k = keywordData.find(x => x.slug === slug);
+    const label = k ? (LANG === 'en' ? k.label_en : k.label_es) : slug;
+    const tag = document.createElement('span');
+    tag.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#005ca9;color:white;border-radius:20px;font-size:0.78rem;';
+    tag.innerHTML = label + ' <button type="button" onclick="removeKeywordTag(this,\'' + slug + '\')" style="background:none;border:none;color:white;cursor:pointer;font-size:0.9rem;padding:0;line-height:1;">✕</button>';
+    document.getElementById('keyword-active-tags').appendChild(tag);
+    sel.value = '';
+    performSearch();
+}
+
+function removeKeywordTag(btn, slug) {
+    selectedKeywords.delete(slug);
+    btn.parentElement.remove();
+    performSearch();
+};
         kw.forEach(k => {
             const cat = LANG === 'en' ? k.category_en : k.category_es;
             if (!categories[cat]) categories[cat] = [];
