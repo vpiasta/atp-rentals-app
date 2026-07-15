@@ -794,7 +794,9 @@ app.get('/api/rentals', async (req, res) => {
             const v = normalize(r.province||'');
             const allTokens = [...tokenize(r.name), ...tokenize(r.email||''), ...tokenize(r.phone||''), ...tokenize(r.province||'')];
             let score = 0;
-            if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 100;
+            const sRe = new RegExp('(^|\\s)' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\s|$)');
+            if (sRe.test(n) || sRe.test(e) || sRe.test(p) || sRe.test(v)) score = 100;
+            else if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 90;
             else if (words.every(w => allTokens.some(t => t === w))) score = 80;
             else if (words.some(w => allTokens.some(t => t === w))) score = 40;
             else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 5;
@@ -876,7 +878,9 @@ app.get('/api/rentals', async (req, res) => {
                   const v = normalize(r.province||'');
                   const allTokens = [...tokenizeMici(r.name), ...tokenizeMici(r.email||''), ...tokenizeMici(r.phone||''), ...tokenizeMici(r.province||'')];
                   let score = 0;
-                  if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 100;
+                  const sRe = new RegExp('(^|\\s)' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\s|$)');
+                  if (sRe.test(n) || sRe.test(e) || sRe.test(p) || sRe.test(v)) score = 100;
+                  else if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 90;
                   else if (words.every(w => allTokens.some(t => t === w))) score = 80;
                   else if (words.some(w => allTokens.some(t => t === w))) score = 40;
                   else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 5;
