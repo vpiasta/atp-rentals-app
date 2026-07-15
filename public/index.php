@@ -299,9 +299,9 @@ $t = [
                 <label for="typeFilter"><?= $t['type_lbl'] ?></label>
                 <select id="typeFilter"><option value=""><?= $t['type_all'] ?></option></select>
             </div>
-            <div class="filter-group" style="flex-basis:100%;">
-                <label><?= $t['keyword_lbl'] ?></label>
-                <div id="keyword-tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;min-height:28px;"></div>
+            <div class="filter-group">
+                <label for="keywordFilter"><?= $t['keyword_lbl'] ?></label>
+                <select id="keywordFilter" onchange="performSearch()"><option value=""><?= $t['keyword_all'] ?></option></select>
             </div>
         </div>
     </section>
@@ -511,7 +511,8 @@ async function performSearch() { // returns promise for .then() chaining
 
     const params = new URLSearchParams();
     if (searchTerm) params.append('search', searchTerm);
-    selectedKeywords.forEach(kw => params.append('keyword', kw));
+    const kw = document.getElementById('keywordFilter')?.value;
+    if (kw) params.append('keyword', kw);
     if (province)   params.append('province', province);
     if (type)       params.append('type', type);
     try {
@@ -666,13 +667,11 @@ window.addEventListener('scroll', () => {
 loadInitialData();
 
 // ── Load keyword filter ───────────────────────────────────────────────────────
-let selectedKeywords = new Set();
-
 async function loadKeywords() {
     try {
         const kw = await (await fetch(API_BASE_URL + '/api/keywords')).json();
-        const container = document.getElementById('keyword-tags');
-        if (!container || !kw.length) return;
+        const sel = document.getElementById('keywordFilter');
+        if (!sel || !kw.length) return;
         // Group by category
         const categories = {};
         kw.forEach(k => {
@@ -680,32 +679,18 @@ async function loadKeywords() {
             if (!categories[cat]) categories[cat] = [];
             categories[cat].push(k);
         });
-        let html = '';
         Object.entries(categories).forEach(([cat, items]) => {
-            html += `<div style="width:100%;font-size:0.7rem;font-weight:700;color:#888;text-transform:uppercase;margin-top:4px;">${cat}</div>`;
+            const grp = document.createElement('optgroup');
+            grp.label = cat;
             items.forEach(k => {
-                const label = LANG === 'en' ? k.label_en : k.label_es;
-                html += `<button type="button" data-slug="${k.slug}" onclick="toggleKeyword(this,'${k.slug}')"
-                    style="padding:4px 10px;border:1px solid #c0d0e0;border-radius:20px;background:white;color:#555;font-size:0.8rem;cursor:pointer;transition:all 0.2s;">${label}</button>`;
+                const opt = document.createElement('option');
+                opt.value = k.slug;
+                opt.textContent = LANG === 'en' ? k.label_en : k.label_es;
+                grp.appendChild(opt);
             });
+            sel.appendChild(grp);
         });
-        container.innerHTML = html;
     } catch(e) { console.error('Keywords load error:', e); }
-}
-
-function toggleKeyword(btn, slug) {
-    if (selectedKeywords.has(slug)) {
-        selectedKeywords.delete(slug);
-        btn.style.background = 'white';
-        btn.style.color = '#555';
-        btn.style.borderColor = '#c0d0e0';
-    } else {
-        selectedKeywords.add(slug);
-        btn.style.background = '#005ca9';
-        btn.style.color = 'white';
-        btn.style.borderColor = '#005ca9';
-    }
-    performSearch();
 }
 
     loadKeywords();
