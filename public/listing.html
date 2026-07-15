@@ -342,7 +342,7 @@ const T = {
 };
 
 document.getElementById('back-link').textContent       = T.back;
-document.getElementById('back-link').href              = isEs ? 'index_es.html' : 'index.html';
+document.getElementById('back-link').href = document.referrer || (isEs ? 'index_es.html' : 'index.html');
 document.getElementById('header-subtitle').textContent = T.subtitle;
 document.getElementById('footer-text').innerHTML       = T.footer;
 document.getElementById('modal-title').textContent     = T.modalTitle;

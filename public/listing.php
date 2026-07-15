@@ -206,7 +206,7 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
         <p style="font-size:0.8rem;opacity:0.85;"><?= $lang === 'es' ? 'Hospedajes verificados en Panamá' : 'Verified accommodations in Panama' ?></p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
-        <a href="<?= $lang === 'es' ? 'index_es.html' : 'index.html' ?>" class="back-link">← <?= $lang === 'es' ? 'Volver' : 'Back' ?></a>
+        <a href="#" onclick="history.back(); return false;" class="back-link">← <?= $lang === 'es' ? 'Volver' : 'Back' ?></a>
         <?php
         $other_lang = $lang === 'es' ? 'en' : 'es';
         $lang_url   = $slug_val
