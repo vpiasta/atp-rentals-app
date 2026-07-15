@@ -796,7 +796,7 @@ app.get('/api/rentals', async (req, res) => {
             else if (words.length > 1 && words.every(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 2;
             else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 1;
             return { r, score };
-        }).filter(x => x.score > 0);
+        }).filter(x => words.length > 1 ? x.score >= 2 : x.score > 0);
 
         // Sort by score descending (best match first)
         scored.sort((a, b) => b.score - a.score);
@@ -872,7 +872,7 @@ app.get('/api/rentals', async (req, res) => {
                   else if (words.length > 1 && words.every(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 2;
                   else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 1;
                   return { r, score };
-              }).filter(x => x.score > 0);
+              }).filter(x => words.length > 1 ? x.score >= 2 : x.score > 0);
 
               // Sort by score descending (best match first)
               scored.sort((a, b) => b.score - a.score);
