@@ -796,7 +796,11 @@ app.get('/api/rentals', async (req, res) => {
             else if (words.length > 1 && words.every(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 2;
             else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 1;
             return { r, score };
-        }).filter(x => words.length > 1 ? x.score >= 2 : x.score > 0);
+          });
+          const goodMatches = scored.filter(x => x.score >= 20);
+          const partialMatches = scored.filter(x => x.score > 0 && x.score < 20);
+          const finalScored = [...goodMatches, ...partialMatches];
+          filtered = finalScored.map(x => x.r);
 
         // Sort by score descending (best match first)
         scored.sort((a, b) => b.score - a.score);
@@ -880,7 +884,9 @@ app.get('/api/rentals', async (req, res) => {
                         if (r.apatel_member) score += 1;
                     }
                   return { r, score };
-              }).filter(x => words.length > 1 ? x.score >= 20 : x.score > 10);
+                }).filter(x => words.length > 1 ? x.score >= 20 : x.score > 10);
+                scored.sort((a, b) => b.score - a.score);
+                miciFiltered = scored.map(x => x.r);
               scored.sort((a, b) => b.score - a.score);
               miciFiltered = scored.map(x => x.r);
           }
