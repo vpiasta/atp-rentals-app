@@ -1292,7 +1292,7 @@ function generateEmailHtml(app, type, password, paidUntil, rejectReason) {
             '<tr><td style="padding:8px;font-weight:bold;">URL:</td><td><a href="' + listingUrl + '">' + listingUrl + '</a></td></tr>' +
             '<tr><td style="padding:8px;font-weight:bold;">Contraseña:</td><td style="font-family:monospace;font-size:1.1rem;"><strong>' + password + '</strong></td></tr>' +
             '<tr><td style="padding:8px;font-weight:bold;">N° membresía:</td><td style="font-family:monospace;"><strong>' + app.listing_id + '</strong></td></tr>' +
-            '</table>' + trialNote + addendum + 
+            '</table>' + trialNote + addendum +
             '<p>Para editar su listado, haga clic en Acceso en el enlace arriba.</p>' +
             '<p>Preguntas? <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>' + ftr + '</body></html>';
     }
@@ -3154,6 +3154,79 @@ Return ONLY the JSON, no other text.`;
         res.status(500).json({ error: 'AI verification failed: ' + err.message });
     }
 });
+
+// ── Trial expiry reminder — runs daily ───────────────────────────────────────
+async function sendTrialExpiryReminders() {
+    try {
+        const in7days = new Date();
+        in7days.setDate(in7days.getDate() + 7);
+        const dateStr = in7days.toISOString().split('T')[0];
+
+        const { data: expiring } = await supabaseAdmin
+            .from('listings')
+            .select('id, name, contact_name, email_member, email, membership_paid_until, photos')
+            .eq('is_trial', true)
+            .eq('is_member', true)
+            .eq('membership_paid_until', dateStr);
+
+        if (!expiring || !expiring.length) return;
+
+        const reminderPath = path.join(__dirname, 'public', 'templates', 'trial_expiry_reminder.html');
+        let reminderBody = '';
+        try { reminderBody = fs.readFileSync(reminderPath, 'utf8'); } catch(e) {
+            console.error('Could not load trial reminder template'); return;
+        }
+
+        const notifyPath = path.join(__dirname, 'public', 'notify.php');
+        for (const listing of expiring) {
+            const toEmail = listing.email_member || listing.email;
+            if (!toEmail || !toEmail.includes('@')) continue;
+            const name = listing.contact_name || 'propietario/a';
+            const html = `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
+    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
+</div>
+<p>Estimado/a <strong>${name}</strong>,</p>
+${reminderBody}
+${(!listing.photos || !listing.photos.length) ? `
+<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:1rem;margin:1rem 0;">
+    <p style="margin:0;color:#856404;"><strong>💡 Notamos que su listado aún no tiene fotos.</strong> Con solo una foto, su hospedaje aparecerá destacado en la página principal de Trusted Panama Stays — visible para todos los turistas que buscan hospedaje en Panamá.</p>
+</div>` : ''}
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
+<a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a></p>
+</body></html>`;
+
+            try {
+                await execFileAsync('php', [notifyPath,
+                    'Su membresía de prueba vence pronto — ' + listing.name,
+                    html, toEmail], { timeout: 15000 });
+                await logEvent('trial_reminder_sent', { listing_id: listing.id, email: toEmail });
+                console.log(`Trial reminder sent to ${listing.name}`);
+            } catch(err) {
+                console.error(`Trial reminder failed for ${listing.name}:`, err.message);
+            }
+        }
+    } catch(err) {
+        console.error('sendTrialExpiryReminders error:', err.message);
+    }
+}
+
+// Run daily at 9am Panama time (UTC-5 = 14:00 UTC)
+const now = new Date();
+const msUntil9am = (() => {
+    const next = new Date();
+    next.setUTCHours(14, 0, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+    return next - now;
+})();
+setTimeout(() => {
+    sendTrialExpiryReminders();
+    setInterval(sendTrialExpiryReminders, 24 * 60 * 60 * 1000);
+}, msUntil9am);
+console.log(`Trial reminder scheduler set — first run in ${Math.round(msUntil9am/3600000)}h`);
+
 
 //========== temporary endpoints ============================
 
