@@ -781,13 +781,26 @@ app.get('/api/rentals', async (req, res) => {
 
     // Apply filters to ATP listings
     if (search) {
-        const s = search.toLowerCase();
-        filtered = filtered.filter(r =>
-            r.name.toLowerCase().includes(s) ||
-            (r.email    && r.email.toLowerCase().includes(s)) ||
-            (r.phone    && r.phone.toLowerCase().includes(s)) ||
-            (r.province && r.province.toLowerCase().includes(s))
-        );
+        const s = search.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const words = s.split(/\s+/).filter(w => w.length >= 3);
+        const normalize = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+        // Score each listing: exact match=3, all words match=2, any word matches=1
+        const scored = filtered.map(r => {
+            const n = normalize(r.name);
+            const e = normalize(r.email);
+            const p = normalize(r.phone);
+            const v = normalize(r.province);
+            let score = 0;
+            if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 3;
+            else if (words.length > 1 && words.every(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 2;
+            else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 1;
+            return { r, score };
+        }).filter(x => x.score > 0);
+
+        // Sort by score descending (best match first)
+        scored.sort((a, b) => b.score - a.score);
+        filtered = scored.map(x => x.r);
     }
     if (province) filtered = filtered.filter(r => r.province === province);
     if (type)     filtered = filtered.filter(r => r.rental_type === type);
@@ -844,14 +857,27 @@ app.get('/api/rentals', async (req, res) => {
         if (miciListings && miciListings.length > 0) {
             let miciFiltered = miciListings;
             if (search) {
-                const s = search.toLowerCase();
-                miciFiltered = miciListings.filter(r =>
-                    r.name.toLowerCase().includes(s) ||
-                    (r.email    && r.email.toLowerCase().includes(s)) ||
-                    (r.phone    && r.phone.toLowerCase().includes(s)) ||
-                    (r.province && r.province.toLowerCase().includes(s))
-                );
-            }
+              const s = search.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              const words = s.split(/\s+/).filter(w => w.length >= 3);
+              const normalize = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+              // Score each listing: exact match=3, all words match=2, any word matches=1
+              const scored = filtered.map(r => {
+                  const n = normalize(r.name);
+                  const e = normalize(r.email);
+                  const p = normalize(r.phone);
+                  const v = normalize(r.province);
+                  let score = 0;
+                  if (n.includes(s) || e.includes(s) || p.includes(s) || v.includes(s)) score = 3;
+                  else if (words.length > 1 && words.every(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 2;
+                  else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 1;
+                  return { r, score };
+              }).filter(x => x.score > 0);
+
+              // Sort by score descending (best match first)
+              scored.sort((a, b) => b.score - a.score);
+              filtered = scored.map(x => x.r);
+          }
             filtered = [...filtered, ...miciFiltered];
         }
     } catch (err) {
