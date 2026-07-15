@@ -774,7 +774,7 @@ app.get('/api/types', (req, res) => {
 });
 
 app.get('/api/rentals', async (req, res) => {
-    const { search, province, type } = req.query;
+    const { search, province, type, keyword} = req.query;
 
     // Start from in-memory ATP data
     let filtered = [...CURRENT_RENTALS];
