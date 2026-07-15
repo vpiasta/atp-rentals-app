@@ -821,7 +821,7 @@ app.get('/api/rentals', async (req, res) => {
         if (ids.length > 0) {
             const { data: memberData } = await supabase
                 .from('listings')
-                .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type, apatel_member, feature_rank')
+                .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type, apatel_member, feature_rank, listing_keywords')
                 .in('id', ids);
 
             if (memberData && memberData.length > 0) {
@@ -841,6 +841,7 @@ app.get('/api/rentals', async (req, res) => {
                         slug:                  m.slug || null,
                         rental_type:           m.rental_type || r.rental_type,
                         feature_rank:          m.feature_rank || 0,
+                        listing_keywords:      m.listing_keywords || [],
                         apatel_member:         m.apatel_member || false
                     };
                 });
@@ -919,7 +920,9 @@ app.get('/api/rentals', async (req, res) => {
         }
     }
     filtered = Array.from(seen.values());
-
+    if (keyword) filtered = filtered.filter(r =>
+      Array.isArray(r.listing_keywords) && r.listing_keywords.includes(keyword)
+    );
     res.json(filtered);
 });
 
@@ -3291,6 +3294,35 @@ async function generateUniqueSlug(propertyName, listingId) {
     }
     return baseSlug;
 }
+
+// ── GET /api/keywords ─────────────────────────────────────────────────────────
+app.get('/api/keywords', async (req, res) => {
+    const { data, error } = await supabase
+        .from('keywords')
+        .select('slug, label_es, label_en, category_es, category_en, sort_order')
+        .order('category_es')
+        .order('sort_order');
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+// ── GET /api/keywords/active ──────────────────────────────────────────────────
+// Only keywords used by at least one member
+app.get('/api/keywords/active', async (req, res) => {
+    const { data, error } = await supabase
+        .from('listings')
+        .select('listing_keywords')
+        .eq('is_member', true)
+        .not('listing_keywords', 'is', null);
+    if (error) return res.status(500).json({ error: error.message });
+    const used = new Set(data.flatMap(r => r.listing_keywords || []));
+    const { data: kw } = await supabase
+        .from('keywords')
+        .select('slug, label_es, label_en, category_es, category_en, sort_order')
+        .order('category_es')
+        .order('sort_order');
+    res.json((kw || []).filter(k => used.has(k.slug)));
+});
 
 
 //========== temporary endpoints ============================
