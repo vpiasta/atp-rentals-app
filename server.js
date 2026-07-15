@@ -920,8 +920,11 @@ app.get('/api/rentals', async (req, res) => {
         }
     }
     filtered = Array.from(seen.values());
-    if (keyword) filtered = filtered.filter(r =>
-      Array.isArray(r.listing_keywords) && r.listing_keywords.includes(keyword)
+    const keywords = req.query.keyword
+        ? (Array.isArray(req.query.keyword) ? req.query.keyword : [req.query.keyword])
+        : [];
+    if (keywords.length) filtered = filtered.filter(r =>
+        Array.isArray(r.listing_keywords) && keywords.every(kw => r.listing_keywords.includes(kw))
     );
     res.json(filtered);
 });
@@ -3322,6 +3325,18 @@ app.get('/api/keywords/active', async (req, res) => {
         .order('category_es')
         .order('sort_order');
     res.json((kw || []).filter(k => used.has(k.slug)));
+});
+
+// ── POST /api/keyword-suggestion ─────────────────────────────────────────────
+app.post('/api/keyword-suggestion', async (req, res) => {
+    const { suggestion, listing_id, lang } = req.body;
+    if (!suggestion) return res.status(400).json({ error: 'Missing suggestion' });
+    await supabaseAdmin.from('event_log').insert({
+        event_type: 'keyword_suggestion',
+        event_data: { suggestion, listing_id, lang },
+        created_at: new Date().toISOString()
+    });
+    res.json({ success: true });
 });
 
 

@@ -726,7 +726,15 @@ function renderEdit(rental) {
         <div class="edit-section">
             <div class="section-title">🏷️ ${T.keywordsLabel || (isEs ? 'Características' : 'Features')}</div>
             <p style="font-size:0.85rem;color:#888;margin-bottom:0.8rem;">${T.keywordsHint || (isEs ? 'Seleccione las características que mejor describen su hospedaje. Los huéspedes pueden filtrar por estas características.' : 'Select the features that best describe your property. Guests can filter by these features.')}</p>
-            <div id="keyword-checkboxes" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+            <div id="keyword-checkboxes" style="display:flex;flex-wrap:wrap;gap:8px;padding:0.5rem 0 0.5rem 0.5rem;"></div>
+            <div style="margin-top:0.8rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <input type="text" id="keyword-suggestion" placeholder="${isEs ? 'Sugerir una característica...' : 'Suggest a feature...'}" 
+                    style="flex:1;min-width:180px;padding:6px 10px;border:1px solid #ddd;border-radius:20px;font-size:0.82rem;">
+                <button onclick="submitKeywordSuggestion()" style="padding:6px 14px;background:#f0f0f0;border:1px solid #ddd;border-radius:20px;font-size:0.82rem;cursor:pointer;">
+                    ${isEs ? '+ Sugerir' : '+ Suggest'}
+                </button>
+                <span id="suggestion-msg" style="font-size:0.78rem;color:#888;display:none;"></span>
+            </div>
         </div>
     </div>
 </div>`;
@@ -785,6 +793,27 @@ function getSelectedKeywords() {
         .map(cb => cb.value);
 }
 
+
+async function submitKeywordSuggestion() {
+    const input = document.getElementById('keyword-suggestion');
+    const msg = document.getElementById('suggestion-msg');
+    const val = input.value.trim();
+    if (!val) return;
+    try {
+        const res = await fetch(API_BASE_URL + '/api/keyword-suggestion', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ suggestion: val, listing_id: listingId, lang: isEs ? 'es' : 'en' })
+        });
+        const data = await res.json();
+        if (data.success) {
+            msg.textContent = isEs ? '¡Gracias por su sugerencia!' : 'Thank you for your suggestion!';
+            msg.style.display = 'inline';
+            input.value = '';
+            setTimeout(() => { msg.style.display = 'none'; }, 3000);
+        }
+    } catch(e) { console.error(e); }
+}
 async function saveChanges() {
     const btn = document.getElementById('save-btn');
     const msg = document.getElementById('save-message');
