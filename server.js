@@ -1631,7 +1631,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
                 if (isTrial) paidUntil.setDate(paidUntil.getDate() + 30);
                 else paidUntil.setFullYear(paidUntil.getFullYear() + (app.duration_months === 24 ? 2 : 1));
                 const paidUntilStr = paidUntil.toISOString().split('T')[0];
-                const slug = await generateUniqueSlug(app.property_name, listingId);
+                const slug = await generateUniqueSlug(app.property_name, 'new');
 
                 const { data: newListing, error: insertError } = await supabaseAdmin
                     .from('listings')
