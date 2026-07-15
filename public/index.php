@@ -229,7 +229,7 @@ $t = [
             .header-text h1 { font-size: 1.2rem; }
             .header-right { margin-left: 0; flex-direction: row; align-items: center; width: 100%; justify-content: flex-end; }
         }
-    
+
     </style>
 </head>
 <body>
@@ -255,10 +255,13 @@ $t = [
                 <a href="<?= $t['about_href'] ?>" class="lang-toggle"><?= $t['about_link'] ?></a>
                 <a href="<?= $t['lang_href'] ?>" class="lang-toggle">
                     <?php if ($is_en): ?>
-                    <svg width="20" height="14" viewBox="0 0 20 14" style="flex-shrink:0;">
-                        <rect x="0" y="0" width="20" height="14" fill="#003189"/>
-                        <rect x="8" y="0" width="4" height="14" fill="white"/>
-                        <rect x="0" y="5" width="20" height="4" fill="white"/>
+                      <svg width="20" height="14" viewBox="0 0 20 14" style="flex-shrink:0;">
+                        <rect x="0" y="0" width="10" height="7" fill="white"/>
+                        <rect x="10" y="0" width="10" height="7" fill="#cc0000"/>
+                        <rect x="0" y="7" width="10" height="7" fill="#003189"/>
+                        <rect x="10" y="7" width="10" height="7" fill="white"/>
+                        <polygon points="5,1.5 5.9,4.2 8.8,4.2 6.4,5.9 7.3,8.6 5,6.9 2.7,8.6 3.6,5.9 1.2,4.2 4.1,4.2" fill="#cc0000"/>
+                        <polygon points="15,5.5 15.9,8.2 18.8,8.2 16.4,9.9 17.3,12.6 15,10.9 12.7,12.6 13.6,9.9 11.2,8.2 14.1,8.2" fill="#003189"/>
                     </svg>
                     <?php else: ?>
                     <svg width="20" height="14" viewBox="0 0 20 14" style="flex-shrink:0;">
