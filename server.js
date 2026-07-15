@@ -257,10 +257,15 @@ async function checkPendingAtpApplications() {
             paidUntil.setDate(paidUntil.getDate() + 30);
             const paidUntilStr = paidUntil.toISOString().split('T')[0];
 
-            const slug = app.property_name
-                .toLowerCase()
-                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            const baseSlug = app.property_name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            let slug = baseSlug;
+            const { data: slugConflict } = await supabaseAdmin.from('listings').select('id, name').eq('slug', baseSlug).maybeSingle();
+            if (slugConflict) {
+                slug = baseSlug + '-' + listingId;
+                const conflictMsg = `<p>El nuevo miembro <strong>${app.property_name}</strong> (ID: ${listingId}) tiene un conflicto de slug con el miembro existente <strong>${slugConflict.name}</strong> (ID: ${slugConflict.id}).</p><p>Slug en conflicto: <code>${baseSlug}</code></p><p>Se ha asignado temporalmente el slug <code>${slug}</code>. Por favor, asigne un slug más apropiado en el panel de administración.</p>`;
+                const notifyPath = path.join(__dirname, 'public', 'notify.php');
+                execFileAsync('php', [notifyPath, 'Conflicto de slug — ' + app.property_name, conflictMsg, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(console.error);
+            }
 
             // Activate listing
             await supabase.from('listings').update({
@@ -1626,9 +1631,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
                 if (isTrial) paidUntil.setDate(paidUntil.getDate() + 30);
                 else paidUntil.setFullYear(paidUntil.getFullYear() + (app.duration_months === 24 ? 2 : 1));
                 const paidUntilStr = paidUntil.toISOString().split('T')[0];
-                const slug = app.property_name.toLowerCase()
-                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                const slug = await generateUniqueSlug(app.property_name, listingId);
 
                 const { data: newListing, error: insertError } = await supabaseAdmin
                     .from('listings')
@@ -1768,7 +1771,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         if (isTrial) paidUntil.setDate(paidUntil.getDate() + 30);
         else paidUntil.setFullYear(paidUntil.getFullYear() + (app.duration_months === 24 ? 2 : 1));
         const paidUntilStr = paidUntil.toISOString().split('T')[0];
-        const slug = app.property_name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        const slug = await generateUniqueSlug(app.property_name, listingId);
 
         // ── Update listing ────────────────────────────────────────────────
         await supabaseAdmin.from('listings').update({
@@ -3226,6 +3229,24 @@ setTimeout(() => {
     setInterval(sendTrialExpiryReminders, 24 * 60 * 60 * 1000);
 }, msUntil9am);
 console.log(`Trial reminder scheduler set — first run in ${Math.round(msUntil9am/3600000)}h`);
+
+async function generateUniqueSlug(propertyName, listingId) {
+    const baseSlug = propertyName.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+    const { data: conflict } = await supabaseAdmin
+        .from('listings').select('id, name').eq('slug', baseSlug).maybeSingle();
+
+    if (conflict) {
+        const tempSlug = baseSlug + '-' + listingId;
+        const conflictMsg = `<p>El nuevo miembro <strong>${propertyName}</strong> (ID: ${listingId}) tiene un conflicto de slug con <strong>${conflict.name}</strong> (ID: ${conflict.id}).</p><p>Slug: <code>${baseSlug}</code></p><p>Slug temporal asignado: <code>${tempSlug}</code>. Por favor corrija en el panel de administración.</p>`;
+        const notifyPath = path.join(__dirname, 'public', 'notify.php');
+        execFileAsync('php', [notifyPath, 'Conflicto de slug — ' + propertyName, conflictMsg, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(console.error);
+        return tempSlug;
+    }
+    return baseSlug;
+}
 
 
 //========== temporary endpoints ============================
