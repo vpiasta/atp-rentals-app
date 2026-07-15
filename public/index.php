@@ -669,7 +669,7 @@ loadInitialData();
 // ── Load keyword filter ───────────────────────────────────────────────────────
 async function loadKeywords() {
     try {
-        const kw = await (await fetch(API_BASE_URL + '/api/keywords/active')).json();
+        const kw = await (await fetch(API_BASE_URL + '/api/keywords')).json();
         const sel = document.getElementById('keywordFilter');
         if (!sel || !kw.length) return;
         // Group by category
