@@ -855,13 +855,11 @@ app.get('/api/rentals', async (req, res) => {
         const { data: miciListings } = await miciQuery;
 
         if (miciListings && miciListings.length > 0) {
-            let miciFiltered = miciListings;
-            if (search) {
+          let miciFiltered = miciListings;
+          if (search) {
               const s = search.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
               const words = s.split(/\s+/).filter(w => w.length >= 3);
               const normalize = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-              // Score each listing: exact match=3, all words match=2, any word matches=1
               const scored = miciListings.map(r => {
                   const n = normalize(r.name);
                   const e = normalize(r.email);
@@ -873,13 +871,11 @@ app.get('/api/rentals', async (req, res) => {
                   else if (words.some(w => n.includes(w) || e.includes(w) || p.includes(w) || v.includes(w))) score = 1;
                   return { r, score };
               }).filter(x => words.length > 1 ? x.score >= 2 : x.score > 0);
-
-              // Sort by score descending (best match first)
               scored.sort((a, b) => b.score - a.score);
-              filtered = scored.map(x => x.r);
+              miciFiltered = scored.map(x => x.r);
           }
-            filtered = [...filtered, ...miciFiltered];
-        }
+          filtered = [...filtered, ...miciFiltered];
+      }
     } catch (err) {
         console.error('Error fetching MiCI listings:', err.message);
     }
