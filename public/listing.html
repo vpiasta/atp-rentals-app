@@ -606,11 +606,11 @@ function renderView(rental) {
             </div>
         </div>
         ${galleryHTML()}
+        ${(rental.listing_keywords && rental.listing_keywords.length) ? '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:0.5rem 0.5rem 0.2rem;">' + rental.listing_keywords.map(function(slug) { var k = (window._allKeywords||[]).find(function(x){return x.slug===slug;}); var label = k ? (isEs?k.label_es:k.label_en) : slug; return '<span style="padding:3px 10px;background:#e8f0fe;color:#1a3a6b;border:1px solid #c0cce0;border-radius:20px;font-size:0.78rem;">' + label + '</span>'; }).join('') + '</div>' : ''}
         ${rental.is_member && description !== T.noDesc ? `
         <div class="section">
             <div class="section-title">${T.description}</div>
             <div class="description-text">${description}</div>
-        ${(rental.listing_keywords && rental.listing_keywords.length) ? `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:0.6rem 0.5rem 0.2rem;">${rental.listing_keywords.map(slug => { const k = (window._allKeywords||[]).find(x=>x.slug===slug); const label = k ? (isEs?k.label_es:k.label_en) : slug; return '<span style="padding:3px 10px;background:#e8f0fe;color:#1a3a6b;border:1px solid #c0cce0;border-radius:20px;font-size:0.78rem;">'+label+'</span>'; }).join('')}</div>` : ''}
         </div>` : ''}
         ${rental.is_member && (rental.website_url || rental.booking_url || links.length) ? `
         <div class="section">
@@ -946,12 +946,6 @@ async function loadListing() {
         const endpoint = slugParam
             ? `${API_BASE_URL}/api/listing/slug/${slugParam}`
             : `${API_BASE_URL}/api/listing/${listingId}`;
-        // Load keywords for badge display
-        if (!window._allKeywords) {
-            try {
-                window._allKeywords = await (await fetch(API_BASE_URL + '/api/keywords')).json();
-            } catch(e) { window._allKeywords = []; }
-        }
         const res = await fetch(endpoint);
         if (!res.ok) throw new Error('Not found');
         currentRental = await res.json();
