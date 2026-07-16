@@ -3363,7 +3363,7 @@ app.post('/api/admin/keyword-approve', requireAdmin, async (req, res) => {
     });
     if (error) return res.status(500).json({ error: error.message });
     // Delete from event_log
-    await supabaseAdmin.from('event_log').delete().eq('id', event_id);
+    if (event_id) await supabaseAdmin.from('event_log').delete().eq('id', event_id);
     res.json({ success: true });
 });
 
@@ -3374,6 +3374,14 @@ app.post('/api/admin/keyword-dismiss', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── POST /api/admin/keyword-delete ───────────────────────────────────────────
+app.post('/api/admin/keyword-delete', requireAdmin, async (req, res) => {
+    const { slug } = req.body;
+    if (!slug) return res.status(400).json({ error: 'Missing slug' });
+    const { error } = await supabaseAdmin.from('keywords').delete().eq('slug', slug);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
+});
 
 //========== temporary endpoints ============================
 
