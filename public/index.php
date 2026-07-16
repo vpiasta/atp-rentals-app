@@ -230,7 +230,9 @@ $t = [
             .header-right { margin-left: 0; flex-direction: row; align-items: center; width: 100%; justify-content: flex-end; }
         }
 
-    </style>
+            .no-results { text-align:center; padding:1.2rem 2rem; background:#fffde7; border:2px solid #1a3a6b; border-radius:10px; margin:1rem 0; color:#1a3a6b; }
+        .no-results p { margin:0; font-size:0.95rem; }
+</style>
 </head>
 <body>
 <div class="container">
@@ -488,7 +490,7 @@ async function loadFilters() {
 
 async function performSearch() { // returns promise for .then() chaining
     const searchTerm = searchInput.value; const province = provinceFilter.value; const type = typeFilter.value;
-    if (!searchTerm && !province && !type) { showDefaultView(); updateSelectedCount(null); return; }
+    if (!searchTerm && !province && !type && selectedKeywords.size === 0) { showDefaultView(); updateSelectedCount(null); return; }
     // Special filters (= prefix)
     if (searchTerm.startsWith('=')) {
         const cmd = searchTerm.toLowerCase().trim();
@@ -716,7 +718,8 @@ function addKeywordTag() {
 }
 
 
-function removeKeywordTag(tag) {
+function removeKeywordTag(btn) {
+    const tag = btn.parentElement;
     selectedKeywords.delete(tag.dataset.slug);
     tag.remove();
     performSearch();
