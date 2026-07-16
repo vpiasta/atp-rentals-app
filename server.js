@@ -1069,7 +1069,7 @@ app.post('/api/listing-update', async (req, res) => {
     }
 
     // Only allow member-owned fields — never ATP fields
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
         .from('listings')
         .update({ address, phone_member, email_member, description_en, description_es, website_url, booking_url, photos, custom_links, listing_keywords })
         .eq('id', id);
