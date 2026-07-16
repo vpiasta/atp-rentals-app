@@ -720,24 +720,6 @@ function removeKeywordTag(btn) {
     tag.remove();
     performSearch();
 }
-        kw.forEach(k => {
-            const cat = LANG === 'en' ? k.category_en : k.category_es;
-            if (!categories[cat]) categories[cat] = [];
-            categories[cat].push(k);
-        });
-        Object.entries(categories).forEach(([cat, items]) => {
-            const grp = document.createElement('optgroup');
-            grp.label = cat;
-            items.forEach(k => {
-                const opt = document.createElement('option');
-                opt.value = k.slug;
-                opt.textContent = LANG === 'en' ? k.label_en : k.label_es;
-                grp.appendChild(opt);
-            });
-            sel.appendChild(grp);
-        });
-    } catch(e) { console.error('Keywords load error:', e); }
-}
 
 loadKeywords();
 
