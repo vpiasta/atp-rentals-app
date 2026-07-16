@@ -3339,6 +3339,41 @@ app.post('/api/keyword-suggestion', async (req, res) => {
     res.json({ success: true });
 });
 
+// ── GET /api/admin/keyword-suggestions ───────────────────────────────────────
+app.get('/api/admin/keyword-suggestions', requireAdmin, async (req, res) => {
+    const { data } = await supabaseAdmin
+        .from('event_log')
+        .select('id, event_data, created_at')
+        .eq('event_type', 'keyword_suggestion')
+        .order('created_at', { ascending: false });
+    const suggestions = (data||[]).map(r => ({
+        id: r.id,
+        suggestion: r.event_data?.suggestion || '',
+        listing_id: r.event_data?.listing_id,
+        created_at: r.created_at
+    }));
+    res.json({ suggestions });
+});
+
+// ── POST /api/admin/keyword-approve ──────────────────────────────────────────
+app.post('/api/admin/keyword-approve', requireAdmin, async (req, res) => {
+    const { slug, label_es, label_en, category_es, category_en, event_id } = req.body;
+    const { error } = await supabaseAdmin.from('keywords').insert({
+        slug, label_es, label_en, category_es, category_en, sort_order: 99
+    });
+    if (error) return res.status(500).json({ error: error.message });
+    // Delete from event_log
+    await supabaseAdmin.from('event_log').delete().eq('id', event_id);
+    res.json({ success: true });
+});
+
+// ── POST /api/admin/keyword-dismiss ──────────────────────────────────────────
+app.post('/api/admin/keyword-dismiss', requireAdmin, async (req, res) => {
+    const { event_id } = req.body;
+    await supabaseAdmin.from('event_log').delete().eq('id', event_id);
+    res.json({ success: true });
+});
+
 
 //========== temporary endpoints ============================
 

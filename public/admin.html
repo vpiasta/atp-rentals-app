@@ -705,7 +705,13 @@
                     <code style="color:#7ec8e3;font-size:0.72rem;">https://trustedpanamastays.com/api/update-admin-ip?secret=ADMIN_SECRET</code>
                 </p>
             </div>
+        
+        <!-- Suggestions tab -->
+        <div id="content-suggestions" class="tab-content" style="display:none;">
+            <h3 style="color:#FFD700;margin-bottom:1rem;">💡 Feature Suggestions from Members</h3>
+            <div id="suggestions-list" style="display:flex;flex-direction:column;gap:0.8rem;"></div>
         </div>
+</div>
 
     </div>
 </div>
@@ -772,6 +778,7 @@ function showAdminScreen() {
     document.getElementById('admin-screen').style.display  = 'block';
     document.getElementById('session-info').textContent    = 'Session active · ' + new Date().toLocaleTimeString();
     loadMembers();
+    loadSuggestions();
     loadIPInfo();
     loadApplicationCount();
 }
@@ -790,6 +797,7 @@ function showTab(name) {
     if (name === 'invoices')     loadInvoiceLog();
     if (name === 'campaign')     { loadCampaignStats(); loadTemplateList(); }
     if (name === 'analytics')    loadAnalytics(7);
+    if (name === 'suggestions') renderSuggestions();
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -1896,6 +1904,88 @@ async function confirmAndSend() {
             ? '<span style="color:#adf5ad;">Sending in background. Report coming by email.</span>'
             : '<span style="color:#ff7070;">Error: ' + (d.error||'unknown') + '</span>';
     } catch(e) { result.innerHTML = '<span style="color:#ff7070;">' + e.message + '</span>'; }
+}
+
+
+// ── Feature suggestions ───────────────────────────────────────────────────────
+async function loadSuggestions() {
+    try {
+        const res = await adminFetch('/api/admin/keyword-suggestions');
+        const data = await res.json();
+        const count = data.suggestions ? data.suggestions.length : 0;
+        const btn = document.getElementById('suggestions-btn');
+        const countEl = document.getElementById('suggestions-count');
+        if (btn) {
+            btn.style.display = count > 0 ? 'inline-block' : 'none';
+            btn.style.background = count > 0 ? '#e67e22' : '#888';
+        }
+        if (countEl) countEl.textContent = count > 0 ? count : '';
+        return data.suggestions || [];
+    } catch(e) { return []; }
+}
+
+async function renderSuggestions() {
+    const suggestions = await loadSuggestions();
+    const list = document.getElementById('suggestions-list');
+    if (!list) return;
+    if (!suggestions.length) {
+        list.innerHTML = '<p style="color:#aaa;">No pending suggestions.</p>';
+        return;
+    }
+    // Load keyword categories for the dropdown
+    let categories = [];
+    try {
+        const kw = await adminFetch('/api/keywords');
+        const kwData = await kw.json();
+        const catMap = {};
+        kwData.forEach(k => { if (!catMap[k.category_en]) catMap[k.category_en] = k.category_es; });
+        categories = Object.entries(catMap).map(([en, es]) => ({ en, es }));
+    } catch(e) {}
+
+    list.innerHTML = suggestions.map((s, i) => `
+        <div style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:8px;padding:1rem;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
+                <div>
+                    <span style="color:#FFD700;font-size:1rem;font-weight:700;">"${s.suggestion}"</span>
+                    <span style="color:#aaa;font-size:0.78rem;margin-left:0.5rem;">by listing #${s.listing_id} · ${new Date(s.created_at).toLocaleDateString()}</span>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                    <input type="text" id="slug-${i}" placeholder="slug (e.g. hot-tub)" value="${s.suggestion.toLowerCase().replace(/[^a-z0-9]+/g,'-')}"
+                        style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:140px;">
+                    <input type="text" id="label-es-${i}" placeholder="Español" value="${s.suggestion}"
+                        style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;">
+                    <input type="text" id="label-en-${i}" placeholder="English" value="${s.suggestion}"
+                        style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;">
+                    <select id="cat-${i}" style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;">
+                        ${categories.map(c => `<option value="${c.en}|${c.es}">${c.en}</option>`).join('')}
+                    </select>
+                    <button onclick="approveSuggestion(${i},'${s.id}')" class="action-btn edit" style="padding:4px 10px;">✅ Add</button>
+                    <button onclick="dismissSuggestion('${s.id}')" class="action-btn" style="padding:4px 10px;background:#7a1a1a;">✕ Dismiss</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function approveSuggestion(i, eventId) {
+    const slug = document.getElementById('slug-'+i).value.trim();
+    const labelEs = document.getElementById('label-es-'+i).value.trim();
+    const labelEn = document.getElementById('label-en-'+i).value.trim();
+    const catVal = document.getElementById('cat-'+i).value;
+    const [catEn, catEs] = catVal.split('|');
+    if (!slug || !labelEs || !labelEn) { alert('Fill in all fields'); return; }
+    const res = await adminFetch('/api/admin/keyword-approve', {
+        method: 'POST',
+        body: JSON.stringify({ slug, label_es: labelEs, label_en: labelEn, category_es: catEs, category_en: catEn, event_id: eventId })
+    });
+    const data = await res.json();
+    if (data.success) { renderSuggestions(); }
+    else alert('Error: ' + (data.error||''));
+}
+
+async function dismissSuggestion(eventId) {
+    await adminFetch('/api/admin/keyword-dismiss', { method: 'POST', body: JSON.stringify({ event_id: eventId }) });
+    renderSuggestions();
 }
 
 </script>
