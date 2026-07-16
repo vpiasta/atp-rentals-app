@@ -258,14 +258,14 @@
                     </label>
                 </div>
                 <p id="reg-type-hint" style="font-size:0.78rem;color:#888;margin-top:0.4rem;">
-                    Su hospedaje aparece en el Reporte de Hospedajes Vigentes de la ATP.
+                    Su hospedaje aparece en el  de Hospedajes Vigentes de la ATP.
                 </p>
             </div>
 
             <div class="form-grid">
                 <div class="field-group">
                     <label id="property-name-label">Nombre del hospedaje <span class="required">*</span></label>
-                    <input type="text" id="property-name" placeholder="Nombre como aparece en el reporte de la ATP" required>
+                    <input type="text" id="property-name" placeholder="Nombre como registrado con la ATP" required>
                     <span class="error-msg">Campo requerido</span>
                 </div>
                 <div class="field-group">
@@ -534,12 +534,12 @@ function setRegType(type) {
     const hint      = document.getElementById('reg-type-hint');
     if (isMici) {
         nameLabel.innerHTML = 'Nombre público de su hospedaje <span class="required">*</span>';
-        nameInput.placeholder = 'Nombre con el que desea aparecer en el directorio';
+        nameInput.placeholder = 'Nombre deseado para el directorio';
         hint.textContent = 'Su hospedaje tiene Aviso de Operación pero no está en el registro de la ATP.';
     } else {
         nameLabel.innerHTML = 'Nombre del hospedaje <span class="required">*</span>';
-        nameInput.placeholder = 'Nombre como aparece en el ATP';
-        hint.textContent = 'Su hospedaje aparece en el Reporte de Hospedajes Vigentes de la ATP.';
+        nameInput.placeholder = 'Nombre como registrado con la ATP';
+        hint.textContent = 'Su hospedaje aparece en el  de Hospedajes Vigentes de la ATP.';
     }
 
     // Show/hide MiCI fields
