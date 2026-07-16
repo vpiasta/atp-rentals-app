@@ -1950,19 +1950,36 @@ async function renderSuggestions() {
                     <span style="color:#FFD700;font-size:1rem;font-weight:700;">"${s.suggestion}"</span>
                     <span style="color:#aaa;font-size:0.78rem;margin-left:0.5rem;">by listing #${s.listing_id} · ${new Date(s.created_at).toLocaleDateString()}</span>
                 </div>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-                    <input type="text" id="slug-${i}" placeholder="slug (e.g. hot-tub)" value="${s.suggestion.toLowerCase().replace(/[^a-z0-9]+/g,'-')}"
-                        style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:140px;">
-                    <input type="text" id="label-es-${i}" placeholder="Español" value="${s.suggestion}"
-                        style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;">
-                    <input type="text" id="label-en-${i}" placeholder="English" value="${s.suggestion}"
-                        style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;">
-                    <select id="cat-${i}" style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;">
-                        ${categories.map(c => `<option value="${c.en}|${c.es}">${c.en}</option>`).join('')}
-                    </select>
-                    <button onclick="approveSuggestion(${i},'${s.id}')" class="action-btn edit" style="padding:4px 10px;">✅ Add</button>
-                    <button onclick="dismissSuggestion('${s.id}')" class="action-btn" style="padding:4px 10px;background:#7a1a1a;">✕ Dismiss</button>
-                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start;">
+                  <div style="display:flex;flex-direction:column;gap:2px;">
+                      <span style="font-size:0.68rem;color:#aaa;">slug</span>
+                      <input type="text" id="slug-${i}" placeholder="e.g. hot-tub" value="${s.suggestion.toLowerCase().replace(/[^a-z0-9]+/g,'-')}"
+                          style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:130px;">
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:2px;">
+                      <span style="font-size:0.68rem;color:#aaa;">Español</span>
+                      <input type="text" id="label-es-${i}" placeholder="Español" value="${s.suggestion}"
+                          style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;">
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:2px;">
+                      <span style="font-size:0.68rem;color:#aaa;">English</span>
+                      <input type="text" id="label-en-${i}" placeholder="English" value="${s.suggestion}"
+                          style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;">
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:2px;">
+                      <span style="font-size:0.68rem;color:#aaa;">Category</span>
+                      <select id="cat-${i}" style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;">
+                          ${categories.map(c => `<option value="${c.en}|${c.es}">${c.en}</option>`).join('')}
+                      </select>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:2px;">
+                      <span style="font-size:0.68rem;color:#aaa;">&nbsp;</span>
+                      <div style="display:flex;gap:6px;">
+                          <button onclick="approveSuggestion(${i},'${s.id}')" class="action-btn edit" style="padding:4px 10px;">✅ Add</button>
+                          <button onclick="dismissSuggestion('${s.id}')" class="action-btn" style="padding:4px 10px;background:#7a1a1a;">✕ Dismiss</button>
+                      </div>
+                  </div>
+              </div>
             </div>
         </div>
     `).join('');
