@@ -707,17 +707,19 @@ function addKeywordTag() {
     const label = k ? (LANG === 'en' ? k.label_en : k.label_es) : slug;
     const tag = document.createElement('span');
     tag.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#005ca9;color:white;border-radius:20px;font-size:0.78rem;';
-    tag.innerHTML = label + ' <button type="button" onclick="removeKeywordTag(this,\'' + slug + '\')" style="background:none;border:none;color:white;cursor:pointer;font-size:0.9rem;padding:0;line-height:1;">✕</button>';
+    tag.dataset.slug = slug;
+    tag.innerHTML = label + ' <button type="button" onclick="removeKeywordTag(this)" style="background:none;border:none;color:white;cursor:pointer;font-size:0.9rem;padding:0;line-height:1;">✕</button>';
     document.getElementById('keyword-active-tags').appendChild(tag);
     sel.value = '';
     performSearch();
 }
 
-function removeKeywordTag(btn, slug) {
-    selectedKeywords.delete(slug);
-    btn.parentElement.remove();
+function removeKeywordTag(btn) {
+    const tag = btn.parentElement;
+    selectedKeywords.delete(tag.dataset.slug);
+    tag.remove();
     performSearch();
-};
+}
         kw.forEach(k => {
             const cat = LANG === 'en' ? k.category_en : k.category_es;
             if (!categories[cat]) categories[cat] = [];
