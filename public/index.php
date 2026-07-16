@@ -716,8 +716,7 @@ function addKeywordTag() {
 }
 
 
-function removeKeywordTag(btn) {
-    const tag = btn.parentElement;
+function removeKeywordTag(tag) {
     selectedKeywords.delete(tag.dataset.slug);
     tag.remove();
     performSearch();
