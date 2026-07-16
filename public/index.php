@@ -739,7 +739,7 @@ function removeKeywordTag(btn) {
     } catch(e) { console.error('Keywords load error:', e); }
 }
 
-    loadKeywords();
+loadKeywords();
 
 // Track site visit
 fetch('/api/track', {
