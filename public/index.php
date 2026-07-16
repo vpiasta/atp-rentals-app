@@ -230,7 +230,7 @@ $t = [
             .header-right { margin-left: 0; flex-direction: row; align-items: center; width: 100%; justify-content: flex-end; }
         }
 
-            .no-results { text-align:center; padding:1.2rem 2rem; background:#fffde7; border:2px solid #1a3a6b; border-radius:10px; margin:1rem 0; color:#1a3a6b; }
+            .no-results { display:flex; justify-content:center; margin:1rem 0; } .no-results p { display:inline-block; padding:5px 12px; background:#fffde7; border:2px solid #1a3a6b; border-radius:8px; color:#1a3a6b; font-size:0.95rem; margin:0; }
         .no-results p { margin:0; font-size:0.95rem; }
 </style>
 </head>
