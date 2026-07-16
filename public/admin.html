@@ -2100,16 +2100,6 @@ async function deleteKeyword(slug) {
     else alert('Error: ' + (data.error||''));
 }
 
-
-function toggleKeywordsMenu() {
-    const menu = document.getElementById('keywords-menu');
-    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-}
-document.addEventListener('click', function(e) {
-        const menu = document.getElementById('keywords-menu');
-        if (menu) menu.style.display = 'none';
-    }
-});
 </script>
 </body>
 </html>
