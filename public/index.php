@@ -305,9 +305,9 @@ $t = [
                     <select id="keywordFilter" style="flex:1;"><option value=""><?= $t['keyword_all'] ?></option></select>
                     <button type="button" onclick="addKeywordTag()" style="padding:6px 10px;background:#005ca9;color:white;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:700;flex-shrink:0;">+</button>
                 </div>
-                <div id="keyword-active-tags" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;"></div>
             </div>
         </div>
+        <div id="keyword-active-tags" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;"></div>
     </section>
 
     <section class="results-section" id="resultsContainer">
@@ -706,13 +706,15 @@ function addKeywordTag() {
     const k = keywordData.find(x => x.slug === slug);
     const label = k ? (LANG === 'en' ? k.label_en : k.label_es) : slug;
     const tag = document.createElement('span');
-    tag.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#005ca9;color:white;border-radius:20px;font-size:0.78rem;';
     tag.dataset.slug = slug;
-    tag.innerHTML = label + ' <button type="button" onclick="removeKeywordTag(this)" style="background:none;border:none;color:white;cursor:pointer;font-size:0.9rem;padding:0;line-height:1;">✕</button>';
+    tag.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 12px;background:#005ca9;color:white;border-radius:20px;font-size:0.8rem;cursor:pointer;';
+    tag.innerHTML = label + ' ✕';
+    tag.onclick = function() { removeKeywordTag(this); };
     document.getElementById('keyword-active-tags').appendChild(tag);
     sel.value = '';
     performSearch();
 }
+
 
 function removeKeywordTag(btn) {
     const tag = btn.parentElement;
