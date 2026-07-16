@@ -242,7 +242,13 @@
             <button class="hbtn" onclick="showTab('campaign')">📧 Campaign</button>
             <button class="hbtn" onclick="showTab('analytics')">📊 Analytics</button>
             <button class="hbtn" onclick="showTab('ip')">🌐 IP</button>
-            <button class="hbtn" id="suggestions-btn" onclick="showTab('suggestions')" style="background:#e67e22;display:none;">💡 Suggestions <span id="suggestions-count" style="background:white;color:#555;border-radius:10px;padding:0 6px;font-size:0.75rem;margin-left:4px;"></span></button>
+            <button class="hbtn" id="keywords-btn" onclick="toggleKeywordsMenu()" style="position:relative;">
+                🏷️ Keywords <span id="suggestions-count" style="background:#e67e22;color:white;border-radius:10px;padding:0 6px;font-size:0.75rem;margin-left:4px;display:none;"></span>
+            </button>
+            <div id="keywords-menu" style="display:none;position:absolute;top:100%;right:0;background:#1a2a3a;border:1px solid #3a5a7a;border-radius:8px;padding:0.5rem;z-index:100;min-width:180px;margin-top:4px;">
+                <button onclick="showTab('suggestions')" class="hbtn" style="width:100%;text-align:left;margin-bottom:4px;" id="suggestions-sub-btn">💡 Suggestions</button>
+                <button onclick="showTab('keywords-edit')" class="hbtn" style="width:100%;text-align:left;">✏️ Edit Keywords</button>
+            </div>
             <button class="hbtn danger" onclick="doLogout()">Log Out</button>
         </div>
     </header>
@@ -714,6 +720,26 @@
             <div id="suggestions-list" style="display:flex;flex-direction:column;gap:0.8rem;"></div>
         </div>
 
+        <!-- Keywords edit tab -->
+        <div id="content-keywords-edit" class="tab-content" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                <h3 style="color:#FFD700;">🏷️ Manage Keywords</h3>
+                <button onclick="showAddKeywordForm()" class="action-btn edit">+ Add New</button>
+            </div>
+            <div id="add-keyword-form" style="display:none;background:#1a2a1a;border:1px solid #2a4a2a;border-radius:8px;padding:1rem;margin-bottom:1rem;">
+                <h4 style="color:#adf5ad;margin-bottom:0.8rem;">New Keyword</h4>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+                    <div><div style="font-size:0.7rem;color:#aaa;">Slug</div><input type="text" id="new-slug" placeholder="e.g. hot-tub" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:130px;"></div>
+                    <div><div style="font-size:0.7rem;color:#aaa;">Español</div><input type="text" id="new-label-es" placeholder="Jacuzzi" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;"></div>
+                    <div><div style="font-size:0.7rem;color:#aaa;">English</div><input type="text" id="new-label-en" placeholder="Hot tub" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;"></div>
+                    <div><div style="font-size:0.7rem;color:#aaa;">Category</div><select id="new-cat" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;" id="new-cat-sel"></select></div>
+                    <button onclick="saveNewKeyword()" class="action-btn edit">Save</button>
+                    <button onclick="document.getElementById('add-keyword-form').style.display='none'" class="action-btn" style="background:#555;">Cancel</button>
+                </div>
+            </div>
+            <div id="keywords-edit-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+        </div>
+
     </div>
 </div>
 
@@ -799,6 +825,7 @@ function showTab(name) {
     if (name === 'campaign')     { loadCampaignStats(); loadTemplateList(); }
     if (name === 'analytics')    loadAnalytics(7);
     if (name === 'suggestions') renderSuggestions();
+    if (name === 'keywords-edit') loadKeywordsEdit();
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -1976,7 +2003,7 @@ async function renderSuggestions() {
                       <span style="font-size:0.68rem;color:#aaa;">&nbsp;</span>
                       <div style="display:flex;gap:6px;">
                           <button onclick="approveSuggestion(${i},'${s.id}')" class="action-btn edit" style="padding:4px 10px;">✅ Add</button>
-                          <button onclick="dismissSuggestion('${s.id}')" class="action-btn" style="padding:4px 10px;background:#7a1a1a;">✕ Dismiss</button>
+                          <button onclick="dismissSuggestion('${s.id}')" class="action-btn" style="padding:4px 10px;background:#7a1a1a;color:white">✕ Dismiss</button>
                       </div>
                   </div>
               </div>
@@ -1998,12 +2025,79 @@ async function approveSuggestion(i, eventId) {
     });
     const data = await res.json();
     if (data.success) { renderSuggestions(); }
-    else alert('Error: ' + (data.error||''));
+        else if (data.error && data.error.includes('duplicate')) {
+        alert('This slug already exists. Choose a different slug.');
+    } else if (data.error && data.error.includes('duplicate')) { alert('This slug already exists. Use a different slug or dismiss the suggestion.'); } else alert('Error: ' + (data.error||''));
 }
 
 async function dismissSuggestion(eventId) {
     await adminFetch('/api/admin/keyword-dismiss', { method: 'POST', body: JSON.stringify({ event_id: eventId }) });
     renderSuggestions();
+}
+
+
+// ── Keyword management ────────────────────────────────────────────────────────
+async function loadKeywordsEdit() {
+    try {
+        const res = await adminFetch('/api/keywords');
+        const kws = await res.json();
+        const list = document.getElementById('keywords-edit-list');
+        if (!list) return;
+        // Group by category
+        const cats = {};
+        kws.forEach(k => { if (!cats[k.category_en]) cats[k.category_en] = []; cats[k.category_en].push(k); });
+        list.innerHTML = Object.entries(cats).map(([cat, items]) => `
+            <div style="margin-bottom:0.8rem;">
+                <div style="font-size:0.75rem;font-weight:700;color:#FFD700;text-transform:uppercase;margin-bottom:4px;padding:4px 8px;background:#1a2a3a;border-radius:4px;">${cat}</div>
+                ${items.map(k => `
+                <div style="display:flex;gap:6px;align-items:center;padding:4px 8px;border-bottom:1px solid #2a3a4a;">
+                    <code style="color:#7ec8e3;min-width:140px;font-size:0.78rem;">${k.slug}</code>
+                    <span style="min-width:120px;font-size:0.82rem;">${k.label_es}</span>
+                    <span style="min-width:120px;font-size:0.82rem;color:#aaa;">${k.label_en}</span>
+                    <button onclick="deleteKeyword('${k.slug}')" style="padding:2px 8px;background:#7a1a1a;color:white;border:none;border-radius:4px;font-size:0.75rem;cursor:pointer;">✕</button>
+                </div>`).join('')}
+            </div>
+        `).join('');
+        // Also populate new keyword category dropdown
+        const sel = document.getElementById('new-cat');
+        if (sel && !sel.children.length) {
+            Object.keys(cats).forEach(cat => {
+                const opt = document.createElement('option');
+                const es = kws.find(k => k.category_en === cat)?.category_es || cat;
+                opt.value = cat + '|' + es;
+                opt.textContent = cat;
+                sel.appendChild(opt);
+            });
+        }
+    } catch(e) { console.error(e); }
+}
+
+function showAddKeywordForm() {
+    document.getElementById('add-keyword-form').style.display = 'block';
+}
+
+async function saveNewKeyword() {
+    const slug = document.getElementById('new-slug').value.trim();
+    const labelEs = document.getElementById('new-label-es').value.trim();
+    const labelEn = document.getElementById('new-label-en').value.trim();
+    const catVal = document.getElementById('new-cat').value;
+    const [catEn, catEs] = catVal.split('|');
+    if (!slug || !labelEs || !labelEn) { alert('Fill in all fields'); return; }
+    const res = await adminFetch('/api/admin/keyword-approve', {
+        method: 'POST',
+        body: JSON.stringify({ slug, label_es: labelEs, label_en: labelEn, category_es: catEs, category_en: catEn, event_id: null })
+    });
+    const data = await res.json();
+    if (data.success) { document.getElementById('add-keyword-form').style.display='none'; loadKeywordsEdit(); }
+    else alert('Error: ' + (data.error||''));
+}
+
+async function deleteKeyword(slug) {
+    if (!confirm('Delete keyword "' + slug + '"? Members using it will lose this feature tag.')) return;
+    const res = await adminFetch('/api/admin/keyword-delete', { method:'POST', body: JSON.stringify({ slug }) });
+    const data = await res.json();
+    if (data.success) loadKeywordsEdit();
+    else alert('Error: ' + (data.error||''));
 }
 
 </script>

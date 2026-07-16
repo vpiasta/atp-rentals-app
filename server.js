@@ -3374,6 +3374,27 @@ app.post('/api/admin/keyword-dismiss', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+function toggleKeywordsMenu() {
+    const menu = document.getElementById('keywords-menu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+// Close menu when clicking elsewhere
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#keywords-btn') && !e.target.closest('#keywords-menu')) {
+        const menu = document.getElementById('keywords-menu');
+        if (menu) menu.style.display = 'none';
+    }
+});
+
+// ── POST /api/admin/keyword-delete ───────────────────────────────────────────
+app.post('/api/admin/keyword-delete', requireAdmin, async (req, res) => {
+    const { slug } = req.body;
+    if (!slug) return res.status(400).json({ error: 'Missing slug' });
+    const { error } = await supabaseAdmin.from('keywords').delete().eq('slug', slug);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
+});
 
 //========== temporary endpoints ============================
 
