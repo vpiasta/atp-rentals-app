@@ -86,6 +86,33 @@ $photos      = is_array($listing['photos']) ? $listing['photos'] : json_decode($
 $first_photo = !empty($photos) ? $photos[0] : '';
 $lk = $listing['listing_keywords'] ?? [];
 if (is_string($lk)) $lk = json_decode($lk, true) ?: [];
+$kw_map = $lang === 'es' ? [
+    'affordable'=>'Econ\u00f3mico','mid-range'=>'Precio medio','luxury'=>'Lujo',
+    'boutique'=>'Boutique','family'=>'Familiar','adults-only'=>'Solo adultos',
+    'pet-friendly'=>'Acepta mascotas','eco'=>'Ecol\u00f3gico','historic'=>'Hist\u00f3rico',
+    'lgbtq-friendly'=>'LGBTQ+ friendly','beach'=>'Playa','mountain'=>'Monta\u00f1a',
+    'city-center'=>'Centro de ciudad','nature'=>'Naturaleza','sea-view'=>'Vista al mar',
+    'mountain-view'=>'Vista a la monta\u00f1a','pool'=>'Piscina','restaurant'=>'Restaurante',
+    'bar'=>'Bar','spa'=>'Spa','gym'=>'Gimnasio','parking'=>'Estacionamiento',
+    'wifi'=>'WiFi','smart-tv'=>'Smart TV','garden'=>'Jard\u00edn',
+    'breakfast'=>'Desayuno incluido','airport-transfer'=>'Traslado al aeropuerto',
+    'tours'=>'Tours y excursiones','hosts-on-site'=>'Anfitri\u00f3n en el lugar',
+    'fresh-bread'=>'Pan fresco por la ma\u00f1ana','surf'=>'Surf',
+    'hiking'=>'Senderismo','fishing'=>'Pesca','diving'=>'Buceo','golf'=>'Golf',
+] : [
+    'affordable'=>'Affordable','mid-range'=>'Mid-range','luxury'=>'Luxury',
+    'boutique'=>'Boutique','family'=>'Family-friendly','adults-only'=>'Adults only',
+    'pet-friendly'=>'Pet-friendly','eco'=>'Eco-friendly','historic'=>'Historic',
+    'lgbtq-friendly'=>'LGBTQ+ friendly','beach'=>'Beach','mountain'=>'Mountain',
+    'city-center'=>'City center','nature'=>'Nature','sea-view'=>'Sea view',
+    'mountain-view'=>'Mountain view','pool'=>'Pool','restaurant'=>'Restaurant',
+    'bar'=>'Bar','spa'=>'Spa','gym'=>'Gym','parking'=>'Parking',
+    'wifi'=>'WiFi','smart-tv'=>'Smart TV','garden'=>'Garden',
+    'breakfast'=>'Breakfast included','airport-transfer'=>'Airport transfer',
+    'tours'=>'Tours and excursions','hosts-on-site'=>'Hosts on site',
+    'fresh-bread'=>'Fresh bread daily','surf'=>'Surf',
+    'hiking'=>'Hiking','fishing'=>'Fishing','diving'=>'Diving','golf'=>'Golf',
+];
 
 $name        = $listing['name'] ?? '';
 $province    = $listing['province'] ?? '';
@@ -325,7 +352,7 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     <?php if (!empty($lk)): ?>
     <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0.5rem 1.5rem 0;">
         <?php foreach ($lk as $kslug): ?>
-        <span style="padding:3px 10px;background:#e8f0fe;color:#1a3a6b;border:1px solid #c0cce0;border-radius:20px;font-size:0.78rem;"><?= h(str_replace('-', ' ', ucfirst($kslug))) ?></span>
+        <span style="padding:3px 10px;background:#e8f0fe;color:#1a3a6b;border:1px solid #c0cce0;border-radius:20px;font-size:0.78rem;"><?= h($kw_map[$kslug] ?? str_replace('-',' ',ucfirst($kslug))) ?></span>
         <?php endforeach; ?>
     </div>
     <?php endif; ?>
