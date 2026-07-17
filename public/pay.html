@@ -452,30 +452,6 @@ async function submitPayment() {
     }
 }
 
-// Auto-fill invoice fields when member ID is entered
-document.getElementById('membership-id').addEventListener('blur', async function() {
-    const id = this.value.trim();
-    if (!id) return;
-    try {
-        const res = await fetch('/api/payment-info?id=' + id);
-        if (!res.ok) return;
-        const data = await res.json();
-        document.getElementById('invoice-fields').style.display = 'block';
-        if (data.ruc && data.ruc_dv && data.name) {
-            document.getElementById('contact-name').value = data.name;
-            document.getElementById('contact-ruc').value  = data.ruc;
-            document.getElementById('contact-dv').value   = data.ruc_dv;
-            document.getElementById('autofill-notice').style.display = 'block';
-            document.getElementById('noverif-notice').style.display  = 'none';
-        } else {
-            document.getElementById('autofill-notice').style.display = 'none';
-            document.getElementById('noverif-notice').style.display  = 'block';
-        }
-    } catch(e) {
-        document.getElementById('invoice-fields').style.display = 'block';
-        document.getElementById('noverif-notice').style.display = 'block';
-    }
-});
 
 </script>
 </body>
