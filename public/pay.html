@@ -188,21 +188,24 @@
             </div>
 
             <!-- Invoice data - auto-filled from verification if available -->
-            <div id="invoice-fields">
+            <div id="invoice-fields" style="display:none;">
                 <div class="form-group">
                     <label>Nombre o razón social <span class="required">*</span></label>
-                    <input type="text" id="contact-name" required>
+                    <input type="text" id="contact-name" required style="width:100%;">
                     <div class="error-msg" id="err-name">Ingrese su nombre o razón social</div>
                 </div>
-                <div class="form-group">
-                    <label>RUC <span class="required">*</span></label>
-                    <input type="text" id="contact-ruc" required pattern="[0-9\-]+" oninput="this.value=this.value.replace(/[^0-9\-]/g,'')">
-                    <div class="error-msg" id="err-ruc">Solo se permiten números y guiones</div>
+                <div style="display:flex;gap:1rem;align-items:flex-start;">
+                    <div class="form-group" style="flex:3;">
+                        <label>RUC <span class="required">*</span></label>
+                        <input type="text" id="contact-ruc" required oninput="this.value=this.value.replace(/[^0-9\-]/g,'')">
+                        <div class="error-msg" id="err-ruc">Solo números y guiones</div>
+                    </div>
+                    <div class="form-group" style="flex:0 0 70px;">
+                        <label>DV <span class="required">*</span></label>
+                        <input type="text" id="contact-dv" required maxlength="2" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                        <div class="error-msg" id="err-dv">DV</div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Dígito verificador (DV) <span class="required">*</span></label>
-                    <input type="text" id="contact-dv" required maxlength="3" pattern="[0-9]+" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
-                    <div class="error-msg" id="err-dv">Solo se permiten números</div>
                 </div>
                 <div id="autofill-notice" style="display:none;background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:0.8rem;margin-bottom:1rem;font-size:0.88rem;">
                     <strong>Datos cargados de su solicitud.</strong> Por favor verifique y confirme:
@@ -220,20 +223,11 @@
 
             <!-- Plan selection -->
             <div class="field-group">
-                <label>Plan de membresía <span class="required">*</span></label>
-                <div class="plan-options">
-                    <label class="plan-option" id="plan-1year" onclick="selectPlan('1year')">
-                        <input type="radio" name="plan" value="1year">
-                        <div class="plan-amount">$24</div>
-                        <div class="plan-label">1 año</div>
-                        <div class="plan-note">· $25.68 inclusive ITBMS</div>
-                    </label>
-                    <label class="plan-option" id="plan-2year" onclick="selectPlan('2year')">
-                        <input type="radio" name="plan" value="2year">
-                        <div class="plan-amount">$45</div>
-                        <div class="plan-label">2 años  · Ahorre $3</div>
-                        <div class="plan-note">$48.15 inclusive ITBMS</div>
-                    </label>
+                <div class="info-box" style="margin:0;">
+                    <strong>Planes disponibles:</strong><br><br>
+                    <span style="font-size:0.95rem;">💳 <strong>$24.00</strong> — Membresía 1 año</span><br>
+                    <span style="font-size:0.95rem;">💳 <strong>$45.00</strong> — Membresía 2 años <span style="color:#666;">(ahorre $3)</span></span><br><br>
+                    <span style="font-size:0.82rem;color:#666;">El plan se determinará automáticamente según el monto de su pago.</span>
                 </div>
             </div>
 
@@ -349,6 +343,21 @@ function lookupMember() {
             const data = await res.json();
             if (res.ok && data.id) {
                 currentListing = data;
+                // Fetch invoice data for this member
+                let invoiceData = {};
+                try {
+                    const iRes = await fetch(`${API}/api/payment-info?id=${id}`);
+                    if (iRes.ok) invoiceData = await iRes.json();
+                } catch(e) {}
+
+                // Auto-fill invoice fields
+                document.getElementById('contact-name').value = invoiceData.name || '';
+                document.getElementById('contact-ruc').value  = invoiceData.ruc  || '';
+                document.getElementById('contact-dv').value   = invoiceData.ruc_dv || '';
+                const hasData = invoiceData.name && invoiceData.ruc;
+                document.getElementById('autofill-notice').style.display = hasData ? 'block' : 'none';
+                document.getElementById('noverif-notice').style.display  = hasData ? 'none' : 'block';
+
                 preview.innerHTML = `
                     <strong>✅ Hospedaje encontrado:</strong> ${data.name}<br>
                     <span style="color:#555;">${data.province} · ${data.rental_type||''}</span>
@@ -357,6 +366,7 @@ function lookupMember() {
                         : ''}`;
                 preview.classList.add('visible');
                 document.getElementById('err-id').style.display = 'none';
+                document.getElementById('invoice-fields').style.display = 'block';
             } else {
                 currentListing = null;
                 preview.innerHTML = '<span style="color:#cc0000;">❌ Número no encontrado. Verifique e intente de nuevo.</span>';
