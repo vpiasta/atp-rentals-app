@@ -49,7 +49,7 @@ function supabase_get($path) {
     return is_array($data) && isset($data[0]) ? $data[0] : null;
 }
 
-$select = 'id,name,phone,email,province,rental_type,address,description_en,description_es,photos,website_url,booking_url,is_member,membership_paid_until,phone_member,email_member,custom_links,slug,registry_source,apatel_member';
+$select = 'id,name,phone,email,province,rental_type,address,description_en,description_es,photos,website_url,booking_url,is_member,membership_paid_until,phone_member,email_member,custom_links,slug,registry_source,apatel_member,listing_keywords';
 
 if ($slug) {
     $listing = supabase_get('listings?select=' . $select . '&slug=eq.' . urlencode($slug) . '&limit=1');
@@ -84,6 +84,8 @@ $description = $lang === 'es'
 
 $photos      = is_array($listing['photos']) ? $listing['photos'] : json_decode($listing['photos'] ?? '[]', true) ?? [];
 $first_photo = !empty($photos) ? $photos[0] : '';
+$lk = $listing['listing_keywords'] ?? [];
+if (is_string($lk)) $lk = json_decode($lk, true) ?: [];
 
 $name        = $listing['name'] ?? '';
 $province    = $listing['province'] ?? '';
@@ -320,6 +322,13 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     </script>
     <?php endif; ?>
 
+    <?php if (!empty($lk)): ?>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0.5rem 1.5rem 0;">
+        <?php foreach ($lk as $kslug): ?>
+        <span style="padding:3px 10px;background:#e8f0fe;color:#1a3a6b;border:1px solid #c0cce0;border-radius:20px;font-size:0.78rem;"><?= h(str_replace('-', ' ', ucfirst($kslug))) ?></span>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
     <?php if ($description): ?>
     <div class="section">
         <div class="section-title"><?= $lang === 'es' ? 'Descripción' : 'Description' ?></div>
