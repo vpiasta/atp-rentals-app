@@ -49,7 +49,7 @@ function supabase_get($path) {
     return is_array($data) && isset($data[0]) ? $data[0] : null;
 }
 
-$select = 'id,name,phone,email,province,rental_type,address,description_en,description_es,photos,website_url,booking_url,is_member,membership_paid_until,phone_member,email_member,custom_links,slug,registry_source,apatel_member,listing_keywords';
+$select = 'id,name,phone,email,province,rental_type,address,description_en,description_es,photos,website_url,booking_url,is_member,membership_paid_until,phone_member,email_member,custom_links,slug,registry_source,apatel_member';
 
 if ($slug) {
     $listing = supabase_get('listings?select=' . $select . '&slug=eq.' . urlencode($slug) . '&limit=1');
@@ -84,22 +84,6 @@ $description = $lang === 'es'
 
 $photos      = is_array($listing['photos']) ? $listing['photos'] : json_decode($listing['photos'] ?? '[]', true) ?? [];
 $first_photo = !empty($photos) ? $photos[0] : '';
-$lk_raw = $listing['listing_keywords'] ?? null;
-$listing_keywords = [];
-if (is_array($lk_raw)) { $listing_keywords = $lk_raw; }
-elseif (is_string($lk_raw) && $lk_raw !== '') { $listing_keywords = json_decode($lk_raw, true) ?: []; }
-
-// Fetch keyword labels
-$kw_labels = [];
-if (!empty($listing_keywords)) {
-    $slug_list = implode(',', $listing_keywords);
-    $kw_data = supabase_get('keywords?select=slug,label_es,label_en&slug=in.(' . $slug_list . ')');
-    if (is_array($kw_data)) {
-        foreach ($kw_data as $kw) {
-            $kw_labels[$kw['slug']] = $lang === 'es' ? ($kw['label_es'] ?? $kw['slug']) : ($kw['label_en'] ?? $kw['slug']);
-        }
-    }
-}
 
 $name        = $listing['name'] ?? '';
 $province    = $listing['province'] ?? '';
@@ -336,13 +320,6 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     </script>
     <?php endif; ?>
 
-    <?php if (!empty($listing_keywords)): ?>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0.6rem 1.5rem 0.2rem;">
-        <?php foreach ($listing_keywords as $slug): ?>
-        <span style="padding:3px 10px;background:#e8f0fe;color:#1a3a6b;border:1px solid #c0cce0;border-radius:20px;font-size:0.78rem;"><?= h($kw_labels[$slug] ?? $slug) ?></span>
-        <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
     <?php if ($description): ?>
     <div class="section">
         <div class="section-title"><?= $lang === 'es' ? 'Descripción' : 'Description' ?></div>
