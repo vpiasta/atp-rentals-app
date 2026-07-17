@@ -84,16 +84,19 @@ $description = $lang === 'es'
 
 $photos      = is_array($listing['photos']) ? $listing['photos'] : json_decode($listing['photos'] ?? '[]', true) ?? [];
 $first_photo = !empty($photos) ? $photos[0] : '';
-$listing_keywords = is_array($listing['listing_keywords']) ? $listing['listing_keywords'] : json_decode($listing['listing_keywords'] ?? '[]', true) ?? [];
+$lk_raw = $listing['listing_keywords'] ?? null;
+$listing_keywords = [];
+if (is_array($lk_raw)) { $listing_keywords = $lk_raw; }
+elseif (is_string($lk_raw) && $lk_raw !== '') { $listing_keywords = json_decode($lk_raw, true) ?: []; }
 
 // Fetch keyword labels
 $kw_labels = [];
 if (!empty($listing_keywords)) {
-    $slugs_csv = implode(',', array_map(function($s) { return '"' . $s . '"'; }, $listing_keywords));
-    $kw_data = supabase_get('keywords?select=slug,label_es,label_en&slug=in.(' . implode(',', $listing_keywords) . ')');
-    if (!empty($kw_data)) {
+    $slug_list = implode(',', $listing_keywords);
+    $kw_data = supabase_get('keywords?select=slug,label_es,label_en&slug=in.(' . $slug_list . ')');
+    if (is_array($kw_data)) {
         foreach ($kw_data as $kw) {
-            $kw_labels[$kw['slug']] = $lang === 'es' ? $kw['label_es'] : $kw['label_en'];
+            $kw_labels[$kw['slug']] = $lang === 'es' ? ($kw['label_es'] ?? $kw['slug']) : ($kw['label_en'] ?? $kw['slug']);
         }
     }
 }
