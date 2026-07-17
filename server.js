@@ -3403,14 +3403,14 @@ app.get('/api/payment-info', async (req, res) => {
     if (!id) return res.status(400).json({ error: 'Missing id' });
     const { data } = await supabaseAdmin
         .from('membership_applications')
-        .select('contact_name, ruc, ruc_dv, listing_id')
+        .select('contact_name, business_name, ruc, ruc_dv, listing_id')
         .eq('listing_id', id)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
     if (!data) return res.status(404).json({ error: 'Not found' });
     res.json({
-        name:   data.business_name || null,
+        name:   data.business_name || data.contact_name || null,
         ruc:    data.ruc || null,
         ruc_dv: data.ruc_dv || null
     });
