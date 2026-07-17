@@ -194,25 +194,25 @@
             <div id="invoice-fields" style="display:none;">
                 <div class="form-group">
                     <label>Nombre o razón social <span class="required">*</span></label>
-                    <input type="text" id="contact-name" required style="width:100%;padding:10px 12px;border:1px solid #c0d0e0;border-radius:6px;font-size:0.9rem;">
+                    <input type="text" id="contact-name" oninput="checkFormReady()" required style="width:100%;padding:10px 12px;border:1px solid #c0d0e0;border-radius:6px;font-size:0.9rem;">
                     <div class="error-msg" id="err-name">Ingrese su nombre o razón social</div>
                 </div>
                 <div style="display:flex;gap:1rem;align-items:flex-start;">
                     <div class="form-group" style="flex:0 0 200px;">
                         <label>RUC <span class="required">*</span></label>
-                        <input type="text" id="contact-ruc" required style="padding:10px 12px;border:1px solid #c0d0e0;border-radius:6px;font-size:0.9rem;width:100%;" oninput="this.value=this.value.replace(/[^0-9\-]/g,'')">
+                        <input type="text" id="contact-ruc" required style="padding:10px 12px;border:1px solid #c0d0e0;border-radius:6px;font-size:0.9rem;width:100%;" oninput="this.value=this.value.replace(/[^0-9\-]/g,''); checkFormReady()">
                         <div class="error-msg" id="err-ruc">Solo números y guiones</div>
                     </div>
                     <div class="form-group" style="flex:0 0 70px;">
                         <label>DV <span class="required">*</span></label>
-                        <input type="text" id="contact-dv" required maxlength="2" style="padding:10px 12px;border:1px solid #c0d0e0;border-radius:6px;font-size:0.9rem;width:100%;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                        <input type="text" id="contact-dv" required maxlength="2" style="padding:10px 12px;border:1px solid #c0d0e0;border-radius:6px;font-size:0.9rem;width:100%;" oninput="this.value=this.value.replace(/[^0-9]/g,''); checkFormReady()">
                         <div class="error-msg" id="err-dv">DV</div>
                     </div>
                 </div>
                 <div id="autofill-notice" style="display:none;margin-top:0.8rem;background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:0.8rem;margin-bottom:1rem;font-size:0.88rem;">
                     <strong>Datos cargados de su solicitud.</strong> Por favor verifique y confirme:
                     <label style="display:flex;align-items:center;gap:8px;margin-top:0.5rem;cursor:pointer;">
-                        <input type="checkbox" id="confirm-data"> Confirmo que los datos son correctos
+                        <input type="checkbox" id="confirm-data" required onchange="checkFormReady()"> Confirmo que los datos son correctos
                     </label>
                 </div>
                 <div id="noverif-notice" style="display:none;margin-top:0.8rem;background:#fffbe6;border:1px solid #FFD700;border-radius:8px;padding:0.8rem;margin-bottom:1rem;font-size:0.88rem;color:#7a5c00;">
@@ -260,8 +260,7 @@
             <div class="field-group">
                 <label>Comprobante de pago <span class="required">*</span></label>
                 <div class="upload-zone" id="upload-zone">
-                    <input type="file" id="file-pago" accept="image/*,.pdf"
-                           onchange="fileSelected(this)">
+                    <input type="file" id="file-pago" onchange="fileSelected(this); checkFormReady()" accept="image/*,.pdf"
                     <div class="upload-zone-icon">💳</div>
                     <div class="upload-zone-text">Clic o arrastre aquí</div>
                     <div class="upload-zone-hint">Captura de transferencia o pago · JPG, PNG, PDF · máx. 10MB</div>
@@ -273,7 +272,7 @@
             <!-- Contact email (optional) -->
             <div class="field-group">
                 <label>Correo electrónico <span class="required">*</span></label>
-                <input type="email" id="contact-email" required>
+                <input type="email" id="contact-email" checkFormReady() required>
                 <div class="hint">Recibirá su factura electrónica en este correo</div>
                 <div class="error-msg" id="err-email">Ingrese su correo electrónico</div>
             </div>
@@ -353,10 +352,11 @@ function lookupMember() {
                 document.getElementById('contact-name').value = invoiceData.name || '';
                 document.getElementById('contact-ruc').value  = invoiceData.ruc  || '';
                 document.getElementById('contact-dv').value   = invoiceData.ruc_dv || '';
+                document.getElementById('contact-email').value = invoiceData.email || data.email_member || data.email || '';
                 const hasData = invoiceData.name && invoiceData.ruc;
                 document.getElementById('autofill-notice').style.display = hasData ? 'block' : 'none';
                 document.getElementById('noverif-notice').style.display  = hasData ? 'none' : 'block';
-
+                checkFormReady();
                 preview.innerHTML = `
                     <strong>✅ Hospedaje encontrado:</strong> ${data.name}<br>
                     <span style="color:#555;">${data.province} · ${data.rental_type||''}</span>
@@ -452,7 +452,24 @@ async function submitPayment() {
     }
 }
 
+function checkFormReady() {
+    const id    = document.getElementById('membership-id').value;
+    const name  = document.getElementById('contact-name')?.value.trim();
+    const ruc   = document.getElementById('contact-ruc')?.value.trim();
+    const dv    = document.getElementById('contact-dv')?.value.trim();
+    const email = document.getElementById('contact-email').value.trim();
+    const file  = document.getElementById('file-pago').files.length > 0;
+    const confirmBox = document.getElementById('confirm-data');
+    const needsConfirm = document.getElementById('autofill-notice')?.style.display !== 'none';
+    const confirmed = !needsConfirm || (confirmBox && confirmBox.checked);
+    const ready = id && name && ruc && dv && email && file && confirmed;
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = !ready;
+    btn.style.opacity = ready ? '1' : '0.4';
+    btn.style.cursor = ready ? 'pointer' : 'not-allowed';
+}
 
+  checkFormReady();
 </script>
 </body>
 </html>
