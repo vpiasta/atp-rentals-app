@@ -87,17 +87,17 @@ $first_photo = !empty($photos) ? $photos[0] : '';
 $lk = $listing['listing_keywords'] ?? [];
 if (is_string($lk)) $lk = json_decode($lk, true) ?: [];
 $kw_map = $lang === 'es' ? [
-    'affordable'=>'Econ\u00f3mico','mid-range'=>'Precio medio','luxury'=>'Lujo',
+    'affordable'=>'Económico','mid-range'=>'Precio medio','luxury'=>'Lujo',
     'boutique'=>'Boutique','family'=>'Familiar','adults-only'=>'Solo adultos',
-    'pet-friendly'=>'Acepta mascotas','eco'=>'Ecol\u00f3gico','historic'=>'Hist\u00f3rico',
-    'lgbtq-friendly'=>'LGBTQ+ friendly','beach'=>'Playa','mountain'=>'Monta\u00f1a',
+    'pet-friendly'=>'Acepta mascotas','eco'=>'Ecológico','historic'=>'Histórico',
+    'lgbtq-friendly'=>'LGBTQ+ friendly','beach'=>'Playa','mountain'=>'Montaña',
     'city-center'=>'Centro de ciudad','nature'=>'Naturaleza','sea-view'=>'Vista al mar',
-    'mountain-view'=>'Vista a la monta\u00f1a','pool'=>'Piscina','restaurant'=>'Restaurante',
+    'mountain-view'=>'Vista a la montaña','pool'=>'Piscina','restaurant'=>'Restaurante',
     'bar'=>'Bar','spa'=>'Spa','gym'=>'Gimnasio','parking'=>'Estacionamiento',
-    'wifi'=>'WiFi','smart-tv'=>'Smart TV','garden'=>'Jard\u00edn',
+    'wifi'=>'WiFi','smart-tv'=>'Smart TV','garden'=>'Jardín',
     'breakfast'=>'Desayuno incluido','airport-transfer'=>'Traslado al aeropuerto',
-    'tours'=>'Tours y excursiones','hosts-on-site'=>'Anfitri\u00f3n en el lugar',
-    'fresh-bread'=>'Pan fresco por la ma\u00f1ana','surf'=>'Surf',
+    'tours'=>'Tours y excursiones','hosts-on-site'=>'Anfitrión en el lugar',
+    'fresh-bread'=>'Pan fresco por la mañana','surf'=>'Surf',
     'hiking'=>'Senderismo','fishing'=>'Pesca','diving'=>'Buceo','golf'=>'Golf',
 ] : [
     'affordable'=>'Affordable','mid-range'=>'Mid-range','luxury'=>'Luxury',
