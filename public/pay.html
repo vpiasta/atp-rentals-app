@@ -163,7 +163,7 @@
                 <p>Trusted Panama Stays</p>
             </div>
         </div>
-        <a href="index_es.html" class="back-link">← Volver</a>
+        <a href="index.php?lang=es" class="back-link">← Volver</a>
     </header>
 
     <!-- Form -->
@@ -182,30 +182,32 @@
             <!-- Membership ID -->
             <div class="field-group">
                 <label>Número de membresía <span class="required">*</span></label>
-                <input type="number" id="membership-id" placeholder="Ej: 11134" min="1" required
+                <input type="number" id="membership-id" placeholder="Ej: 11134" min="1" required style="max-width:140px;"
                        oninput="lookupMember()">
                 <div class="error-msg" id="err-id">Ingrese su número de membresía</div>
             </div>
+
+            <!-- Listing preview (shown after valid ID entered) -->
+            <div class="listing-preview" id="listing-preview"></div>
 
             <!-- Invoice data - auto-filled from verification if available -->
             <div id="invoice-fields" style="display:none;">
                 <div class="form-group">
                     <label>Nombre o razón social <span class="required">*</span></label>
-                    <input type="text" id="contact-name" required style="width:100%;">
+                    <input type="text" id="contact-name" required style="width:100%;padding:10px 12px;border:1px solid #c0d0e0;border-radius:6px;font-size:0.9rem;">
                     <div class="error-msg" id="err-name">Ingrese su nombre o razón social</div>
                 </div>
                 <div style="display:flex;gap:1rem;align-items:flex-start;">
                     <div class="form-group" style="flex:3;">
                         <label>RUC <span class="required">*</span></label>
-                        <input type="text" id="contact-ruc" required oninput="this.value=this.value.replace(/[^0-9\-]/g,'')">
+                        <input type="text" id="contact-ruc" required style="padding:10px 12px;border:1px solid #c0d0e0;border-radius:6px;font-size:0.9rem;width:100%;" oninput="this.value=this.value.replace(/[^0-9\-]/g,'')">
                         <div class="error-msg" id="err-ruc">Solo números y guiones</div>
                     </div>
                     <div class="form-group" style="flex:0 0 70px;">
                         <label>DV <span class="required">*</span></label>
-                        <input type="text" id="contact-dv" required maxlength="2" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                        <input type="text" id="contact-dv" required maxlength="2" style="padding:10px 12px;border:1px solid #c0d0e0;border-radius:6px;font-size:0.9rem;width:100%;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
                         <div class="error-msg" id="err-dv">DV</div>
                     </div>
-                </div>
                 </div>
                 <div id="autofill-notice" style="display:none;background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:0.8rem;margin-bottom:1rem;font-size:0.88rem;">
                     <strong>Datos cargados de su solicitud.</strong> Por favor verifique y confirme:
@@ -217,9 +219,6 @@
                     No tenemos datos verificados para su membresía. Por favor ingrese su RUC y nombre tal como aparecen en su aviso de operación.
                 </div>
             </div>
-
-            <!-- Listing preview (shown after valid ID entered) -->
-            <div class="listing-preview" id="listing-preview"></div>
 
             <!-- Plan selection -->
             <div class="field-group">
@@ -293,7 +292,7 @@
         <p>Hemos recibido su comprobante de pago para <strong id="success-name"></strong>.</p>
         <p>Verificaremos su pago y activaremos su membresía en breve. Si proporcionó un correo, le enviaremos confirmación.</p>
         <p style="margin-top:1.5rem;">
-            <a href="index_es.html" style="color:#005ca9;">← Volver al directorio</a>
+            <a href="index.php?lang=es" style="color:#005ca9;">← Volver al directorio</a>
         </p>
     </div>
 
