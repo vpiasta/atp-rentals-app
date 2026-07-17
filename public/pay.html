@@ -174,7 +174,7 @@
             <p>Si ya tiene un número de membresía, ingrese aquí su comprobante de pago para activar o renovar su acceso.</p>
 
             <div class="info-box">
-                Su número de membresía es el número que aparece en los correos de Trusted Panama Stays.
+                Su número de membresía es el número que aparece a lado del nombre de su hospedaje en la página principal.
                 Si no lo recuerda, escríbanos a
                 <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a>
             </div>
@@ -185,6 +185,29 @@
                 <input type="number" id="membership-id" placeholder="Ej: 11134" min="1" required
                        oninput="lookupMember()">
                 <div class="error-msg" id="err-id">Ingrese su número de membresía</div>
+            </div>
+
+            <!-- RUC for invoice -->
+            <div class="form-group">
+                <label>RUC <span class="required">*</span></label>
+                <input type="text" id="contact-ruc" placeholder="Ej: 8-822-1374 o 155662436-2-2018" required>
+                <div class="hint">RUC de su hospedaje tal como aparece en el aviso de operación</div>
+                <div class="error-msg" id="err-ruc">Ingrese su RUC</div>
+            </div>
+
+            <!-- DV for invoice -->
+            <div class="form-group">
+                <label>Dígito verificador (DV) <span class="required">*</span></label>
+                <input type="text" id="contact-dv" placeholder="Ej: 40" maxlength="3" required>
+                <div class="error-msg" id="err-dv">Ingrese el dígito verificador</div>
+            </div>
+
+            <!-- Company name for invoice -->
+            <div class="form-group">
+                <label>Nombre o razón social <span class="required">*</span></label>
+                <input type="text" id="contact-name" placeholder="Nombre de su empresa o persona natural" required>
+                <div class="hint">Tal como aparece en el aviso de operación — se usará en la factura electrónica</div>
+                <div class="error-msg" id="err-name">Ingrese su nombre o razón social</div>
             </div>
 
             <!-- Listing preview (shown after valid ID entered) -->
@@ -251,8 +274,9 @@
 
             <!-- Contact email (optional) -->
             <div class="field-group">
-                <label>Correo electrónico (opcional)</label>
-                <input type="email" id="contact-email" placeholder="Para recibir confirmación">
+                <label>Correo electrónico <span class="required">*</span></label>
+                <input type="email" id="contact-email" placeholder="correo@ejemplo.com" required>
+                <div class="error-msg" id="err-email">Ingrese su correo electrónico para recibir la factura</div>
             </div>
 
             <button type="button" class="submit-btn" id="submit-btn" onclick="submitPayment()">
@@ -382,7 +406,19 @@ async function submitPayment() {
     formData.append('listing_id',     currentListing.id);
     formData.append('duration_months', selectedPlan==='2year' ? 24 : 12);
     formData.append('payment_method',  selectedPayment);
-    formData.append('contact_email',   document.getElementById('contact-email').value.trim());
+    // Validate new required fields
+    const email = document.getElementById('contact-email').value.trim();
+    const ruc   = document.getElementById('contact-ruc').value.trim();
+    const dv    = document.getElementById('contact-dv').value.trim();
+    const cname = document.getElementById('contact-name').value.trim();
+    if (!email) { showMsg('El correo electrónico es requerido para emitir la factura.', 'error'); return; }
+    if (!ruc)   { showMsg('El RUC es requerido para emitir la factura.', 'error'); return; }
+    if (!dv)    { showMsg('El dígito verificador es requerido.', 'error'); return; }
+    if (!cname) { showMsg('El nombre o razón social es requerido.', 'error'); return; }
+    formData.append('contact_email', email);
+    formData.append('contact_ruc',   ruc);
+    formData.append('contact_dv',    dv);
+    formData.append('contact_name',  cname);
     formData.append('file_pago',       document.getElementById('file-pago').files[0]);
 
     try {
