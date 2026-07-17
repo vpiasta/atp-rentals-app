@@ -3145,9 +3145,9 @@ Please verify the documents and return ONLY a JSON object with this structure:
 {
   "aviso_operacion": {
     "found": true/false,
-    "business_name": "name as shown on document",
-    "ruc": "RUC number from the RIGHT box 'Expedido a favor de' (format: 8-822-1374 or 1401220-1-627960)",
-    "ruc_dv": "DV digit",
+    "business_name": "Company or person name from RIGHT box under 'Expedido a favor de' heading",
+    "ruc": "RUC number from the RIGHT box 'Expedido a favor de' below the busines name (format: 8-822-1374 or 1401220-1-627960)",
+    "ruc_dv": "DV digit shown after the RUC in the RIGHT box",
     "legal_rep": "legal representative name",
     "license_number": "Aviso de Operación number from the LEFT box 'Aviso de Operación No.' (this is NOT the RUC)",
     "valid": true/false,
@@ -3201,6 +3201,17 @@ Return ONLY the JSON, no other text.`;
             application_id,
             result: result.verification?.overall_result
         });
+        // Save extracted RUC data to application
+        if (result.aviso_operacion) {
+            await supabaseAdmin
+                .from('membership_applications')
+                .update({
+                    ruc:          result.aviso_operacion.ruc || null,
+                    ruc_dv:       result.aviso_operacion.ruc_dv || null,
+                    business_name: result.aviso_operacion.business_name || null
+                })
+                .eq('id', application_id);
+        }
 
         res.json({ success: true, verification: result });
 
@@ -3399,7 +3410,7 @@ app.get('/api/payment-info', async (req, res) => {
         .single();
     if (!data) return res.status(404).json({ error: 'Not found' });
     res.json({
-        name:   data.contact_name || null,
+        name:   data.business_name || null,
         ruc:    data.ruc || null,
         ruc_dv: data.ruc_dv || null
     });
