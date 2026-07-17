@@ -16,6 +16,8 @@ $t = [
     'atp_label'    => $is_en ? 'Verified by' : 'Verificado por',
     'updated'      => $is_en ? 'Updated:' : 'Actualizado:',
     'loading'      => $is_en ? 'Loading...' : 'Cargando...',
+    'destacado'    => $is_en ? 'Featured Accomodations' : 'Hospedajes Destacados',
+    'use_search'   => $is_en ? 'Use the search input and the filters to find specific accomodations' : 'Use la búsqueda o los filtros para encontrar hospedajes específicos',
     'search_ph'    => $is_en ? 'Search by name, location, type...' : 'Buscar por nombre, ubicación, tipo...',
     'search_btn'   => $is_en ? 'Search' : 'Buscar',
     'clear_btn'    => $is_en ? '✕ Clear' : '✕ Limpiar',
@@ -396,7 +398,7 @@ async function showDefaultView() {
         if (!Array.isArray(featured) || !featured.length) throw new Error();
         featured.sort((a, b) => (a.feature_rank || 0) - (b.feature_rank || 0));
 
-        resultsContainer.innerHTML = '<div style="font-size:0.78rem;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">⭐ Hospedaje Destacado</div>';
+        resultsContainer.innerHTML = '<div style="font-size:0.78rem;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">⭐ <?= $t['destacado'] ?></div>';
 
         featured.forEach(rental => {
             const active  = isMemberActive(rental);
@@ -454,7 +456,7 @@ async function showDefaultView() {
         const hint = document.createElement('div');
         hint.className = 'no-results';
         hint.style.padding = '0.8rem';
-        hint.innerHTML = '<p>Use la búsqueda o los filtros para encontrar hospedajes específicos</p>';
+        hint.innerHTML = '<p><?= $t['use_search'] ?></p>';
         resultsContainer.appendChild(hint);
 
     } catch {
