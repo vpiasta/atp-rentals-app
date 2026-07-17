@@ -1,4 +1,7 @@
 RewriteEngine On
+DirectoryIndex index.php index.html
+RewriteRule ^index\.html$ /index.php?lang=en [R=301,L]
+RewriteRule ^index_es\.html$ /index.php?lang=es [R=301,L]
 RewriteCond %{HTTP_HOST} ^www\.trustedpanamastays\.com$ [NC]
 RewriteRule ^(.*)$ https://trustedpanamastays.com/$1 [L,R=301]
 
