@@ -3385,6 +3385,27 @@ app.post('/api/admin/keyword-delete', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+
+// ── GET /api/payment-info ─────────────────────────────────────────────────────
+app.get('/api/payment-info', async (req, res) => {
+    const { id } = req.query;
+    if (!id) return res.status(400).json({ error: 'Missing id' });
+    const { data } = await supabaseAdmin
+        .from('membership_applications')
+        .select('contact_name, ruc, ruc_dv, listing_id')
+        .eq('listing_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+    if (!data) return res.status(404).json({ error: 'Not found' });
+    res.json({
+        name:   data.contact_name || null,
+        ruc:    data.ruc || null,
+        ruc_dv: data.ruc_dv || null
+    });
+});
+
+
 //========== temporary endpoints ============================
 
 //==========================================================

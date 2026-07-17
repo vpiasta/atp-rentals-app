@@ -187,27 +187,32 @@
                 <div class="error-msg" id="err-id">Ingrese su número de membresía</div>
             </div>
 
-            <!-- RUC for invoice -->
-            <div class="form-group">
-                <label>RUC <span class="required">*</span></label>
-                <input type="text" id="contact-ruc" placeholder="Ej: 8-822-1374 o 155662436-2-2018" required>
-                <div class="hint">RUC de su hospedaje tal como aparece en el aviso de operación</div>
-                <div class="error-msg" id="err-ruc">Ingrese su RUC</div>
-            </div>
-
-            <!-- DV for invoice -->
-            <div class="form-group">
-                <label>Dígito verificador (DV) <span class="required">*</span></label>
-                <input type="text" id="contact-dv" placeholder="Ej: 40" maxlength="3" required>
-                <div class="error-msg" id="err-dv">Ingrese el dígito verificador</div>
-            </div>
-
-            <!-- Company name for invoice -->
-            <div class="form-group">
-                <label>Nombre o razón social <span class="required">*</span></label>
-                <input type="text" id="contact-name" placeholder="Nombre de su empresa o persona natural" required>
-                <div class="hint">Tal como aparece en el aviso de operación — se usará en la factura electrónica</div>
-                <div class="error-msg" id="err-name">Ingrese su nombre o razón social</div>
+            <!-- Invoice data - auto-filled from verification if available -->
+            <div id="invoice-fields" style="display:none;">
+                <div class="form-group">
+                    <label>Nombre o razón social <span class="required">*</span></label>
+                    <input type="text" id="contact-name" required>
+                    <div class="error-msg" id="err-name">Ingrese su nombre o razón social</div>
+                </div>
+                <div class="form-group">
+                    <label>RUC <span class="required">*</span></label>
+                    <input type="text" id="contact-ruc" required pattern="[0-9\-]+" oninput="this.value=this.value.replace(/[^0-9\-]/g,'')">
+                    <div class="error-msg" id="err-ruc">Solo se permiten números y guiones</div>
+                </div>
+                <div class="form-group">
+                    <label>Dígito verificador (DV) <span class="required">*</span></label>
+                    <input type="text" id="contact-dv" required maxlength="3" pattern="[0-9]+" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                    <div class="error-msg" id="err-dv">Solo se permiten números</div>
+                </div>
+                <div id="autofill-notice" style="display:none;background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:0.8rem;margin-bottom:1rem;font-size:0.88rem;">
+                    <strong>Datos cargados de su solicitud.</strong> Por favor verifique y confirme:
+                    <label style="display:flex;align-items:center;gap:8px;margin-top:0.5rem;cursor:pointer;">
+                        <input type="checkbox" id="confirm-data"> Confirmo que los datos son correctos
+                    </label>
+                </div>
+                <div id="noverif-notice" style="display:none;background:#fffbe6;border:1px solid #FFD700;border-radius:8px;padding:0.8rem;margin-bottom:1rem;font-size:0.88rem;color:#7a5c00;">
+                    No tenemos datos verificados para su membresía. Por favor ingrese su RUC y nombre tal como aparecen en su aviso de operación.
+                </div>
             </div>
 
             <!-- Listing preview (shown after valid ID entered) -->
@@ -275,8 +280,9 @@
             <!-- Contact email (optional) -->
             <div class="field-group">
                 <label>Correo electrónico <span class="required">*</span></label>
-                <input type="email" id="contact-email" placeholder="correo@ejemplo.com" required>
-                <div class="error-msg" id="err-email">Ingrese su correo electrónico para recibir la factura</div>
+                <input type="email" id="contact-email" required>
+                <div class="hint">Recibirá su factura electrónica en este correo</div>
+                <div class="error-msg" id="err-email">Ingrese su correo electrónico</div>
             </div>
 
             <button type="button" class="submit-btn" id="submit-btn" onclick="submitPayment()">
@@ -406,15 +412,16 @@ async function submitPayment() {
     formData.append('listing_id',     currentListing.id);
     formData.append('duration_months', selectedPlan==='2year' ? 24 : 12);
     formData.append('payment_method',  selectedPayment);
-    // Validate new required fields
     const email = document.getElementById('contact-email').value.trim();
-    const ruc   = document.getElementById('contact-ruc').value.trim();
-    const dv    = document.getElementById('contact-dv').value.trim();
-    const cname = document.getElementById('contact-name').value.trim();
-    if (!email) { showMsg('El correo electrónico es requerido para emitir la factura.', 'error'); return; }
-    if (!ruc)   { showMsg('El RUC es requerido para emitir la factura.', 'error'); return; }
-    if (!dv)    { showMsg('El dígito verificador es requerido.', 'error'); return; }
-    if (!cname) { showMsg('El nombre o razón social es requerido.', 'error'); return; }
+    const ruc   = document.getElementById('contact-ruc')?.value.trim() || '';
+    const dv    = document.getElementById('contact-dv')?.value.trim() || '';
+    const cname = document.getElementById('contact-name')?.value.trim() || '';
+    if (!email) { showMsg('El correo electrónico es requerido.', 'error'); return; }
+    if (!ruc || !dv || !cname) { showMsg('Por favor complete todos los datos de facturación.', 'error'); return; }
+    // Check if autofill and not confirmed
+    const confirmBox = document.getElementById('confirm-data');
+    const autofillShown = document.getElementById('autofill-notice').style.display !== 'none';
+    if (autofillShown && confirmBox && !confirmBox.checked) { showMsg('Por favor confirme que sus datos son correctos.', 'error'); return; }
     formData.append('contact_email', email);
     formData.append('contact_ruc',   ruc);
     formData.append('contact_dv',    dv);
@@ -435,6 +442,32 @@ async function submitPayment() {
         btn.disabled=false; btn.textContent='📨 Enviar Comprobante';
     }
 }
+
+// Auto-fill invoice fields when member ID is entered
+document.getElementById('membership-id').addEventListener('blur', async function() {
+    const id = this.value.trim();
+    if (!id) return;
+    try {
+        const res = await fetch('/api/payment-info?id=' + id);
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById('invoice-fields').style.display = 'block';
+        if (data.ruc && data.ruc_dv && data.name) {
+            document.getElementById('contact-name').value = data.name;
+            document.getElementById('contact-ruc').value  = data.ruc;
+            document.getElementById('contact-dv').value   = data.ruc_dv;
+            document.getElementById('autofill-notice').style.display = 'block';
+            document.getElementById('noverif-notice').style.display  = 'none';
+        } else {
+            document.getElementById('autofill-notice').style.display = 'none';
+            document.getElementById('noverif-notice').style.display  = 'block';
+        }
+    } catch(e) {
+        document.getElementById('invoice-fields').style.display = 'block';
+        document.getElementById('noverif-notice').style.display = 'block';
+    }
+});
+
 </script>
 </body>
 </html>
