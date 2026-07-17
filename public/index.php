@@ -1,5 +1,5 @@
 <?php
-$lang = isset($_GET['lang']) && $_GET['lang'] === 'en' ? 'en' : 'es';
+$lang = isset($_GET['lang']) && $_GET['lang'] === 'eS' ? 'eS' : 'eN';
 $is_en = $lang === 'en';
 
 $t = [
