@@ -3107,22 +3107,27 @@ app.post('/api/admin/verify-documents', requireAdmin, async (req, res) => {
             const arrayBuffer = await fileData.arrayBuffer();
             const base64 = Buffer.from(arrayBuffer).toString('base64');
 
-            // Claude Vision handles jpg/png/webp/gif — skip PDFs
-            if (doc.mime !== 'application/pdf') {
+            // Claude supports both images and PDFs natively
+            if (doc.mime === 'application/pdf') {
+                imageContents.push({
+                    type: 'document',
+                    source: { type: 'base64', media_type: 'application/pdf', data: base64 }
+                });
+            } else {
                 imageContents.push({
                     type: 'image',
                     source: { type: 'base64', media_type: doc.mime, data: base64 }
                 });
-                imageContents.push({
-                    type: 'text',
-                    text: `The above image is the: ${doc.type.replace(/_/g,' ').toUpperCase()}`
-                });
             }
+            imageContents.push({
+                type: 'text',
+                text: `The above document is the: ${doc.type.replace(/_/g,' ').toUpperCase()}`
+            });
         }
 
         if (!imageContents.length) {
             return res.status(400).json({
-                error: 'No image documents available for AI verification. PDF documents must be reviewed manually.'
+                error: 'No image documents available for AI verification.'
             });
         }
 
