@@ -7,7 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a2a3a; color: #eee; min-height: 100vh; }
+        body { font-size: 14px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a2a3a; color: #eee; min-height: 100vh; }
 
         /* ── Login ── */
         .login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; }
@@ -22,13 +22,13 @@
 
         /* ── Admin layout ── */
         .admin-screen { display: none; }
-        header { background: linear-gradient(135deg, #005ca9, #00a859); padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+        header { background: linear-gradient(135deg, #005ca9, #00a859); padding: 0.6rem 1rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
         .header-left { display: flex; align-items: center; gap: 12px; }
         .header-logo { width: 40px; height: 40px; }
         header h1 { font-size: 1.2rem; font-weight: 700; color: white; }
         header p   { font-size: 0.78rem; color: rgba(255,255,255,0.8); }
         .header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-        .hbtn { padding: 6px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.12); color: white; transition: background 0.2s; }
+        .hbtn { padding: 7px 14px; border-radius: 6px; font-size: 0.88rem; font-weight: 700; cursor: pointer; border: none; background: rgba(0,0,0,0.25); color: #FFD700; transition: background 0.2s; white-space: nowrap; }
         .hbtn:hover { background: rgba(255,255,255,0.25); }
         .hbtn.danger { border-color: #ff7070; color: #ff7070; }
         .hbtn.danger:hover { background: #cc0000; color: white; border-color: #cc0000; }
@@ -234,14 +234,14 @@
             </svg>
             <div><h1>Admin Panel</h1><p id="session-info">Session active</p></div>
         </div>
-        <div class="header-right">
-            <button class="hbtn" onclick="showTab('members')">👥 Members</button>
-            <button class="hbtn" onclick="showTab('applications')">📨 Applications</button>
-            <button class="hbtn" onclick="showTab('invoices')">🧾 Invoices</button>
-            <button class="hbtn" onclick="showTab('log')">📋 Log</button>
-            <button class="hbtn" onclick="showTab('campaign')">📧 Campaign</button>
-            <button class="hbtn" onclick="showTab('analytics')">📊 Analytics</button>
-            <button class="hbtn" onclick="showTab('ip')">🌐 IP</button>
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;flex:1;">
+            <button class="hbtn" id="hbtn-members"      onclick="showTab('members')">👥 Members <span id="badge-members"></span></button>
+            <button class="hbtn" id="hbtn-applications" onclick="showTab('applications')">📨 Applications <span id="badge-applications" style="background:#e67e22;color:white;border-radius:10px;padding:0 5px;font-size:0.75rem;"></span></button>
+            <button class="hbtn" id="hbtn-invoices"     onclick="showTab('invoices')">🧾 Invoices</button>
+            <button class="hbtn" id="hbtn-log"          onclick="showTab('log')">📋 Log</button>
+            <button class="hbtn" id="hbtn-campaign"     onclick="showTab('campaign')">📧 Campaign</button>
+            <button class="hbtn" id="hbtn-analytics"    onclick="showTab('analytics')">📊 Analytics</button>
+            <button class="hbtn" id="hbtn-ip"           onclick="showTab('ip')">🌐 IP</button>
             <div style="position:relative;display:inline-block;"><button class="hbtn" id="keywords-btn" onclick="toggleKeywordsMenu()" style="position:relative;">
                 🏷️ Keywords <span id="suggestions-count" style="background:#e67e22;color:white;border-radius:10px;padding:0 6px;font-size:0.75rem;margin-left:4px;display:none;"></span>
             </button>
@@ -249,6 +249,7 @@
                 <button onclick="showTab('suggestions')" class="hbtn" style="width:100%;text-align:left;margin-bottom:4px;" id="suggestions-sub-btn">💡 Suggestions</button>
                 <button onclick="showTab('keywords-edit')" class="hbtn" style="width:100%;text-align:left;">✏️ Edit Keywords</button>
             </div></div>
+            <button
             <button class="hbtn danger" onclick="doLogout()">Log Out</button>
         </div>
     </header>
@@ -411,15 +412,7 @@
         </div>
 
         <!-- Tabs -->
-        <div class="tabs">
-            <button class="tab active" onclick="showTab('members')"      id="tab-members">👥 Members</button>
-            <button class="tab"        onclick="showTab('applications')" id="tab-applications">📨 Applications</button>
-            <button class="tab"        onclick="showTab('invoices')"     id="tab-invoices">🧾 Invoices</button>
-            <button class="tab"        onclick="showTab('log')"          id="tab-log">📋 Event Log</button>
-            <button class="tab"        onclick="showTab('campaign')"     id="tab-campaign">📧 Campaign</button>
-            <button class="tab"        onclick="showTab('analytics')"    id="tab-analytics">📊 Analytics</button>
-            <button class="tab"        onclick="showTab('ip')"           id="tab-ip">🌐 IP</button>
-        </div>
+        
 
         <!-- Members tab -->
         <div class="tab-content active" id="content-members">
@@ -812,6 +805,10 @@ function showAdminScreen() {
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function showTab(name) {
+    // Highlight active header button
+    document.querySelectorAll('.hbtn').forEach(b => b.classList.remove('active-tab'));
+    const activeBtn = document.getElementById('hbtn-' + name);
+    if (activeBtn) activeBtn.classList.add('active-tab');
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
     const btn = document.getElementById('tab-'+name);
