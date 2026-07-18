@@ -189,7 +189,7 @@
             <div class="listing-preview" id="listing-preview"></div>
 
             <!-- Invoice data - auto-filled from verification if available -->
-            <div id="invoice-fields" style="display:none;">
+            <div id="invoice-fields">
                 <div class="form-group">
                     <label>Nombre o razón social <span class="required">*</span></label>
                     <input type="text" id="contact-name" oninput="checkFormReady()" required style="width:100%;padding:10px 12px;border:1px solid #c0d0e0;border-radius:6px;font-size:0.9rem;">
@@ -360,8 +360,7 @@ function lookupMember() {
                         : ''}`;
                 preview.classList.add('visible');
                 document.getElementById('err-id').style.display = 'none';
-                document.getElementById('invoice-fields').style.display = 'block';
-            } else {
+                    } else {
                 currentListing = null;
                 preview.innerHTML = '<span style="color:#cc0000;">❌ Número no encontrado. Verifique e intente de nuevo.</span>';
                 preview.classList.add('visible');
