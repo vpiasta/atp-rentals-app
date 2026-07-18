@@ -209,10 +209,9 @@
                         <div class="error-msg" id="err-dv">DV</div>
                     </div>
                 </div>
-                <div id="autofill-notice" style="display:none;background:#fffbe6;border:2px solid #FFD700;border-radius:8px;padding:0.8rem;margin-bottom:1rem;font-size:0.88rem;">
-                    <strong>Confirmo que los datos son correctos</strong>
+                <div id="autofill-notice" style="display:none;margin-top:0.8rem;background:#fffbe6;border:2px solid #FFD700;border-radius:8px;padding:0.8rem;margin-bottom:1rem;font-size:0.88rem;">
                     <label style="display:flex;align-items:center;gap:8px;margin-top:0.5rem;cursor:pointer;">
-                        <input type="checkbox" id="confirm-data" required onchange="checkFormReady()"> Confirmo que los datos son correctos
+                        <input type="checkbox" id="confirm-data" required onchange="checkFormReady()"> <strong>Confirmo que los datos son correctos</strong>
                     </label>
                 </div>
                 <div id="noverif-notice" style="display:none;margin-top:0.8rem;background:#fffbe6;border:1px solid #FFD700;border-radius:8px;padding:0.8rem;margin-bottom:1rem;font-size:0.88rem;color:#7a5c00;">
@@ -234,7 +233,7 @@
             <div class="field-group">
                 <label>Método de pago <span class="required">*</span></label>
                 <div class="payment-options">
-                    <label class="payment-option" id="pay-transfer" onclick="selectPayment('transfer')">
+                    <label class="payment-option selected" id="pay-transfer"> <!-- only payment option for now -->
                         <input type="radio" name="payment" value="transfer">
                         <span class="pay-icon">🏦</span>
                         <div>
@@ -250,8 +249,7 @@
                     <div class="bank-row"><strong>Banco:</strong> BAC — Cuenta corriente</div>
                     <div class="bank-row"><strong>Cuenta:</strong> 104313259</div>
                     <div class="bank-row" style="margin-top:0.5rem;color:#666;font-size:0.82rem;">
-                        ⚠️ En el campo <strong>MENSAJE</strong> de la transferencia, escriba el nombre de su hospedaje y provincia.<br>
-                        Ejemplo: <em>Aparthotel Boquete, Chiriquí</em>
+                        ⚠️ En el campo <strong>MENSAJE</strong> o <strong>DESCRIPCIÓN</strong> de la transferencia, escriba: <strong>TPS <span id="transfer-id">—</span></strong>
                     </div>
                 </div>
             </div>
