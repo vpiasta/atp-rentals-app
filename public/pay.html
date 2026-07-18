@@ -209,8 +209,8 @@
                         <div class="error-msg" id="err-dv">DV</div>
                     </div>
                 </div>
-                <div id="autofill-notice" style="display:none;margin-top:0.8rem;background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:0.8rem;margin-bottom:1rem;font-size:0.88rem;">
-                    <strong>Datos cargados de su solicitud.</strong> Por favor verifique y confirme:
+                <div id="autofill-notice" style="display:none;background:#fffbe6;border:2px solid #FFD700;border-radius:8px;padding:0.8rem;margin-bottom:1rem;font-size:0.88rem;">
+                    <strong>Confirmo que los datos son correctos</strong>
                     <label style="display:flex;align-items:center;gap:8px;margin-top:0.5rem;cursor:pointer;">
                         <input type="checkbox" id="confirm-data" required onchange="checkFormReady()"> Confirmo que los datos son correctos
                     </label>
@@ -392,10 +392,6 @@ function validate() {
     const id = document.getElementById('membership-id').value;
     if (!id || !currentListing) {
         document.getElementById('err-id').style.display = 'block';
-        valid = false;
-    }
-    if (!selectedPlan) {
-        showMsg('Por favor seleccione un plan de membresía.', 'error');
         valid = false;
     }
     if (!document.getElementById('file-pago').files[0]) {
