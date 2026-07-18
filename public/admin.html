@@ -1135,7 +1135,9 @@ function filterApps(status) {
     document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active'));
     const tab = document.getElementById('ftab-'+status);
     if (tab) tab.classList.add('active');
-    const filtered = status==='all' ? allApplications : allApplications.filter(a=>a.status===status);
+    const filtered = status==='all'
+    ? allApplications.filter(a=>a.status!=='archived')
+    : allApplications.filter(a=>a.status===status);
     document.getElementById('app-count').textContent = `${filtered.length} application${filtered.length!==1?'s':''}`;
     renderApplications(filtered);
 }

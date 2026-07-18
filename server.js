@@ -3418,6 +3418,132 @@ app.get('/api/payment-info', async (req, res) => {
 });
 
 
+// -------------------------------------------------------------------------------
+// ── POST /api/admin/issue-invoice ─────────────────────────────────────────────
+// Called from admin panel "Issue Invoice & Activate" button
+// -------------------------------------------------------------------------------
+app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
+    const { listing_id, application_id, plan, business_name, ruc, ruc_dv, email } = req.body;
+    if (!listing_id || !plan || !business_name || !ruc || !ruc_dv || !email)
+        return res.status(400).json({ error: 'Missing required fields' });
+
+    const planCode  = plan === '2year' ? 'TPS02' : 'TPS01';
+    const planPrice = plan === '2year' ? 45 : 24;
+    const planDesc  = plan === '2year' ? 'Membresía Trusted Panama Stays — 2 años' : 'Membresía Trusted Panama Stays — 1 año';
+    const now       = new Date().toISOString().replace('Z', '-05:00');
+
+    // Multiple recipients: member + TPS copy
+    const recipients = `${email};info@trustedpanamastays.com`;
+
+    const invoiceBody = {
+        datosGenerales: {
+            tipoEmision:       '02',  // 02 = test mode. Change to '01' for work mode
+            tipoDocumento:     '01',  // Factura de operación interna
+            puntoFacturacion:  '200',
+            fechaEmision:      now,
+            naturalezaOperacion: '01', // Venta
+            tipoOperacion:     1,      // Salida/venta
+            destinoOperacion:  1,      // Panamá
+            tipoTransaccionVenta: 4,   // Prestación de servicio
+            tipoSucursal:      1,
+            informacionReceptor: {
+                tipoReceptorFe:   '01',  // Contribuyente Panamá
+                datosRucReceptor: {
+                    tipoContribuyente: 2,
+                    rucReceptor:       ruc,
+                    digitoVerificador: ruc_dv
+                },
+                nombreRazonReceptor: business_name,
+                correoReceptor:      recipients,
+                paisReceptor:        'PA'
+            }
+        },
+        listaItems: [{
+            numeroSecuenciaItem:              1,
+            descripcionProductoServicio:      planDesc,
+            codigoInternoItem:                planCode,
+            cantidadProductoServicio:         1,
+            codigoItemCodificacionPanamenaAbreviada: 81,  // Servicios de tecnología
+            grupoPrecios: {
+                precioUnitarioTransferencia: planPrice,
+                precioItem:                  planPrice,
+                sumaPrecioItem:              planPrice
+            },
+            grupoITBMS: {
+                tasaITBMSAplicable: '02',  // 7% ITBMS
+                montoITBMS:         Math.round(planPrice * 0.07 * 100) / 100
+            }
+        }],
+        totales: {
+            totalITBMS:          Math.round(planPrice * 0.07 * 100) / 100,
+            totalGravado:        planPrice,
+            valorTotalFactura:   Math.round(planPrice * 1.07 * 100) / 100,
+            sumaValoresRecibidos: Math.round(planPrice * 1.07 * 100) / 100,
+            tiempoPago:          1,  // Contado
+            numeroTotalItems:    1,
+            totalTodosItems:     planPrice,
+            grupoFormasPago: [{
+                formaPago:       '02',  // Transferencia bancaria
+                valorCuotaPagada: planPrice
+            }]
+        }
+    };
+
+    try {
+        const response = await axios.post(
+            'https://api.efacturapty.com/api/v1/Invoices',
+            invoiceBody,
+            {
+                headers: {
+                    'Content-Type':    'application/json',
+                    'Accept-Language': 'es-PA',
+                    'Authorization':   'Bearer ' + process.env.EFACTURA_API_KEY
+                },
+                timeout: 30000
+            }
+        );
+
+        const invoice = response.data;
+
+        // Activate membership
+        const paidUntil = new Date();
+        plan === '2year'
+            ? paidUntil.setFullYear(paidUntil.getFullYear() + 2)
+            : paidUntil.setFullYear(paidUntil.getFullYear() + 1);
+        const paidUntilStr = paidUntil.toISOString().split('T')[0];
+
+        await supabaseAdmin.from('listings').update({
+            is_member:             true,
+            is_trial:              false,
+            membership_paid_until: paidUntilStr,
+            invitation_status:     'member'
+        }).eq('id', listing_id);
+
+        if (application_id) {
+            await supabaseAdmin.from('membership_applications').update({
+                status:      'approved',
+                reviewed_at: new Date().toISOString(),
+                reviewed_by: 'admin',
+                notes:       `Invoice issued: ${invoice.cufe || invoice.invoice || 'ok'}`
+            }).eq('id', application_id);
+        }
+
+        await recalculateFeatureRanks();
+        await logEvent('invoice_issued', {
+            listing_id, plan, amount: planPrice,
+            cufe: invoice.cufe, invoice_id: invoice.invoice
+        });
+
+        res.json({ success: true, paid_until: paidUntilStr, invoice });
+
+    } catch (err) {
+        const errMsg = err.response?.data || err.message;
+        console.error('eFactura error:', errMsg);
+        res.status(500).json({ error: 'Invoice failed', detail: errMsg });
+    }
+});
+
+
 //========== temporary endpoints ============================
 
 //==========================================================
