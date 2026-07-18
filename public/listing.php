@@ -267,8 +267,8 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
 
     <div class="buttons">
         <?php if ($phone_call): ?><a href="tel:+507<?= h($phone_call) ?>" class="btn">📞 <?= $lang === 'es' ? 'Llamar' : 'Call' ?></a><?php endif; ?>
-        <?php if ($email): ?><a href="mailto:<?= h($email) ?>" class="btn">✉️ <?= $lang === 'es' ? 'Correo' : 'Email' ?></a><?php endif; ?>
-        <?php if ($phone_wa): ?><a href="https://wa.me/507<?= h($phone_wa) ?>" target="_blank" class="btn wa">💬 WhatsApp</a><?php endif; ?>
+        <?php if ($email): ?><a href="mailto:<?= h($email) ?>?subject=<?= $lang === 'es' ? 'Consulta via TrustedPanamaStays.com' : 'Inquiry via TrustedPanamaStays.com' ?>" class="btn">✉️ <?= $lang === 'es' ? 'Correo' : 'Email' ?></a><?php endif; ?>
+        <?php if ($phone_wa): ?><a href="https://wa.me/507<?= h($phone_wa) ?>?text=<?= urlencode($lang === 'es' ? 'Consulta via TrustedPanamaStays.com:' : 'Inquiry via TrustedPanamaStays.com:') ?>" target="_blank" class="btn wa">💬 WhatsApp</a><?php endif; ?>
         <a href="<?= h($maps_url) ?>" target="_blank" class="btn">📍 Maps</a>
         <a href="<?= h($listing_url) ?>" class="btn" style="border-color:#a07800;color:#a07800;background:#fffbe6;margin-left:auto;">🔐 <?= $lang === 'es' ? 'Acceso' : 'Login' ?></a>
     </div>

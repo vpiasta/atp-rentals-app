@@ -410,8 +410,8 @@ function buildQuickButtons(rental, editMode) {
             : '');
     return `
         ${ph.call ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
-        ${em      ? `<a href="mailto:${em}" class="qbtn">${T.emailBtn}</a>` : ''}
-        ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
+        ${em      ? `<a href="mailto:${em}?subject=${isEs?'Consulta via TrustedPanamaStays.com':'Inquiry via TrustedPanamaStays.com'}" class="qbtn">${T.emailBtn}</a>` : ''}
+        ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}?text=${encodeURIComponent(isEs?'Consulta via TrustedPanamaStays.com:\n':'Inquiry via TrustedPanamaStays.com:\n')}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
         <a href="${url}" target="_blank" class="qbtn">${T.maps}</a>
         ${editMode && (isExpiringSoon(rental.membership_paid_until) || isExpired(rental.membership_paid_until)) ? `<a href="pay.html?id=${rental.id}" class="qbtn" style="border-color:#b8860b;color:#b8860b;">${T.renewBtn}</a>` : ''}
         ${editMode ? `<button onclick="togglePwdForm()" class="qbtn" style="border-color:#a07800;color:#7a5c00;">${T.changePwd}</button>` : ''}
