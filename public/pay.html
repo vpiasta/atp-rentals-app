@@ -224,8 +224,8 @@
             <div class="field-group">
                 <div class="info-box" style="margin:0;">
                     <strong>Planes disponibles:</strong><br><br>
-                    <span style="font-size:0.95rem;">💳 <strong>$24.00</strong> — Membresía 1 año</span><br>
-                    <span style="font-size:0.95rem;">💳 <strong>$45.00</strong> — Membresía 2 años <span style="color:#666;">(ahorre $3)</span></span><br><br>
+                    <span style="font-size:0.95rem;">💳 <strong>$25.68</strong> — Membresía 1 año <span style="color:#666;font-size:0.85rem;">($24.00 + 7% ITBMS)</span></span><br>
+                    <span style="font-size:0.95rem;">💳 <strong>$48.15</strong> — Membresía 2 años <span style="color:#666;font-size:0.85rem;">($45.00 + 7% ITBMS · ahorre $3)</span></span><br><br>
                     <span style="font-size:0.82rem;color:#666;">El plan se determinará automáticamente según el monto de su pago.</span>
                 </div>
             </div>
@@ -470,6 +470,33 @@ function checkFormReady() {
 }
 
   checkFormReady();
+
+// Update transfer reference when membership ID changes
+function updateTransferRef() {
+    const id = document.getElementById('membership-id').value.trim();
+    const el = document.getElementById('transfer-id');
+    if (el) el.textContent = id || '—';
+}
+document.getElementById('membership-id').addEventListener('input', updateTransferRef);
+
+
+// Change autofill notice color when confirmed
+document.addEventListener('change', function(e) {
+    if (e.target.id === 'confirm-data') {
+        const notice = document.getElementById('autofill-notice');
+        if (notice) {
+            if (e.target.checked) {
+                notice.style.background = '#f0f7ff';
+                notice.style.border = '2px solid #c0d8f0';
+            } else {
+                notice.style.background = '#fffbe6';
+                notice.style.border = '2px solid #FFD700';
+            }
+        }
+        checkFormReady();
+    }
+});
+
 </script>
 </body>
 </html>
