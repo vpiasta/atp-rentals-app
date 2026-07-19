@@ -1120,7 +1120,7 @@ async function loadApplications() {
     try {
         const res = await adminFetch('/api/admin/applications');
         allApplications = await res.json();
-        const pending = allApplications.filter(a=>a.status==='pending').length;
+        const pending = allApplications.filter(a=>a.status==='pending' || a.status==='pre_approved').length;
         document.getElementById('stat-pending-apps').textContent = pending;
         filterApps(document.querySelector('.filter-tab.active')?.id?.replace('ftab-','')||'all');
     } catch(err) {
