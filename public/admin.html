@@ -1108,9 +1108,10 @@ async function loadApplicationCount() {
         const res  = await adminFetch('/api/admin/applications');
         const apps = await res.json();
         allApplications = apps;
-        const pending = apps.filter(a=>a.status==='pending').length;
+        const pending = apps.filter(a=>a.status==='pending' || a.status==='pre_approved').length;
         document.getElementById('stat-pending-apps').textContent = pending;
-        if (pending>0) document.getElementById('tab-applications').textContent = `📨 Applications (${pending})`;
+        const badge = document.getElementById('badge-applications');
+        if (badge) { badge.textContent = pending > 0 ? pending : ''; }
     } catch {}
 }
 
