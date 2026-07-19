@@ -648,6 +648,10 @@ function clearSearch() {
     searchInput.value = '';
     provinceFilter.value = '';
     typeFilter.value = '';
+    selectedKeywords.clear();
+    updateKwButton();
+    document.querySelectorAll('#kw-dropdown-list .kw-option').forEach(o=>o.classList.remove('selected'));
+    document.getElementById('keyword-active-tags').innerHTML = '';
     showDefaultView();
     updateSelectedCount(null);
 }
