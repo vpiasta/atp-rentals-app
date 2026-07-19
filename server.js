@@ -1981,7 +1981,9 @@ app.post('/api/submit-payment',
 
                     const prompt = `Verify this payment proof for a Panama business directory membership.
 Property ID: ${listing_id}, Name: ${listing.name}
-Expected amounts: $${expected1yr} (1 year) or $${expected2yr} (2 years) including 7% ITBMS.
+Expected amounts WITH 7% ITBMS included: $${expected1yr} (1 year = $24 + ITBMS) or $${expected2yr} (2 years = $45 + ITBMS).
+IMPORTANT: $24.00 or $45.00 WITHOUT ITBMS is INCORRECT. Only $${expected1yr} or $${expected2yr} are correct amounts.
+If amount is $45.00 (without ITBMS), set amount_matches to false and note underpayment of $3.15.
 The transfer description/mensaje should contain "TPS ${listing_id}".
 Return ONLY a JSON object:
 {
