@@ -412,7 +412,7 @@
         </div>
 
         <!-- Tabs -->
-        
+
 
         <!-- Members tab -->
         <div class="tab-content active" id="content-members">
@@ -1150,7 +1150,7 @@ function renderApplications(apps) {
             </a>`).join('');
         const planText = app.membership_type==='trial' ? '30 días gratis'
             : (app.duration_months===24?'2 años ($45)':'1 año ($24)');
-        const isPending = app.status==='pending';
+        const isPending = app.status==='pending' || app.status==='pre_approved';
         return `
         <div class="app-card ${app.status}" id="app-card-${app.id}">
             <div class="app-header">
@@ -1179,9 +1179,12 @@ function renderApplications(apps) {
             ${docButtons ? `<div class="app-docs">${docButtons}</div>` : ''}
             ${isPending ? `
             <div class="app-actions">
-                <button class="app-btn ai"      onclick="verifyDocuments(${app.id})">🤖 AI Verify</button>
-                ${app.membership_type === 'paid' ? `<button class="app-btn approve" style="background:#00a859;" onclick="issueInvoiceAndActivate(${app.id})">🧾 Issue Invoice & Activate</button>` : `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve</button>`}
-                <button class="app-btn reject"  onclick="showRejectForm(${app.id})">❌ Reject</button>
+                ${app.status === 'pending' ? `<button class="app-btn ai" onclick="verifyDocuments(${app.id})">🤖 AI Verify</button>` : ''}
+                ${app.membership_type === 'paid' && app.status === 'pending' ? `<button class="app-btn approve" style="background:#00a859;" onclick="issueInvoiceAndActivate(${app.id})">🧾 Issue Invoice & Activate</button>` : ''}
+                ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<span class="app-btn" style="background:#00a859;cursor:default;">✅ Is Active</span>` : ''}
+                ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<button class="app-btn" style="background:#005ca9;" onclick="issueInvoiceAndActivate(${app.id})">🧾 Send Invoice</button>` : ''}
+                ${app.membership_type !== 'paid' && app.status === 'pending' ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve</button>` : ''}
+                <button class="app-btn reject" onclick="${app.status === 'pre_approved' ? 'deactivateMembership' : 'showRejectForm'}(${app.id})">🔴 ${app.status === 'pre_approved' ? 'Deactivate' : 'Reject'}</button>
             </div>
             <div class="verify-result"  id="verify-${app.id}"></div>
             <div class="approve-result" id="approve-${app.id}"></div>
@@ -2192,6 +2195,17 @@ async function confirmInvoice(appId) {
     } catch(e) {
         msgEl.innerHTML = `<span style="color:#ff7070;">❌ Error: ${e.message}</span>`;
     }
+}
+
+async function deactivateMembership(appId) {
+    if (!confirm('Deactivate this membership? The member will lose access.')) return;
+    const res = await adminFetch('/api/admin/deactivate-membership', {
+        method: 'POST',
+        body: JSON.stringify({ application_id: appId })
+    });
+    const data = await res.json();
+    if (data.success) loadApplications();
+    else alert('Error: ' + data.error);
 }
 
 </script>
