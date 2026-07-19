@@ -1146,7 +1146,7 @@ function renderApplications(apps) {
         const docButtons = (app.documents||[]).map(doc =>
             `<a href="#" class="doc-btn" onclick="viewDocument('${doc.path}','${doc.type}');return false;">
                 ${doc.type==='aviso_operacion'?'📋':doc.type==='cedula'?'🪪':'💳'}
-                ${doc.type.replace(/_/g,' ')}
+                ${doc.type.replace(/\b\w/g, l => l.toUpperCase())}
             </a>`).join('');
         const planText = app.membership_type==='trial' ? '30 días gratis'
             : (app.duration_months===24?'2 años ($45)':'1 año ($24)');
@@ -1182,7 +1182,7 @@ function renderApplications(apps) {
                 ${app.status === 'pending' ? `<button class="app-btn ai" onclick="verifyDocuments(${app.id})">🤖 AI Verify</button>` : ''}
                 ${app.membership_type === 'paid' && app.status === 'pending' ? `<button class="app-btn approve" style="background:#00a859;" onclick="issueInvoiceAndActivate(${app.id})">🧾 Issue Invoice & Activate</button>` : ''}
                 ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<span class="app-btn" style="background:#00a859;cursor:default;">✅ Is Active</span>` : ''}
-                ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<button class="app-btn" style="background:#005ca9;" onclick="issueInvoiceAndActivate(${app.id})">🧾 Send Invoice</button>` : ''}
+                ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<button class="app-btn" style="background:#005ca9;color:white;" onclick="sendInvoiceOnly(${app.id})">🧾 Send Invoice</button>` : ''}
                 ${app.membership_type !== 'paid' && app.status === 'pending' ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve</button>` : ''}
                 <button class="app-btn reject" onclick="${app.status === 'pre_approved' ? 'deactivateMembership' : 'showRejectForm'}(${app.id})">🔴 ${app.status === 'pre_approved' ? 'Deactivate' : 'Reject'}</button>
             </div>
@@ -2206,6 +2206,25 @@ async function deactivateMembership(appId) {
     const data = await res.json();
     if (data.success) loadApplications();
     else alert('Error: ' + data.error);
+}
+
+async function sendInvoiceOnly(appId) {
+    const res = await adminFetch('/api/admin/application/' + appId);
+    const app = await res.json();
+    const resultEl = document.getElementById('approve-' + appId);
+    resultEl.innerHTML = `<div style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:8px;padding:1rem;margin-top:0.8rem;">
+        <div style="font-weight:700;color:#adf5ad;margin-bottom:0.8rem;">🧾 Send Invoice</div>
+        <div style="font-size:0.85rem;color:#aaa;margin-bottom:0.8rem;">
+            Invoice will be sent to: <strong>${app.contact_email}</strong><br>
+            Amount: <strong>${app.duration_months === 24 ? '$48.15' : '$25.68'}</strong> (incl. 7% ITBMS)
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button onclick="confirmInvoice(${appId})" style="padding:6px 16px;background:#00a859;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;">✅ Confirm & Send</button>
+            <button onclick="document.getElementById('approve-${appId}').innerHTML=''" style="padding:6px 12px;background:#555;color:white;border:none;border-radius:5px;cursor:pointer;">Cancel</button>
+        </div>
+        <div id="inv-result-${appId}" style="margin-top:0.5rem;font-size:0.82rem;"></div>
+    </div>`;
+    resultEl.classList.add('visible');
 }
 
 </script>
