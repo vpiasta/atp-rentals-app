@@ -3666,6 +3666,100 @@ app.post('/api/admin/deactivate-membership', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── General ATP Campaign — daily batch of 280 emails at 10am Panama ──────────
+async function sendGeneralCampaignBatch() {
+    try {
+        // Check if there are any to send
+        const { data: listings } = await supabaseAdmin
+            .from('listings')
+            .select('id, name, email, province, rental_type, slug, apatel_member')
+            .eq('is_member', false)
+            .eq('atp_active', true)
+            .is('general_campaign_sent_at', null)
+            .not('email', 'is', null)
+            .limit(280);  // Stay under Brevo 300/day (leaves room for other emails)
+
+        if (!listings || listings.length === 0) {
+            console.log('General campaign: all listings contacted');
+            return;
+        }
+
+        // Load template
+        const templatePath = path.join(__dirname, 'public', 'templates', 'atp_general_campaign_es.html');
+        let templateBody = '';
+        try { templateBody = fs.readFileSync(templatePath, 'utf8'); }
+        catch(e) { console.error('General campaign template not found'); return; }
+
+        const notifyPath = path.join(__dirname, 'public', 'notify.php');
+        let sent = 0, errors = 0;
+
+        for (const listing of listings) {
+            if (!listing.email || !listing.email.includes('@')) continue;
+            try {
+                const subject = 'Su hospedaje en Trusted Panama Stays — directorio verificado de turismo';
+                const html = `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
+    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
+</div>
+<p>Estimado/a propietario/a de <strong>${listing.name}</strong>,</p>
+${templateBody}
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
+<a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a><br>
+<a href="https://trustedpanamastays.com/index.php?lang=es" style="color:#7ec8e3;">trustedpanamastays.com</a></p>
+</body></html>`;
+
+                await execFileAsync('php', [notifyPath, subject, html, listing.email], { timeout: 15000 });
+
+                await supabaseAdmin.from('listings').update({
+                    general_campaign_sent_at: new Date().toISOString(),
+                    invitation_status: 'invited',
+                    invitation_sent_at: new Date().toISOString()
+                }).eq('id', listing.id);
+
+                sent++;
+                await new Promise(r => setTimeout(r, 200)); // 200ms between emails
+            } catch(err) {
+                console.error(`General campaign failed for ${listing.name}:`, err.message);
+                errors++;
+            }
+        }
+
+        await logEvent('general_campaign_batch', { sent, errors, remaining: listings.length - sent });
+        console.log(`General campaign batch: ${sent} sent, ${errors} errors`);
+
+        // Notify admin
+        const notifyPath2 = path.join(__dirname, 'public', 'notify.php');
+        const adminMsg = `<p>General campaign batch completed: <strong>${sent} sent</strong>, ${errors} errors.</p>`;
+        execFileAsync('php', [notifyPath2, `TPS General Campaign: ${sent} sent`, adminMsg, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(console.error);
+
+    } catch(err) {
+        console.error('sendGeneralCampaignBatch error:', err.message);
+    }
+}
+
+// Schedule at 10am Panama time (UTC-5 = 15:00 UTC)
+const msUntil10am = (() => {
+    const next = new Date();
+    next.setUTCHours(15, 0, 0, 0);
+    if (next <= new Date()) next.setDate(next.getDate() + 1);
+    return next - new Date();
+})();
+setTimeout(() => {
+    sendGeneralCampaignBatch();
+    setInterval(sendGeneralCampaignBatch, 24 * 60 * 60 * 1000);
+}, msUntil10am);
+console.log(`General campaign scheduler set — first batch in ${Math.round(msUntil10am/3600000)}h`);
+
+
+// ── POST /api/admin/send-general-campaign-now ────────────────────────────────
+app.post('/api/admin/send-general-campaign-now', requireAdmin, async (req, res) => {
+    res.json({ success: true, message: 'Batch started' });
+    sendGeneralCampaignBatch(); // Run in background
+});
+
+
 
 //========== temporary endpoints ============================
 
