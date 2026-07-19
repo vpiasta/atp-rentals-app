@@ -94,6 +94,17 @@ $t = [
 
         .filter-group label { display: block; margin-bottom: 4px; font-weight: 600; color: #555; font-size: 0.85rem; }
         .filter-group select { width: 100%; padding: 9px 10px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 14px; font-family: inherit; }
+        .kw-dropdown { position:relative; }
+        .kw-dropdown-btn { width:100%; padding:9px 10px; border:2px solid #e1e5e9; border-radius:8px; font-size:14px; font-family:inherit; background:white; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center; }
+        .kw-dropdown-btn:hover, .kw-dropdown-btn.open { border-color:#005ca9; }
+        .kw-dropdown-list { display:none; position:absolute; top:calc(100% + 2px); left:0; right:0; background:white; border:2px solid #005ca9; border-radius:8px; max-height:280px; overflow-y:auto; z-index:200; box-shadow:0 4px 16px rgba(0,0,0,0.15); }
+        .kw-dropdown-list.open { display:block; }
+        .kw-optgroup { padding:5px 10px 2px; font-size:0.72rem; font-weight:700; color:#888; text-transform:uppercase; background:#f8f9fa; border-top:1px solid #e1e5e9; position:sticky; top:0; }
+        .kw-option { padding:7px 12px 7px 32px; cursor:pointer; font-size:0.88rem; position:relative; }
+        .kw-option:hover { background:#e8f0fe; }
+        .kw-option.selected { color:#005ca9; font-weight:600; }
+        .kw-option::before { content:'☐'; position:absolute; left:10px; }
+        .kw-option.selected::before { content:'☑'; }
         .results-section { display: grid; gap: 16px; }
         .result-card { background: white; border-radius: 10px; padding: 1.4rem; box-shadow: 0 2px 10px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s; }
         .result-card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,0.13); }
@@ -443,8 +454,8 @@ async function showDefaultView() {
                         </div>
                         <div class="contact-buttons">
                             ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button"><span class="btn-icon">📞</span><span class="btn-text"> Llamar</span></a>` : ''}
-                            ${email       ? `<a href="mailto:${email}?subject=${LANG==='en'?'Inquiry via TrustedPanamaStays.com':'Consulta via TrustedPanamaStays.com'}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Correo</span></a>` : ''}
-                            ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}?text=${encodeURIComponent(LANG==='en'?'Inquiry via TrustedPanamaStays.com:\n':'Consulta via TrustedPanamaStays.com:\n')}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
+                            ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Correo</span></a>` : ''}
+                            ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                             <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
                             ${active ? `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 Acceso</a>` : ''}
                         </div>
@@ -603,8 +614,8 @@ function displayResults(rentals) {
                     </div>
                     <div class="contact-buttons">
                         ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button"><span class="btn-icon">📞</span><span class="btn-text"> Llamar</span></a>` : ''}
-                        ${email       ? `<a href="mailto:${email}?subject=${LANG==='en'?'Inquiry via TrustedPanamaStays.com':'Consulta via TrustedPanamaStays.com'}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Correo</span></a>` : ''}
-                        ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}?text=${encodeURIComponent(LANG==='en'?'Inquiry via TrustedPanamaStays.com:\n':'Consulta via TrustedPanamaStays.com:\n')}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
+                        ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Correo</span></a>` : ''}
+                        ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                         <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
                             ${active ? `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 Acceso</a>` : ''}
                     </div>
@@ -680,44 +691,77 @@ let keywordData = [];
 async function loadKeywords() {
     try {
         keywordData = await (await fetch(API_BASE_URL + '/api/keywords')).json();
-        const sel = document.getElementById('keywordFilter');
-        if (!sel || !keywordData.length) return;
+        const list = document.getElementById('kw-dropdown-list');
+        if (!list || !keywordData.length) return;
         const categories = {};
         keywordData.forEach(k => {
             const cat = LANG === 'en' ? k.category_en : k.category_es;
             if (!categories[cat]) categories[cat] = [];
             categories[cat].push(k);
         });
+        let html = '';
         Object.entries(categories).forEach(([cat, items]) => {
-            const grp = document.createElement('optgroup');
-            grp.label = cat;
+            html += `<div class="kw-optgroup">${cat}</div>`;
             items.forEach(k => {
-                const opt = document.createElement('option');
-                opt.value = k.slug;
-                opt.textContent = LANG === 'en' ? k.label_en : k.label_es;
-                grp.appendChild(opt);
+                const label = LANG === 'en' ? k.label_en : k.label_es;
+                html += `<div class="kw-option" data-slug="${k.slug}" data-label="${label.replace(/"/g,'&quot;')}" onclick="toggleKwOption(this,'${k.slug}')">${label}</div>`;
             });
-            sel.appendChild(grp);
         });
+        list.innerHTML = html;
     } catch(e) { console.error('Keywords load error:', e); }
 }
 
-function addKeywordTag() {
-    const sel = document.getElementById('keywordFilter');
-    const slug = sel.value;
-    if (!slug || selectedKeywords.has(slug)) return;
-    selectedKeywords.add(slug);
-    const k = keywordData.find(x => x.slug === slug);
-    const label = k ? (LANG === 'en' ? k.label_en : k.label_es) : slug;
-    const tag = document.createElement('span');
-    tag.dataset.slug = slug;
-    tag.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 12px;background:#005ca9;color:white;border-radius:20px;font-size:0.8rem;cursor:pointer;';
-    tag.innerHTML = label + ' ✕';
-    tag.onclick = function() { removeKeywordTag(this); };
-    document.getElementById('keyword-active-tags').appendChild(tag);
-    sel.value = '';
+function toggleKwDropdown() {
+    const list = document.getElementById('kw-dropdown-list');
+    const btn  = document.getElementById('kw-dropdown-btn');
+    list.classList.toggle('open');
+    btn.classList.toggle('open');
+}
+
+function toggleKwOption(el, slug) {
+    if (selectedKeywords.has(slug)) {
+        selectedKeywords.delete(slug);
+        el.classList.remove('selected');
+    } else {
+        selectedKeywords.add(slug);
+        el.classList.add('selected');
+    }
+    updateKwButton();
+    updateKwTags();
     performSearch();
 }
+
+function updateKwButton() {
+    const count = selectedKeywords.size;
+    const allLabel = LANG === 'en' ? 'All Features' : 'Todas';
+    document.getElementById('kw-dropdown-label').textContent = count === 0 ? allLabel : count + (LANG === 'en' ? ' feature(s)' : ' característica(s)');
+}
+
+function updateKwTags() {
+    const container = document.getElementById('keyword-active-tags');
+    if (!container) return;
+    container.innerHTML = '';
+    selectedKeywords.forEach(slug => {
+        const k = keywordData.find(x => x.slug === slug);
+        const label = k ? (LANG === 'en' ? k.label_en : k.label_es) : slug;
+        const tag = document.createElement('span');
+        tag.dataset.slug = slug;
+        tag.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#005ca9;color:white;border-radius:20px;font-size:0.78rem;cursor:pointer;';
+        tag.innerHTML = label + ' ✕';
+        tag.onclick = function() { removeKeywordTag(this); };
+        container.appendChild(tag);
+    });
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#kw-dropdown-wrap')) {
+        const list = document.getElementById('kw-dropdown-list');
+        const btn  = document.getElementById('kw-dropdown-btn');
+        if (list) list.classList.remove('open');
+        if (btn)  btn.classList.remove('open');
+    }
+});
 
 
 function removeKeywordTag(btn) {
