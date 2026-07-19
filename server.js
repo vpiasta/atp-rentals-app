@@ -928,9 +928,18 @@ app.get('/api/rentals', async (req, res) => {
     if (keywords.length) filtered = filtered.filter(r =>
         Array.isArray(r.listing_keywords) && keywords.every(kw => r.listing_keywords.includes(kw))
     );
+    if (!search) {
+        filtered.sort((a, b) => {
+            const ra = a.feature_rank || 0;
+            const rb = b.feature_rank || 0;
+            if (ra > 0 && rb > 0) return ra - rb;
+            if (ra > 0) return -1;
+            if (rb > 0) return 1;
+            return 0;
+        });
+    }
     res.json(filtered);
 });
-
 
 app.get('/api/status', (req, res) => {
     res.json({
