@@ -2171,26 +2171,24 @@ async function confirmInvoice(appId) {
     const email = document.getElementById('inv-email-' + appId).value.trim();
     const plan  = document.getElementById('inv-plan-'  + appId).value;
     const msgEl = document.getElementById('inv-result-' + appId);
-
     if (!name || !ruc || !dv || !email) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill all fields</span>'; return; }
-
-    msgEl.innerHTML = '⏳ Issuing invoice...';
+    msgEl.innerHTML = '⏳ Confirming...';
     try {
         const res  = await adminFetch('/api/admin/application/' + appId);
         const app  = await res.json();
-        const res2 = await adminFetch('/api/admin/issue-invoice', {
+        // Update RUC/business_name and set status to approved (invoice issued manually for now)
+        const res2 = await adminFetch('/api/admin/confirm-payment', {
             method: 'POST',
             body: JSON.stringify({
-                listing_id:     app.listing_id,
                 application_id: appId,
-                plan,
+                listing_id:     app.listing_id,
                 business_name:  name,
                 ruc, ruc_dv: dv, email
             })
         });
         const data = await res2.json();
         if (data.success) {
-            msgEl.innerHTML = `<span style="color:#adf5ad;">✅ Invoice issued! Membership active until ${data.paid_until}. CUFE: ${data.invoice?.cufe||'OK'}</span>`;
+            msgEl.innerHTML = `<span style="color:#adf5ad;">✅ Payment confirmed! Status set to APPROVED. Issue invoice manually in eFactura.</span>`;
             setTimeout(() => loadApplications(), 2000);
         } else {
             msgEl.innerHTML = `<span style="color:#ff7070;">❌ Error: ${data.error||'Unknown error'}</span>`;
@@ -2200,16 +2198,6 @@ async function confirmInvoice(appId) {
     }
 }
 
-async function deactivateMembership(appId) {
-    if (!confirm('Deactivate this membership? The member will lose access.')) return;
-    const res = await adminFetch('/api/admin/deactivate-membership', {
-        method: 'POST',
-        body: JSON.stringify({ application_id: appId })
-    });
-    const data = await res.json();
-    if (data.success) loadApplications();
-    else alert('Error: ' + data.error);
-}
 
 async function sendInvoiceOnly(appId) {
     const res = await adminFetch('/api/admin/application/' + appId);
@@ -2229,6 +2217,22 @@ async function sendInvoiceOnly(appId) {
     </div>`;
     resultEl.classList.add('visible');
 }
+
+// ── POST /api/admin/confirm-payment ──────────────────────────────────────────
+app.post('/api/admin/confirm-payment', requireAdmin, async (req, res) => {
+    const { application_id, listing_id, business_name, ruc, ruc_dv, email } = req.body;
+    if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
+    await supabaseAdmin.from('membership_applications').update({
+        status:        'approved',
+        business_name, ruc, ruc_dv,
+        contact_email: email,
+        reviewed_at:   new Date().toISOString(),
+        reviewed_by:   'admin',
+        notes:         'Payment confirmed. Invoice issued manually.'
+    }).eq('id', application_id);
+    await logEvent('payment_confirmed', { application_id, listing_id });
+    res.json({ success: true });
+});
 
 </script>
 </body>
