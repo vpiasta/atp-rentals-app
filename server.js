@@ -1924,7 +1924,8 @@ app.get('/api/admin/invoice-log', requireAdmin, async (req, res) => {
 app.post('/api/submit-payment',
     uploadDocs.fields([{ name: 'file_pago', maxCount: 1 }]),
     async (req, res) => {
-    const { listing_id, duration_months, payment_method, contact_email, token } = req.body;
+    const { listing_id, duration_months, payment_method, contact_email,
+            contact_ruc, contact_dv, contact_name: contact_bname, token } = req.body;
     if (!listing_id) return res.status(400).json({ error: 'Missing listing_id' });
     if (token) {
         try {
@@ -1934,12 +1935,13 @@ app.post('/api/submit-payment',
         } catch { return res.status(403).json({ error: 'Invalid token' }); }
     }
     try {
-        const { data: listing, error: listingError } = await supabase
+        const { data: listing } = await supabase
             .from('listings')
             .select('id, name, province, email, email_member, phone, contact_name')
             .eq('id', listing_id).single();
-        if (listingError || !listing) return res.status(404).json({ error: 'Listing not found' });
+        if (!listing) return res.status(404).json({ error: 'Listing not found' });
 
+        // Upload payment proof
         let documentPath = null;
         const file = req.files?.file_pago?.[0];
         if (file) {
@@ -1949,40 +1951,111 @@ app.post('/api/submit-payment',
             if (!uploadError) documentPath = fileName;
         }
 
+        // ── AI verify payment proof ───────────────────────────────────────────
+        let verificationResult = 'PENDING';
+        let verificationSummary = 'PAY:PENDING:no_proof';
+        let autoActivated = false;
+        let detectedPlan = duration_months === '24' ? '2year' : '1year';
 
+        if (documentPath && file) {
+            try {
+                const { data: fileData } = await supabaseAdmin.storage.from('member-documents').download(documentPath);
+                if (fileData) {
+                    const arrayBuffer = await fileData.arrayBuffer();
+                    const base64 = Buffer.from(arrayBuffer).toString('base64');
+                    const isPdf = file.mimetype === 'application/pdf';
+                    const docContent = isPdf
+                        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+                        : { type: 'image',    source: { type: 'base64', media_type: file.mimetype,        data: base64 } };
 
-        const months = parseInt(duration_months) || 12;
+                    const expected1yr = (24 * 1.07).toFixed(2);
+                    const expected2yr = (45 * 1.07).toFixed(2);
+
+                    const prompt = `Verify this payment proof for a Panama business directory membership.
+Property ID: ${listing_id}, Name: ${listing.name}
+Expected amounts: $${expected1yr} (1 year) or $${expected2yr} (2 years) including 7% ITBMS.
+The transfer description/mensaje should contain "TPS ${listing_id}".
+Return ONLY a JSON object:
+{
+  "amount_found": 25.68,
+  "amount_matches": true,
+  "date": "2026-07-18",
+  "date_recent": true,
+  "description_ok": true,
+  "description_text": "TPS 11134",
+  "bank": "Banco General",
+  "confirmation": "#1545221148",
+  "destination_account": "104313259",
+  "status_text": "REALIZADA",
+  "plan": "1year",
+  "overall": "PASS",
+  "notes": "brief summary"
+}
+overall: PASS (amount correct, recent, REALIZADA), REVIEW (minor issues), FAIL (wrong amount or fake).`;
+
+                    const aiResp = await axios.post('https://api.anthropic.com/v1/messages', {
+                        model: 'claude-opus-4-5', max_tokens: 500,
+                        messages: [{ role: 'user', content: [docContent, { type: 'text', text: prompt }] }]
+                    }, { headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, timeout: 30000 });
+
+                    const aiData = JSON.parse(aiResp.data.content[0].text.replace(/\`\`\`json\n?|\n?\`\`\`/g, '').trim());
+                    detectedPlan = aiData.plan || detectedPlan;
+                    verificationResult = aiData.overall || 'REVIEW';
+                    verificationSummary = `PAY:${verificationResult}:${aiData.amount_found}:${aiData.date}:${aiData.description_text||''}:${aiData.bank||''}:${aiData.confirmation||''}`;
+
+                    if (verificationResult === 'PASS') {
+                        const paidUntil = new Date();
+                        detectedPlan === '2year' ? paidUntil.setFullYear(paidUntil.getFullYear() + 2) : paidUntil.setFullYear(paidUntil.getFullYear() + 1);
+                        const paidUntilStr = paidUntil.toISOString().split('T')[0];
+                        await supabaseAdmin.from('listings').update({ is_member: true, is_trial: false, membership_paid_until: paidUntilStr, invitation_status: 'member' }).eq('id', listing_id);
+                        autoActivated = true;
+                        await recalculateFeatureRanks();
+                        await logEvent('payment_auto_activated', { listing_id: parseInt(listing_id), plan: detectedPlan, paid_until: paidUntilStr });
+                    }
+                }
+            } catch(aiErr) {
+                console.error('Payment AI verify error:', aiErr.message);
+                verificationResult = 'ERROR';
+                verificationSummary = 'PAY:ERROR:' + aiErr.message.substring(0, 50);
+            }
+        }
+
+        // Insert application record
+        const months = detectedPlan === '2year' ? 24 : 12;
         const { data: submission } = await supabaseAdmin.from('membership_applications').insert({
-            listing_id:      parseInt(listing_id),
-            property_name:   listing.name,
-            province:        listing.province,
-            contact_name:    listing.contact_name || '',
-            contact_email:   contact_email || listing.email_member || listing.email || '',
-            contact_phone:   listing.phone || '',
-            membership_type: 'paid',
-            duration_months: months,
-            payment_method:  payment_method || 'transfer',
-            documents:       documentPath ? [{ type: 'comprobante_pago', path: documentPath, uploaded: new Date().toISOString(), mime: file?.mimetype, size: file?.size }] : null,
-            notes:           'Payment renewal submission',
-            status:          'pending'
+            listing_id:          parseInt(listing_id),
+            property_name:       listing.name,
+            province:            listing.province,
+            contact_name:        listing.contact_name || '',
+            contact_email:       contact_email || listing.email_member || listing.email || '',
+            contact_phone:       listing.phone || '',
+            membership_type:     'paid',
+            duration_months:     months,
+            payment_method:      payment_method || 'transfer',
+            ruc:                 contact_ruc || null,
+            ruc_dv:              contact_dv || null,
+            business_name:       contact_bname || null,
+            documents:           documentPath ? [{ type: 'comprobante_pago', path: documentPath, uploaded: new Date().toISOString(), mime: file?.mimetype, size: file?.size }] : null,
+            notes:               'Payment renewal submission',
+            status:              autoActivated ? 'pre_approved' : 'pending',
+            verification_result: verificationSummary
         }).select().single();
 
-        await logEvent('payment_submitted', { listing_id: parseInt(listing_id), duration_months: months, has_proof: !!documentPath });
-
-        const amount  = months === 24 ? 45 : 24;
+        // Send notification email
+        const statusIcon = verificationResult === 'PASS' ? '✅' : verificationResult === 'REVIEW' ? '⚠️' : '❌';
         const subject = 'Comprobante de pago recibido: ' + listing.name;
-        const message = '<html><body style="font-family:Arial,sans-serif;font-size:14px;"><h2 style="color:#005ca9;">Comprobante de Pago Recibido</h2><p><strong>Hospedaje:</strong> ' + listing.name + '<br><strong>ID:</strong> ' + listing_id + '<br><strong>Plan:</strong> ' + (months===24?'2 años ($45)':'1 año ($24)') + '<br><strong>Comprobante:</strong> ' + (documentPath?'Recibido':'No adjuntado') + '</p><p><a href="https://trustedpanamastays.com/admin.html" style="background:#005ca9;color:white;padding:8px 16px;text-decoration:none;border-radius:5px;">Ver en Admin</a></p></body></html>';
+        const message = `<html><body style="font-family:Arial,sans-serif;font-size:14px;"><h2 style="color:#005ca9;">Comprobante de Pago Recibido</h2><p><strong>Hospedaje:</strong> \${listing.name}<br><strong>ID:</strong> \${listing_id}<br><strong>Verificación AI:</strong> \${statusIcon} \${verificationResult}<br><strong>Detalle:</strong> \${verificationSummary}</p>\${autoActivated ? '<p style="color:#00a859;font-weight:bold;">✅ Membresía pre-activada automáticamente</p>' : '<p style="color:#e67e22;">⚠️ Requiere revisión manual</p>'}<p><a href="https://trustedpanamastays.com/admin.html" style="background:#005ca9;color:white;padding:8px 16px;text-decoration:none;border-radius:5px;">Ver en Admin</a></p></body></html>`;
         const notifyPath = path.join(__dirname, 'public', 'notify.php');
         await execFileAsync('php', [notifyPath, subject, message, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(err => console.error('Payment notify failed:', err.message));
 
-        res.json({ success: true, submission_id: submission?.id });
+        await logEvent('payment_submitted', { listing_id: parseInt(listing_id), duration_months: months, has_proof: !!documentPath, verification: verificationResult });
+        res.json({ success: true, submission_id: submission?.id, verification: verificationResult, auto_activated: autoActivated, summary: verificationSummary });
+
     } catch (err) {
         console.error('Payment submission error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
-
-
 app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
     const { path: filePath } = req.query;
     if (!filePath) return res.status(400).json({ error: 'Missing path' });
