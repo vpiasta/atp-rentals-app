@@ -315,10 +315,13 @@ $t = [
                 <select id="typeFilter"><option value=""><?= $t['type_all'] ?></option></select>
             </div>
             <div class="filter-group">
-                <label for="keywordFilter"><?= $t['keyword_lbl'] ?></label>
-                <div style="display:flex;gap:5px;align-items:center;">
-                    <select id="keywordFilter" style="flex:1;"><option value=""><?= $t['keyword_all'] ?></option></select>
-                    <button type="button" onclick="addKeywordTag()" style="padding:6px 10px;background:#005ca9;color:white;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:700;flex-shrink:0;">+</button>
+                <label><?= $t['keyword_lbl'] ?></label>
+                <div class="kw-dropdown" id="kw-dropdown-wrap">
+                    <button type="button" class="kw-dropdown-btn" id="kw-dropdown-btn" onclick="toggleKwDropdown()">
+                        <span id="kw-dropdown-label"><?= $t['keyword_all'] ?></span>
+                        <span>&#9662;</span>
+                    </button>
+                    <div class="kw-dropdown-list" id="kw-dropdown-list"></div>
                 </div>
             </div>
         </div>
