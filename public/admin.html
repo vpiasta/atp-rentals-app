@@ -817,7 +817,7 @@ function showTab(name) {
     if (panel) panel.style.display = 'block';
     if (name === 'log')          loadLog();
     if (name === 'ip')           loadIPInfo();
-    if (name === 'applications') loadApplications();
+    if (name === 'applications') loadApplications().then(() => filterApps('all'));
     if (name === 'invoices')     loadInvoiceLog();
     if (name === 'campaign')     { loadCampaignStats(); loadTemplateList(); }
     if (name === 'analytics')    loadAnalytics(7);
@@ -1149,8 +1149,9 @@ function renderApplications(apps) {
                 ${doc.type==='aviso_operacion'?'📋':doc.type==='cedula'?'🪪':'💳'}
                 ${doc.type.replace(/\b\w/g, l => l.toUpperCase())}
             </a>`).join('');
-        const planText = app.membership_type==='trial' ? '30 días gratis'
-            : (app.duration_months===24?'2 años ($45)':'1 año ($24)');
+            const isExtension = app.membership_type === 'paid' && app.status === 'pre_approved';
+            const planText = app.membership_type==='trial' ? '30 días gratis'
+        : (isExtension ? 'Extensión · ' : '') + (app.duration_months===24?'2 años ($45)':'1 año ($24)');
         const isPending = app.status==='pending' || app.status==='pre_approved';
         return `
         <div class="app-card ${app.status}" id="app-card-${app.id}">
