@@ -1182,7 +1182,7 @@ function renderApplications(apps) {
             ${isPending ? `
             <div class="app-actions">
                 ${app.status === 'pending' ? `<button class="app-btn ai" onclick="verifyDocuments(${app.id})">🤖 AI Verify</button>` : ''}
-                ${app.membership_type === 'paid' && app.status === 'pending' ? `<button class="app-btn approve" style="background:#00a859;" onclick="issueInvoiceAndActivate(${app.id})">🧾 Issue Invoice & Activate</button>` : ''}
+                ${app.membership_type === 'paid' && app.status === 'pending' ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve</button>` : ''}
                 ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<span class="app-btn" style="background:#00a859;cursor:default;">✅ Is Active</span>` : ''}
                 ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<button class="app-btn" style="background:#005ca9;color:white;" onclick="sendInvoiceOnly(${app.id})">🧾 Send Invoice</button>` : ''}
                 ${app.membership_type !== 'paid' && app.status === 'pending' ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve</button>` : ''}
