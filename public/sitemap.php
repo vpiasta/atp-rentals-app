@@ -37,10 +37,14 @@ echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 
 $staticPages = [
-    ['loc' => '/', 'priority' => '1.00'],
-    ['loc' => '/about.html', 'priority' => '0.80'],
-    ['loc' => '/join.html', 'priority' => '0.60'],
+    ['loc' => '/',                    'priority' => '1.00'],
+    ['loc' => '/index.php?lang=en',   'priority' => '1.00'],
+    ['loc' => '/index.php?lang=es',   'priority' => '1.00'],
+    ['loc' => '/about.html?lang=en',  'priority' => '0.80'],
+    ['loc' => '/about.html?lang=es',  'priority' => '0.80'],
+    ['loc' => '/join.html',           'priority' => '0.60'],
 ];
+
 foreach ($staticPages as $p) {
     echo "  <url><loc>" . SITE_URL . $p['loc'] . "</loc><priority>{$p['priority']}</priority></url>\n";
 }

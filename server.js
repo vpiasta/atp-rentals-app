@@ -3675,6 +3675,7 @@ async function sendGeneralCampaignBatch() {
             .select('id, name, email, province, rental_type, slug, apatel_member')
             .eq('is_member', false)
             .eq('atp_active', true)
+            .eq('apatel_member', false)
             .is('general_campaign_sent_at', null)
             .not('email', 'is', null)
             .limit(280);  // Stay under Brevo 300/day (leaves room for other emails)
