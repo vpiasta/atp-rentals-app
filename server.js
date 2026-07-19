@@ -3128,21 +3128,27 @@ async function sendToRosterList(targets, subject, body) {
 // ── Recalculate feature ranks for all featured listings ───────────────────────
 async function recalculateFeatureRanks() {
     try {
+        const today = new Date().toISOString().split('T')[0];
         const { data: featured } = await supabaseAdmin
             .from('listings')
-            .select('id, is_trial, membership_paid_until')
-            .gt('feature_rank', 0)
-            .order('is_trial', { ascending: true })      // paid first
-            .order('membership_paid_until', { ascending: true }); // earliest first
-
+            .select('id, is_trial, membership_paid_until, trial_started_at')
+            .eq('is_member', true)
+            .gte('membership_paid_until', today)
+            .order('is_trial', { ascending: true })         // paid first
+            .order('membership_paid_until', { ascending: true }); // oldest expiry first
         if (!featured || !featured.length) return;
-
         for (let i = 0; i < featured.length; i++) {
             await supabaseAdmin
                 .from('listings')
                 .update({ feature_rank: i + 1 })
                 .eq('id', featured[i].id);
         }
+        // Zero out any members no longer active
+        await supabaseAdmin
+            .from('listings')
+            .update({ feature_rank: 0 })
+            .eq('is_member', true)
+            .lt('membership_paid_until', today);
         console.log(`Feature ranks recalculated for ${featured.length} listings`);
     } catch (err) {
         console.error('recalculateFeatureRanks error:', err.message);
