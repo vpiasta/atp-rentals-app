@@ -3755,11 +3755,11 @@ const msUntil10am = (() => {
     if (next <= new Date()) next.setDate(next.getDate() + 1);
     return next - new Date();
 })();
-// General campaign scheduler DISABLED — re-enable after template is fixed
-// setTimeout(() => {
-//     sendGeneralCampaignBatch();
-//     setInterval(sendGeneralCampaignBatch, 24 * 60 * 60 * 1000);
-// }, msUntil10am);
+// General campaign scheduler
+  setTimeout(() => {
+     sendGeneralCampaignBatch();
+     setInterval(sendGeneralCampaignBatch, 24 * 60 * 60 * 1000);
+ }, msUntil10am);
 
 
 // ── POST /api/admin/send-general-campaign-now ────────────────────────────────
