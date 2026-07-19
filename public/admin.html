@@ -1152,7 +1152,7 @@ function renderApplications(apps) {
             const isExtension = app.membership_type === 'paid' && app.status === 'pre_approved';
             const planText = app.membership_type==='trial' ? '30 días gratis'
         : (isExtension ? 'Extensión · ' : '') + (app.duration_months===24?'2 años ($45)':'1 año ($24)');
-        const isPending = app.status==='pending' || app.status==='pre_approved';
+        const isPending = app.status==='pending' || app.status==='pre_approved' || app.status==='pending_atp';
         return `
         <div class="app-card ${app.status}" id="app-card-${app.id}">
             <div class="app-header">
@@ -1186,6 +1186,7 @@ function renderApplications(apps) {
                 ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<span class="app-btn" style="background:#00a859;cursor:default;">✅ Is Active</span>` : ''}
                 ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<button class="app-btn" style="background:#005ca9;color:white;" onclick="sendInvoiceOnly(${app.id})">🧾 Send Invoice</button>` : ''}
                 ${app.membership_type !== 'paid' && app.status === 'pending' ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve</button>` : ''}
+                ${app.status === 'pending_atp' && app.listing_id ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve (ATP linked)</button>` : ''}
                 <button class="app-btn reject" onclick="${app.status === 'pre_approved' ? 'deactivateMembership' : 'showRejectForm'}(${app.id})">🔴 ${app.status === 'pre_approved' ? 'Deactivate' : 'Reject'}</button>
             </div>
             <div class="verify-result"  id="verify-${app.id}"></div>
