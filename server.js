@@ -1949,6 +1949,8 @@ app.post('/api/submit-payment',
             if (!uploadError) documentPath = fileName;
         }
 
+
+
         const months = parseInt(duration_months) || 12;
         const { data: submission } = await supabaseAdmin.from('membership_applications').insert({
             listing_id:      parseInt(listing_id),
@@ -3408,8 +3410,10 @@ app.get('/api/payment-info', async (req, res) => {
     if (!id) return res.status(400).json({ error: 'Missing id' });
     const { data } = await supabaseAdmin
         .from('membership_applications')
-        .select('contact_name, business_name, ruc, ruc_dv, listing_id, contact_email')
-        .eq('listing_id', id)
+        .select('contact_name, business_name, ruc, ruc_dv, contact_email')
+        .eq('listing_id', parseInt(id))
+        .not('ruc', 'is', null)
+        .neq('status', 'archived')
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
