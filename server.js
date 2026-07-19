@@ -1468,12 +1468,20 @@ app.post('/api/membership-apply',
         const isMici  = registration_type === 'mici';
 
         if (!isMici) {
-            const { data: matchingListings } = await supabase
-                .from('listings')
-                .select('id, name, is_trial, trial_started_at, is_member')
-                .ilike('name', `%${property_name.trim()}%`)
-                .eq('province', province)
-                .limit(1);
+          const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+          const appWords = normalize(property_name).split(/\s+/).filter(w => w.length >= 3);
+          const { data: candidates } = await supabase
+            .from('listings')
+            .select('id, name, is_trial, trial_started_at, is_member')
+            .eq('province', province)
+            .limit(200);
+          const scored = (candidates||[]).map(l => {
+            const lName = normalize(l.name);
+            const matches = appWords.filter(w => lName.includes(w)).length;
+            return { ...l, score: matches };
+          }).filter(l => l.score >= Math.min(2, appWords.length))
+          .sort((a,b) => b.score - a.score);
+          const matchingListings = scored.slice(0, 1);
 
             if (matchingListings && matchingListings.length > 0) {
                 listingId = matchingListings[0].id;
