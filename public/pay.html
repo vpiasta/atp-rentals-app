@@ -281,9 +281,9 @@
 
     <!-- Success screen -->
     <div class="success-screen" id="success-screen">
-        <div class="success-icon">✅</div>
-        <h2>¡Comprobante recibido!</h2>
-        <p>Hemos recibido su comprobante de pago para <strong id="success-name"></strong>.</p>
+        <div class="success-icon" id="success-icon">✅</div>
+        <h2 id="success-title">¡Comprobante recibido!</h2>
+        <p id="success-message">Hemos recibido su comprobante de pago para <strong id="success-name"></strong>.</p>
         <p>Verificaremos su pago y activaremos su membresía en breve. Si proporcionó un correo, le enviaremos confirmación.</p>
         <p style="margin-top:1.5rem;">
             <a href="index.php?lang=es" style="color:#005ca9;">← Volver al directorio</a>
@@ -405,7 +405,7 @@ function showMsg(text, type) {
 async function submitPayment() {
     if (!validate()) return;
     const btn = document.getElementById('submit-btn');
-    btn.disabled = true; btn.textContent = '⏳ Enviando...';
+    btn.disabled = true; btn.textContent = '⏳ Verificando comprobante...';
 
     const formData = new FormData();
     formData.append('listing_id',     currentListing.id);
@@ -433,6 +433,16 @@ async function submitPayment() {
         if (res.ok && data.success) {
             document.getElementById('pay-form').style.display = 'none';
             document.getElementById('success-screen').classList.add('visible');
+            // Update success message based on AI result
+            if (data.verification === 'PASS' && data.auto_activated) {
+                document.getElementById('success-title').textContent = '¡Membresía activada!';
+                document.getElementById('success-icon').textContent = '🎉';
+                document.getElementById('success-message').innerHTML = '✅ Su membresía ha sido activada.<br><small style="color:#888;">Recibirá la factura electrónica una vez confirmemos la recepción del pago en nuestra cuenta bancaria.</small>';
+            } else if (data.verification === 'REVIEW') {
+                document.getElementById('success-title').textContent = 'Comprobante recibido';
+                document.getElementById('success-icon').textContent = '⚠️';
+                document.getElementById('success-message').innerHTML = 'Su comprobante está siendo revisado. Le notificaremos por correo en breve.';
+            }
             document.getElementById('success-name').textContent = currentListing.name;
             window.scrollTo({ top:0, behavior:'smooth' });
         } else throw new Error(data.error||'Error al enviar');
