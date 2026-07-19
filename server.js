@@ -2004,9 +2004,14 @@ overall: PASS (amount correct, recent, REALIZADA), REVIEW (minor issues), FAIL (
                     verificationSummary = `PAY:${verificationResult}:${aiData.amount_found}:${aiData.date}:${aiData.description_text||''}:${aiData.bank||''}:${aiData.confirmation||''}`;
 
                     if (verificationResult === 'PASS') {
-                        const paidUntil = new Date();
-                        detectedPlan === '2year' ? paidUntil.setFullYear(paidUntil.getFullYear() + 2) : paidUntil.setFullYear(paidUntil.getFullYear() + 1);
-                        const paidUntilStr = paidUntil.toISOString().split('T')[0];
+                      // Extend from existing paid_until if still in future, otherwise from today
+                        const { data: currentListing } = await supabaseAdmin.from('listings').select('membership_paid_until').eq('id', listing_id).single();
+                        const baseDate = new Date(Math.max(
+                          new Date(currentListing?.membership_paid_until || 0).getTime(),
+                          new Date().getTime()
+                        ));
+                        detectedPlan === '2year' ? baseDate.setFullYear(baseDate.getFullYear() + 2) : baseDate.setFullYear(baseDate.getFullYear() + 1);
+                        const paidUntilStr = baseDate.toISOString().split('T')[0];
                         await supabaseAdmin.from('listings').update({ is_member: true, is_trial: false, membership_paid_until: paidUntilStr, invitation_status: 'member' }).eq('id', listing_id);
                         autoActivated = true;
                         await recalculateFeatureRanks();

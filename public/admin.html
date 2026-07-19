@@ -1134,7 +1134,7 @@ function filterApps(status) {
     const tab = document.getElementById('ftab-'+status);
     if (tab) tab.classList.add('active');
     const filtered = status==='all'
-    ? allApplications.filter(a=>a.status!=='archived')
+    ? allApplications.filter(a=>a.status!=='archived' && a.status!=='approved')
     : allApplications.filter(a=>a.status===status);
     document.getElementById('app-count').textContent = `${filtered.length} application${filtered.length!==1?'s':''}`;
     renderApplications(filtered);
