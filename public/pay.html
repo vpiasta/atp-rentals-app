@@ -284,7 +284,7 @@
         <div class="success-icon" id="success-icon">✅</div>
         <h2 id="success-title">¡Comprobante recibido!</h2>
         <p id="success-message">Hemos recibido su comprobante de pago para <strong id="success-name"></strong>.</p>
-        <p>Verificaremos su pago y activaremos su membresía en breve. Si proporcionó un correo, le enviaremos confirmación.</p>
+        <p id="success-secondary">Verificaremos su pago y activaremos su membresía en breve. Si proporcionó un correo, le enviaremos confirmación.</p>
         <p style="margin-top:1.5rem;">
             <a href="index.php?lang=es" style="color:#005ca9;">← Volver al directorio</a>
         </p>
@@ -438,6 +438,7 @@ async function submitPayment() {
                 document.getElementById('success-title').textContent = '¡Membresía activada!';
                 document.getElementById('success-icon').textContent = '🎉';
                 document.getElementById('success-message').innerHTML = '✅ Su membresía ha sido activada.<br><small style="color:#888;">Recibirá la factura electrónica una vez confirmemos la recepción del pago en nuestra cuenta bancaria.</small>';
+                document.getElementById('success-secondary').style.display = 'none';
             } else if (data.verification === 'REVIEW') {
                 document.getElementById('success-title').textContent = 'Comprobante recibido';
                 document.getElementById('success-icon').textContent = '⚠️';
