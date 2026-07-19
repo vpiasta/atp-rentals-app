@@ -3630,6 +3630,42 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
     }
 });
 
+// ── POST /api/admin/deactivate-membership ────────────────────────────────────
+app.post('/api/admin/deactivate-membership', requireAdmin, async (req, res) => {
+    const { application_id } = req.body;
+    if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
+
+    const { data: app } = await supabaseAdmin
+        .from('membership_applications')
+        .select('listing_id, duration_months')
+        .eq('id', application_id)
+        .single();
+    if (!app) return res.status(404).json({ error: 'Application not found' });
+
+    // Get listing's previous paid_until before pre-approval
+    const { data: listing } = await supabaseAdmin
+        .from('listings')
+        .select('is_trial, trial_started_at, membership_paid_until')
+        .eq('id', app.listing_id)
+        .single();
+
+    // Revert: if they had a trial before, restore trial state
+    // Otherwise deactivate completely
+    const hadTrial = listing?.trial_started_at && listing?.is_trial;
+    const updates = hadTrial
+        ? { is_member: true, is_trial: true, membership_paid_until: listing.membership_paid_until }
+        : { is_member: false, is_trial: false, membership_paid_until: null };
+
+    await supabaseAdmin.from('listings').update(updates).eq('id', app.listing_id);
+    await supabaseAdmin.from('membership_applications')
+        .update({ status: 'rejected', notes: 'Payment not received — membership deactivated' })
+        .eq('id', application_id);
+
+    await recalculateFeatureRanks();
+    await logEvent('membership_deactivated', { listing_id: app.listing_id, application_id });
+    res.json({ success: true });
+});
+
 
 //========== temporary endpoints ============================
 
