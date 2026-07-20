@@ -2404,9 +2404,7 @@ app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => 
             const joinUrl = 'https://trustedpanamastays.com/join.html';
 
             const isApatel = listing.apatel_member;
-            const greeting = isApatel
-                ? `Como miembro de APATEL, le escribimos con una invitación especial.`
-                : `Le contactamos porque su hospedaje aparece en el registro oficial de la ATP.`;
+            const greeting = `Le contactamos porque su hospedaje aparece en el registro oficial de la ATP.`;
 
             const subject = `Su hospedaje ya está en Trusted Panama Stays — ${listing.name}`;
             const message = `
@@ -3144,7 +3142,7 @@ async function recalculateFeatureRanks() {
             .eq('is_member', true)
             .gte('membership_paid_until', today)
             .order('is_trial', { ascending: true })         // paid first
-            .order('membership_paid_until', { ascending: true }); // oldest expiry first
+            .order('id', { ascending: true }); // oldest joined first
         if (!featured || !featured.length) return;
         for (let i = 0; i < featured.length; i++) {
             await supabaseAdmin
