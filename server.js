@@ -3247,7 +3247,7 @@ async function recalculateFeatureRanks() {
             .eq('is_member', true)
             .gte('membership_paid_until', today)
             .order('is_trial', { ascending: true })         // paid first
-            .order('id', { ascending: true }); // oldest joined first
+            .order('trial_started_at', { ascending: true, nullsFirst: false }); // oldest trial first
         if (!featured || !featured.length) return;
         for (let i = 0; i < featured.length; i++) {
             await supabaseAdmin
