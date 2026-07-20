@@ -2250,6 +2250,38 @@ async function confirmInvoice(appId, mode) {
                 listing_id:     app.listing_id,
                 business_name:  name,
                 ruc, ruc_dv: dv, email
+            })
+        });
+        const data = await res2.json();
+        if (data.success) {
+            const net = Math.round(totalPaid / 1.07 * 100) / 100;
+            const itbms = Math.round(totalPaid * (0.07/1.07) * 100) / 100;
+            const months = app.duration_months || 12;
+            const product = months === 24 ? 'TPS02 — Membresía 2 años' : 'TPS01 — Membresía 1 año';
+            const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+            const invoiceFile = `${today} factura TPS ${app.listing_id} $${totalPaid.toFixed(2)}`;
+            const drivePath = `C:\\Users\\vpias.NUC\\Google Drive\\Aparthotel Boquete\\Contabilidad Tuscany Real Estates SA\\2026\\07 julio\\facturas TPS`;
+            navigator.clipboard.writeText(invoiceFile).catch(()=>{});
+            msgEl.innerHTML = `<div style="color:#adf5ad;font-weight:700;">✅ Payment confirmed — issue invoice manually:</div>
+            <div style="background:#1a2a1a;padding:10px;margin-top:8px;border-radius:5px;font-size:0.85rem;line-height:1.8;">
+            <b>Nombre:</b> ${name}<br>
+            <b>RUC:</b> ${ruc}-${dv}<br>
+            <b>Producto:</b> ${product}<br>
+            <b>Neto:</b> $${net.toFixed(2)}<br>
+            <b>ITBMS (7%):</b> $${itbms.toFixed(2)}<br>
+            <b>Total:</b> $${totalPaid.toFixed(2)}<br>
+            <b>Archivo factura:</b> <span style="color:#7ec8e3;">${invoiceFile}</span><br>
+            <b>Carpeta:</b> <span style="color:#aaa;font-size:0.78rem;">${drivePath}</span>
+            </div>
+            <div style="color:#aaa;font-size:0.78rem;margin-top:4px;">📋 Nombre del archivo copiado al portapapeles</div>`;
+            setTimeout(() => loadApplications(), 2000);
+        } else {
+            msgEl.innerHTML = `<span style="color:#ff7070;">❌ Error: ${data.error||'Unknown error'}</span>`;
+        }
+    } catch(e) {
+        msgEl.innerHTML = `<span style="color:#ff7070;">❌ Error: ${e.message}</span>`;
+    }
+}
 
 async function sendInvoiceOnly(appId) {
     const res = await adminFetch('/api/admin/application/' + appId);
