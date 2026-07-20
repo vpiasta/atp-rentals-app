@@ -218,25 +218,24 @@ async function checkPendingAtpApplications() {
             // Try to find matching listing by name similarity
             // Normalize accents for matching
             const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
-            const cleanName = normalize(app.property_name);
-            // Get candidates from province, then filter by normalized name
+            const appWords = normalize(app.property_name).split(/\s+/).filter(w => w.length >= 3);
             const { data: candidates } = await supabaseAdmin
                 .from('listings')
                 .select('id, name, province, is_member')
-                .eq('province', app.province)
-                .limit(100);
-            const matches = (candidates || []).filter(l =>
-                normalize(l.name).includes(cleanName.split(' ')[0]) ||
-                cleanName.includes(normalize(l.name).split(' ')[0])
-            ).slice(0, 3);
-
-            if (!matches || matches.length === 0) {
+                .limit(2000);
+            const scored = (candidates||[]).map(l => {
+                const lName = normalize(l.name);
+                const wordMatches = appWords.filter(w => lName.includes(w)).length;
+                const provinceBonus = l.province === app.province ? 1 : 0;
+                return { ...l, score: wordMatches * 10 + provinceBonus };
+            }).filter(l => l.score >= Math.min(2, appWords.length) * 10)
+              .sort((a,b) => b.score - a.score);
+            if (!scored.length) {
                 console.log(`⏳ No ATP match yet for: ${app.property_name}`);
                 continue;
             }
-
             // Use best match (first result)
-            const listing = matches[0];
+            const listing = scored[0];
 
             // Skip if already a member
             if (listing.is_member) {
@@ -1481,15 +1480,15 @@ app.post('/api/membership-apply',
           const appWords = normalize(property_name).split(/\s+/).filter(w => w.length >= 3);
           const { data: candidates } = await supabase
             .from('listings')
-            .select('id, name, is_trial, trial_started_at, is_member')
-            .eq('province', province)
-            .limit(200);
-          const scored = (candidates||[]).map(l => {
-            const lName = normalize(l.name);
-            const matches = appWords.filter(w => lName.includes(w)).length;
-            return { ...l, score: matches };
-          }).filter(l => l.score >= Math.min(2, appWords.length))
-          .sort((a,b) => b.score - a.score);
+            .select('id, name, province, is_trial, trial_started_at, is_member')
+            .limit(2000);
+            const scored = (candidates||[]).map(l => {
+              const lName = normalize(l.name);
+              const matches = appWords.filter(w => lName.includes(w)).length;
+              const provinceBonus = l.province === province ? 1 : 0;
+              return { ...l, score: matches * 10 + provinceBonus };
+          }).filter(l => l.score >= Math.min(2, appWords.length) * 10)
+            .sort((a,b) => b.score - a.score);
           const matchingListings = scored.slice(0, 1);
 
             if (matchingListings && matchingListings.length > 0) {
