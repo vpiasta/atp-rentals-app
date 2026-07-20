@@ -1168,12 +1168,7 @@ function renderApplications(apps) {
                     <div class="app-name">${app.property_name}</div>
                     <div class="app-meta">
                         ${app.province} · ${new Date(app.created_at).toLocaleDateString()} · ID: ${app.id}
-                        <span class="reg-badge ${app.registration_type === 'mici' ? 'mici' : 'atp'}">${app.registration_type === 'mici' ? 'MiCI' : 'ATP'}</span>${app.listing_id ? ` <span class="reg-badge atp" style="background:#1a5c1a;">· ATP: ${app.listing_id}</span>` : ` <span class="reg-badge" style="background:#7a3a00;color:#ffd;">· No match</span>`}
-                        ${app.registration_type === 'mici'
-                            ? ' · <span style="color:#d4adf5;">MiCI — se creará nuevo listado</span>'
-                            : (app.listing_id
-                                ? ` · <span style="color:#adf5ad;">ATP: ${app.listing_id}</span>`
-                                : ' · <span style="color:#ff7070;">No ATP match</span>')}
+                        ${app.registration_type === 'mici' ? `<span class="reg-badge mici">MiCI</span>` : app.listing_id ? `<span class="reg-badge atp">ATP · ${app.listing_id}</span>` : `<span class="reg-badge" style="background:#7a3a00;color:#ffd;">ATP · No match</span>`}
                     </div>
                 </div>
                 <span class="app-status ${app.status}">${app.status.toUpperCase()}</span>
