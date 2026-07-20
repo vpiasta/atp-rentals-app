@@ -3652,7 +3652,6 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
 
     const invoiceBody = {
         datosGenerales: {
-            tipoEmision:       '02',  // 02 = test mode. Change to '01' for work mode
             tipoDocumento:     '01',  // Factura de operación interna
             puntoFacturacion:  '200',
             fechaEmision:      now,
@@ -3747,6 +3746,20 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
         await logEvent('invoice_issued', {
             listing_id, plan, amount: planPrice,
             cufe: invoice.cufe, invoice_id: invoice.invoice
+        });
+
+        await supabaseAdmin.from('payments').insert({
+            listing_id:     parseInt(listing_id),
+            application_id: application_id ? parseInt(application_id) : null,
+            amount_net:     planPrice,
+            itbms:          Math.round(planPrice * 0.07 * 100) / 100,
+            amount_total:   Math.round(planPrice * 1.07 * 100) / 100,
+            payment_method: 'transfer',
+            cufe:           invoice.cufe || null,
+            invoice_uuid:   invoice.invoice || null,
+            invoice_url:    invoice.invoice ? `https://admin.efacturapty.com/external/invoices/${invoice.invoice}` : null,
+            invoice_date:   new Date().toISOString().split('T')[0],
+            status:         'invoiced'
         });
 
         res.json({ success: true, paid_until: paidUntilStr, invoice });

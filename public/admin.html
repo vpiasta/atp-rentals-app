@@ -2187,30 +2187,62 @@ async function issueInvoiceAndActivate(appId) {
                         <option value="1year" ${app.duration_months!==24?'selected':''}>1 año ($24)</option>
                         <option value="2year" ${app.duration_months===24?'selected':''}>2 años ($45)</option>
                     </select>
+                    </div>
+                    <div>
+                        <div style="font-size:0.7rem;color:#aaa;">Total pagado ($)</div>
+                        <input id="inv-total-${appId}" type="number" step="0.01" value="${(() => { const vr = app.verification_result||''; const m = vr.match(/:([\d.]+):/); return m ? parseFloat(m[1]).toFixed(2) : (app.duration_months===24?'48.15':'25.68'); })()}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:80px;">
+                    </div>
                 </div>
-            </div>
-            <div style="margin-top:0.8rem;display:flex;gap:8px;">
-                <button onclick="confirmInvoice(${appId})" style="padding:6px 16px;background:#00a859;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;">✅ Confirm & Send Invoice</button>
-                <button onclick="document.getElementById('approve-${appId}').innerHTML=''" style="padding:6px 12px;background:#555;color:white;border:none;border-radius:5px;cursor:pointer;">Cancel</button>
-            </div>
+                <div style="margin-top:0.8rem;display:flex;gap:8px;">
+                  <button onclick="confirmInvoice(${appId},'manual')" style="padding:6px 16px;background:#005ca9;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;">📋 Manual</button>
+                  <button onclick="confirmInvoice(${appId},'api')" style="padding:6px 16px;background:#00a859;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;">🧾 Via API</button>
+                  <button onclick="document.getElementById('approve-${appId}').innerHTML=''" style="padding:6px 12px;background:#555;color:white;border:none;border-radius:5px;cursor:pointer;">Cancel</button>
+                </div>
             <div id="inv-result-${appId}" style="margin-top:0.5rem;font-size:0.82rem;"></div>
         </div>`;
     resultEl.classList.add('visible');
 }
 
-async function confirmInvoice(appId) {
+async function confirmInvoice(appId, mode) {
     const name  = document.getElementById('inv-name-'  + appId).value.trim();
     const ruc   = document.getElementById('inv-ruc-'   + appId).value.trim();
     const dv    = document.getElementById('inv-dv-'    + appId).value.trim();
     const email = document.getElementById('inv-email-' + appId).value.trim();
     const plan  = document.getElementById('inv-plan-'  + appId).value;
+    const totalPaid = parseFloat(document.getElementById('inv-total-' + appId).value) || 0;
     const msgEl = document.getElementById('inv-result-' + appId);
     if (!name || !ruc || !dv || !email) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill all fields</span>'; return; }
-    msgEl.innerHTML = '⏳ Confirming...';
+    msgEl.innerHTML = mode === 'api' ? '⏳ Sending invoice via API...' : '⏳ Confirming...';
     try {
-        const res  = await adminFetch('/api/admin/application/' + appId);
-        const app  = await res.json();
-        // Update RUC/business_name and set status to approved (invoice issued manually for now)
+        const res = await adminFetch('/api/admin/application/' + appId);
+        const app = await res.json();
+
+        if (mode === 'api') {
+            const res2 = await adminFetch('/api/admin/issue-invoice', {
+                method: 'POST',
+                body: JSON.stringify({
+                    listing_id:     app.listing_id,
+                    application_id: appId,
+                    plan,
+                    business_name:  name,
+                    ruc, ruc_dv: dv, email,
+                    amount_total:   totalPaid
+                })
+            });
+            const data2 = await res2.json();
+            if (data2.success) {
+                const invoiceUrl = data2.invoice?.invoice
+                    ? `https://admin.efacturapty.com/external/invoices/${data2.invoice.invoice}`
+                    : null;
+                msgEl.innerHTML = `<span style="color:#adf5ad;">✅ Invoice sent! CUFE: ${data2.invoice?.cufe||'OK'}${invoiceUrl ? ` — <a href="${invoiceUrl}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}</span>`;
+                setTimeout(() => loadApplications(), 2000);
+            } else {
+                msgEl.innerHTML = `<span style="color:#ff7070;">❌ API Error: ${JSON.stringify(data2.detail||data2.error)}</span>`;
+            }
+            return;
+        }
+
+        // Manual mode
         const res2 = await adminFetch('/api/admin/confirm-payment', {
             method: 'POST',
             body: JSON.stringify({
@@ -2218,40 +2250,6 @@ async function confirmInvoice(appId) {
                 listing_id:     app.listing_id,
                 business_name:  name,
                 ruc, ruc_dv: dv, email
-            })
-        });
-        const data = await res2.json();
-        if (data.success) {
-          const months = app.duration_months || 12;
-          const net = months === 24 ? 45.00 : 24.00;
-          const itbms = parseFloat((net * 0.07).toFixed(2));
-          const total = parseFloat((net + itbms).toFixed(2));
-          const product = months === 24 ? 'TPS02 — Membresía 2 años' : 'TPS01 — Membresía 1 año';
-          const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-          const invoiceFile = `${today} factura TPS ${app.listing_id} $${total.toFixed(2)}`;
-          const drivePath = `C:\\Users\\vpias.NUC\\Google Drive\\Aparthotel Boquete\\Contabilidad Tuscany Real Estates SA\\2026\\07 julio\\facturas TPS`;
-          navigator.clipboard.writeText(invoiceFile).catch(()=>{});
-          msgEl.innerHTML = `<div style="color:#adf5ad;font-weight:700;">✅ Payment confirmed — issue invoice manually:</div>
-          <div style="background:#1a2a1a;padding:10px;margin-top:8px;border-radius:5px;font-size:0.85rem;line-height:1.8;">
-          <b>Nombre:</b> ${name}<br>
-          <b>RUC:</b> ${ruc}-${dv}<br>
-          <b>Producto:</b> ${product}<br>
-          <b>Neto:</b> $${net.toFixed(2)}<br>
-          <b>ITBMS (7%):</b> $${itbms.toFixed(2)}<br>
-          <b>Total:</b> $${total.toFixed(2)}<br>
-          <b>Archivo factura:</b> <span style="color:#7ec8e3;">${invoiceFile}</span><br>
-          <b>Carpeta:</b> <span style="color:#aaa;font-size:0.78rem;">${drivePath}</span>
-          </div>
-          <div style="color:#aaa;font-size:0.78rem;margin-top:4px;">📋 Nombre del archivo copiado al portapapeles</div>`;
-            setTimeout(() => loadApplications(), 2000);
-        } else {
-            msgEl.innerHTML = `<span style="color:#ff7070;">❌ Error: ${data.error||'Unknown error'}</span>`;
-        }
-    } catch(e) {
-        msgEl.innerHTML = `<span style="color:#ff7070;">❌ Error: ${e.message}</span>`;
-    }
-}
-
 
 async function sendInvoiceOnly(appId) {
     const res = await adminFetch('/api/admin/application/' + appId);
