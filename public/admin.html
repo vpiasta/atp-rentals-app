@@ -1153,7 +1153,7 @@ function renderApplications(apps) {
     if (!apps.length) { container.innerHTML='<div class="no-results">No applications found</div>'; return; }
     container.innerHTML = apps.map(app => {
         const docButtons = (app.documents||[]).map(doc =>
-            `<a href="#" class="doc-btn" onclick="viewDocument('${doc.path}','${doc.type}');return false;">
+            `<a href="#" class="doc-btn" onclick="viewDocument('${doc.path}','${doc.type}','${app.verification_result||''}');return false;">
                 ${doc.type==='aviso_operacion'?'📋':doc.type==='cedula'?'🪪':'💳'}
                 ${doc.type.replace(/\b\w/g, l => l.toUpperCase())}
             </a>`).join('');
@@ -1218,7 +1218,7 @@ function renderApplications(apps) {
     }).join('');
 }
 
-async function viewDocument(docPath, docType) {
+async function viewDocument(docPath, docType, verificationResult) {
     try {
         const res  = await adminFetch(`/api/admin/document-url?path=${encodeURIComponent(docPath)}`);
         const data = await res.json();
@@ -1234,8 +1234,12 @@ async function viewDocument(docPath, docType) {
             const idMatch = (card?.textContent||'').match(/ATP[:\s·]+(\d+)/);
             const listingId = idMatch ? idMatch[1] : '';
             const ext = docPath.split('.').pop();
-            const payDateInput = prompt('Fecha de pago (yyyymmdd):', dateStr);
-            const payDate = payDateInput ? payDateInput.trim() : dateStr;
+            // Try to extract payment date from verification_result (format: PAY:PASS:amount:yyyy-mm-dd:...)
+            let payDate = dateStr;
+            if (verificationResult) {
+                const dateMatch = verificationResult.match(/(\d{4}-\d{2}-\d{2})/);
+                if (dateMatch) payDate = dateMatch[1].replace(/-/g,'');
+            }
             const amountFixed = parseFloat(amount).toFixed(2);
             const stdName = `${payDate} pago membresia TPS ${listingId} $${amountFixed}.${ext}`;
             const drivePath = `C:\\Users\\vpias.NUC\\Google Drive\\Aparthotel Boquete\\Contabilidad Tuscany Real Estates SA\\2026\\07 julio\\entradas\\transferencia`;
