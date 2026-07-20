@@ -1618,6 +1618,52 @@ app.post('/api/membership-apply',
             await logEvent('notification_email_failed', { application_id: application.id, error: emailErr.message });
         }
 
+        // ── Auto AI verification ──────────────────────────────────────────
+        let autoVerifyResult = null;
+        try {
+            autoVerifyResult = await runAiVerification(application.id);
+        } catch(verErr) {
+            console.error('Auto-verify error:', verErr.message);
+        }
+
+        // ── Auto-approve trial on PASS ────────────────────────────────────
+        if (autoVerifyResult?.overall_result === 'PASS' && membership_type === 'trial' && listingId) {
+            try {
+                const trialDays   = 30;
+                const paidUntil   = new Date(Date.now() + trialDays * 86400000);
+                const paidUntilStr = paidUntil.toISOString().split('T')[0];
+                const bcrypt      = require('bcrypt');
+                const password    = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 5);
+                const hash        = await bcrypt.hash(password, 10);
+                const slug        = await generateUniqueSlug(application.property_name, listingId);
+                await supabaseAdmin.from('listings').update({
+                    is_member: true, is_trial: true,
+                    trial_started_at: new Date().toISOString(),
+                    membership_paid_until: paidUntilStr,
+                    member_password: hash, slug,
+                    email_member: application.contact_email,
+                    phone_member: application.contact_phone,
+                    contact_name: application.contact_name,
+                    feature_rank: 999
+                }).eq('id', listingId);
+                await supabaseAdmin.from('membership_applications').update({
+                    status: 'approved',
+                    reviewed_at: new Date().toISOString(),
+                    reviewed_by: 'auto-ai',
+                    documents_verified: true
+                }).eq('id', application.id);
+                await recalculateFeatureRanks();
+                const msgType  = 'approved_trial';
+                const emailHtml = generateEmailHtml({ ...application, listing_id: listingId }, msgType, password, paidUntilStr);
+                const notifyPath = path.join(__dirname, 'public', 'notify.php');
+                await execFileAsync('php', [notifyPath, `¡Bienvenido a Trusted Panama Stays! — ${application.property_name}`, emailHtml, application.contact_email], { timeout: 15000 }).catch(console.error);
+                console.log(`✅ Auto-approved trial for ${application.property_name}`);
+                return res.json({ success: true, application_id: application.id, listing_found: true, auto_approved: true, registration_type: 'atp' });
+            } catch(autoErr) {
+                console.error('Auto-approve error:', autoErr.message);
+            }
+        }
+
         res.json({ success: true, application_id: application.id, listing_found: !!listingId, registration_type: isMici ? 'mici' : 'atp' });
 
     } catch (err) {
@@ -3129,6 +3175,66 @@ async function sendToRosterList(targets, subject, body) {
         'Campaign complete — Trusted Panama Stays', report, 'info@trustedpanamastays.com'],
         { timeout: 15000 }).catch(console.error);
     console.log(`Campaign done: ${sent} sent, ${errors} errors`);
+}
+
+// ── Reusable AI verification function ────────────────────────────────────────
+async function runAiVerification(application_id) {
+    const { data: app } = await supabaseAdmin
+        .from('membership_applications').select('*').eq('id', application_id).single();
+    if (!app || !app.documents?.length) return null;
+    const imageContents = [];
+    for (const doc of app.documents) {
+        const { data: fileData, error: dlError } = await supabaseAdmin.storage
+            .from('member-documents').download(doc.path);
+        if (dlError) continue;
+        const base64 = Buffer.from(await fileData.arrayBuffer()).toString('base64');
+        if (doc.mime === 'application/pdf') {
+            imageContents.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } });
+        } else {
+            imageContents.push({ type: 'image', source: { type: 'base64', media_type: doc.mime, data: base64 } });
+        }
+        imageContents.push({ type: 'text', text: `The above document is the: ${doc.type.replace(/_/g,' ').toUpperCase()}` });
+    }
+    if (!imageContents.length) return null;
+    const expected1yr = (24 * 1.07).toFixed(2);
+    const expected2yr = (45 * 1.07).toFixed(2);
+    const prompt = `You are verifying membership application documents for a Panama tourism rental directory.
+Application details:
+- Property name: ${app.property_name}
+- Contact/representative name: ${app.contact_name}
+- Province: ${app.province}
+- Plan: ${app.membership_type === 'trial' ? 'Free trial' : app.duration_months + ' months paid'}
+- Payment method: ${app.payment_method || 'none'}
+Expected amounts WITH 7% ITBMS included: $${expected1yr} (1 year = $24 + ITBMS) or $${expected2yr} (2 years = $45 + ITBMS).
+IMPORTANT: $24.00 or $45.00 WITHOUT ITBMS is INCORRECT. Only $${expected1yr} or $${expected2yr} are correct amounts.
+If amount is $45.00 (without ITBMS), set amount_matches to false and note underpayment of $3.15.
+IMPORTANT - Panamanian Aviso de Operación document layout:
+- LEFT box labeled "Aviso de Operación No." contains the LICENSE NUMBER (not the RUC)
+- RIGHT box labeled "Expedido a favor de" contains the owner/company name and below it the RUC number
+Please verify and return ONLY a JSON object:
+{
+  "aviso_operacion": { "found": true/false, "business_name": "...", "ruc": "...", "ruc_dv": "...", "legal_rep": "...", "valid": true/false, "notes": "..." },
+  "cedula": { "found": true/false, "id_holder_name": "...", "id_number": "...", "notes": "..." },
+  "payment": { "found": true/false, "amount": "...", "date": "...", "method": "...", "notes": "..." },
+  "verification": { "names_match": true/false, "names_match_detail": "...", "payment_matches": true/false, "payment_match_detail": "...", "overall_result": "PASS/FAIL/REVIEW", "overall_notes": "..." }
+}
+Return ONLY the JSON, no other text.`;
+    const response = await axios.post('https://api.anthropic.com/v1/messages', {
+        model: 'claude-opus-4-5', max_tokens: 1500,
+        messages: [{ role: 'user', content: [...imageContents, { type: 'text', text: prompt }] }]
+    }, {
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        timeout: 60000
+    });
+    const result = JSON.parse(response.data.content[0].text.replace(/```json\n?|\n?```/g, '').trim());
+    await supabaseAdmin.from('membership_applications').update({
+        ruc: result.aviso_operacion?.ruc || null,
+        ruc_dv: result.aviso_operacion?.ruc_dv || null,
+        business_name: result.aviso_operacion?.business_name || null,
+        verification_result: `${result.verification?.overall_result}:${result.verification?.overall_notes?.substring(0,100)}`
+    }).eq('id', application_id);
+    await logEvent('ai_verification_completed', { application_id, result: result.verification?.overall_result });
+    return result.verification;
 }
 
 // ── Recalculate feature ranks for all featured listings ───────────────────────
