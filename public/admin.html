@@ -1234,7 +1234,10 @@ async function viewDocument(docPath, docType) {
             const idMatch = (card?.textContent||'').match(/ATP[:\s·]+(\d+)/);
             const listingId = idMatch ? idMatch[1] : '';
             const ext = docPath.split('.').pop();
-            const stdName = `${dateStr} pago membresia TPS ${listingId} $${amount}.${ext}`;
+            const payDateInput = prompt('Fecha de pago (yyyymmdd):', dateStr);
+            const payDate = payDateInput ? payDateInput.trim() : dateStr;
+            const amountFixed = parseFloat(amount).toFixed(2);
+            const stdName = `${payDate} pago membresia TPS ${listingId} $${amountFixed}.${ext}`;
             const drivePath = `C:\\Users\\vpias.NUC\\Google Drive\\Aparthotel Boquete\\Contabilidad Tuscany Real Estates SA\\2026\\07 julio\\entradas\\transferencia`;
             navigator.clipboard.writeText(drivePath).catch(()=>{});
             try {
