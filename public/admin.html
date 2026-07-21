@@ -2290,7 +2290,7 @@ async function sendInvoiceOnly(appId) {
     const app = await res.json();
     const vr = app.verification_result||'';
     const m = vr.match(/:([\d.]+):/);
-    const defaultTotal = m ? parseFloat(m[1]).toFixed(2) : (app.duration_months===24?'48.15':'25.68');
+    const defaultTotal = app.amount_paid ? parseFloat(app.amount_paid).toFixed(2) : (m ? parseFloat(m[1]).toFixed(2) : (app.duration_months===24?'48.15':'25.68'));
     const resultEl = document.getElementById('approve-' + appId);
     resultEl.innerHTML = `<div style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:8px;padding:1rem;margin-top:0.8rem;">
         <div style="font-weight:700;color:#adf5ad;margin-bottom:0.8rem;">🧾 Send Invoice</div>
