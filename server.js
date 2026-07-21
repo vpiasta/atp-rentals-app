@@ -1956,15 +1956,16 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 
 // ── Reject application ────────────────────────────────────────────────────────
 app.post('/api/admin/reject-application', requireAdmin, async (req, res) => {
-    const { application_id, reason, custom_note, is_payment_issue } = req.body;
+    const { application_id, reason, custom_note, is_payment_issue, silent } = req.body;
     if (!application_id || !reason) return res.status(400).json({ error: 'Missing fields' });
     const { data: app, error: appError } = await supabaseAdmin.from('membership_applications').select('*').eq('id', application_id).single();
     if (appError || !app) return res.status(404).json({ error: 'Not found' });
 
     const fullReason = reason + (custom_note ? '. ' + custom_note : '');
-    await supabaseAdmin.from('membership_applications').update({ status: 'rejected', notes: 'Razón: ' + fullReason, reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', application_id);
-    await logEvent('application_rejected', { application_id, reason, is_payment_issue });
-
+    const newStatus = silent ? 'archived' : 'rejected';
+    await supabaseAdmin.from('membership_applications').update({ status: newStatus, notes: 'Razón: ' + fullReason, reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', application_id);
+    await logEvent('application_rejected', { application_id, reason, is_payment_issue, silent });
+    if (silent) return res.json({ success: true, email_sent: false });
     const hasEmail  = !!(app.contact_email && app.contact_email.includes('@'));
     let emailSent   = false;
     let waText      = null;

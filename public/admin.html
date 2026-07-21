@@ -1203,6 +1203,7 @@ function renderApplications(apps) {
                     <option>Comprobante de pago inválido o ilegible</option>
                     <option>Hospedaje no encontrado en el registro ATP</option>
                     <option>Cédula no corresponde al representante legal</option>
+                    <option value="__duplicate__">Duplicado — sin notificación</option>
                 </select>
                 <textarea id="reject-note-${app.id}" placeholder="Nota adicional (opcional)..."></textarea>
                 <div style="display:flex;gap:8px;">
@@ -1396,24 +1397,25 @@ async function confirmReject(appId) {
     const reason = document.getElementById('reject-reason-'+appId).value;
     const note   = document.getElementById('reject-note-'+appId).value;
     if (!reason) { alert('Please select a rejection reason'); return; }
-    if (!confirm('Send rejection email to applicant?')) return;
+    const isDuplicate = reason === '__duplicate__';
+    if (!isDuplicate && !confirm('Send rejection email to applicant?')) return;
+    if (isDuplicate && !confirm('Archive as duplicate without notification?')) return;
     try {
         const res = await adminFetch('/api/admin/reject-application', {
-            method:'POST', body: JSON.stringify({ application_id: appId, reason, custom_note: note })
+            method:'POST', body: JSON.stringify({
+                application_id: appId, reason,
+                custom_note: isDuplicate ? 'Duplicado — archivado sin notificación' : note,
+                silent: isDuplicate
+            })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         const card = document.getElementById('app-card-'+appId);
-        if (card) {
-            card.classList.replace('pending','rejected');
-            card.querySelector('.app-status').textContent = 'REJECTED';
-            card.querySelector('.app-status').className = 'app-status rejected';
-            card.querySelector('.app-actions')?.remove();
-            card.querySelector('.reject-form')?.remove();
-        }
-        alert('Rejection email sent.');
+        if (card) card.remove();
+        alert(isDuplicate ? 'Archivado como duplicado.' : 'Rejection email sent.');
     } catch(err) { alert('Error: '+err.message); }
 }
+
 
 // ── Invoice log ───────────────────────────────────────────────────────────────
 async function loadInvoiceLog() {
