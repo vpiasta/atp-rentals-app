@@ -3756,7 +3756,7 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
             sumaValoresRecibidos: grossAmount,
             tiempoPago:          1,  // Contado
             numeroTotalItems:    1,
-            totalTodosItems:     netAmount,
+            totalTodosItems:     grossAmount,
             grupoFormasPago: [{
                 formaPago:       '08',  // Transferencia bancaria
                 valorCuotaPagada: grossAmount // use the same total as sumaValoresRecibidos
