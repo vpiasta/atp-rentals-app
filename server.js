@@ -3750,17 +3750,15 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
             }
         }],
         totales: {
-            totalITBMS:          itbmsAmount,
-            totalGravado:        netAmount,
-            valorTotalFactura:   grossAmount,
-            sumaValoresRecibidos: grossAmount,
-            tiempoPago:          1,  // Contado
-            numeroTotalItems:    1,
-            totalTodosItems:     grossAmount,
+            tiempoPago: 1,  // Contado — the only other required field in this object
             grupoFormasPago: [{
                 formaPago:       '08',  // Transferencia bancaria
-                valorCuotaPagada: grossAmount // use the same total as sumaValoresRecibidos
+                valorCuotaPagada: grossAmount
             }]
+            // totalNeto, totalITBMS, totalGravado, valorTotalFactura, sumaValoresRecibidos,
+            // numeroTotalItems, totalTodosItems, etc. are all "Calculado por el sistema"
+            // per the eFacturaPty docs — left out so eFacturaPty derives and validates
+            // them itself instead of us recomputing (and risking a mismatch).
         }
     };
 
@@ -3778,10 +3776,28 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
             }
         );
 
-        const invoice = response.data;
-        if (invoice.errores && invoice.errores.length > 0) {
-            await logEvent('invoice_errors', { listing_id, errors: invoice.errores });
-            return res.status(422).json({ error: 'Invoice created with errors', errors: invoice.errores });
+        const invoice  = response.data;
+        const resProc  = invoice?.rRetEnviFe?.xProtFe?.rProtFe?.gInfProt?.gResProc || [];
+        const notAuthorized = invoice.autorizada === false || resProc.length > 0;
+
+        await logEvent('efactura_raw_response', {
+            listing_id, application_id,
+            status: response.status,
+            raw_response: invoice
+        });
+
+        if (notAuthorized) {
+            const mappedErrors = resProc.length
+                ? resProc.map(e => ({ codigo: e.dCodRes, mensaje: e.dMsgRes }))
+                : [{ codigo: 'NOT_AUTHORIZED', mensaje: 'autorizada = false, sin detalle de error' }];
+            await logEvent('invoice_errors', { listing_id, application_id, errors: mappedErrors });
+            return res.status(422).json({
+                error: 'Invoice created but not authorized',
+                errors: mappedErrors,
+                cufe: invoice.cufe || null,
+                invoice_id: invoice.invoice || null,
+                raw_response: invoice
+            });
         }
 
         // Activate membership
