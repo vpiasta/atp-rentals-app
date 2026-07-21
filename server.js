@@ -1727,7 +1727,15 @@ app.get('/api/admin/application/:id', requireAdmin, async (req, res) => {
         .eq('id', req.params.id)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
-    res.json(data);
+    // Fetch latest payment amount from payments table
+    const { data: payment } = await supabaseAdmin
+        .from('payments')
+        .select('amount_total, payment_date')
+        .eq('application_id', req.params.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+    res.json({ ...data, amount_paid: payment?.amount_total || null });
 });
 
 // ── Update application status ─────────────────────────────────────────────────
