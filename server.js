@@ -1729,12 +1729,13 @@ app.get('/api/admin/application/:id', requireAdmin, async (req, res) => {
     if (error || !data) return res.status(404).json({ error: 'Not found' });
     // Fetch latest payment amount from payments table
     const { data: payment } = await supabaseAdmin
-        .from('payments')
-        .select('amount_total, payment_date')
-        .eq('application_id', req.params.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+          .from('payments')
+          .select('amount_total, payment_date')
+          .eq('application_id', req.params.id)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
     res.json({ ...data, amount_paid: payment?.amount_total || null });
 });
 
