@@ -228,7 +228,11 @@ async function checkPendingAtpApplications() {
                 const wordMatches = appWords.filter(w => lName.includes(w)).length;
                 const provinceBonus = l.province === app.province ? 1 : 0;
                 return { ...l, score: wordMatches * 10 + provinceBonus };
-            }).filter(l => l.score >= Math.min(2, appWords.length) * 10)
+                }).filter(l => {
+                  const lWords = normalize(l.name).split(/\s+/).filter(w => w.length >= 3);
+                  const required = Math.min(2, appWords.length, lWords.length) * 10;
+                  return l.score >= required;
+                })
               .sort((a,b) => b.score - a.score);
             if (!scored.length) {
                 console.log(`⏳ No ATP match yet for: ${app.property_name}`);
@@ -780,6 +784,12 @@ app.get('/api/rentals', async (req, res) => {
 
     // Apply filters to ATP listings
     if (search) {
+        // Direct ID search
+        const idSearch = search.replace('#','').trim();
+        if (/^\d+$/.test(idSearch)) {
+            const idMatch = filtered.find(r => String(r.id) === idSearch);
+            filtered = idMatch ? [idMatch] : [];
+        } else {
         const s = search.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         const words = s.split(/\s+/).filter(w => w.length >= 3);
         const normalize = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -811,6 +821,7 @@ app.get('/api/rentals', async (req, res) => {
         const atpFinal = atpGood.length > 0 ? atpGood : scored.filter(x => x.score > 0);
         atpFinal.sort((a, b) => b.score - a.score);
         filtered = atpFinal.map(x => x.r);
+        } // end else (non-ID search)
     }
     if (province) filtered = filtered.filter(r => r.province === province);
     if (type)     filtered = filtered.filter(r => r.rental_type === type);
