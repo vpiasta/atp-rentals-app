@@ -3741,7 +3741,7 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
             grupoPrecios: {
                 precioUnitarioTransferencia: netAmount,
                 precioItem:                  netAmount,
-                sumaPrecioItem:              netAmount
+                sumaPrecioItem:              grossAmount
             },
             grupoITBMS: {
                 tasaITBMSAplicable: '01',  // 7% ITBMS
@@ -3749,16 +3749,16 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
             }
         }],
         totales: {
-            totalITBMS:          Math.round(netAmount * 0.07 * 100) / 100,
+            totalITBMS:          itbmsAmount,
             totalGravado:        netAmount,
-            valorTotalFactura:   Math.round(netAmount * 1.07 * 100) / 100,
-            sumaValoresRecibidos: Math.round(netAmount * 1.07 * 100) / 100,
+            valorTotalFactura:   grossAmount,
+            sumaValoresRecibidos: grossAmount,
             tiempoPago:          1,  // Contado
             numeroTotalItems:    1,
             totalTodosItems:     netAmount,
             grupoFormasPago: [{
-                formaPago:       '02',  // Transferencia bancaria
-                valorCuotaPagada: netAmount
+                formaPago:       '08',  // Transferencia bancaria
+                valorCuotaPagada: grossAmount // use the same total as sumaValoresRecibidos
             }]
         }
     };
