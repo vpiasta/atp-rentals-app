@@ -2321,21 +2321,7 @@ async function sendInvoiceOnly(appId) {
     resultEl.classList.add('visible');
 }
 
-// ── POST /api/admin/confirm-payment ──────────────────────────────────────────
-app.post('/api/admin/confirm-payment', requireAdmin, async (req, res) => {
-    const { application_id, listing_id, business_name, ruc, ruc_dv, email } = req.body;
-    if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
-    await supabaseAdmin.from('membership_applications').update({
-        status:        'approved',
-        business_name, ruc, ruc_dv,
-        contact_email: email,
-        reviewed_at:   new Date().toISOString(),
-        reviewed_by:   'admin',
-        notes:         'Payment confirmed. Invoice issued manually.'
-    }).eq('id', application_id);
-    await logEvent('payment_confirmed', { application_id, listing_id });
-    res.json({ success: true });
-});
+
 
 </script>
 </body>
