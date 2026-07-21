@@ -369,6 +369,7 @@
                     <textarea id="edit-notes" placeholder="Internal notes..."></textarea>
                 </div>
             </div>
+            <div id="edit-application-info" style="margin-bottom:1rem;"></div>
             <div class="panel-actions">
                 <button class="panel-btn save" onclick="saveMember()">💾 Save</button>
                 <button class="panel-btn cancel" onclick="closePanel('edit-panel')">Cancel</button>
@@ -431,6 +432,7 @@
                     <option value="no-atp">Not in ATP list</option>
                 </select>
                 <button class="tbtn primary" onclick="loadMembers()">🔄 Refresh</button>
+                <button class="tbtn success" onclick="recalcRanks()">🏆 Recalculate Ranks</button>
             </div>
             <div class="table-wrap">
                 <table>
@@ -855,6 +857,16 @@ async function loadMembers() {
     }
 }
 
+async function recalcRanks() {
+    if (!confirm('Recalculate feature ranks for all members now?')) return;
+    try {
+        const res  = await adminFetch('/api/admin/recalculate-ranks');
+        const data = await res.json();
+        if (data.success) { alert('✅ Feature ranks recalculated.'); loadMembers(); }
+        else alert('❌ Error: ' + (data.error||'unknown'));
+    } catch(err) { alert('Error: ' + err.message); }
+}
+
 function updateStats(members) {
     const today = new Date().toISOString().split('T')[0];
     let counts = { total:0, members:0, expired:0, notInvited:0, invited:0, noResponse:0, refused:0 };
@@ -1006,6 +1018,75 @@ function openEditPanel(id) {
     closePanel('pwd-panel'); closePanel('wa-panel');
     document.getElementById('edit-panel').classList.add('active');
     document.getElementById('edit-panel').scrollIntoView({ behavior:'smooth', block:'start' });
+    loadApplicationInfoForEdit(m.id);
+}
+
+async function loadApplicationInfoForEdit(listingId) {
+    const box = document.getElementById('edit-application-info');
+    box.innerHTML = '<div style="color:#aaa;font-size:0.82rem;">Loading applicant &amp; payment info...</div>';
+    try {
+        const res  = await adminFetch('/api/admin/listing-application-info/' + listingId);
+        const data = await res.json();
+        renderApplicationInfo(data.application, data.payment);
+    } catch(err) {
+        box.innerHTML = `<div style="color:#ff7070;font-size:0.82rem;">Error loading applicant info: ${err.message}</div>`;
+    }
+}
+
+async function downloadInvoicePdf(invoiceUuid, listingId, amountTotal) {
+    try {
+        const res = await adminFetch('/api/admin/invoice-pdf/' + invoiceUuid);
+        if (!res.ok) { const d = await res.json(); alert('Error: ' + (d.error||'download failed')); return; }
+        const blob = await res.blob();
+        const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
+        const amountFixed = amountTotal ? parseFloat(amountTotal).toFixed(2) : '0.00';
+        const fileName = `${dateStr} factura TPS ${listingId} $${amountFixed}.pdf`;
+        const drivePath = `C:\\Users\\vpias.NUC\\Google Drive\\Aparthotel Boquete\\Contabilidad Tuscany Real Estates SA\\2026\\07 julio\\facturas TPS`;
+        navigator.clipboard.writeText(drivePath).catch(()=>{});
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(blobUrl);
+    } catch(err) { alert('Error downloading invoice: ' + err.message); }
+}
+
+function renderApplicationInfo(app, payment) {
+    const box = document.getElementById('edit-application-info');
+    if (!app) { box.innerHTML = '<div style="color:#888;font-size:0.82rem;">No application record found for this listing.</div>'; return; }
+
+    const phoneDigits = (app.contact_phone||'').replace(/[^\d]/g,'').substring(0,8);
+    const waLink   = phoneDigits ? `https://wa.me/507${phoneDigits}` : null;
+    const mailLink = app.contact_email ? `mailto:${app.contact_email}` : null;
+
+    const docButtons = (app.documents||[]).map(doc =>
+        `<button class="doc-btn" onclick="viewDocument('${doc.path}','${doc.type}','${app.verification_result||''}')" style="margin-right:6px;">
+            ${doc.type==='aviso_operacion'?'📋':doc.type==='cedula'?'🪪':'💳'}
+            ${doc.type.replace(/\b\w/g, l => l.toUpperCase())}
+        </button>`).join('');
+
+        const invoiceSection = payment ? `
+            <div style="margin-top:0.6rem;">
+                <strong style="color:#7ec8e3;">🧾 Invoice:</strong>
+                CUFE <code style="font-size:0.75rem;">${payment.cufe||'—'}</code>
+                ${payment.invoice_url ? ` — <a href="${payment.invoice_url}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}
+                ${payment.invoice_uuid ? ` — <button class="doc-btn" onclick="downloadInvoicePdf('${payment.invoice_uuid}','${payment.listing_id}','${payment.amount_total||''}')">⬇️ Download PDF</button>` : ''}
+                <br><span style="color:#aaa;font-size:0.78rem;">Total: $${payment.amount_total||'—'} · ${payment.payment_method||''} · ${payment.invoice_date||''}</span>
+            </div>` : `<div style="margin-top:0.6rem;color:#888;font-size:0.82rem;">No invoice on file yet.</div>`;
+
+    box.innerHTML = `
+        <div style="background:#1a2a3a;border-radius:8px;padding:1rem;">
+            <h4 style="color:#FFD700;margin-bottom:0.6rem;">Applicant &amp; Documents</h4>
+            <div style="font-size:0.85rem;color:#ccc;">
+                <strong>${app.contact_name||'—'}</strong><br>
+                ${mailLink ? `<a href="${mailLink}" style="color:#7ec8e3;">✉️ ${app.contact_email}</a>` : (app.contact_email||'—')}
+                &nbsp;·&nbsp;
+                ${waLink ? `<a href="${waLink}" target="_blank" style="color:#25D366;">💬 ${app.contact_phone}</a>` : (app.contact_phone||'—')}
+            </div>
+            <div style="margin-top:0.6rem;">${docButtons || '<span style="color:#888;font-size:0.8rem;">No documents on file.</span>'}</div>
+            ${invoiceSection}
+        </div>`;
 }
 
 async function saveMember() {

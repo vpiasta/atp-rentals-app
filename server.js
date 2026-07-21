@@ -2024,6 +2024,32 @@ app.get('/api/admin/invoice-log', requireAdmin, async (req, res) => {
     res.json(data);
 });
 
+// ── Get applicant contact/documents + payment/invoice info for a given listing ──
+app.get('/api/admin/listing-application-info/:listingId', requireAdmin, async (req, res) => {
+    const listingId = parseInt(req.params.listingId);
+    try {
+        const { data: application } = await supabaseAdmin
+            .from('membership_applications')
+            .select('*')
+            .eq('listing_id', listingId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        const { data: payment } = await supabaseAdmin
+            .from('payments')
+            .select('*')
+            .eq('listing_id', listingId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        res.json({ application: application || null, payment: payment || null });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 app.post('/api/submit-payment',
     uploadDocs.fields([{ name: 'file_pago', maxCount: 1 }]),
@@ -3346,6 +3372,32 @@ app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
     }
 });
 
+// ── Download the CAFE (invoice PDF) from eFacturaPty, proxied through our server ──
+// so the API bearer token never reaches the browser.
+app.get('/api/admin/invoice-pdf/:invoiceId', requireAdmin, async (req, res) => {
+    const { invoiceId } = req.params;
+    try {
+        const response = await axios.get(
+            `https://api.efacturapty.com/api/v1/Invoices/${invoiceId}/cafe-file`,
+            {
+                headers: {
+                    'Accept':           'application/pdf',
+                    'Accept-Language':  'es-PA',
+                    'Authorization':    'Bearer ' + process.env.EFACTURA_API_KEY
+                },
+                responseType: 'arraybuffer',
+                timeout: 30000
+            }
+        );
+        res.set('Content-Type', 'application/pdf');
+        res.send(Buffer.from(response.data));
+    } catch (err) {
+        const errMsg = err.response?.data || err.message;
+        console.error('CAFE download error:', errMsg);
+        res.status(500).json({ error: 'Could not download invoice PDF', detail: errMsg });
+    }
+});
+
 // ── POST /api/admin/verify-documents ──────────────────────────────────────────
 app.post('/api/admin/verify-documents', requireAdmin, async (req, res) => {
     const { application_id } = req.body;
@@ -3776,9 +3828,9 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
             }
         );
 
-        const invoice  = response.data;
-        const resProc  = invoice?.rRetEnviFe?.xProtFe?.rProtFe?.gInfProt?.gResProc || [];
-        const notAuthorized = invoice.autorizada === false || resProc.length > 0;
+        const invoice    = response.data;
+        const resProc    = invoice?.rRetEnviFe?.xProtFe?.rProtFe?.gInfProt?.gResProc || [];
+        const authorized = invoice.autorizada === true;
 
         await logEvent('efactura_raw_response', {
             listing_id, application_id,
@@ -3786,13 +3838,13 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
             raw_response: invoice
         });
 
-        if (notAuthorized) {
+        if (!authorized) {
             const mappedErrors = resProc.length
                 ? resProc.map(e => ({ codigo: e.dCodRes, mensaje: e.dMsgRes }))
                 : [{ codigo: 'NOT_AUTHORIZED', mensaje: 'autorizada = false, sin detalle de error' }];
             await logEvent('invoice_errors', { listing_id, application_id, errors: mappedErrors });
             return res.status(422).json({
-                error: 'Invoice created but not authorized',
+                error: 'Invoice not authorized',
                 errors: mappedErrors,
                 cufe: invoice.cufe || null,
                 invoice_id: invoice.invoice || null,
