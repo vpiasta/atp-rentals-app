@@ -2236,13 +2236,28 @@ async function confirmInvoice(appId, mode) {
                 const invoiceUrl = data2.invoice?.invoice
                     ? `https://admin.efacturapty.com/external/invoices/${data2.invoice.invoice}`
                     : null;
-                msgEl.innerHTML = `<span style="color:#adf5ad;">✅ Invoice sent! CUFE: ${data2.invoice?.cufe||'OK'}${invoiceUrl ? ` — <a href="${invoiceUrl}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}</span>`;
-                setTimeout(() => loadApplications(), 2000);
+                msgEl.innerHTML = `
+                    <div style="color:#adf5ad;">✅ Invoice sent! CUFE: ${data2.invoice?.cufe||'OK'}${invoiceUrl ? ` — <a href="${invoiceUrl}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}</div>
+                    <details style="margin-top:8px;">
+                        <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa de eFacturaPty</summary>
+                        <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#adf5ad;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.invoice, null, 2)}</textarea>
+                    </details>
+                    <button onclick="loadApplications()" style="margin-top:8px;padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.8rem;">🔄 Refresh applications now</button>`;
               } else if (data2.errors) {
                   const errList = data2.errors.map(e => `${e.codigo}: ${e.mensaje}`).join('<br>');
-                  msgEl.innerHTML = `<span style="color:#ff7070;">❌ Invoice errors (not confirmed):<br>${errList}</span>`;
+                  msgEl.innerHTML = `
+                    <div style="color:#ff7070;">❌ Invoice errors (not confirmed):<br>${errList}</div>
+                    <details style="margin-top:8px;">
+                        <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa de eFacturaPty</summary>
+                        <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#ff7070;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.raw_response || data2, null, 2)}</textarea>
+                    </details>`;
               } else {
-                  msgEl.innerHTML = `<span style="color:#ff7070;">❌ API Error: ${JSON.stringify(data2.detail||data2.error)}</span>`;
+                  msgEl.innerHTML = `
+                    <div style="color:#ff7070;">❌ API Error</div>
+                    <details style="margin-top:8px;" open>
+                        <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa</summary>
+                        <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#ff7070;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.detail||data2.error, null, 2)}</textarea>
+                    </details>`;
               }
             return;
         }
@@ -2278,8 +2293,8 @@ async function confirmInvoice(appId, mode) {
             <b>Archivo factura:</b> <span style="color:#7ec8e3;">${invoiceFile}</span><br>
             <b>Carpeta:</b> <span style="color:#aaa;font-size:0.78rem;">${drivePath}</span>
             </div>
-            <div style="color:#aaa;font-size:0.78rem;margin-top:4px;">📋 Nombre del archivo copiado al portapapeles</div>`;
-            setTimeout(() => loadApplications(), 2000);
+            <div style="color:#aaa;font-size:0.78rem;margin-top:4px;">📋 Nombre del archivo copiado al portapapeles</div>
+            <button onclick="loadApplications()" style="margin-top:8px;padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.8rem;">🔄 Refresh applications now</button>`;
         } else {
             msgEl.innerHTML = `<span style="color:#ff7070;">❌ Error: ${data.error||'Unknown error'}</span>`;
         }
