@@ -3699,10 +3699,12 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
     if (!listing_id || !plan || !business_name || !ruc || !ruc_dv || !email)
         return res.status(400).json({ error: 'Missing required fields' });
 
-    const planCode  = plan === '2year' ? 'TPS02' : 'TPS01';
-    const planPrice = plan === '2year' ? 45 : 24;
-    const planDesc  = plan === '2year' ? 'Membresía Trusted Panama Stays — 2 años' : 'Membresía Trusted Panama Stays — 1 año';
-    const now       = new Date().toISOString().replace('Z', '-05:00');
+    const planCode    = plan === '2year' ? 'TPS02' : 'TPS01';
+    const planDesc    = plan === '2year' ? 'Membresía Trusted Panama Stays — 2 años' : 'Membresía Trusted Panama Stays — 1 año';
+    const totalPaid   = parseFloat(req.body.amount_total) || (plan === '2year' ? 48.15 : 25.68);
+    const netAmount   = Math.round(totalPaid / 1.07 * 100) / 100;
+    const itbmsAmount = Math.round(netAmount * 0.07 * 100) / 100;
+    const planPrice   = netAmount; // kept for backward compat with invoice body fields
 
     // Multiple recipients: member + TPS copy
     const recipients = `${email};info@trustedpanamastays.com`;
@@ -3736,26 +3738,26 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
             cantidadProductoServicio:         1,
             codigoItemCodificacionPanamenaAbreviada: 81,  // Servicios de tecnología
             grupoPrecios: {
-                precioUnitarioTransferencia: planPrice,
-                precioItem:                  planPrice,
-                sumaPrecioItem:              planPrice
+                precioUnitarioTransferencia: netAmount,
+                precioItem:                  netAmount,
+                sumaPrecioItem:              netAmount
             },
             grupoITBMS: {
                 tasaITBMSAplicable: '02',  // 7% ITBMS
-                montoITBMS:         Math.round(planPrice * 0.07 * 100) / 100
+                montoITBMS:         itbmsAmount
             }
         }],
         totales: {
-            totalITBMS:          Math.round(planPrice * 0.07 * 100) / 100,
-            totalGravado:        planPrice,
-            valorTotalFactura:   Math.round(planPrice * 1.07 * 100) / 100,
-            sumaValoresRecibidos: Math.round(planPrice * 1.07 * 100) / 100,
+            totalITBMS:          Math.round(netAmount * 0.07 * 100) / 100,
+            totalGravado:        netAmount,
+            valorTotalFactura:   Math.round(netAmount * 1.07 * 100) / 100,
+            sumaValoresRecibidos: Math.round(netAmount * 1.07 * 100) / 100,
             tiempoPago:          1,  // Contado
             numeroTotalItems:    1,
-            totalTodosItems:     planPrice,
+            totalTodosItems:     netAmount,
             grupoFormasPago: [{
                 formaPago:       '02',  // Transferencia bancaria
-                valorCuotaPagada: planPrice
+                valorCuotaPagada: netAmount
             }]
         }
     };
