@@ -3743,7 +3743,7 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
                 sumaPrecioItem:              netAmount
             },
             grupoITBMS: {
-                tasaITBMSAplicable: '02',  // 7% ITBMS
+                tasaITBMSAplicable: '01',  // 7% ITBMS
                 montoITBMS:         itbmsAmount
             }
         }],
