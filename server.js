@@ -3705,6 +3705,7 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
     const totalPaid   = parseFloat(req.body.amount_total) || (plan === '2year' ? 48.15 : 25.68);
     const netAmount   = Math.round(totalPaid / 1.07 * 100) / 100;
     const itbmsAmount = Math.round(netAmount * 0.07 * 100) / 100;
+    const grossAmount = Math.round((netAmount + itbmsAmount) * 100) / 100;
     const planPrice   = netAmount; // kept for backward compat with invoice body fields
 
     // Multiple recipients: member + TPS copy
@@ -3714,7 +3715,7 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
         datosGenerales: {
             tipoDocumento:     '01',  // Factura de operación interna
             puntoFacturacion:  '200',
-            fechaEmision:      now,
+            fechaEmision:      new Date().toISOString(),,
             naturalezaOperacion: '01', // Venta
             tipoOperacion:     1,      // Salida/venta
             destinoOperacion:  1,      // Panamá
