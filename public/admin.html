@@ -2288,15 +2288,32 @@ async function confirmInvoice(appId, mode) {
 async function sendInvoiceOnly(appId) {
     const res = await adminFetch('/api/admin/application/' + appId);
     const app = await res.json();
+    const vr = app.verification_result||'';
+    const m = vr.match(/:([\d.]+):/);
+    const defaultTotal = m ? parseFloat(m[1]).toFixed(2) : (app.duration_months===24?'48.15':'25.68');
     const resultEl = document.getElementById('approve-' + appId);
     resultEl.innerHTML = `<div style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:8px;padding:1rem;margin-top:0.8rem;">
         <div style="font-weight:700;color:#adf5ad;margin-bottom:0.8rem;">🧾 Send Invoice</div>
-        <div style="font-size:0.85rem;color:#aaa;margin-bottom:0.8rem;">
-            Invoice will be sent to: <strong>${app.contact_email}</strong><br>
-            Amount: <strong>$${(() => { const vr = app.verification_result||''; const m = vr.match(/:([\d.]+):/); return m ? parseFloat(m[1]).toFixed(2) : (app.duration_months===24?'48.15':'25.68'); })()}</strong> (incl. 7% ITBMS)
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:0.8rem;font-size:0.82rem;">
+            <div><div style="color:#aaa;font-size:0.7rem;">Nombre</div>
+                <input id="inv-name-${appId}" type="text" value="${app.business_name||app.contact_name||''}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:200px;"></div>
+            <div><div style="color:#aaa;font-size:0.7rem;">RUC</div>
+                <input id="inv-ruc-${appId}" type="text" value="${app.ruc||''}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:130px;"></div>
+            <div><div style="color:#aaa;font-size:0.7rem;">DV</div>
+                <input id="inv-dv-${appId}" type="text" value="${app.ruc_dv||''}" maxlength="2" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:50px;"></div>
+            <div><div style="color:#aaa;font-size:0.7rem;">Email</div>
+                <input id="inv-email-${appId}" type="text" value="${app.contact_email||''}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:180px;"></div>
+            <div><div style="color:#aaa;font-size:0.7rem;">Plan</div>
+                <select id="inv-plan-${appId}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;">
+                    <option value="1year" ${app.duration_months!==24?'selected':''}>1 año ($24)</option>
+                    <option value="2year" ${app.duration_months===24?'selected':''}>2 años ($45)</option>
+                </select></div>
+            <div><div style="color:#aaa;font-size:0.7rem;">Total pagado ($)</div>
+                <input id="inv-total-${appId}" type="number" step="0.01" value="${defaultTotal}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:80px;"></div>
         </div>
         <div style="display:flex;gap:8px;">
-            <button onclick="confirmInvoice(${appId})" style="padding:6px 16px;background:#00a859;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;">✅ Confirm & Send</button>
+            <button onclick="confirmInvoice(${appId},'manual')" style="padding:6px 16px;background:#005ca9;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;">📋 Manual</button>
+            <button onclick="confirmInvoice(${appId},'api')" style="padding:6px 16px;background:#00a859;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;">🧾 Via API</button>
             <button onclick="document.getElementById('approve-${appId}').innerHTML=''" style="padding:6px 12px;background:#555;color:white;border:none;border-radius:5px;cursor:pointer;">Cancel</button>
         </div>
         <div id="inv-result-${appId}" style="margin-top:0.5rem;font-size:0.82rem;"></div>
