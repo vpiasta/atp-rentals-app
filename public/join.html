@@ -242,53 +242,95 @@
         <div class="form-card">
             <h3>📋 Información del Hospedaje</h3>
 
-            <!-- Registration type selector -->
+            <!-- Registration type selector — REQUIRED, no default -->
             <div style="margin-bottom:1.2rem;">
                 <label style="font-size:0.8rem;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:0.6rem;">
                     Tipo de registro <span class="required">*</span>
                 </label>
                 <div style="display:flex;gap:1rem;flex-wrap:wrap;">
-                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:0.6rem 1rem;border:2px solid #005ca9;border-radius:8px;background:#f0f7ff;font-size:0.92rem;font-weight:600;">
-                        <input type="radio" name="reg-type" value="atp" id="reg-atp" checked onchange="setRegType('atp')" style="width:16px;height:16px;">
+                    <label id="lbl-atp" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:0.6rem 1rem;border:2px solid #e1e5e9;border-radius:8px;background:#fafafa;font-size:0.92rem;font-weight:600;">
+                        <input type="radio" name="reg-type" value="atp" id="reg-atp" onchange="setRegType('atp')" style="width:16px;height:16px;">
                         ✅ Registrado con la ATP
                     </label>
-                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:0.6rem 1rem;border:2px solid #e1e5e9;border-radius:8px;background:#fafafa;font-size:0.92rem;font-weight:600;">
+                    <label id="lbl-mici" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:0.6rem 1rem;border:2px solid #e1e5e9;border-radius:8px;background:#fafafa;font-size:0.92rem;font-weight:600;">
                         <input type="radio" name="reg-type" value="mici" id="reg-mici" onchange="setRegType('mici')" style="width:16px;height:16px;">
                         📄 Solo Aviso de Operación (MiCI)
                     </label>
                 </div>
-                <p id="reg-type-hint" style="font-size:0.78rem;color:#888;margin-top:0.4rem;">
-                    Su hospedaje aparece en el  de Hospedajes Vigentes de la ATP.
-                </p>
+                <p id="reg-type-hint" style="font-size:0.78rem;color:#888;margin-top:0.4rem;"></p>
+                <span id="err-reg-type" style="display:none;color:#cc0000;font-size:0.78rem;">Por favor seleccione el tipo de registro</span>
             </div>
 
-            <div class="form-grid">
-                <div class="field-group">
-                    <label id="property-name-label">Nombre del hospedaje <span class="required">*</span></label>
-                    <input type="text" id="property-name" placeholder="Nombre como registrado con la ATP" required>
-                    <span class="error-msg">Campo requerido</span>
+            <!-- Fields hidden until reg type selected -->
+            <div id="reg-fields" style="display:none;">
+
+            <!-- ATP lookup -->
+            <div id="atp-lookup-section">
+                <div class="form-grid">
+                    <div class="field-group">
+                        <label>Provincia <span class="required">*</span></label>
+                        <select id="province" required onchange="onProvinceChange()">
+                            <option value="">Seleccione...</option>
+                            <option>BOCAS DEL TORO</option>
+                            <option>CHIRIQUÍ</option>
+                            <option>COCLÉ</option>
+                            <option>COLÓN</option>
+                            <option>DARIÉN</option>
+                            <option>HERRERA</option>
+                            <option>LOS SANTOS</option>
+                            <option>PANAMÁ</option>
+                            <option>PANAMÁ OESTE</option>
+                            <option>VERAGUAS</option>
+                            <option>GUNA YALA</option>
+                            <option>EMBERÁ</option>
+                            <option>NGÄBE BUGLÉ</option>
+                        </select>
+                        <span class="error-msg">Campo requerido</span>
+                    </div>
+                    <div class="field-group">
+                        <label id="property-name-label">Buscar hospedaje <span class="required">*</span></label>
+                        <input type="text" id="property-name" placeholder="Escriba para buscar..." required oninput="onNameSearch()" autocomplete="off">
+                        <span class="error-msg">Campo requerido</span>
+                    </div>
                 </div>
-                <div class="field-group">
-                    <label>Provincia <span class="required">*</span></label>
-                    <select id="province" required>
-                        <option value="">Seleccione...</option>
-                        <option>BOCAS DEL TORO</option>
-                        <option>CHIRIQUÍ</option>
-                        <option>COCLÉ</option>
-                        <option>COLÓN</option>
-                        <option>DARIÉN</option>
-                        <option>HERRERA</option>
-                        <option>LOS SANTOS</option>
-                        <option>PANAMÁ</option>
-                        <option>PANAMÁ OESTE</option>
-                        <option>VERAGUAS</option>
-                        <option>GUNA YALA</option>
-                        <option>EMBERÁ</option>
-                        <option>NGÄBE BUGLÉ</option>
-                    </select>
-                    <span class="error-msg">Campo requerido</span>
+                <!-- ATP search results dropdown -->
+                <div id="atp-results" style="display:none;background:white;border:1px solid #ccd;border-radius:8px;max-height:200px;overflow-y:auto;margin-top:-0.5rem;margin-bottom:1rem;box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+                </div>
+                <!-- Selected ATP listing confirmation -->
+                <div id="atp-selected" style="display:none;background:#e8f4e8;border:1px solid #00a859;border-radius:8px;padding:0.8rem 1rem;margin-bottom:1rem;font-size:0.9rem;">
+                    <strong style="color:#1a5c1a;">✅ Hospedaje seleccionado:</strong>
+                    <span id="atp-selected-name" style="color:#1a5c1a;"></span>
+                    <span id="atp-selected-id" style="color:#888;font-size:0.8rem;"></span>
+                    <a href="#" onclick="clearAtpSelection();return false;" style="margin-left:1rem;color:#cc0000;font-size:0.8rem;">✕ Cambiar</a>
+                </div>
+                <!-- Manual ID entry if not found -->
+                <div id="atp-not-found" style="display:none;background:#fff8e8;border:1px solid #e67e22;border-radius:8px;padding:0.8rem 1rem;margin-bottom:1rem;font-size:0.85rem;">
+                    <strong style="color:#7a4000;">⚠️ No encontrado automáticamente</strong><br>
+                    Si su hospedaje está registrado con la ATP, ingrese su número de ID:
+                    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
+                        <span style="color:#555;">#</span>
+                        <input type="number" id="atp-manual-id" placeholder="ej. 11407" style="padding:5px 8px;border:1px solid #ccc;border-radius:5px;width:120px;" oninput="onManualIdChange()">
+                        <span id="atp-manual-status" style="font-size:0.8rem;color:#888;"></span>
+                    </div>
+                    <p style="margin-top:0.5rem;font-size:0.78rem;color:#888;">El ID aparece en el listado de la ATP. Si no tiene ID, seleccione "Solo Aviso de Operación (MiCI)" arriba.</p>
                 </div>
             </div>
+
+            <!-- MiCI name field (shown only for MiCI) -->
+            <div id="mici-name-section" style="display:none;">
+                <div class="form-grid single">
+                    <div class="field-group">
+                        <label>Nombre público de su hospedaje <span class="required">*</span></label>
+                        <input type="text" id="mici-property-name" placeholder="Nombre deseado para el directorio">
+                        <span class="error-msg">Campo requerido</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- hidden field for confirmed listing_id -->
+            <input type="hidden" id="confirmed-listing-id" value="">
+
+            </div><!-- end reg-fields -->
 
             <!-- MiCI-only: public phone and email -->
             <div id="mici-fields" style="display:none;margin-top:0.5rem;">
@@ -514,36 +556,125 @@ let selectedPayment = '';
 let captchaA = 0, captchaB = 0;
 
 // ── Registration type ────────────────────────────────────────────────────────
-let selectedRegType = 'atp';
+let selectedRegType = null;
+let selectedAtpListing = null; // { id, name }
+let atpSearchTimer = null;
 
 function setRegType(type) {
     selectedRegType = type;
     const isMici = type === 'mici';
 
     // Update radio button styling
-    document.querySelector('label[for="reg-atp"]') && null; // just visual
-    document.querySelectorAll('label:has(input[name="reg-type"])').forEach(lbl => {
-        const val = lbl.querySelector('input').value;
-        lbl.style.borderColor = val === type ? '#005ca9' : '#e1e5e9';
-        lbl.style.background  = val === type ? '#f0f7ff' : '#fafafa';
-    });
+    document.getElementById('lbl-atp').style.borderColor  = !isMici ? '#005ca9' : '#e1e5e9';
+    document.getElementById('lbl-atp').style.background   = !isMici ? '#f0f7ff' : '#fafafa';
+    document.getElementById('lbl-mici').style.borderColor = isMici  ? '#005ca9' : '#e1e5e9';
+    document.getElementById('lbl-mici').style.background  = isMici  ? '#f0f7ff' : '#fafafa';
 
-    // Update name field label and placeholder
-    const nameLabel = document.getElementById('property-name-label');
-    const nameInput = document.getElementById('property-name');
-    const hint      = document.getElementById('reg-type-hint');
-    if (isMici) {
-        nameLabel.innerHTML = 'Nombre público de su hospedaje <span class="required">*</span>';
-        nameInput.placeholder = 'Nombre deseado para el directorio';
-        hint.textContent = 'Su hospedaje tiene Aviso de Operación pero no está en el registro de la ATP.';
-    } else {
-        nameLabel.innerHTML = 'Nombre del hospedaje <span class="required">*</span>';
-        nameInput.placeholder = 'Nombre como registrado con la ATP';
-        hint.textContent = 'Su hospedaje aparece en el  de Hospedajes Vigentes de la ATP.';
+    // Show hint
+    const hint = document.getElementById('reg-type-hint');
+    hint.textContent = isMici
+        ? 'Su hospedaje tiene Aviso de Operación pero no está en el registro de la ATP.'
+        : 'Su hospedaje aparece en el registro de Hospedajes Vigentes de la ATP.';
+
+    // Hide error
+    document.getElementById('err-reg-type').style.display = 'none';
+
+    // Show fields
+    document.getElementById('reg-fields').style.display = 'block';
+    document.getElementById('atp-lookup-section').style.display = isMici ? 'none' : 'block';
+    document.getElementById('mici-name-section').style.display  = isMici ? 'block' : 'none';
+    document.getElementById('mici-fields').style.display        = isMici ? 'block' : 'none';
+
+    // Clear ATP selection when switching
+    if (isMici) clearAtpSelection();
+}
+
+function onProvinceChange() {
+    clearAtpSelection();
+    document.getElementById('property-name').value = '';
+    document.getElementById('atp-results').style.display = 'none';
+    document.getElementById('atp-not-found').style.display = 'none';
+}
+
+function clearAtpSelection() {
+    selectedAtpListing = null;
+    document.getElementById('confirmed-listing-id').value = '';
+    document.getElementById('atp-selected').style.display = 'none';
+    document.getElementById('atp-results').style.display = 'none';
+    document.getElementById('atp-not-found').style.display = 'none';
+    document.getElementById('property-name').value = '';
+    document.getElementById('atp-manual-id').value = '';
+    document.getElementById('atp-manual-status').textContent = '';
+}
+
+async function onNameSearch() {
+    if (selectedRegType === 'mici') return;
+    const query = document.getElementById('property-name').value.trim();
+    const province = document.getElementById('province').value;
+    if (query.length < 2) {
+        document.getElementById('atp-results').style.display = 'none';
+        return;
     }
+    clearTimeout(atpSearchTimer);
+    atpSearchTimer = setTimeout(async () => {
+        try {
+            const params = new URLSearchParams({ search: query });
+            if (province) params.append('province', province);
+            const res = await fetch(`${API}/api/rentals?${params}`);
+            const data = await res.json();
+            const resultsEl = document.getElementById('atp-results');
+            const members = data.filter(r => r.atp_active !== false);
+            const top = members.slice(0, 8);
+            if (top.length === 0) {
+                resultsEl.style.display = 'none';
+                document.getElementById('atp-not-found').style.display = 'block';
+                return;
+            }
+            document.getElementById('atp-not-found').style.display = 'none';
+            resultsEl.innerHTML = top.map(r =>
+                `<div onclick="selectAtpListing(${r.id}, '${r.name.replace(/'/g, "\'")}', '${r.province}')"
+                      style="padding:0.6rem 1rem;cursor:pointer;border-bottom:1px solid #eee;font-size:0.88rem;"
+                      onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background=''">
+                    <strong>${r.name}</strong> <span style="color:#888;font-size:0.78rem;">#${r.id} · ${r.province}</span>
+                </div>`
+            ).join('');
+            resultsEl.style.display = 'block';
+        } catch(e) { console.error('Search error:', e); }
+    }, 350);
+}
 
-    // Show/hide MiCI fields
-    document.getElementById('mici-fields').style.display = isMici ? 'block' : 'none';
+function selectAtpListing(id, name, province) {
+    selectedAtpListing = { id, name };
+    document.getElementById('confirmed-listing-id').value = id;
+    document.getElementById('property-name').value = name;
+    document.getElementById('province').value = province;
+    document.getElementById('atp-results').style.display = 'none';
+    document.getElementById('atp-not-found').style.display = 'none';
+    document.getElementById('atp-selected-name').textContent = name;
+    document.getElementById('atp-selected-id').textContent = ' (#' + id + ')';
+    document.getElementById('atp-selected').style.display = 'block';
+}
+
+async function onManualIdChange() {
+    const idVal = document.getElementById('atp-manual-id').value.trim();
+    const statusEl = document.getElementById('atp-manual-status');
+    if (!idVal || idVal.length < 4) { statusEl.textContent = ''; return; }
+    statusEl.textContent = '⏳ Buscando...';
+    try {
+        const res = await fetch(`${API}/api/listing/${idVal}`);
+        if (res.ok) {
+            const data = await res.json();
+            statusEl.innerHTML = `<span style="color:#00a859;">✅ ${data.name}</span>`;
+            selectedAtpListing = { id: data.id, name: data.name };
+            document.getElementById('confirmed-listing-id').value = data.id;
+            document.getElementById('property-name').value = data.name;
+            document.getElementById('province').value = data.province;
+        } else {
+            statusEl.innerHTML = '<span style="color:#cc0000;">❌ ID no encontrado</span>';
+            selectedAtpListing = null;
+            document.getElementById('confirmed-listing-id').value = '';
+        }
+    } catch(e) { statusEl.textContent = 'Error'; }
 }
 
 // ── Plan selection ────────────────────────────────────────────────────────────
@@ -594,8 +725,29 @@ function generateCaptcha() {
 function validateForm() {
     let valid = true;
 
+    // Registration type required
+    if (!selectedRegType) {
+        document.getElementById('err-reg-type').style.display = 'block';
+        valid = false;
+    }
+
+    // ATP: must have selected a listing
+    if (selectedRegType === 'atp' && !selectedAtpListing) {
+        showMessage('Por favor seleccione su hospedaje de la lista o ingrese el ID de la ATP.', 'error');
+        valid = false;
+    }
+
+    // MiCI: name required
+    if (selectedRegType === 'mici') {
+        const miciName = document.getElementById('mici-property-name');
+        if (!miciName.value.trim()) {
+            miciName.classList.add('error');
+            miciName.parentElement.querySelector('.error-msg').style.display = 'block';
+            valid = false;
+        }
+    }
+
     const required = [
-        { id: 'property-name', errId: null },
         { id: 'province',      errId: null },
         { id: 'contact-name',  errId: null },
         { id: 'contact-email', errId: null },
@@ -703,7 +855,11 @@ async function submitForm() {
 
     const formData = new FormData();
     formData.append('registration_type', selectedRegType);
-    formData.append('property_name',   document.getElementById('property-name').value.trim());
+    const propertyName = selectedRegType === 'mici'
+        ? document.getElementById('mici-property-name').value.trim()
+        : document.getElementById('property-name').value.trim();
+    formData.append('property_name', propertyName);
+    if (selectedAtpListing) formData.append('listing_id_hint', selectedAtpListing.id);
     formData.append('listing_phone',   document.getElementById('listing-phone')?.value.trim() || '');
     formData.append('listing_email',   document.getElementById('listing-email')?.value.trim() || '');
     formData.append('province',        document.getElementById('province').value);
@@ -756,6 +912,8 @@ async function submitForm() {
 // ── Init ──────────────────────────────────────────────────────────────────────
 selectPlan('trial');
 generateCaptcha();
+// No default reg type — user must choose
+document.getElementById('reg-fields').style.display = 'none';
 </script>
 </body>
 </html>
