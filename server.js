@@ -1471,7 +1471,7 @@ app.post('/api/membership-apply',
         property_name, province, contact_name, contact_email,
         contact_phone, how_found, membership_type,
         duration_months, payment_method,
-        registration_type, listing_phone, listing_email
+        registration_type, listing_phone, listing_email, listing_id_hint
     } = req.body;
 
     if (!property_name || !contact_name || !contact_email || !contact_phone) {
@@ -1487,21 +1487,41 @@ app.post('/api/membership-apply',
         const isMici  = registration_type === 'mici';
 
         if (!isMici) {
-          const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
-          const appWords = normalize(property_name).split(/\s+/).filter(w => w.length >= 3);
-          const { data: candidates } = await supabase
-            .from('listings')
-            .select('id, name, province, is_trial, trial_started_at, is_member')
-            .limit(2000);
+          if (listing_id_hint) {
+            // Frontend already identified the listing via dropdown
+            const { data: hintListing } = await supabase
+                .from('listings')
+                .select('id, name, is_trial, trial_started_at, is_member')
+                .eq('id', parseInt(listing_id_hint))
+                .single();
+            if (hintListing) {
+                listingId = hintListing.id;
+                if (membership_type === 'trial' &&
+                    (hintListing.trial_started_at || hintListing.is_member)) {
+                    return res.status(400).json({
+                        error: 'Este hospedaje ya ha tenido una membresía de prueba o activa. Solo se permite una prueba gratuita por hospedaje. Por favor seleccione un plan de pago.'
+                    });
+                }
+            }
+          } else {
+            // Fallback: word-by-word scoring match
+            const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+            const appWords = normalize(property_name).split(/\s+/).filter(w => w.length >= 3);
+            const { data: candidates } = await supabase
+                .from('listings')
+                .select('id, name, province, is_trial, trial_started_at, is_member')
+                .limit(2000);
             const scored = (candidates||[]).map(l => {
-              const lName = normalize(l.name);
-              const matches = appWords.filter(w => lName.includes(w)).length;
-              const provinceBonus = l.province === province ? 1 : 0;
-              return { ...l, score: matches * 10 + provinceBonus };
-          }).filter(l => l.score >= Math.min(2, appWords.length) * 10)
-            .sort((a,b) => b.score - a.score);
-          const matchingListings = scored.slice(0, 1);
-
+                const lName = normalize(l.name);
+                const lWords = normalize(l.name).split(/\s+/).filter(w => w.length >= 3);
+                const matches = appWords.filter(w => lName.includes(w)).length;
+                const provinceBonus = l.province === province ? 1 : 0;
+                return { ...l, score: matches * 10 + provinceBonus };
+            }).filter(l => {
+                const lWords = l.name.split(/\s+/).filter(w => w.length >= 3);
+                return l.score >= Math.min(2, appWords.length, lWords.length) * 10;
+            }).sort((a,b) => b.score - a.score);
+            const matchingListings = scored.slice(0, 1);
             if (matchingListings && matchingListings.length > 0) {
                 listingId = matchingListings[0].id;
                 if (membership_type === 'trial' &&
@@ -1511,6 +1531,7 @@ app.post('/api/membership-apply',
                     });
                 }
             }
+          }
         }
 
         // ── Upload documents to Supabase Storage ──────────────────────────
