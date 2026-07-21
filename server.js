@@ -3715,7 +3715,7 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
         datosGenerales: {
             tipoDocumento:     '01',  // Factura de operación interna
             puntoFacturacion:  '200',
-            fechaEmision:      new Date().toISOString(),,
+            fechaEmision:      new Date().toISOString(),
             naturalezaOperacion: '01', // Venta
             tipoOperacion:     1,      // Salida/venta
             destinoOperacion:  1,      // Panamá
