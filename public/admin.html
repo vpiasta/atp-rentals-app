@@ -2293,7 +2293,7 @@ async function sendInvoiceOnly(appId) {
         <div style="font-weight:700;color:#adf5ad;margin-bottom:0.8rem;">🧾 Send Invoice</div>
         <div style="font-size:0.85rem;color:#aaa;margin-bottom:0.8rem;">
             Invoice will be sent to: <strong>${app.contact_email}</strong><br>
-            Amount: <strong>${app.duration_months === 24 ? '$48.15' : '$25.68'}</strong> (incl. 7% ITBMS)
+            Amount: <strong>$${(() => { const vr = app.verification_result||''; const m = vr.match(/:([\d.]+):/); return m ? parseFloat(m[1]).toFixed(2) : (app.duration_months===24?'48.15':'25.68'); })()}</strong> (incl. 7% ITBMS)
         </div>
         <div style="display:flex;gap:8px;">
             <button onclick="confirmInvoice(${appId})" style="padding:6px 16px;background:#00a859;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;">✅ Confirm & Send</button>
