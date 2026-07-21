@@ -2238,9 +2238,12 @@ async function confirmInvoice(appId, mode) {
                     : null;
                 msgEl.innerHTML = `<span style="color:#adf5ad;">✅ Invoice sent! CUFE: ${data2.invoice?.cufe||'OK'}${invoiceUrl ? ` — <a href="${invoiceUrl}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}</span>`;
                 setTimeout(() => loadApplications(), 2000);
-            } else {
-                msgEl.innerHTML = `<span style="color:#ff7070;">❌ API Error: ${JSON.stringify(data2.detail||data2.error)}</span>`;
-            }
+              } else if (data2.errors) {
+                  const errList = data2.errors.map(e => `${e.codigo}: ${e.mensaje}`).join('<br>');
+                  msgEl.innerHTML = `<span style="color:#ff7070;">❌ Invoice errors (not confirmed):<br>${errList}</span>`;
+              } else {
+                  msgEl.innerHTML = `<span style="color:#ff7070;">❌ API Error: ${JSON.stringify(data2.detail||data2.error)}</span>`;
+              }
             return;
         }
 

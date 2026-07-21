@@ -3777,6 +3777,10 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
         );
 
         const invoice = response.data;
+        if (invoice.errores && invoice.errores.length > 0) {
+            await logEvent('invoice_errors', { listing_id, errors: invoice.errores });
+            return res.status(422).json({ error: 'Invoice created with errors', errors: invoice.errores });
+        }
 
         // Activate membership
         const paidUntil = new Date();
