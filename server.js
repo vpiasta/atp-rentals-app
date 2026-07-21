@@ -3276,19 +3276,35 @@ async function recalculateFeatureRanks() {
         const today = new Date().toISOString().split('T')[0];
         const { data: featured } = await supabaseAdmin
             .from('listings')
-            .select('id, is_trial, membership_paid_until, trial_started_at')
+            .select('id, is_trial, membership_paid_until, trial_started_at, photos')
             .eq('is_member', true)
-            .gte('membership_paid_until', today)
-            .order('is_trial', { ascending: true })         // paid first
-            .order('trial_started_at', { ascending: true, nullsFirst: false }); // oldest trial first
+            .gte('membership_paid_until', today);
         if (!featured || !featured.length) return;
+
+        // Sort: paid+photo, paid+no photo, trial+photo, trial+no photo
+        // Within each group: by trial_started_at ASC (oldest first), nulls last
+        const hasPhoto = l => Array.isArray(l.photos) && l.photos.length > 0;
+        const tier = l => {
+            if (!l.is_trial && hasPhoto(l))  return 0;
+            if (!l.is_trial && !hasPhoto(l)) return 1;
+            if (l.is_trial  && hasPhoto(l))  return 2;
+            return 3;
+        };
+        featured.sort((a, b) => {
+            const td = tier(a) - tier(b);
+            if (td !== 0) return td;
+            const da = a.trial_started_at ? new Date(a.trial_started_at) : new Date(0);
+            const db = b.trial_started_at ? new Date(b.trial_started_at) : new Date(0);
+            return da - db;
+        });
+
         for (let i = 0; i < featured.length; i++) {
             await supabaseAdmin
                 .from('listings')
                 .update({ feature_rank: i + 1 })
                 .eq('id', featured[i].id);
         }
-        // Zero out any members no longer active
+        // Zero out expired members
         await supabaseAdmin
             .from('listings')
             .update({ feature_rank: 0 })
