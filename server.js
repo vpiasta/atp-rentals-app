@@ -80,10 +80,22 @@ async function loadListingsFromDB() {
 async function computeAtpDiff(parsedRentals) {
     const normalize = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
 
-    const { data: existing, error: fetchErr } = await supabaseAdmin
-        .from('listings')
-        .select('id, name, province, atp_active, is_member')
-        .or('registry_source.is.null,registry_source.neq.mici'); // include NULL (native ATP listings) and anything not explicitly MiCI
+    let existing = [];
+    {
+        let from = 0;
+        const BATCH = 1000;
+        while (true) {
+            const { data, error } = await supabaseAdmin
+                .from('listings')
+                .select('id, name, province, atp_active, is_member')
+                .or('registry_source.is.null,registry_source.neq.mici') // include NULL (native ATP listings) and anything not explicitly MiCI
+                .range(from, from + BATCH - 1);
+            if (error) throw new Error(error.message);
+            existing = existing.concat(data);
+            if (data.length < BATCH) break;
+            from += BATCH;
+        }
+    }
     if (fetchErr) throw new Error(fetchErr.message);
 
     const existingMap = new Map();
@@ -169,10 +181,22 @@ async function mergeListingsWithDB(parsedRentals) {
     const nowIso = new Date().toISOString();
     const normalize = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
 
-    const { data: existing, error: fetchErr } = await supabaseAdmin
-        .from('listings')
-        .select('id, name, province, atp_active, is_member')
-        .or('registry_source.is.null,registry_source.neq.mici'); // include NULL (native ATP listings) and anything not explicitly MiCI
+    let existing = [];
+    {
+        let from = 0;
+        const BATCH = 1000;
+        while (true) {
+            const { data, error } = await supabaseAdmin
+                .from('listings')
+                .select('id, name, province, atp_active, is_member')
+                .or('registry_source.is.null,registry_source.neq.mici') // include NULL (native ATP listings) and anything not explicitly MiCI
+                .range(from, from + BATCH - 1);
+            if (error) throw new Error(error.message);
+            existing = existing.concat(data);
+            if (data.length < BATCH) break;
+            from += BATCH;
+        }
+    }
     if (fetchErr) throw new Error(fetchErr.message);
 
     const existingMap = new Map();
