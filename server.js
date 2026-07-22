@@ -1009,6 +1009,55 @@ app.get('/api/types', (req, res) => {
 });
 
 app.get('/api/rentals', async (req, res) => {
+    const { search, province, type, keyword } = req.query;
+
+    // Enrich ATP-sourced rentals with member-edited data BEFORE filtering, so
+    // search (and type/province filters) can match either the original ATP
+    // registry value or the member-corrected value.
+    let enriched = CURRENT_RENTALS;
+    try {
+        const ids = CURRENT_RENTALS.map(r => r.id).filter(Boolean);
+        if (ids.length > 0) {
+            let memberData = [];
+            let from = 0;
+            const BATCH = 1000;
+            while (true) {
+                const { data, error } = await supabase
+                    .from('listings')
+                    .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type, apatel_member, feature_rank, listing_keywords')
+                    .in('id', ids)
+                    .range(from, from + BATCH - 1);
+                if (error) throw error;
+                memberData = memberData.concat(data);
+                if (data.length < BATCH) break;
+                from += BATCH;
+            }
+            const memberMap = {};
+            memberData.forEach(m => { memberMap[m.id] = m; });
+            enriched = CURRENT_RENTALS.map(r => {
+                const m = memberMap[r.id];
+                if (!m) return r;
+                return {
+                    ...r,
+                    phone_member:          m.phone_member || null,
+                    email_member:          m.email_member || null,
+                    address:               m.address || null,
+                    photos:                m.photos || null,
+                    is_member:             m.is_member || false,
+                    membership_paid_until: m.membership_paid_until || null,
+                    slug:                  m.slug || null,
+                    rental_type:           m.rental_type || r.rental_type,
+                    feature_rank:          m.feature_rank || 0,
+                    listing_keywords:      m.listing_keywords || [],
+                    apatel_member:         m.apatel_member || false
+                };
+            });
+        }
+    } catch (err) {
+        console.error('Error enriching rentals with member data:', err.message);
+    }
+
+    let filtered = [...enriched];
 
     // Apply filters to ATP listings
     if (search) {
@@ -1019,9 +1068,18 @@ app.get('/api/rentals', async (req, res) => {
         const isNumericSearch = digitsOnly.length > 0 && /^\d+$/.test(digitsOnly);
 
         if (isNumericSearch && digitsOnly.length <= 5) {
-            // Longer numeric input — treat as a phone number, comparing digits-only on
-            // both sides so formatting (spaces/hyphens/dots) never matters
-            filtered = filtered.filter(r => (r.phone||'').replace(/[^\d]/g,'').includes(digitsOnly));
+            // Short numeric input — treat as a listing ID
+            const idMatch = filtered.find(r => String(r.id) === digitsOnly);
+            filtered = idMatch ? [idMatch] : [];
+        } else if (isNumericSearch && digitsOnly.length >= 7) {
+            // Longer numeric input — treat as a phone number. Check both the
+            // ATP-registry phone AND the member-edited phone, comparing digits-only
+            // on both sides so formatting (spaces/hyphens/dots) never matters.
+            filtered = filtered.filter(r => {
+                const atpDigits    = (r.phone||'').replace(/[^\d]/g,'');
+                const memberDigits = (r.phone_member||'').replace(/[^\d]/g,'');
+                return atpDigits.includes(digitsOnly) || memberDigits.includes(digitsOnly);
+            });
         } else if (isNumericSearch) {
             // 6 digits is ambiguous — too long for an ID, too short for a real phone number
             filtered = [];
@@ -1088,7 +1146,8 @@ app.get('/api/rentals', async (req, res) => {
                   const e = normalize(r.email_member || r.email || '');
                   const p = normalize(r.phone_member || r.phone || '');
                   const v = normalize(r.province||'');
-                  const allTokens = [...tokenizeMici(r.name), ...tokenizeMici(r.email_member||r.email||''), ...tokenizeMici(r.phone_member||r.phone||''), ...tokenizeMici(r.province||'')];let score = 0;
+                  const allTokens = [...tokenizeMici(r.name), ...tokenizeMici(r.email_member||r.email||''), ...tokenizeMici(r.phone_member||r.phone||''), ...tokenizeMici(r.province||'')];
+                  let score = 0;
                   const a = normalize(r.address||'');
                   const sRe = new RegExp('(^|\\s)' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\s|$)');
                   if (sRe.test(n) || sRe.test(e) || sRe.test(p) || sRe.test(v)) score = 100;
