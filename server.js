@@ -1849,6 +1849,26 @@ app.post('/api/membership-apply',
         if (isMici && listing_email) notesParts.push(`listing_email: ${listing_email}`);
         const notesStr = notesParts.length ? notesParts.join(' | ') : null;
 
+        // ── Block duplicate applications for the SAME confirmed listing only ──
+        // Matching by property name is unreliable (a real case had two mismatched
+        // names for the same property, only resolved by manual research), so this
+        // only auto-blocks when listingId is a confirmed match — never on email
+        // alone, since one owner may legitimately apply for multiple properties.
+        // Unmatched/ambiguous cases are left for manual review, same as before.
+        if (listingId) {
+            const { data: dupeApps } = await supabaseAdmin
+                .from('membership_applications')
+                .select('id')
+                .eq('listing_id', listingId)
+                .in('status', ['pending', 'pre_approved'])
+                .limit(1);
+            if (dupeApps && dupeApps.length > 0) {
+                return res.status(400).json({
+                    error: 'Ya existe una solicitud pendiente para este hospedaje. Por favor espere a que sea revisada antes de enviar otra.'
+                });
+            }
+        }
+
         // ── Save application to database ──────────────────────────────────
         const { data: application, error: insertError } = await supabaseAdmin
             .from('membership_applications')
