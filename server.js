@@ -111,6 +111,55 @@ async function computeAtpDiff(parsedRentals) {
     return { toInsert, toReactivate, toDeactivateNonMembers, toFlagMembers, totalParsed: parsedRentals.length };
 }
 
+// ── Email the owner whenever a new/unreviewed ATP diff is waiting ──
+async function notifyAtpDiffPending(diff) {
+    const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    const subject = `ATP report updated — ${diff.toInsert.length} new, ${diff.toDeactivateNonMembers.length + diff.toFlagMembers.length} dropped — review needed`;
+
+    const listOrNone = (arr) => arr.length
+        ? '<ul style="margin:0.3rem 0 0 1.2rem;">' + arr.map(x => `<li>${x.name}${x.id?` (ID: ${x.id})`:''}</li>`).join('') + '</ul>'
+        : '<p style="color:#888;margin:0.3rem 0 0 0.2rem;">— ninguno —</p>';
+
+    const message = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
+    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">El reporte de la ATP ha sido actualizado</p>
+</div>
+<p>La ATP publicó un nuevo reporte de hospedajes vigentes. Aquí un resumen de los cambios detectados — <strong>nada se ha aplicado todavía</strong>, requiere su revisión en el panel de admin:</p>
+<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
+    <strong style="color:#005ca9;">➕ Nuevos hospedajes (${diff.toInsert.length})</strong>
+    ${listOrNone(diff.toInsert)}
+</div>
+<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
+    <strong style="color:#005ca9;">🔄 Reactivados (${diff.toReactivate.length})</strong>
+    ${listOrNone(diff.toReactivate)}
+</div>
+<div style="background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0;">
+    <strong style="color:#555;">➖ Ya no en el reporte — no miembros (${diff.toDeactivateNonMembers.length})</strong>
+    ${listOrNone(diff.toDeactivateNonMembers)}
+</div>
+${diff.toFlagMembers.length ? `
+<div style="background:#fde8e8;border:1px solid #ffcccc;border-radius:8px;padding:1rem;margin:1rem 0;">
+    <strong style="color:#cc0000;">⚠️ Miembros pagos ya no en el reporte (${diff.toFlagMembers.length})</strong>
+    <p style="font-size:0.82rem;color:#a00;margin:0.3rem 0 0;">Su membresía NO será modificada automáticamente.</p>
+    ${listOrNone(diff.toFlagMembers)}
+</div>` : ''}
+<p style="text-align:center;margin:1.5rem 0;">
+    <a href="https://trustedpanamastays.com/admin.html" style="background:#005ca9;color:white;padding:11px 28px;text-decoration:none;border-radius:8px;font-weight:700;">
+        Revisar en el panel de admin →
+    </a>
+</p>
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
+</body></html>`;
+
+    await execFileAsync('php', [notifyPath, subject, message, 'info@trustedpanamastays.com']).catch(err =>
+        console.error('ATP diff notification email failed:', err.message)
+    );
+}
+
+
 // ── Merge parsed ATP rentals into the DB without erasing collected member data ──
 // Matches on normalized name+province (ATP's PDF has no stable ID — the aviso de
 // operación number isn't published in the report). Inserts new listings, marks
@@ -334,6 +383,7 @@ async function checkForPdfUpdate() {
                 flagged_members: diff.toFlagMembers.length
             });
             console.log(`📋 STEP 2: New PDF parsed — ${diff.toInsert.length} new, ${diff.toReactivate.length} reactivated, ${diff.toDeactivateNonMembers.length} to deactivate, ${diff.toFlagMembers.length} members flagged — awaiting admin review`);
+            await notifyAtpDiffPending(diff);
         }
     } catch (err) {
         console.error('❌ STEP 2: PDF update check failed:', err.message);
@@ -1126,19 +1176,32 @@ app.get('/health', (req, res) => {
     res.json({ status: 'OK', timestamp: new Date().toISOString(), pdf_status: PDF_STATUS, total_rentals: CURRENT_RENTALS.length });
 });
 
-// Manual trigger to force a PDF re-check (useful for admin/testing)
+// Manual trigger to check ATP for updates. By default does a genuine check —
+// only re-parses if the PDF URL actually changed. Pass ?force=true to bypass
+// that and re-parse regardless (e.g. to re-run the diff after a code change).
 app.post('/api/reload-pdf', async (req, res) => {
+    // Accepts either an admin session token (from the admin panel button) OR
+    // the shared secret (from the daily GitHub Actions cron job), since the
+    // latter runs from rotating IPs and can't pass the IP-locked admin login.
+    const bearer = req.headers['authorization']?.replace('Bearer ', '');
+    const bodySecret = req.body?.secret;
+    const isAdminToken = bearer && bearer.split(':')[0] === 'admin';
+    const isCronSecret = bodySecret && bodySecret === process.env.ADMIN_SECRET;
+    if (!isAdminToken && !isCronSecret) return res.status(403).json({ error: 'Denied' });
+
     try {
-        console.log('🔄 Manual PDF reload triggered...');
-        // Force re-check by temporarily clearing saved URL
-        await supabase.from('pdf_meta').update({ pdf_url: 'force-reload' }).neq('id', 0);
+        console.log('🔄 PDF reload triggered...');
+        if (req.query.force === 'true') {
+            await supabase.from('pdf_meta').update({ pdf_url: 'force-reload' }).neq('id', 0);
+        }
         await checkForPdfUpdate();
         res.json({
             success: true,
             dataSource: DATA_SOURCE,
             rentalsCount: CURRENT_RENTALS.length,
             pdfUrl: PDF_URL,
-            heading: PDF_HEADING
+            heading: PDF_HEADING,
+            pendingDiff: !!PENDING_ATP_DIFF
         });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

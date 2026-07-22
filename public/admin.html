@@ -698,8 +698,12 @@
             <div id="log-container"><div class="no-results">Click Refresh to load logs</div></div>
         </div>
 
-        <<!-- ATP Sync tab -->
+        <!-- ATP Sync tab -->
         <div class="tab-content" id="content-atpsync">
+            <div class="toolbar">
+                <button class="tbtn primary" onclick="loadAtpDiff()">🔄 Refresh</button>
+                <button class="tbtn success" onclick="forceReloadPdf()">📥 Check ATP now</button>
+            </div>
             <div id="atpsync-content" style="background:#2c3e50;border-radius:10px;padding:1.5rem;">
                 Loading...
             </div>
@@ -1610,6 +1614,19 @@ function filterLog() {
     renderLog(filtered);
 }
 
+
+async function forceReloadPdf() {
+    const box = document.getElementById('atpsync-content');
+    box.innerHTML = '⏳ Checking ATP for updates — this can take up to a minute (downloading and parsing a 57-page PDF)...';
+    try {
+        const res  = await adminFetch('/api/reload-pdf', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Reload failed');
+        await loadAtpDiff();
+    } catch(err) {
+        box.innerHTML = `<p style="color:#ff7070;">Error: ${err.message}</p>`;
+    }
+}
 
 async function loadAtpDiff() {
     const box = document.getElementById('atpsync-content');
