@@ -83,7 +83,7 @@ async function computeAtpDiff(parsedRentals) {
     const { data: existing, error: fetchErr } = await supabaseAdmin
         .from('listings')
         .select('id, name, province, atp_active, is_member')
-        .neq('registry_source', 'mici');
+        .or('registry_source.is.null,registry_source.neq.mici'); // include NULL (native ATP listings) and anything not explicitly MiCI
     if (fetchErr) throw new Error(fetchErr.message);
 
     const existingMap = new Map();
@@ -172,7 +172,7 @@ async function mergeListingsWithDB(parsedRentals) {
     const { data: existing, error: fetchErr } = await supabaseAdmin
         .from('listings')
         .select('id, name, province, atp_active, is_member')
-        .neq('registry_source', 'mici'); // MiCI-only listings aren't part of the ATP PDF
+        .or('registry_source.is.null,registry_source.neq.mici'); // include NULL (native ATP listings) and anything not explicitly MiCI
     if (fetchErr) throw new Error(fetchErr.message);
 
     const existingMap = new Map();
