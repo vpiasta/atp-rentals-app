@@ -4223,9 +4223,11 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
             }
         );
 
-        const invoice    = response.data;
-        const resProc    = invoice?.rRetEnviFe?.xProtFe?.rProtFe?.gInfProt?.gResProc || [];
-        const authorized = invoice.autorizada === true;
+        const invoice     = response.data;
+        const resProc     = invoice?.rRetEnviFe?.xProtFe?.rProtFe?.gInfProt?.gResProc || [];
+        const environment  = invoice?.rRetEnviFe?.iAmb; // 1 = producción, 2 = pruebas/sandbox
+        const isProduction = environment === 1;
+        const authorized   = invoice.autorizada === true && isProduction;
 
         await logEvent('efactura_raw_response', {
             listing_id, application_id,
@@ -4237,9 +4239,12 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
             const mappedErrors = resProc.length
                 ? resProc.map(e => ({ codigo: e.dCodRes, mensaje: e.dMsgRes }))
                 : [{ codigo: 'NOT_AUTHORIZED', mensaje: 'autorizada = false, sin detalle de error' }];
+            if (invoice.autorizada === true && !isProduction) {
+                mappedErrors.push({ codigo: 'SANDBOX_MODE', mensaje: `Factura autorizada pero en ambiente de PRUEBAS (iAmb=${environment}) — no se guarda como factura real. Cambie a "en vivo" en admin.efacturapty.com si desea emitir de verdad.` });
+            }
             await logEvent('invoice_errors', { listing_id, application_id, errors: mappedErrors });
             return res.status(422).json({
-                error: 'Invoice not authorized',
+                error: isProduction ? 'Invoice not authorized' : 'Invoice authorized in sandbox mode — not saved as real',
                 errors: mappedErrors,
                 cufe: invoice.cufe || null,
                 invoice_id: invoice.invoice || null,
@@ -4276,19 +4281,30 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
             cufe: invoice.cufe, invoice_id: invoice.invoice
         });
 
-        await supabaseAdmin.from('payments').insert({
-            listing_id:     parseInt(listing_id),
-            application_id: application_id ? parseInt(application_id) : null,
-            amount_net:     planPrice,
-            itbms:          Math.round(planPrice * 0.07 * 100) / 100,
-            amount_total:   Math.round(planPrice * 1.07 * 100) / 100,
-            payment_method: 'transfer',
-            cufe:           invoice.cufe || null,
-            invoice_uuid:   invoice.invoice || null,
-            invoice_url:    invoice.invoice ? `https://admin.efacturapty.com/external/invoices/${invoice.invoice}` : null,
-            invoice_date:   new Date().toISOString().split('T')[0],
-            status:         'invoiced'
-        });
+        // Guard against duplicate inserts (e.g. accidental double-click)
+        const { data: existingPayment } = await supabaseAdmin
+            .from('payments')
+            .select('id')
+            .eq('cufe', invoice.cufe)
+            .maybeSingle();
+
+        if (!existingPayment) {
+            await supabaseAdmin.from('payments').insert({
+                listing_id:     parseInt(listing_id),
+                application_id: application_id ? parseInt(application_id) : null,
+                amount_net:     planPrice,
+                itbms:          Math.round(planPrice * 0.07 * 100) / 100,
+                amount_total:   Math.round(planPrice * 1.07 * 100) / 100,
+                payment_method: 'transfer',
+                cufe:           invoice.cufe || null,
+                invoice_uuid:   invoice.invoice || null,
+                invoice_url:    invoice.invoice ? `https://admin.efacturapty.com/external/invoices/${invoice.invoice}` : null,
+                invoice_date:   new Date().toISOString().split('T')[0],
+                status:         'invoiced'
+            });
+        } else {
+            console.log(`Skipped duplicate payment insert for CUFE ${invoice.cufe} — already recorded`);
+        }
 
         res.json({ success: true, paid_until: paidUntilStr, invoice });
 
