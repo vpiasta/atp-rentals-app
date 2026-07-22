@@ -1009,10 +1009,6 @@ app.get('/api/types', (req, res) => {
 });
 
 app.get('/api/rentals', async (req, res) => {
-    const { search, province, type, keyword} = req.query;
-
-    // Start from in-memory ATP data
-    let filtered = [...CURRENT_RENTALS];
 
     // Apply filters to ATP listings
     if (search) {
@@ -1023,10 +1019,6 @@ app.get('/api/rentals', async (req, res) => {
         const isNumericSearch = digitsOnly.length > 0 && /^\d+$/.test(digitsOnly);
 
         if (isNumericSearch && digitsOnly.length <= 5) {
-            // Short numeric input — treat as a listing ID
-            const idMatch = filtered.find(r => String(r.id) === digitsOnly);
-            filtered = idMatch ? [idMatch] : [];
-        } else if (isNumericSearch && digitsOnly.length >= 7) {
             // Longer numeric input — treat as a phone number, comparing digits-only on
             // both sides so formatting (spaces/hyphens/dots) never matters
             filtered = filtered.filter(r => (r.phone||'').replace(/[^\d]/g,'').includes(digitsOnly));
@@ -1042,10 +1034,10 @@ app.get('/api/rentals', async (req, res) => {
         const tokenize = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[\s@._\-\/]+/).filter(t => t.length > 0);
         const scored = filtered.map(r => {
             const n = normalize(r.name);
-            const e = normalize(r.email||'');
-            const p = normalize(r.phone||'');
+            const e = normalize(r.email_member || r.email || '');
+            const p = normalize(r.phone_member || r.phone || '');
             const v = normalize(r.province||'');
-            const allTokens = [...tokenize(r.name), ...tokenize(r.email||''), ...tokenize(r.phone||''), ...tokenize(r.province||''), ...tokenize(r.address||'')];
+            const allTokens = [...tokenize(r.name), ...tokenize(r.email_member||r.email||''), ...tokenize(r.phone_member||r.phone||''), ...tokenize(r.province||''), ...tokenize(r.address||'')];
             let score = 0;
             const a = normalize(r.address||'');
             const sRe = new RegExp('(^|\\s)' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\s|$)');
@@ -1070,42 +1062,6 @@ app.get('/api/rentals', async (req, res) => {
     if (province) filtered = filtered.filter(r => r.province === province);
     if (type)     filtered = filtered.filter(r => r.rental_type === type);
 
-    // Enrich ATP listings with member data from database
-    try {
-        const ids = filtered.map(r => r.id).filter(Boolean);
-        if (ids.length > 0) {
-            const { data: memberData } = await supabase
-                .from('listings')
-                .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type, apatel_member, feature_rank, listing_keywords')
-                .in('id', ids);
-
-            if (memberData && memberData.length > 0) {
-                const memberMap = {};
-                memberData.forEach(m => { memberMap[m.id] = m; });
-                filtered = filtered.map(r => {
-                    const m = memberMap[r.id];
-                    if (!m) return r;
-                    return {
-                        ...r,
-                        phone_member:          m.phone_member || null,
-                        email_member:          m.email_member || null,
-                        address:               m.address || null,
-                        photos:                m.photos || null,
-                        is_member:             m.is_member || false,
-                        membership_paid_until: m.membership_paid_until || null,
-                        slug:                  m.slug || null,
-                        rental_type:           m.rental_type || r.rental_type,
-                        feature_rank:          m.feature_rank || 0,
-                        listing_keywords:      m.listing_keywords || [],
-                        apatel_member:         m.apatel_member || false
-                    };
-                });
-            }
-        }
-    } catch (err) {
-        console.error('Error enriching rentals with member data:', err.message);
-    }
-
     // Add MiCI-only listings from database (not in ATP PDF)
     try {
         let miciQuery = supabase
@@ -1129,11 +1085,10 @@ app.get('/api/rentals', async (req, res) => {
               const tokenizeMici = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[\s@._\-\/]+/).filter(t => t.length > 0);
               const scored = miciListings.map(r => {
                   const n = normalize(r.name);
-                  const e = normalize(r.email||'');
-                  const p = normalize(r.phone||'');
+                  const e = normalize(r.email_member || r.email || '');
+                  const p = normalize(r.phone_member || r.phone || '');
                   const v = normalize(r.province||'');
-                  const allTokens = [...tokenizeMici(r.name), ...tokenizeMici(r.email||''), ...tokenizeMici(r.phone||''), ...tokenizeMici(r.province||'')];
-                  let score = 0;
+                  const allTokens = [...tokenizeMici(r.name), ...tokenizeMici(r.email_member||r.email||''), ...tokenizeMici(r.phone_member||r.phone||''), ...tokenizeMici(r.province||'')];let score = 0;
                   const a = normalize(r.address||'');
                   const sRe = new RegExp('(^|\\s)' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\s|$)');
                   if (sRe.test(n) || sRe.test(e) || sRe.test(p) || sRe.test(v)) score = 100;
