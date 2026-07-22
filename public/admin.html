@@ -434,6 +434,9 @@
                 </select>
                 <button class="tbtn primary" onclick="loadMembers()">🔄 Refresh</button>
                 <button class="tbtn success" onclick="recalcRanks()">🏆 Recalculate Ranks</button>
+                <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('listings')">💾 Backup Listings</button>
+                <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('membership_applications')">💾 Backup Applications</button>
+                <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('payments')">💾 Backup Payments</button>
             </div>
             <div class="table-wrap">
                 <table>
@@ -864,6 +867,20 @@ async function loadMembers() {
         document.getElementById('members-tbody').innerHTML =
             `<tr class="loading-row"><td colspan="8" style="color:#ff7070;">Error: ${err.message}</td></tr>`;
     }
+}
+
+async function exportTable(table) {
+    try {
+        const res = await adminFetch('/api/admin/export-table?table=' + table);
+        if (!res.ok) { alert('Export failed'); return; }
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url;
+        a.download = `${table}_backup_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch(err) { alert('Export error: ' + err.message); }
 }
 
 async function recalcRanks() {

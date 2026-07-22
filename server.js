@@ -3503,6 +3503,53 @@ app.get('/api/admin/recalculate-ranks', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── Quick CSV export/backup for any table — since Supabase dashboard export UI ──
+// isn't available on this plan. Handles pagination for tables over 1000 rows.
+app.get('/api/admin/export-table', requireAdmin, async (req, res) => {
+    const { table } = req.query;
+    const allowed = ['listings', 'membership_applications', 'payments', 'event_log'];
+    if (!allowed.includes(table)) return res.status(400).json({ error: 'Table not allowed for export' });
+
+    try {
+        let allData = [];
+        let from = 0;
+        const BATCH = 1000;
+        while (true) {
+            const { data, error } = await supabaseAdmin
+                .from(table)
+                .select('*')
+                .range(from, from + BATCH - 1);
+            if (error) throw new Error(error.message);
+            allData = allData.concat(data);
+            if (data.length < BATCH) break;
+            from += BATCH;
+        }
+
+        if (allData.length === 0) {
+            return res.status(404).send('No rows found');
+        }
+
+        const headers = Object.keys(allData[0]);
+        const escapeCsv = (val) => {
+            if (val === null || val === undefined) return '';
+            const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+            return `"${str.replace(/"/g, '""')}"`;
+        };
+        const csvRows = [
+            headers.join(','),
+            ...allData.map(row => headers.map(h => escapeCsv(row[h])).join(','))
+        ];
+        const csv = csvRows.join('\n');
+
+        const dateStr = new Date().toISOString().split('T')[0];
+        res.set('Content-Type', 'text/csv');
+        res.set('Content-Disposition', `attachment; filename="${table}_backup_${dateStr}.csv"`);
+        res.send(csv);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── View the pending ATP diff (if any) awaiting review ──
 app.get('/api/admin/atp-diff', requireAdmin, (req, res) => {
     if (!PENDING_ATP_DIFF) return res.json({ pending: false });
