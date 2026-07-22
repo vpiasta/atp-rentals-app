@@ -1208,11 +1208,15 @@ app.post('/api/reload-pdf', async (req, res) => {
     // the shared secret (from the daily GitHub Actions cron job), since the
     // latter runs from rotating IPs and can't pass the IP-locked admin login.
     const bearer = req.headers['authorization']?.replace('Bearer ', '');
+    let isAdminToken = false;
+    if (bearer) {
+        try {
+            isAdminToken = Buffer.from(bearer, 'base64').toString().split(':')[0] === 'admin';
+        } catch {}
+    }
     const bodySecret = req.body?.secret;
-    const isAdminToken = bearer && bearer.split(':')[0] === 'admin';
     const isCronSecret = bodySecret && bodySecret === process.env.ADMIN_SECRET;
     if (!isAdminToken && !isCronSecret) return res.status(403).json({ error: 'Denied' });
-
     try {
         console.log('🔄 PDF reload triggered...');
         if (req.query.force === 'true') {
