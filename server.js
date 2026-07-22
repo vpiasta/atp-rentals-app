@@ -1016,11 +1016,23 @@ app.get('/api/rentals', async (req, res) => {
 
     // Apply filters to ATP listings
     if (search) {
-        // Direct ID search
+        // Direct ID or phone search — strip common phone formatting (spaces, hyphens, dots, slashes)
+        // so a number can be typed any way and still match.
         const idSearch = search.replace('#','').trim();
-        if (/^\d+$/.test(idSearch)) {
-            const idMatch = filtered.find(r => String(r.id) === idSearch);
+        const digitsOnly = idSearch.replace(/[\s\-\.\/]/g, '');
+        const isNumericSearch = digitsOnly.length > 0 && /^\d+$/.test(digitsOnly);
+
+        if (isNumericSearch && digitsOnly.length <= 5) {
+            // Short numeric input — treat as a listing ID
+            const idMatch = filtered.find(r => String(r.id) === digitsOnly);
             filtered = idMatch ? [idMatch] : [];
+        } else if (isNumericSearch && digitsOnly.length >= 7) {
+            // Longer numeric input — treat as a phone number, comparing digits-only on
+            // both sides so formatting (spaces/hyphens/dots) never matters
+            filtered = filtered.filter(r => (r.phone||'').replace(/[^\d]/g,'').includes(digitsOnly));
+        } else if (isNumericSearch) {
+            // 6 digits is ambiguous — too long for an ID, too short for a real phone number
+            filtered = [];
         } else {
         const s = search.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         const words = s.split(/\s+/).filter(w => w.length >= 3);
