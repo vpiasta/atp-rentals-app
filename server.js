@@ -43,6 +43,7 @@ let PDF_HEADING = 'Hospedajes Registrados - ATP';
 let PDF_STATUS = "Not loaded";
 let PDF_RENTALS = [];
 let DATA_SOURCE = "";
+let PENDING_ATP_DIFF = null; // set when a new PDF is parsed but not yet reviewed/applied
 
 // ─── Column boundaries (unchanged) ───────────────────────────────────────────
 const COLUMN_BOUNDARIES = {
@@ -75,8 +76,146 @@ async function loadListingsFromDB() {
     return allData;
 }
 
-// Save all rentals to Supabase (replaces entire table content)
-// This function was deleted because it erases all previous records
+// ── Compute what WOULD change, without writing anything — for admin review ──
+async function computeAtpDiff(parsedRentals) {
+    const normalize = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+
+    const { data: existing, error: fetchErr } = await supabaseAdmin
+        .from('listings')
+        .select('id, name, province, atp_active, is_member')
+        .neq('registry_source', 'mici');
+    if (fetchErr) throw new Error(fetchErr.message);
+
+    const existingMap = new Map();
+    (existing || []).forEach(l => existingMap.set(`${normalize(l.name)}|${normalize(l.province)}`, l));
+
+    const seenIds = new Set();
+    const toInsert = [];
+    const toReactivate = [];
+
+    for (const rental of parsedRentals) {
+        const key   = `${normalize(rental.name)}|${normalize(rental.province)}`;
+        const match = existingMap.get(key);
+        if (match) {
+            seenIds.add(match.id);
+            if (!match.atp_active) toReactivate.push({ id: match.id, name: match.name });
+        } else {
+            toInsert.push({ name: rental.name, province: rental.province });
+        }
+    }
+
+    const missing = (existing || []).filter(l => l.atp_active && !seenIds.has(l.id));
+    const toDeactivateNonMembers = missing.filter(l => !l.is_member).map(l => ({ id: l.id, name: l.name }));
+    const toFlagMembers          = missing.filter(l => l.is_member).map(l => ({ id: l.id, name: l.name }));
+
+    return { toInsert, toReactivate, toDeactivateNonMembers, toFlagMembers, totalParsed: parsedRentals.length };
+}
+
+// ── Merge parsed ATP rentals into the DB without erasing collected member data ──
+// Matches on normalized name+province (ATP's PDF has no stable ID — the aviso de
+// operación number isn't published in the report). Inserts new listings, marks
+// matched ones as seen, and soft-deletes (atp_active=false) anything no longer
+// in the report. Never hard-deletes — members enrich data beyond what ATP provides.
+async function mergeListingsWithDB(parsedRentals) {
+    const nowIso = new Date().toISOString();
+    const normalize = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+
+    const { data: existing, error: fetchErr } = await supabaseAdmin
+        .from('listings')
+        .select('id, name, province, atp_active, is_member')
+        .neq('registry_source', 'mici'); // MiCI-only listings aren't part of the ATP PDF
+    if (fetchErr) throw new Error(fetchErr.message);
+
+    const existingMap = new Map();
+    (existing || []).forEach(l => existingMap.set(`${normalize(l.name)}|${normalize(l.province)}`, l));
+
+    const seenIds = new Set();
+    let inserted = 0, updated = 0;
+
+    for (const rental of parsedRentals) {
+        const key   = `${normalize(rental.name)}|${normalize(rental.province)}`;
+        const match = existingMap.get(key);
+
+        if (match) {
+            seenIds.add(match.id);
+            const updates = { atp_last_seen: nowIso };
+            if (!match.atp_active) updates.atp_active = true; // reappeared — clear any stale flag
+            if (!match.atp_active) updates.atp_review_flagged_at = null;
+            await supabaseAdmin.from('listings').update(updates).eq('id', match.id);
+            updated++;
+        } else {
+            const { error: insertErr } = await supabaseAdmin.from('listings').insert({
+                name:            rental.name,
+                rental_type:     rental.rental_type,
+                email:           rental.email,
+                phone:           rental.phone,
+                province:        rental.province,
+                registry_source: 'atp',
+                atp_active:      true,
+                atp_first_seen:  nowIso,
+                atp_last_seen:   nowIso
+            });
+            if (insertErr) console.error('Insert failed for', rental.name, insertErr.message);
+            else inserted++;
+        }
+    }
+
+    // Anything previously active but not seen in this PDF is no longer ATP-listed
+    const missing = (existing || []).filter(l => l.atp_active && !seenIds.has(l.id));
+    let deactivatedNonMembers = 0, flaggedMembers = 0;
+
+    for (const l of missing) {
+        await supabaseAdmin.from('listings').update({ atp_active: false }).eq('id', l.id);
+
+        if (!l.is_member) {
+            deactivatedNonMembers++; // no longer publicly visible — normal delisting
+            continue;
+        }
+
+        // Supporting (paying) member dropped from ATP — flag for review, don't touch membership
+        await supabaseAdmin.from('listings').update({ atp_review_flagged_at: nowIso }).eq('id', l.id);
+        flaggedMembers++;
+        await sendAtpReviewEmail(l.id, l.name);
+        await logEvent('atp_member_flagged_for_review', { listing_id: l.id, name: l.name });
+    }
+
+    console.log(`✅ Merge complete: ${inserted} inserted, ${updated} matched, ${deactivatedNonMembers} non-members deactivated, ${flaggedMembers} members flagged for review`);
+    return { inserted, updated, deactivatedNonMembers, flaggedMembers };
+}
+
+// ── Notify admin + member when a supporting member's listing drops off ATP ──
+async function sendAtpReviewEmail(listingId, propertyName) {
+    const { data: listing } = await supabaseAdmin
+        .from('listings')
+        .select('email_member, email, contact_name')
+        .eq('id', listingId)
+        .single();
+
+    const memberEmail = listing?.email_member || listing?.email;
+    const contactName = listing?.contact_name || 'propietario/a';
+    const notifyPath   = path.join(__dirname, 'public', 'notify.php');
+
+    // Notify TPS admin regardless of whether the member has an email
+    const adminMsg = `<p>El hospedaje miembro <strong>${propertyName}</strong> (ID: ${listingId}) ya no aparece en el reporte vigente de la ATP.</p><p>Su membresía NO ha sido modificada. Requiere revisión manual.</p>`;
+    await execFileAsync('php', [notifyPath, `⚠️ Miembro fuera del registro ATP — ${propertyName}`, adminMsg, 'info@trustedpanamastays.com']).catch(console.error);
+
+    if (memberEmail && memberEmail.includes('@')) {
+        const memberMsg = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
+</div>
+<p>Estimado/a <strong>${contactName}</strong>,</p>
+<p>Notamos que <strong>${propertyName}</strong> ya no aparece en el reporte vigente de hospedajes de la ATP.</p>
+<p>Su membresía en Trusted Panama Stays <strong>sigue activa</strong> — esto no la afecta. Sin embargo, nos gustaría confirmar con usted si su registro ante la ATP sigue vigente, o si hubo algún cambio.</p>
+<p>¿Podría confirmarnos la situación respondiendo a este correo?</p>
+<p>Preguntas? <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
+</body></html>`;
+        await execFileAsync('php', [notifyPath, `Consulta sobre su registro ATP — ${propertyName}`, memberMsg, memberEmail]).catch(console.error);
+    }
+}
 
 // Get the saved PDF URL from pdf_meta table
 async function getSavedPdfUrl() {
@@ -179,15 +318,22 @@ async function checkForPdfUpdate() {
 
         const result = await parsePDFWithCoordinates();
         if (result.success && PDF_RENTALS.length > 0) {
-            // Save to database
-            await saveListingsToDB(PDF_RENTALS);
-            await savePdfMeta(newUrl, PDF_HEADING);
-
-            // Update in-memory state
-            CURRENT_RENTALS = PDF_RENTALS;
-            DATA_SOURCE = 'atp-pdf';
-            console.log(`✅ STEP 2: Database updated with ${PDF_RENTALS.length} listings from new PDF`);
-            await checkPendingAtpApplications();
+            // Compute what would change, but wait for admin review before writing/emailing
+            const diff = await computeAtpDiff(PDF_RENTALS);
+            PENDING_ATP_DIFF = {
+                newUrl, newHeading: PDF_HEADING,
+                parsedRentals: PDF_RENTALS,
+                diff,
+                computedAt: new Date().toISOString()
+            };
+            await logEvent('atp_diff_pending', {
+                new_url: newUrl,
+                inserts: diff.toInsert.length,
+                reactivations: diff.toReactivate.length,
+                deactivations: diff.toDeactivateNonMembers.length,
+                flagged_members: diff.toFlagMembers.length
+            });
+            console.log(`📋 STEP 2: New PDF parsed — ${diff.toInsert.length} new, ${diff.toReactivate.length} reactivated, ${diff.toDeactivateNonMembers.length} to deactivate, ${diff.toFlagMembers.length} members flagged — awaiting admin review`);
         }
     } catch (err) {
         console.error('❌ STEP 2: PDF update check failed:', err.message);
@@ -3355,6 +3501,38 @@ async function recalculateFeatureRanks() {
 app.get('/api/admin/recalculate-ranks', requireAdmin, async (req, res) => {
     await recalculateFeatureRanks();
     res.json({ success: true });
+});
+
+// ── View the pending ATP diff (if any) awaiting review ──
+app.get('/api/admin/atp-diff', requireAdmin, (req, res) => {
+    if (!PENDING_ATP_DIFF) return res.json({ pending: false });
+    res.json({
+        pending: true,
+        computedAt: PENDING_ATP_DIFF.computedAt,
+        newUrl: PENDING_ATP_DIFF.newUrl,
+        diff: PENDING_ATP_DIFF.diff
+    });
+});
+
+// ── Apply the pending ATP diff: writes changes + sends flagged-member emails ──
+app.post('/api/admin/apply-atp-diff', requireAdmin, async (req, res) => {
+    if (!PENDING_ATP_DIFF) return res.status(400).json({ error: 'No pending diff to apply' });
+    try {
+        const { newUrl, newHeading, parsedRentals } = PENDING_ATP_DIFF;
+        const result = await mergeListingsWithDB(parsedRentals);
+        await savePdfMeta(newUrl, newHeading);
+
+        // Reload from DB so IDs/enrichment stay correct — never assign PDF_RENTALS directly
+        CURRENT_RENTALS = await loadListingsFromDB();
+        DATA_SOURCE = 'atp-pdf';
+        PENDING_ATP_DIFF = null;
+
+        await checkPendingAtpApplications();
+        await logEvent('atp_diff_applied', result);
+        res.json({ success: true, ...result });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ── GET /api/admin/document-url ───────────────────────────────────────────────

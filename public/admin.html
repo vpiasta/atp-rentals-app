@@ -241,7 +241,8 @@
             <button class="hbtn" id="hbtn-log"          onclick="showTab('log')">📋 Log</button>
             <button class="hbtn" id="hbtn-campaign"     onclick="showTab('campaign')">📧 Campaign</button>
             <button class="hbtn" id="hbtn-analytics"    onclick="showTab('analytics')">📊 Analytics</button>
-            <button class="hbtn" id="hbtn-ip"           onclick="showTab('ip')">🌐 IP</button>
+            <button class="hbtn" id="hbtn-ip"           onclick="showTab('ip')">🌐 IP</button><button class="hbtn" id="hbtn-ip"           onclick="showTab('ip')">🌐 IP</button>
+            <button class="hbtn" id="hbtn-atpsync"      onclick="showTab('atpsync')">🔄 ATP Sync <span id="badge-atpsync" style="background:#e67e22;color:white;border-radius:10px;padding:0 5px;font-size:0.75rem;"></span></button>
             <div style="position:relative;display:inline-block;"><button class="hbtn" id="keywords-btn" onclick="toggleKeywordsMenu()" style="position:relative;">
                 🏷️ Keywords <span id="suggestions-count" style="background:#e67e22;color:white;border-radius:10px;padding:0 6px;font-size:0.75rem;margin-left:4px;display:none;"></span>
             </button>
@@ -694,6 +695,13 @@
             <div id="log-container"><div class="no-results">Click Refresh to load logs</div></div>
         </div>
 
+        <<!-- ATP Sync tab -->
+        <div class="tab-content" id="content-atpsync">
+            <div id="atpsync-content" style="background:#2c3e50;border-radius:10px;padding:1.5rem;">
+                Loading...
+            </div>
+        </div>
+
         <!-- IP tab -->
         <div class="tab-content" id="content-ip">
             <div class="ip-card">
@@ -819,6 +827,7 @@ function showTab(name) {
     if (panel) panel.style.display = 'block';
     if (name === 'log')          loadLog();
     if (name === 'ip')           loadIPInfo();
+    if (name === 'atpsync')      loadAtpDiff();
     if (name === 'applications') loadApplications().then(() => filterApps('all'));
     if (name === 'invoices')     loadInvoiceLog();
     if (name === 'campaign')     { loadCampaignStats(); loadTemplateList(); }
@@ -1584,7 +1593,68 @@ function filterLog() {
     renderLog(filtered);
 }
 
-// ── IP ────────────────────────────────────────────────────────────────────────
+
+async function loadAtpDiff() {
+    const box = document.getElementById('atpsync-content');
+    box.innerHTML = 'Loading...';
+    try {
+        const res  = await adminFetch('/api/admin/atp-diff');
+        const data = await res.json();
+        const badge = document.getElementById('badge-atpsync');
+        if (!data.pending) {
+            if (badge) badge.textContent = '';
+            box.innerHTML = '<p style="color:#aaa;">No pending ATP updates. Everything is in sync.</p>';
+            return;
+        }
+        if (badge) badge.textContent = '!';
+        const d = data.diff;
+        const listOrNone = (arr) => arr.length
+            ? '<ul style="margin:0.4rem 0 0 1.2rem;">' + arr.map(x => `<li>${x.name}${x.id?` (ID: ${x.id})`:''}</li>`).join('') + '</ul>'
+            : '<p style="color:#666;margin:0.4rem 0 0 0.2rem;">— none —</p>';
+        box.innerHTML = `
+            <h3 style="color:#FFD700;margin-bottom:0.5rem;">📋 Pending ATP Update</h3>
+            <p style="color:#aaa;font-size:0.8rem;margin-bottom:1rem;">Detected: ${new Date(data.computedAt).toLocaleString()}<br>Source: <a href="${data.newUrl}" target="_blank" style="color:#7ec8e3;">${data.newUrl}</a></p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1rem;">
+                <div style="background:#1a2a3a;border-radius:8px;padding:0.8rem;">
+                    <strong style="color:#adf5ad;">➕ New listings (${d.toInsert.length})</strong>
+                    ${listOrNone(d.toInsert)}
+                </div>
+                <div style="background:#1a2a3a;border-radius:8px;padding:0.8rem;">
+                    <strong style="color:#7ec8e3;">🔄 Reactivated (${d.toReactivate.length})</strong>
+                    ${listOrNone(d.toReactivate)}
+                </div>
+                <div style="background:#1a2a3a;border-radius:8px;padding:0.8rem;">
+                    <strong style="color:#888;">➖ To deactivate — non-members (${d.toDeactivateNonMembers.length})</strong>
+                    ${listOrNone(d.toDeactivateNonMembers)}
+                </div>
+                <div style="background:#3a1a1a;border-radius:8px;padding:0.8rem;border:1px solid #7a0000;">
+                    <strong style="color:#ff7070;">⚠️ Members to flag for review (${d.toFlagMembers.length})</strong>
+                    <p style="font-size:0.75rem;color:#ffaaaa;margin:0.2rem 0 0;">Membership will NOT be touched. Each will get an automatic clarification email.</p>
+                    ${listOrNone(d.toFlagMembers)}
+                </div>
+            </div>
+            <button onclick="applyAtpDiff()" style="padding:9px 20px;background:#005ca9;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;">✅ Apply changes${d.toFlagMembers.length?' & send review emails':''}</button>
+            <span id="atpsync-result" style="margin-left:12px;font-size:0.85rem;"></span>`;
+    } catch(err) {
+        box.innerHTML = `<p style="color:#ff7070;">Error: ${err.message}</p>`;
+    }
+}
+
+async function applyAtpDiff() {
+    if (!confirm('Apply these changes now? This will update the database and send any flagged-member review emails.')) return;
+    const resultEl = document.getElementById('atpsync-result');
+    resultEl.textContent = '⏳ Applying...';
+    try {
+        const res  = await adminFetch('/api/admin/apply-atp-diff', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        resultEl.innerHTML = `<span style="color:#adf5ad;">✅ Done: ${data.inserted} inserted, ${data.updated} updated, ${data.deactivatedNonMembers} deactivated, ${data.flaggedMembers} flagged.</span>`;
+        setTimeout(() => { loadAtpDiff(); loadMembers(); }, 1500);
+    } catch(err) {
+        resultEl.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`;
+    }
+}
+
 async function loadIPInfo() {
     try {
         const res  = await adminFetch('/api/admin/ip-info');
