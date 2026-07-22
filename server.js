@@ -583,6 +583,18 @@ initializeData();
 //  ATP WEBSITE & PDF FUNCTIONS  (unchanged from original)
 // ═════════════════════════════════════════════════════════════════════════════
 
+// ── Extract the report's own update date from its filename, e.g.
+// ".../REPORTE-HOSPEDAJES-VIGENTE-2-7-2026.pdf" → day 2, month 7, year 2026
+function extractPdfDateFromUrl(url) {
+    if (!url) return null;
+    const match = url.match(/(\d{1,2})-(\d{1,2})-(\d{4})\.pdf$/i);
+    if (!match) return null;
+    const [, day, month, year] = match;
+    const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
+    if (isNaN(date.getTime())) return null;
+    return date.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
 async function getLatestPdfUrl() {
     console.log('🔄 Fetching PDF URL via PHP...');
 
@@ -1383,7 +1395,7 @@ app.get('/api/update-admin-ip', async (req, res) => {
     if (secret !== process.env.ADMIN_SECRET) return res.status(403).send('Denied');
     const ip = req.headers['x-forwarded-for']?.split(',')[0].trim()
              || req.socket.remoteAddress;
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
         .from('settings')
         .upsert({ key: 'admin_ip', value: ip, updated_at: new Date().toISOString() });
     if (error) return res.status(500).send('Error: ' + error.message);
@@ -1394,7 +1406,7 @@ app.get('/api/update-admin-ip', async (req, res) => {
 app.post('/api/admin/update-ip', requireAdmin, async (req, res) => {
     const ip = req.headers['x-forwarded-for']?.split(',')[0].trim()
              || req.socket.remoteAddress;
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
         .from('settings')
         .upsert({ key: 'admin_ip', value: ip, updated_at: new Date().toISOString() });
     if (error) return res.status(500).json({ error: error.message });
@@ -1632,7 +1644,7 @@ function generateEmailHtml(app, type, password, paidUntil, rejectReason) {
 // ── Admin: get log entries ────────────────────────────────────────────────────
 app.get('/api/admin/log', requireAdmin, async (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from('event_log')
         .select('*')
         .order('created_at', { ascending: false })
@@ -2252,13 +2264,62 @@ app.post('/api/admin/reject-application', requireAdmin, async (req, res) => {
 
 // ── Get pending invoice log (for monthly QB export) ───────────────────────────
 app.get('/api/admin/invoice-log', requireAdmin, async (req, res) => {
-    const { data, error } = await supabase
-        .from('event_log')
-        .select('*')
-        .eq('event_type', 'invoice_pending')
-        .order('created_at', { ascending: false });
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+    try {
+        // Legacy pending-invoice log entries (not yet issued through eFacturaPty)
+        const { data: pendingEvents, error: pendingErr } = await supabaseAdmin
+            .from('event_log')
+            .select('*')
+            .eq('event_type', 'invoice_pending')
+            .order('created_at', { ascending: false });
+        if (pendingErr) throw new Error(pendingErr.message);
+
+        // Real issued invoices — from the payments table (CUFE, actual amounts from eFacturaPty)
+        const { data: payments, error: payErr } = await supabaseAdmin
+            .from('payments')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (payErr) throw new Error(payErr.message);
+
+        const listingIds = [...new Set(payments.map(p => p.listing_id).filter(Boolean))];
+        const appIds      = [...new Set(payments.map(p => p.application_id).filter(Boolean))];
+
+        const { data: listings } = listingIds.length
+            ? await supabaseAdmin.from('listings').select('id, name').in('id', listingIds)
+            : { data: [] };
+        const { data: apps } = appIds.length
+            ? await supabaseAdmin.from('membership_applications').select('id, contact_name, contact_email, ruc, ruc_dv, duration_months').in('id', appIds)
+            : { data: [] };
+
+        const listingMap = {}; (listings||[]).forEach(l => listingMap[l.id] = l);
+        const appMap      = {}; (apps||[]).forEach(a => appMap[a.id] = a);
+
+        const issuedInvoices = (payments||[]).map(p => {
+            const listing = listingMap[p.listing_id] || {};
+            const app     = appMap[p.application_id] || {};
+            return {
+                created_at: p.invoice_date || p.created_at,
+                event_data: {
+                    property_name:  listing.name || null,
+                    contact_name:   app.contact_name || null,
+                    contact_email:  app.contact_email || null,
+                    ruc:            app.ruc ? `${app.ruc}-${app.ruc_dv||''}` : null,
+                    plan:           app.duration_months ? `${app.duration_months} months` : null,
+                    amount:         p.amount_net,
+                    itbms:          p.itbms,
+                    total:          p.amount_total,
+                    payment_method: p.payment_method,
+                    invoice_url:    p.invoice_url
+                }
+            };
+        });
+
+        const combined = [...issuedInvoices, ...(pendingEvents||[])]
+            .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
+        res.json(combined);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ── Get applicant contact/documents + payment/invoice info for a given listing ──
@@ -3641,15 +3702,33 @@ app.get('/api/admin/export-table', requireAdmin, async (req, res) => {
     }
 });
 
-// ── View the pending ATP diff (if any) awaiting review ──
-app.get('/api/admin/atp-diff', requireAdmin, (req, res) => {
-    if (!PENDING_ATP_DIFF) return res.json({ pending: false });
-    res.json({
-        pending: true,
-        computedAt: PENDING_ATP_DIFF.computedAt,
-        newUrl: PENDING_ATP_DIFF.newUrl,
-        diff: PENDING_ATP_DIFF.diff
-    });
+// ── ATP status check: 3 states — (1) no update, (2) link changed but not yet
+// parsed, (3) already parsed and awaiting review. States 1/2 do a cheap live
+// check (just the ATP webpage, no PDF download); state 3 is free (in memory).
+app.get('/api/admin/atp-diff', requireAdmin, async (req, res) => {
+    if (PENDING_ATP_DIFF) {
+        return res.json({
+            state: 3,
+            pending: true,
+            computedAt: PENDING_ATP_DIFF.computedAt,
+            newUrl: PENDING_ATP_DIFF.newUrl,
+            reportDate: extractPdfDateFromUrl(PENDING_ATP_DIFF.newUrl),
+            diff: PENDING_ATP_DIFF.diff
+        });
+    }
+    try {
+        const meta = await getSavedPdfUrl();
+        const savedUrl  = meta ? meta.pdf_url : null;
+        const atpResult = await getLatestPdfUrl(); // cheap: page fetch only, no PDF download
+        const liveUrl = atpResult.pdfUrl;
+
+        if (liveUrl === savedUrl) {
+            return res.json({ state: 1, pending: false, savedUrl, reportDate: extractPdfDateFromUrl(savedUrl) });
+        }
+        return res.json({ state: 2, pending: false, savedUrl, liveUrl, reportDate: extractPdfDateFromUrl(liveUrl) });
+    } catch (err) {
+        res.json({ state: 'unknown', error: err.message });
+    }
 });
 
 // ── Apply the pending ATP diff: writes changes + sends flagged-member emails ──
