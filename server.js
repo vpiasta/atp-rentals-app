@@ -2929,17 +2929,25 @@ app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => 
                 query = query.not('email', 'is', null).neq('email', '').not('email', 'ilike', 'no%').not('email', 'ilike', 'n/t');
             }
 
-        const { data: listings, error } = await query;
-        if (error) throw new Error(error.message);
+            let { data: listings, error } = await query;
+            if (error) throw new Error(error.message);
 
-        if (!listings || listings.length === 0)
-            return res.json({ success: true, sent: 0, skipped: 0, message: 'No eligible listings found' });
+            // Final validation pass: a proper email regex catches anything that slipped
+            // through the SQL-level filter — malformed addresses (missing @), stray phone
+            // numbers typed into the email field, etc. Never count/send to these.
+            const isValidEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e||'').trim());
+            if (filter !== 'no-email') {
+                listings = (listings||[]).filter(l => isValidEmail(l.email));
+            }
+    
+            if (!listings || listings.length === 0)
+                return res.json({ success: true, sent: 0, skipped: 0, message: 'No eligible listings found' });
 
-        if (dry_run)
-            return res.json({ success: true, dry_run: true, count: listings.length,
-                has_email: listings.filter(l => l.email).length,
-                no_email: listings.filter(l => !l.email).length,
-                apatel: listings.filter(l => l.apatel_member).length });
+            if (dry_run)
+                return res.json({ success: true, dry_run: true, count: listings.length,
+                    has_email: listings.filter(l => isValidEmail(l.email)).length,
+                    no_email: listings.filter(l => !isValidEmail(l.email)).length,
+                    apatel: listings.filter(l => l.apatel_member).length });
 
         const notifyPath = path.join(__dirname, 'public', 'notify.php');
         let sent = 0, skipped = 0, errors = 0;
