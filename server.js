@@ -2430,6 +2430,7 @@ app.post('/api/submit-payment',
         let verificationSummary = 'PAY:PENDING:no_proof';
         let autoActivated = false;
         let detectedPlan = duration_months === '24' ? '2year' : '1year';
+        let aiData = null; // populated below if AI verification runs; stays null otherwise
 
         if (documentPath && file) {
             try {
@@ -2474,7 +2475,7 @@ overall: PASS (amount correct, recent, REALIZADA), REVIEW (minor issues), FAIL (
                         messages: [{ role: 'user', content: [docContent, { type: 'text', text: prompt }] }]
                     }, { headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, timeout: 30000 });
 
-                    const aiData = JSON.parse(aiResp.data.content[0].text.replace(/\`\`\`json\n?|\n?\`\`\`/g, '').trim());
+                    aiData = JSON.parse(aiResp.data.content[0].text.replace(/\`\`\`json\n?|\n?\`\`\`/g, '').trim());
                     detectedPlan = aiData.plan || detectedPlan;
                     verificationResult = aiData.overall || 'REVIEW';
                     verificationSummary = `PAY:${verificationResult}:${aiData.amount_found}:${aiData.date}:${aiData.description_text||''}:${aiData.bank||''}:${aiData.confirmation||''}`;
@@ -2521,6 +2522,29 @@ overall: PASS (amount correct, recent, REALIZADA), REVIEW (minor issues), FAIL (
             status:              autoActivated ? 'pre_approved' : 'pending',
             verification_result: verificationSummary
         }).select().single();
+
+        // ── Record the reported/verified amount in the payments table so the ──
+        // admin panel's "Send Invoice" form can read amount_paid reliably,
+        // instead of falling back to parsing it out of verification_result text.
+        // This is NOT an issued invoice yet (no CUFE) — just the proof-of-payment
+        // amount, same 'pending' status the admin-application lookup expects.
+        if (submission) {
+            const reportedTotal = aiData?.amount_found ? parseFloat(aiData.amount_found) : null;
+            const netAmount   = reportedTotal ? Math.round(reportedTotal / 1.07 * 100) / 100 : null;
+            const itbmsAmount = netAmount ? Math.round(netAmount * 0.07 * 100) / 100 : null;
+            await supabaseAdmin.from('payments').insert({
+                listing_id:     parseInt(listing_id),
+                application_id: submission.id,
+                amount_net:     netAmount,
+                itbms:          itbmsAmount,
+                amount_total:   reportedTotal,
+                payment_method: payment_method || 'transfer',
+                invoice_date:   new Date().toISOString().split('T')[0],
+                status:         'pending'
+            }).then(({ error }) => {
+                if (error) console.error('Failed to record payment amount:', error.message);
+            });
+        }
 
         // Send notification email
         const statusIcon = verificationResult === 'PASS' ? '✅' : verificationResult === 'REVIEW' ? '⚠️' : '❌';
