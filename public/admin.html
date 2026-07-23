@@ -1272,10 +1272,60 @@ async function setPassword() {
     } catch(err) { msg.textContent='❌ '+err.message; msg.className='panel-msg err'; msg.style.display='inline-block'; }
 }
 
+// ── WhatsApp send safeguard ────────────────────────────────────────────────
+// WhatsApp's spam detection flags rapid, templated, cold outreach from a
+// personal number — exactly this invite pattern. This tracks sends locally
+// (per browser) to surface the risk before it happens, not enforce a hard
+// limit — the decision to proceed is still yours.
+const WA_DAILY_SAFE_LIMIT = 15;
+const WA_MIN_GAP_MINUTES  = 3;
+
+function getWaSendLog() {
+    try { return JSON.parse(localStorage.getItem('tps_wa_send_log') || '{}'); }
+    catch { return {}; }
+}
+function recordWaSend() {
+    const log = getWaSendLog();
+    const today = new Date().toISOString().split('T')[0];
+    if (log.date !== today) { log.date = today; log.count = 0; }
+    log.count = (log.count || 0) + 1;
+    log.lastSentAt = Date.now();
+    localStorage.setItem('tps_wa_send_log', JSON.stringify(log));
+    return log;
+}
+function getWaSendStatus() {
+    const log = getWaSendLog();
+    const today = new Date().toISOString().split('T')[0];
+    const count = log.date === today ? (log.count || 0) : 0;
+    const minutesSinceLast = log.lastSentAt ? (Date.now() - log.lastSentAt) / 60000 : null;
+    return { count, minutesSinceLast };
+}
+function checkWaSendSafety() {
+    const { count, minutesSinceLast } = getWaSendStatus();
+    if (count >= WA_DAILY_SAFE_LIMIT) {
+        return confirm(`⚠️ Ya ha enviado ${count} invitaciones por WhatsApp hoy — esto se acerca al límite que WhatsApp suele considerar sospechoso (envíos rápidos y repetitivos pueden causar una restricción de cuenta, como ya ocurrió antes).\n\n¿Desea continuar de todas formas?`);
+    }
+    if (minutesSinceLast !== null && minutesSinceLast < WA_MIN_GAP_MINUTES) {
+        const wait = Math.ceil(WA_MIN_GAP_MINUTES - minutesSinceLast);
+        return confirm(`⚠️ Envió un WhatsApp hace menos de ${WA_MIN_GAP_MINUTES} minutos. Enviar muy seguido aumenta el riesgo de restricción.\n\n¿Desea continuar de todas formas? (recomendado: esperar ${wait} min más)`);
+    }
+    return true;
+}
+function updateWaSendCounter() {
+    const el = document.getElementById('wa-send-counter');
+    if (!el) return;
+    const { count } = getWaSendStatus();
+    const color = count >= WA_DAILY_SAFE_LIMIT ? '#ff7070' : (count >= WA_DAILY_SAFE_LIMIT - 5 ? '#FFD700' : '#aaa');
+    el.innerHTML = `<span style="color:${color};">Enviados hoy: ${count}/${WA_DAILY_SAFE_LIMIT}</span>`;
+}
+
 function markInvitedFromWa() {
+    if (!checkWaSendSafety()) return;
     const id = parseInt(document.getElementById('wa-id').value);
     const m  = allMembers.find(x=>x.id===id);
     if (!m) return;
+    recordWaSend();
+    updateWaSendCounter();
     adminFetch('/api/admin/set-invitation-status', { method:'POST', body: JSON.stringify({ id, status:'invited' }) })
         .then(()=>{ m.invitation_status='invited'; m.invitation_sent_at=new Date().toISOString(); updateStats(allMembers); filterMembers(); })
         .catch(()=>{});
