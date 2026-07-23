@@ -405,11 +405,12 @@
                 <button class="wa-lang-btn" onclick="setWaLang('en')" id="wa-btn-en">🇺🇸 English</button>
             </div>
             <textarea class="wa-message" id="wa-message" rows="8"></textarea>
-            <div class="panel-actions" style="margin-top:1rem;">
+            <div class="panel-actions" style="margin-top:1rem;flex-wrap:wrap;">
                 <a id="wa-send-link" href="#" target="_blank" class="panel-btn wa" onclick="markInvitedFromWa()">💬 Open WhatsApp</a>
                 <button class="panel-btn" style="background:#7a1a1a;color:#ffaaaa;" onclick="markWhatsappInvalid()">❌ This number is not WhatsApp</button>
                 <button class="panel-btn cancel" onclick="closePanel('wa-panel')">Cancel</button>
                 <span style="font-size:0.75rem;color:#aaa;">Opens WhatsApp with pre-written message. Clicking marks as Invited.</span>
+                <span id="wa-send-counter" style="font-size:0.8rem;font-weight:700;margin-left:auto;"></span>
             </div>
         </div>
 
@@ -1057,6 +1058,7 @@ function openWaPanel(id) {
     document.getElementById('wa-panel-title').textContent = `💬 Invite: ${m.name}`;
     closePanel('edit-panel'); closePanel('pwd-panel');
     setWaLang(waLang);
+    updateWaSendCounter();
     document.getElementById('wa-panel').classList.add('active');
     document.getElementById('wa-panel').scrollIntoView({ behavior:'smooth', block:'start' });
 }
