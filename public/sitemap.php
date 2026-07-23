@@ -42,6 +42,8 @@ $staticPages = [
     ['loc' => '/index.php?lang=es',   'priority' => '1.00'],
     ['loc' => '/about.html?lang=en',  'priority' => '0.80'],
     ['loc' => '/about.html?lang=es',  'priority' => '0.80'],
+    ['loc' => '/faq.php?lang=en',     'priority' => '0.80'],
+    ['loc' => '/faq.php?lang=es',     'priority' => '0.80'],
     ['loc' => '/join.html',           'priority' => '0.60'],
 ];
 

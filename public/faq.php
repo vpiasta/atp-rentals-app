@@ -31,9 +31,9 @@ $faqs = [
     ],
     [
         'q_es' => '¿Cómo busco un hospedaje específico o por características?',
-        'a_es' => 'Puede buscar por nombre (o parte del nombre), palabras en la dirección (por ejemplo, el nombre del pueblo), el número de teléfono, o el correo electrónico (o parte de este). También puede filtrar los resultados por provincia, tipo de hospedaje, o característica. Cada filtro adicional reduce los resultados a los que cumplen TODOS los criterios — si obtiene muy pocos resultados, intente usar menos filtros. Búsquedas especiales: #12345 (o simplemente 12345) busca por número de listado; =member muestra todos los miembros (de prueba y de apoyo) de la comunidad TPS; =apatel muestra los miembros de APATEL en este directorio. Sin ningún término de búsqueda, el directorio muestra varios "Hospedajes Destacados".',
+        'a_es' => 'Puede buscar por nombre (o parte del nombre), palabras en la dirección (por ejemplo, el nombre del pueblo), el número de teléfono, o el correo electrónico (o parte de este). También puede filtrar los resultados por provincia, tipo de hospedaje, o característica. Cada filtro adicional reduce los resultados a los que cumplen TODOS los criterios — si obtiene muy pocos resultados, intente usar menos filtros. Búsquedas especiales: #12345 (o simplemente 12345) busca por número de listado; =member muestra todos los miembros (de prueba y de apoyo) de la comunidad TPS; =apatel muestra los miembros de APATEL en este directorio. Sin ningún término de búsqueda, el directorio muestra varios "Hospedajes Destacados". <a href="index.php?lang=es">Pruebe la búsqueda ahora →</a>',
         'q_en' => 'How do I search for a specific rental or by characteristics?',
-        'a_en' => 'You can search by name (or part of the name), words in the address (such as the town name), the phone number, or the email address (or part of it). You can also filter results by province, rental type, or feature. Each additional filter narrows results to those matching ALL selected criteria — if you get too few results, try using fewer filters. Special searches: #12345 (or simply 12345) searches by listing number; =member shows all members (trial and supporting) of the TPS community; =apatel shows APATEL members in this directory. With no search term, the directory shows several "Featured Accommodations".',
+        'a_en' => 'You can search by name (or part of the name), words in the address (such as the town name), the phone number, or the email address (or part of it). You can also filter results by province, rental type, or feature. Each additional filter narrows results to those matching ALL selected criteria — if you get too few results, try using fewer filters. Special searches: #12345 (or simply 12345) searches by listing number; =member shows all members (trial and supporting) of the TPS community; =apatel shows APATEL members in this directory. With no search term, the directory shows several "Featured Accommodations". <a href="index.php?lang=en">Try the search now →</a>',
     ],
     [
         'q_es' => '¿Cómo me pongo en contacto con un hospedaje?',
@@ -49,9 +49,9 @@ $faqs = [
     ],
     [
         'q_es' => '¿Cómo puedo registrar mi hospedaje en Trusted Panama Stays?',
-        'a_es' => 'Si su hospedaje está registrado ante la ATP, probablemente ya aparece en nuestro directorio. Visite la página "Registre su hospedaje" para solicitar su membresía gratuita de prueba (30 días) o una membresía de apoyo. Si su hospedaje no está registrado ante la ATP pero cuenta con un Aviso de Operación vigente (registro ante el MiCI), también puede solicitar su membresía — indíquelo en el formulario de solicitud.',
+        'a_es' => 'Si su hospedaje está registrado ante la ATP, probablemente ya aparece en nuestro directorio. Visite la página "Registre su hospedaje" para solicitar su membresía gratuita de prueba (30 días) o una membresía de apoyo. Si su hospedaje no está registrado ante la ATP pero cuenta con un Aviso de Operación vigente (registro ante el MiCI), también puede solicitar su membresía — indíquelo en el formulario de solicitud. <a href="join.html">Solicitar membresía →</a>',
         'q_en' => 'How can I register my property with Trusted Panama Stays?',
-        'a_en' => 'If your property is registered with the ATP, it likely already appears in our directory. Visit the "Register your property" page to apply for a free 30-day trial membership or a supporting membership. If your property is not registered with the ATP but holds a valid Aviso de Operación (MiCI registration), you can also apply — just indicate this on the application form.',
+        'a_en' => 'If your property is registered with the ATP, it likely already appears in our directory. Visit the "Register your property" page to apply for a free 30-day trial membership or a supporting membership. If your property is not registered with the ATP but holds a valid Aviso de Operación (MiCI registration), you can also apply — just indicate this on the application form. <a href="join.html">Apply for membership →</a>',
     ],
     [
         'q_es' => '¿Es obligatorio estar registrado ante la ATP para ser miembro?',
@@ -224,7 +224,27 @@ $faqSchema = [
         </div>
         <div class="header-right">
             <a href="<?= $t['back_href'] ?>" class="back-link"><?= $t['back_text'] ?></a>
-            <a href="<?= $t['lang_href'] ?>" class="lang-toggle"><?= $t['lang_text'] ?></a>
+            <a href="<?= $t['lang_href'] ?>" class="lang-toggle">
+                <?php if ($is_en): ?>
+                <svg width="20" height="14" viewBox="0 0 20 14" style="flex-shrink:0;">
+                    <rect x="0" y="0" width="10" height="7" fill="white"/>
+                    <rect x="10" y="0" width="10" height="7" fill="#cc0000"/>
+                    <rect x="0" y="7" width="10" height="7" fill="#003189"/>
+                    <rect x="10" y="7" width="10" height="7" fill="white"/>
+                    <polygon points="5,1.5 5.9,4.2 8.8,4.2 6.4,5.9 7.3,8.6 5,6.9 2.7,8.6 3.6,5.9 1.2,4.2 4.1,4.2" fill="#cc0000"/>
+                    <polygon points="15,5.5 15.9,8.2 18.8,8.2 16.4,9.9 17.3,12.6 15,10.9 12.7,12.6 13.6,9.9 11.2,8.2 14.1,8.2" fill="#003189"/>
+                </svg>
+                <?php else: ?>
+                <svg width="20" height="14" viewBox="0 0 20 14" style="flex-shrink:0;">
+                    <rect x="0" y="0" width="20" height="14" fill="#B22234"/>
+                    <rect x="0" y="2" width="20" height="2" fill="white"/>
+                    <rect x="0" y="6" width="20" height="2" fill="white"/>
+                    <rect x="0" y="10" width="20" height="2" fill="white"/>
+                    <rect x="0" y="0" width="8" height="8" fill="#3C3B6E"/>
+                </svg>
+                <?php endif; ?>
+                <?= $t['lang_text'] ?>
+            </a>
         </div>
     </header>
 

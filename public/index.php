@@ -267,7 +267,8 @@ $t = [
                 <p><?= $t['subheading'] ?></p>
             </div>
             <div class="header-right">
-                <a href="<?= $t['about_href'] ?>" class="lang-toggle"><?= $t['about_link'] ?></a>
+              <a href="<?= $t['about_href'] ?>" class="lang-toggle"><?= $t['about_link'] ?></a>
+              <a href="faq.php?lang=<?= $lang ?>" class="lang-toggle"><?= $is_en ? 'FAQ' : 'Preguntas' ?></a>
                 <a href="<?= $t['lang_href'] ?>" class="lang-toggle">
                     <?php if ($is_en): ?>
                       <svg width="20" height="14" viewBox="0 0 20 14" style="flex-shrink:0;">
