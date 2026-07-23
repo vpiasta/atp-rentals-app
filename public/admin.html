@@ -407,6 +407,7 @@
             <textarea class="wa-message" id="wa-message" rows="8"></textarea>
             <div class="panel-actions" style="margin-top:1rem;">
                 <a id="wa-send-link" href="#" target="_blank" class="panel-btn wa" onclick="markInvitedFromWa()">💬 Open WhatsApp</a>
+                <button class="panel-btn" style="background:#7a1a1a;color:#ffaaaa;" onclick="markWhatsappInvalid()">❌ No tiene WhatsApp</button>
                 <button class="panel-btn cancel" onclick="closePanel('wa-panel')">Cancel</button>
                 <span style="font-size:0.75rem;color:#aaa;">Opens WhatsApp with pre-written message. Clicking marks as Invited.</span>
             </div>
@@ -433,7 +434,7 @@
                 </select>
                 <button class="tbtn primary" onclick="loadMembers()">🔄 Refresh</button>
                 <button class="tbtn success" onclick="recalcRanks()">🏆 Recalculate Ranks</button>
-                <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('listings')">💾 Backup Listings</button>
+                <button class="tbtn" style="background:#00a859;color:white;" onclick="scanWhatsappCandidates()">📱 Scan WhatsApp Candidates</button><button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('listings')">💾 Backup Listings</button>
                 <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('membership_applications')">💾 Backup Applications</button>
                 <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('payments')">💾 Backup Payments</button>
             </div>
@@ -979,14 +980,15 @@ function renderMembers(members) {
         const atpBadge = m.atp_active
             ? `<span class="status-badge s-atp">ATP</span>`
             : `<span class="status-badge s-no-atp">NO ATP</span>`;
-        const statusBadge = `<span class="status-badge ${s.cls}" onclick="cycleStatus(${m.id})"
-            title="${s.date?'Invited: '+s.date:''}">${s.label}</span>`;
+            const noContact = s.key === 'not_invited' && !m.email && !m.whatsapp;
+            const statusBadge = noContact
+                ? `<span class="status-badge s-unregistered" title="Sin correo ni WhatsApp confirmado">SIN CONTACTO</span>`
+                : `<span class="status-badge ${s.cls}" onclick="cycleStatus(${m.id})"
+                    title="${s.date?'Invited: '+s.date:''}">${s.label}</span>`;
         const paidUntil = m.membership_paid_until
             ? `<span style="color:${m.membership_paid_until<today?'#ff7070':'#adf5ad'};font-size:0.78rem;">${m.membership_paid_until}</span>`
             : '<span style="color:#555;">—</span>';
-        const phone = m.phone ? m.phone.replace(/[^\d]/g,'').substring(0,8) : '';
-        const waBtn = phone ? `<button class="action-btn wa" onclick="openWaPanel(${m.id})" title="WhatsApp">💬</button>` : '';
-        return `<tr>
+        const waBtn = m.whatsapp ? `<button class="action-btn wa" onclick="openWaPanel(${m.id})" title="WhatsApp">💬</button>` : '';return `<tr>
             <td style="color:#ccc;font-size:0.72rem;">${m.id}</td>
             <td><strong style="font-size:0.85rem;cursor:help;" title="ID: ${m.id}">${m.name}</strong>
                 ${m.contact_name?`<br><span style="color:#aaa;font-size:0.72rem;">${m.contact_name}</span>`:''}
@@ -1009,30 +1011,6 @@ function renderMembers(members) {
     }).join('');
 }
 
-// Extracts a full international phone number (no leading '+', ready for a
-// wa.me link) from a phone string that may contain multiple numbers
-// separated by '/'. Recognizes:
-//   - Panama mobile (8 digits, starts with '6') → prefixed with 507
-//   - Foreign numbers written with '+' → used as-is
-//   - US/Canada 10-digit → prefixed with 1; 11-digit starting with 1 → as-is
-// A Panama fixed-line number (8 digits, not starting with 6) has no WhatsApp
-// use and correctly returns ''. Same length-based logic as index.php's
-// getPhoneNumbers(), so behavior is consistent across the whole site.
-function extractMobileNumber(phoneStr) {
-    if (!phoneStr) return '';
-    const parts = phoneStr.split('/').map(p => p.trim()).filter(Boolean);
-    for (const raw of parts) {
-        const hasPlus = raw.startsWith('+');
-        const digits  = raw.replace(/\D/g,'');
-        if (!digits) continue;
-        if (hasPlus) return digits;
-        if (digits.length === 11 && digits.startsWith('1')) return digits;
-        if (digits.length === 10) return '1' + digits;
-        if (digits.length === 8 && digits.startsWith('6')) return '507' + digits;
-    }
-    return '';
-}
-
 // ── Cycle status ──────────────────────────────────────────────────────────────
 async function cycleStatus(id) {
     const m = allMembers.find(x => x.id===id);
@@ -1043,9 +1021,8 @@ async function cycleStatus(id) {
     // Moving to "invited" should actually send the invitation, not just relabel the status
     if (nextStatus === 'invited') {
         if (!m.email) {
-            const mobile = extractMobileNumber(m.phone);
-            if (mobile) { openWaPanel(id); return; }
-            alert('This listing has no email and no mobile (WhatsApp-capable) number on file — nothing to invite them with.');
+            if (m.whatsapp) { openWaPanel(id); return; }
+            alert('This listing has no email and no confirmed WhatsApp number — nothing to invite them with.');
             return;
         }
         if (!confirm(`Send an invitation email to ${m.email}?`)) return;
@@ -1076,8 +1053,7 @@ function openWaPanel(id) {
     if (!m) return;
     currentWaMember = m;
     document.getElementById('wa-id').value    = m.id;
-    const phone = extractMobileNumber(m.phone);
-    document.getElementById('wa-phone').value = phone;
+    document.getElementById('wa-phone').value = m.whatsapp || '';
     document.getElementById('wa-panel-title').textContent = `💬 Invite: ${m.name}`;
     closePanel('edit-panel'); closePanel('pwd-panel');
     setWaLang(waLang);
@@ -1100,6 +1076,35 @@ function setWaLang(lang) {
     document.getElementById('wa-message').value = msg;
     const phone = document.getElementById('wa-phone').value;
     if (phone) document.getElementById('wa-send-link').href = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+}
+
+async function markWhatsappInvalid() {
+    const id = parseInt(document.getElementById('wa-id').value);
+    const m  = allMembers.find(x=>x.id===id);
+    if (!m) return;
+    if (!confirm('Marcar este número como confirmado SIN WhatsApp? Se revertirá a "no invitado" y nunca volverá a sugerirse para WhatsApp.')) return;
+    try {
+        const res = await adminFetch('/api/admin/mark-whatsapp-invalid', { method:'POST', body: JSON.stringify({ id }) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to update');
+        m.phone = data.phone;
+        m.whatsapp = null;
+        m.invitation_status = 'not_invited';
+        m.invitation_sent_at = null;
+        updateStats(allMembers); filterMembers();
+        closePanel('wa-panel');
+    } catch(err) { alert('Error: '+err.message); }
+}
+
+async function scanWhatsappCandidates() {
+    if (!confirm('Scan the entire directory for WhatsApp-capable numbers?')) return;
+    try {
+        const res = await adminFetch('/api/admin/scan-whatsapp-candidates', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Scan failed');
+        alert(`✅ Scan complete: ${data.updated} found, ${data.cleared} cleared, ${data.unchanged} unchanged (of ${data.total} listings).`);
+        loadMembers();
+    } catch(err) { alert('Error: ' + err.message); }
 }
 
 // ── Edit panel ────────────────────────────────────────────────────────────────

@@ -1505,11 +1505,11 @@ app.get('/api/admin/members', requireAdmin, async (req, res) => {
     let from = 0;
     const BATCH = 1000;
     while (true) {
-        const { data, error } = await supabase
-            .from('listings')
-            .select('id, name, email, phone, province, rental_type, is_member, membership_paid_until, invitation_sent_at, invitation_status, atp_active, slug, contact_name, notes, password_changed, apatel_member, feature_rank')
-            .order('name')
-            .range(from, from + BATCH - 1);
+      const { data, error } = await supabase
+          .from('listings')
+          .select('id, name, email, phone, province, rental_type, is_member, membership_paid_until, invitation_sent_at, invitation_status, atp_active, slug, contact_name, notes, password_changed, apatel_member, feature_rank, whatsapp')
+          .order('name')
+          .range(from, from + BATCH - 1);
         if (error) return res.status(500).json({ error: error.message });
         allData = allData.concat(data);
         if (data.length < BATCH) break;
@@ -1639,6 +1639,91 @@ app.post('/api/admin/invite-single', requireAdmin, async (req, res) => {
     } catch (err) {
         console.error(`Manual invite failed for ${listing.name}:`, err.message);
         res.status(500).json({ error: 'Failed to send invitation email: ' + err.message });
+    }
+});
+
+// ── Extracts a WhatsApp-ready international number from a phone string that ──
+// may contain multiple numbers separated by '/'. A number prefixed with '-'
+// (e.g. "-64427132") has been confirmed NOT on WhatsApp and is permanently
+// skipped — this makes re-running the scan always safe.
+function resolveWhatsAppNumber(phoneStr) {
+    if (!phoneStr) return null;
+    const parts = phoneStr.split('/').map(p => p.trim()).filter(Boolean);
+    for (const raw of parts) {
+        if (raw.startsWith('-')) continue; // confirmed not on WhatsApp
+        const hasPlus = raw.startsWith('+');
+        const digits  = raw.replace(/\D/g,'');
+        if (!digits) continue;
+        if (hasPlus) return digits;
+        if (digits.length === 11 && digits.startsWith('1')) return digits;
+        if (digits.length === 10) return '1' + digits;
+        if (digits.length === 8 && digits.startsWith('6')) return '507' + digits;
+    }
+    return null;
+}
+
+// ── Scan the whole directory and populate/refresh the whatsapp column ────────
+app.post('/api/admin/scan-whatsapp-candidates', requireAdmin, async (req, res) => {
+    try {
+        let all = [];
+        let from = 0;
+        const BATCH = 1000;
+        while (true) {
+            const { data, error } = await supabaseAdmin
+                .from('listings').select('id, phone, whatsapp').range(from, from + BATCH - 1);
+            if (error) throw new Error(error.message);
+            all = all.concat(data);
+            if (data.length < BATCH) break;
+            from += BATCH;
+        }
+        let updated = 0, cleared = 0, unchanged = 0;
+        for (const l of all) {
+            const candidate = resolveWhatsAppNumber(l.phone);
+            if (candidate !== (l.whatsapp || null)) {
+                await supabaseAdmin.from('listings').update({ whatsapp: candidate }).eq('id', l.id);
+                candidate ? updated++ : cleared++;
+            } else {
+                unchanged++;
+            }
+        }
+        await logEvent('whatsapp_scan_completed', { updated, cleared, unchanged, total: all.length });
+        res.json({ success: true, updated, cleared, unchanged, total: all.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Confirm a number is NOT on WhatsApp: mark it in the phone field so a ────
+// future scan never re-suggests it, clear the whatsapp column, and revert
+// the (incorrectly set) invited status since no message actually arrived.
+app.post('/api/admin/mark-whatsapp-invalid', requireAdmin, async (req, res) => {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ error: 'Missing id' });
+    try {
+        const { data: listing, error: fetchErr } = await supabaseAdmin
+            .from('listings').select('id, phone, whatsapp').eq('id', id).single();
+        if (fetchErr || !listing) return res.status(404).json({ error: 'Listing not found' });
+
+        let newPhone = listing.phone || '';
+        if (listing.whatsapp && newPhone) {
+            newPhone = newPhone.split('/').map(part => {
+                const trimmed = part.trim();
+                if (trimmed.startsWith('-')) return part;
+                return resolveWhatsAppNumber(trimmed) === listing.whatsapp ? part.replace(trimmed, '-' + trimmed) : part;
+            }).join('/');
+        }
+
+        const { error } = await supabaseAdmin.from('listings').update({
+            phone: newPhone,
+            whatsapp: null,
+            invitation_status: 'not_invited',
+            invitation_sent_at: null
+        }).eq('id', id);
+        if (error) return res.status(500).json({ error: error.message });
+        await logEvent('whatsapp_marked_invalid', { listing_id: id, old_phone: listing.phone, new_phone: newPhone });
+        res.json({ success: true, phone: newPhone });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -2939,7 +3024,7 @@ app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => 
             if (filter !== 'no-email') {
                 listings = (listings||[]).filter(l => isValidEmail(l.email));
             }
-    
+
             if (!listings || listings.length === 0)
                 return res.json({ success: true, sent: 0, skipped: 0, message: 'No eligible listings found' });
 
