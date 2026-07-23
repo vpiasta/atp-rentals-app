@@ -407,7 +407,7 @@
             <textarea class="wa-message" id="wa-message" rows="8"></textarea>
             <div class="panel-actions" style="margin-top:1rem;">
                 <a id="wa-send-link" href="#" target="_blank" class="panel-btn wa" onclick="markInvitedFromWa()">💬 Open WhatsApp</a>
-                <button class="panel-btn" style="background:#7a1a1a;color:#ffaaaa;" onclick="markWhatsappInvalid()">❌ No tiene WhatsApp</button>
+                <button class="panel-btn" style="background:#7a1a1a;color:#ffaaaa;" onclick="markWhatsappInvalid()">❌ This number is not WhatsApp</button>
                 <button class="panel-btn cancel" onclick="closePanel('wa-panel')">Cancel</button>
                 <span style="font-size:0.75rem;color:#aaa;">Opens WhatsApp with pre-written message. Clicking marks as Invited.</span>
             </div>
@@ -1088,16 +1088,26 @@ async function markWhatsappInvalid() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to update');
         m.phone = data.phone;
-        m.whatsapp = null;
+        m.whatsapp = data.whatsapp;
         m.invitation_status = 'not_invited';
         m.invitation_sent_at = null;
         updateStats(allMembers); filterMembers();
-        closePanel('wa-panel');
+
+        if (data.whatsapp) {
+            // Another mobile number is available on this listing — reload the
+            // panel with it right away instead of closing, so it can be tried
+            // immediately without a full re-scan.
+            document.getElementById('wa-phone').value = data.whatsapp;
+            setWaLang(waLang);
+            alert('Otro número móvil disponible para este hospedaje — probando ahora.');
+        } else {
+            closePanel('wa-panel');
+        }
     } catch(err) { alert('Error: '+err.message); }
 }
 
 async function scanWhatsappCandidates() {
-    if (!confirm('Scan the entire directory for WhatsApp-capable numbers?')) return;
+    if (!confirm('Scan the entire directory for WhatsApp-capable numbers?\n\nPor favor espere la confirmación — esto puede tardar unos segundos.')) return;
     try {
         const res = await adminFetch('/api/admin/scan-whatsapp-candidates', { method: 'POST' });
         const data = await res.json();

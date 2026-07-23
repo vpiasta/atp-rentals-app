@@ -546,9 +546,11 @@ async function performSearch() { // returns promise for .then() chaining
 
 function getPhoneNumbers(phoneStr) {
     if (!phoneStr) return { display: '', call: null, whatsapp: null };
-    // Split on '/' since multiple numbers are sometimes listed together
-    const parts = phoneStr.split('/').map(p => p.trim()).filter(Boolean);
-    const display = phoneStr.replace(/^\/+|\/+$/g,'').trim().replace(/\s*\/\s*/g,' / ');
+      // A number prefixed with '-' has been confirmed NOT on WhatsApp (set from
+      // the admin panel) — strip the marker for display and exclude it entirely
+      // from call/WhatsApp candidate selection below.
+      const parts = phoneStr.split('/').map(p => p.trim()).filter(Boolean);
+      const display = phoneStr.split('/').map(p => p.trim().replace(/^-/, '')).join(' / ');
 
     // Build a full international number (no leading +) for tel:/wa.me links.
     // Length is the reliable signal here (not the leading digit — Panama's own
@@ -570,7 +572,7 @@ function getPhoneNumbers(phoneStr) {
         return digits; // ambiguous length — don't force a wrong prefix
     };
 
-    const candidates = parts.filter(p => p.replace(/\D/g,'').length >= 7);
+    const candidates = parts.filter(p => !p.startsWith('-') && p.replace(/\D/g,'').length >= 7);
     const mobileLocal = candidates.filter(p => {
         const d = p.replace(/\D/g,'');
         return !p.trim().startsWith('+') && d.length === 8 && d.startsWith('6');

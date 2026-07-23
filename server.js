@@ -1713,15 +1713,20 @@ app.post('/api/admin/mark-whatsapp-invalid', requireAdmin, async (req, res) => {
             }).join('/');
         }
 
+        // Immediately check if another mobile number in the same field is a
+        // fresh candidate — resolveWhatsAppNumber already skips '-' prefixed
+        // (confirmed invalid) numbers, so this naturally finds the next one.
+        const nextCandidate = resolveWhatsAppNumber(newPhone);
+
         const { error } = await supabaseAdmin.from('listings').update({
             phone: newPhone,
-            whatsapp: null,
+            whatsapp: nextCandidate,
             invitation_status: 'not_invited',
             invitation_sent_at: null
         }).eq('id', id);
         if (error) return res.status(500).json({ error: error.message });
-        await logEvent('whatsapp_marked_invalid', { listing_id: id, old_phone: listing.phone, new_phone: newPhone });
-        res.json({ success: true, phone: newPhone });
+        await logEvent('whatsapp_marked_invalid', { listing_id: id, old_phone: listing.phone, new_phone: newPhone, next_candidate: nextCandidate });
+        res.json({ success: true, phone: newPhone, whatsapp: nextCandidate });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
