@@ -447,7 +447,7 @@ async function showDefaultView() {
 
                             ${rental.registry_source === 'mici'
                                 ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>`
-                                : `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>`}
+                                : (rental.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
                             ${rental.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
                         </div>
                         <div class="result-details">
