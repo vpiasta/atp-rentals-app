@@ -1016,12 +1016,27 @@ async function cycleStatus(id) {
     const s = getInvitationStatus(m);
     if (['member','expired','unregistered'].includes(s.key)) { openEditPanel(id); return; }
     const nextStatus = { not_invited:'invited', invited:'no_response', no_response:'refused', refused:'not_invited' }[s.key]||'not_invited';
+
+    // Moving to "invited" should actually send the invitation email, not just relabel the status
+    if (nextStatus === 'invited') {
+        if (!m.email) { alert('This listing has no email — cannot send an invitation. Use WhatsApp instead.'); return; }
+        if (!confirm(`Send an invitation email to ${m.email}?`)) return;
+        try {
+            const res = await adminFetch('/api/admin/invite-single', { method:'POST', body: JSON.stringify({ id }) });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Send failed');
+            m.invitation_status = 'invited';
+            m.invitation_sent_at = new Date().toISOString();
+            updateStats(allMembers); filterMembers();
+        } catch (err) { alert('Error: '+err.message); }
+        return;
+    }
+
     if (!confirm(`Change status to: ${nextStatus.replace('_',' ').toUpperCase()}?`)) return;
     try {
         const res = await adminFetch('/api/admin/set-invitation-status', { method:'POST', body: JSON.stringify({ id, status: nextStatus }) });
         if (res.ok) {
             m.invitation_status = nextStatus;
-            if (nextStatus==='invited') m.invitation_sent_at = new Date().toISOString();
             if (nextStatus==='not_invited') m.invitation_sent_at = null;
             updateStats(allMembers); filterMembers();
         }

@@ -1577,6 +1577,71 @@ app.post('/api/admin/mark-invited', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── Send a real invitation email to a single listing (used by the admin ──
+// panel's status badge, so clicking "INVITE" actually invites instead of
+// just relabeling the status without contacting anyone).
+app.post('/api/admin/invite-single', requireAdmin, async (req, res) => {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ error: 'Missing id' });
+
+    const { data: listing, error: fetchErr } = await supabaseAdmin
+        .from('listings')
+        .select('id, name, email, slug')
+        .eq('id', id)
+        .single();
+    if (fetchErr || !listing) return res.status(404).json({ error: 'Listing not found' });
+    if (!listing.email || !listing.email.includes('@')) {
+        return res.status(400).json({ error: 'This listing has no valid email on file' });
+    }
+
+    const listUrl = listing.slug
+        ? `https://trustedpanamastays.com/listing.html?slug=${listing.slug}&lang=es`
+        : `https://trustedpanamastays.com/listing.html?id=${listing.id}&lang=es`;
+    const joinUrl = 'https://trustedpanamastays.com/join.html';
+
+    const subject = `Su hospedaje ya está en Trusted Panama Stays — ${listing.name}`;
+    const message = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
+    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
+</div>
+<p>Estimado/a propietario/a de <strong>${listing.name}</strong>,</p>
+<p>Le contactamos porque su hospedaje aparece en el registro oficial de la ATP.</p>
+<p>Hemos creado <strong>Trusted Panama Stays</strong>, un directorio gratuito para turistas internacionales que buscan hospedajes legalmente registrados en Panamá — sin las comisiones de Booking.com o Airbnb (15–20%).</p>
+<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
+    <p style="margin:0 0 0.5rem;font-weight:bold;color:#005ca9;">Su hospedaje ya aparece en nuestro directorio:</p>
+    <p style="margin:0;"><a href="${listUrl}" style="color:#005ca9;font-size:1rem;">${listUrl}</a></p>
+</div>
+<p>Con una <strong>membresía de prueba gratuita</strong> (sin costo, sin obligación) puede agregar hasta 20 fotos, descripción en inglés y español, dirección completa, y enlaces a su sitio web y sistema de reservas.</p>
+<p style="text-align:center;margin:1.5rem 0;">
+    <a href="${joinUrl}" style="background:#005ca9;color:white;padding:12px 30px;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;display:inline-block;">
+        Solicitar membresía gratuita →
+    </a>
+</p>
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">
+    Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
+    <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a>
+</p>
+</body></html>`;
+
+    try {
+        const notifyPath = path.join(__dirname, 'public', 'notify.php');
+        await execFileAsync('php', [notifyPath, subject, message, listing.email], { timeout: 15000 });
+        await supabaseAdmin.from('listings').update({
+            invitation_status: 'invited',
+            invitation_sent_at: new Date().toISOString(),
+            general_campaign_sent_at: new Date().toISOString() // so the batch campaign doesn't re-send later
+        }).eq('id', id);
+        await logEvent('invitation_email_sent', { listing_id: id, name: listing.name, email: listing.email, source: 'manual_single' });
+        res.json({ success: true });
+    } catch (err) {
+        console.error(`Manual invite failed for ${listing.name}:`, err.message);
+        res.status(500).json({ error: 'Failed to send invitation email: ' + err.message });
+    }
+});
+
 app.post('/api/admin/set-invitation-status', requireAdmin, async (req, res) => {
     const { id, status } = req.body;
     if (!id || !status) return res.status(400).json({ error: 'Missing fields' });
@@ -4554,8 +4619,8 @@ async function sendGeneralCampaignBatch() {
             .select('id, name, email, province, rental_type, slug, apatel_member')
             .eq('is_member', false)
             .eq('atp_active', true)
-            .eq('apatel_member', false)
             .is('general_campaign_sent_at', null)
+            .is('invitation_sent_at', null) // skip anyone already invited by any mechanism (e.g. the dedicated APATEL campaign)
             .not('email', 'is', null)
             .limit(280);  // Stay under Brevo 300/day (leaves room for other emails)
 
