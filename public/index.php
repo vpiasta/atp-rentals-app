@@ -456,9 +456,9 @@ async function showDefaultView() {
                             ${address    ? `<div class="detail-item"><span>📍</span><span>${address}</span></div>` : ''}
                         </div>
                         <div class="contact-buttons">
-                            ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button"><span class="btn-icon">📞</span><span class="btn-text"> Llamar</span></a>` : ''}
+                            ${ph.call     ? `<a href="tel:+${ph.call}" class="contact-button"><span class="btn-icon">📞</span><span class="btn-text"> Llamar</span></a>` : ''}
                             ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Correo</span></a>` : ''}
-                            ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
+                            ${ph.whatsapp ? `<a href="https://wa.me/${ph.whatsapp}?text=${encodeURIComponent('Inquiry via TrustedPanamaStays.com:')}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                             <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
                             ${active ? `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 Acceso</a>` : ''}
                         </div>
@@ -545,12 +545,53 @@ async function performSearch() { // returns promise for .then() chaining
 
 function getPhoneNumbers(phoneStr) {
     if (!phoneStr) return { display: '', call: null, whatsapp: null };
-    const nums = phoneStr.split('/').map(p=>p.trim().replace(/\D/g,'')).filter(p=>p.length>=7);
-    const mobile = nums.filter(n=>n.startsWith('6')); const fixed = nums.filter(n=>!n.startsWith('6'));
-    const call = (fixed[0]||mobile[0]||nums[0]||'').substring(0,8)||null;
-    const whatsapp = mobile[0]?mobile[0].substring(0,8):null;
+    // Split on '/' since multiple numbers are sometimes listed together
+    const parts = phoneStr.split('/').map(p => p.trim()).filter(Boolean);
     const display = phoneStr.replace(/^\/+|\/+$/g,'').trim().replace(/\s*\/\s*/g,' / ');
-    return { display, call, whatsapp };
+
+    // Build a full international number (no leading +) for tel:/wa.me links.
+    // Length is the reliable signal here (not the leading digit — Panama's own
+    // local numbers can start with 3, so "starts with 3" isn't a safe US/Canada
+    // test on its own):
+    //   - already has '+'          → treat as fully international, use as-is
+    //   - 11 digits starting with 1 → US/Canada with country code, use as-is
+    //   - 10 digits                 → US/Canada missing the leading 1, prepend '1'
+    //   - 7-8 digits                → Panama local, prepend '507'
+    //   - anything else             → ambiguous; use as-is rather than guess wrong
+    const toInternational = raw => {
+        const hasPlus = raw.trim().startsWith('+');
+        const digits  = raw.replace(/\D/g,'');
+        if (!digits) return null;
+        if (hasPlus) return digits;
+        if (digits.length === 11 && digits.startsWith('1')) return digits;
+        if (digits.length === 10) return '1' + digits;
+        if (digits.length <= 8) return '507' + digits;
+        return digits; // ambiguous length — don't force a wrong prefix
+    };
+
+    const candidates = parts.filter(p => p.replace(/\D/g,'').length >= 7);
+    const mobileLocal = candidates.filter(p => {
+        const d = p.replace(/\D/g,'');
+        return !p.trim().startsWith('+') && d.length === 8 && d.startsWith('6');
+    });
+    const foreignLike = candidates.filter(p => {
+        const d = p.replace(/\D/g,'');
+        return p.trim().startsWith('+') || d.length === 10 || (d.length === 11 && d.startsWith('1'));
+    });
+    const fixedLocal = candidates.filter(p =>
+        !mobileLocal.includes(p) && !foreignLike.includes(p) && p.replace(/\D/g,'').length <= 8
+    );
+
+    const callSource     = fixedLocal[0] || mobileLocal[0] || foreignLike[0] || candidates[0] || null;
+    // WhatsApp: prefer a local mobile number, but a foreign (US/Canada or +prefixed)
+    // number works fine on WhatsApp too — owners want tourists to reach them either way
+    const whatsappSource = mobileLocal[0] || foreignLike[0] || null;
+
+    return {
+        display,
+        call:     callSource     ? toInternational(callSource)     : null,
+        whatsapp: whatsappSource ? toInternational(whatsappSource) : null
+    };
 }
 
 function isMemberActive(rental) {
@@ -616,9 +657,9 @@ function displayResults(rentals) {
                         ${address    ? `<div class="detail-item"><span>📍</span><span>${address}</span></div>` : ''}
                     </div>
                     <div class="contact-buttons">
-                        ${ph.call     ? `<a href="tel:+507${ph.call}" class="contact-button"><span class="btn-icon">📞</span><span class="btn-text"> Llamar</span></a>` : ''}
+                        ${ph.call     ? `<a href="tel:+${ph.call}" class="contact-button"><span class="btn-icon">📞</span><span class="btn-text"> Llamar</span></a>` : ''}
                         ${email       ? `<a href="mailto:${email}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Correo</span></a>` : ''}
-                        ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
+                        ${ph.whatsapp ? `<a href="https://wa.me/${ph.whatsapp}?text=${encodeURIComponent('Inquiry via TrustedPanamaStays.com:')}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                         <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
                             ${active ? `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 Acceso</a>` : ''}
                     </div>
