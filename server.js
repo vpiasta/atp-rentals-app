@@ -2922,9 +2922,12 @@ app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => 
             .eq('is_member', false)  // non-members only
             .is('invitation_sent_at', null); // not yet invited
 
-        if (filter === 'apatel') query = query.eq('apatel_member', true);
-        if (filter === 'no-email') query = query.is('email', null);
-        else query = query.not('email', 'is', null); // has email
+            if (filter === 'apatel') query = query.eq('apatel_member', true);
+            if (filter === 'no-email') {
+                query = query.or('email.is.null,email.eq.,email.ilike.no%,email.ilike.n/t');
+            } else {
+                query = query.not('email', 'is', null).neq('email', '').not('email', 'ilike', 'no%').not('email', 'ilike', 'n/t');
+            }
 
         const { data: listings, error } = await query;
         if (error) throw new Error(error.message);

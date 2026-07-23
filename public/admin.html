@@ -500,7 +500,7 @@
                     <button onclick="loadAnalytics(7)"  class="action-btn edit">Last 7 days</button>
                     <button onclick="loadAnalytics(30)" class="action-btn edit">Last 30 days</button>
                     <button onclick="loadAnalytics(90)" class="action-btn edit">Last 90 days</button>
-                    <button onclick="sendWeeklyReport()" class="action-btn" style="background:#005ca9;margin-left:auto;">📧 Send report now</button>
+                    <button onclick="sendWeeklyReport()" class="action-btn" style="background:#005ca9;ma<button onclick="sendWeeklyReport()" class="action-btn" style="background:#005ca9;margin-left:auto;color:white;">📧 Send report now</button>rgin-left:auto;">📧 Send report now</button>
                 </div>
                 <div id="analytics-content" style="color:#ccc;font-size:0.85rem;">
                     Click a period above to load analytics.
@@ -542,7 +542,7 @@
                         <p style="font-size:0.82rem;color:#aaa;margin-bottom:0.8rem;">Standard invitation email to all ATP-registered non-members who have an email address and haven't been invited yet.</p>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
                             <button onclick="dryRunCampaign('all')" class="action-btn edit">🔍 Count recipients</button>
-                            <button onclick="runCampaign('all')" class="action-btn" style="background:#005ca9;">📨 Send campaign</button>
+                            <button onclick="runCampaign('all')" class="action-btn" style="background:#005ca9;color:white;">📨 Send campaign</button>
                         </div>
                     </div>
                     <div style="background:#2c3e50;border-radius:8px;padding:1rem;">
@@ -550,7 +550,7 @@
                         <p style="font-size:0.82rem;color:#aaa;margin-bottom:0.8rem;">Personalized email mentioning APATEL, sent only to listings marked as APATEL members.</p>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
                             <button onclick="dryRunCampaign('apatel')" class="action-btn edit">🔍 Count recipients</button>
-                            <button onclick="runCampaign('apatel')" class="action-btn" style="background:#1a3a6b;">📨 Send campaign</button>
+                            <button onclick="runCampaign('apatel')" class="action-btn" style="background:#1a3a6b;color:white;">📨 Send campaign</button>
                         </div>
                     </div>
                     <div style="background:#2c3e50;border-radius:8px;padding:1rem;">
@@ -1835,9 +1835,11 @@ async function dryRunCampaign(filter) {
     const resultEl = document.getElementById('campaign-result');
     resultEl.style.display = 'block';
     resultEl.innerHTML = '<span style="color:#aaa;">⏳ Counting...</span>';
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     const res  = await adminFetch('/api/admin/send-invitation-emails', {method:'POST',body:JSON.stringify({filter,dry_run:true})});
     const data = await res.json();
-    resultEl.innerHTML = `<span style="color:#adf5ad;">Would send to <strong>${data.count||0}</strong> listings.</span>`;
+    resultEl.innerHTML = `<span style="color:#adf5ad;font-size:1.1rem;">Would send to <strong>${data.count||0}</strong> listings with a valid email address.</span>`;
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 async function runCampaign(filter) {
@@ -1845,9 +1847,11 @@ async function runCampaign(filter) {
     if (!confirm('Send invitation emails?')) return;
     resultEl.style.display = 'block';
     resultEl.innerHTML = '<span style="color:#FFD700;">⏳ Sending...</span>';
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     const res  = await adminFetch('/api/admin/send-invitation-emails', {method:'POST',body:JSON.stringify({filter,dry_run:false})});
     const data = await res.json();
-    resultEl.innerHTML = `<span style="color:#adf5ad;">✅ Done: <strong>${data.sent}</strong> sent, ${data.errors} errors.</span>`;
+    resultEl.innerHTML = `<span style="color:#adf5ad;font-size:1.1rem;">✅ Done: <strong>${data.sent}</strong> sent, ${data.errors} errors.</span>`;
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     loadCampaignStats();
 }
 
