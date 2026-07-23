@@ -3443,6 +3443,32 @@ if (!fs.existsSync(TEMPLATES_DIR)) {
     fs.mkdirSync(TEMPLATES_DIR, { recursive: true });
 }
 
+// Seed a starter reminder template for contacted-but-not-subscribed APATEL
+// members, if it doesn't already exist — editable via the admin template manager.
+const reminderTemplatePath = path.join(TEMPLATES_DIR, 'apatel_reminder_not_subscribed.html');
+if (!fs.existsSync(reminderTemplatePath)) {
+    const reminderTemplate = `<p>Le escribimos nuevamente porque hace un tiempo le compartimos información sobre <strong>Trusted Panama Stays</strong>, y notamos que aún no ha activado su membresía.</p>
+
+<p>Como recordatorio, su hospedaje ya aparece en el directorio, y con una <strong>membresía de prueba gratuita de 30 días</strong> (sin costo, sin obligación) puede:</p>
+
+<ul style="line-height:2;margin:0.5rem 0 1rem 1.5rem;">
+    <li>Agregar hasta <strong>20 fotos</strong> de su hospedaje</li>
+    <li>Publicar una <strong>descripción en inglés y español</strong></li>
+    <li>Mostrar su <strong>dirección completa</strong> y enlaces de reserva</li>
+</ul>
+
+<p>Si ya no le interesa, puede ignorar este mensaje sin problema — no volveremos a insistir.</p>
+
+<p style="text-align:center;margin:1.5rem 0;">
+    <a href="https://trustedpanamastays.com/join.html" style="background:#005ca9;color:white;padding:12px 30px;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;display:inline-block;">
+        Solicitar membresía gratuita →
+    </a>
+</p>
+
+<p style="font-size:0.85rem;color:#666;">Creado por Volker Piasta, propietario del Aparthotel Boquete y miembro de APATEL.</p>`;
+    fs.writeFileSync(reminderTemplatePath, reminderTemplate, 'utf8');
+}
+
 // ── GET /api/admin/templates ──────────────────────────────────────────────────
 app.get('/api/admin/templates', requireAdmin, (req, res) => {
     try {
@@ -3514,6 +3540,35 @@ app.get('/api/admin/apatel-roster-count', requireAdmin, (req, res) => {
     } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── GET /api/admin/apatel-contacted-not-member-count ──────────────────────────
+// Returns APATEL roster members who WERE contacted (invitation sent) but are
+// NOT currently an active member — the "reminder" segment, as opposed to the
+// "never contacted" segment above.
+app.get('/api/admin/apatel-contacted-not-member-count', requireAdmin, async (req, res) => {
+    try {
+        const roster = require('./apatel_emails.json');
+        const { data } = await supabaseAdmin
+            .from('listings')
+            .select('email, email_member, is_member, membership_paid_until, invitation_sent_at, apatel_contacted_at')
+            .eq('apatel_member', true);
+
+        const today = new Date().toISOString().split('T')[0];
+        const isActiveMember = l => l.is_member && l.membership_paid_until && l.membership_paid_until >= today;
+        const wasContacted   = l => !!l.invitation_sent_at || !!l.apatel_contacted_at;
+
+        const contactedNotMemberEmails = new Set();
+        (data||[]).forEach(l => {
+            if (wasContacted(l) && !isActiveMember(l)) {
+                if (l.email) contactedNotMemberEmails.add(l.email.toLowerCase().trim());
+                if (l.email_member) contactedNotMemberEmails.add(l.email_member.toLowerCase().trim());
+            }
+        });
+
+        const targets = roster.filter(m => m.email && contactedNotMemberEmails.has(m.email.toLowerCase().trim()));
+        res.json({ count: targets.length });
+    } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── GET /api/admin/apatel-not-contacted-count ─────────────────────────────────
 // Returns count of APATEL roster members whose email is NOT in any invited listing
 app.get('/api/admin/apatel-not-contacted-count', requireAdmin, async (req, res) => {
@@ -3533,6 +3588,36 @@ app.get('/api/admin/apatel-not-contacted-count', requireAdmin, async (req, res) 
         const notContacted = roster.filter(m => m.email && !contactedEmails.has(m.email.toLowerCase().trim()));
         res.json({ count: notContacted.length });
     } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── POST /api/admin/send-followup-reminder ────────────────────────────────────
+// Send to APATEL roster members who were contacted but never became members
+app.post('/api/admin/send-followup-reminder', requireAdmin, async (req, res) => {
+    const { subject, body } = req.body;
+    if (!subject || !body) return res.status(400).json({ error: 'Missing subject or body' });
+
+    const roster = require('./apatel_emails.json');
+    const { data } = await supabaseAdmin
+        .from('listings')
+        .select('email, email_member, is_member, membership_paid_until, invitation_sent_at, apatel_contacted_at')
+        .eq('apatel_member', true);
+
+    const today = new Date().toISOString().split('T')[0];
+    const isActiveMember = l => l.is_member && l.membership_paid_until && l.membership_paid_until >= today;
+    const wasContacted   = l => !!l.invitation_sent_at || !!l.apatel_contacted_at;
+
+    const contactedNotMemberEmails = new Set();
+    (data||[]).forEach(l => {
+        if (wasContacted(l) && !isActiveMember(l)) {
+            if (l.email) contactedNotMemberEmails.add(l.email.toLowerCase().trim());
+            if (l.email_member) contactedNotMemberEmails.add(l.email_member.toLowerCase().trim());
+        }
+    });
+
+    const targets = roster.filter(m => m.email && contactedNotMemberEmails.has(m.email.toLowerCase().trim()));
+
+    res.json({ success: true, message: `Sending reminder to ${targets.length} contacted-but-not-subscribed APATEL members`, total: targets.length });
+    await sendToRosterList(targets, subject, body);
 });
 
 // ── POST /api/admin/send-followup-new ────────────────────────────────────────

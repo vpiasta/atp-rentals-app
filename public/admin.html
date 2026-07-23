@@ -658,6 +658,11 @@
                                         <span id="rc-apatel-new-count" style="color:#aaa;font-size:0.75rem;"></span>
                                     </label>
                                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                                        <input type="radio" name="recipient-type" value="apatel_reminder">
+                                        <span style="font-size:0.85rem;">APATEL members contacted but not subscribed</span>
+                                        <span id="rc-apatel-reminder-count" style="color:#aaa;font-size:0.75rem;"></span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
                                         <input type="radio" name="recipient-type" value="atp_non_members">
                                         <span style="font-size:0.85rem;">All ATP non-members with email</span>
                                         <span id="rc-atp-count" style="color:#aaa;font-size:0.75rem;"></span>
@@ -2118,6 +2123,14 @@ async function loadRecipientCounts() {
         if (el) el.textContent = '(' + (d.count||0) + ' not yet contacted)';
     } catch(e) {}
 
+    // APATEL contacted but not subscribed
+    try {
+        const res = await adminFetch('/api/admin/apatel-contacted-not-member-count');
+        const d = await res.json();
+        const el = document.getElementById('rc-apatel-reminder-count');
+        if (el) el.textContent = '(' + (d.count||0) + ' contacted, not subscribed)';
+    } catch(e) {}
+
     // ATP non-members count
     try {
         const res = await adminFetch('/api/admin/invitation-stats');
@@ -2142,9 +2155,12 @@ async function confirmAndSend() {
     if (type === 'apatel_all') {
         confirmMsg = 'Send to ALL APATEL members from the official roster?';
         endpoint = '/api/admin/send-followup-all';
-    } else if (type === 'apatel_new') {
-        confirmMsg = 'Send to APATEL members not yet contacted?';
-        endpoint = '/api/admin/send-followup-new';
+      } else if (type === 'apatel_new') {
+          confirmMsg = 'Send to APATEL members not yet contacted?';
+          endpoint = '/api/admin/send-followup-new';
+      } else if (type === 'apatel_reminder') {
+          confirmMsg = 'Send reminder to APATEL members contacted but not subscribed?';
+          endpoint = '/api/admin/send-followup-reminder';
     } else if (type === 'atp_non_members') {
         confirmMsg = 'Send to all ATP non-members with email? This may be 1000+ emails.';
         endpoint = '/api/admin/send-invitation-emails';
