@@ -4208,6 +4208,30 @@ app.get('/api/payment-info', async (req, res) => {
 });
 
 
+/// ── eFactura payment-method mapping (per eFacturaPty API docs) ────────────────
+// Source of truth for formaPago codes. Extend this map as new payment methods
+// are supported — the invoice code itself never needs to change, only this map.
+const EFACTURA_FORMA_PAGO = {
+    transfer:        '08',
+    transferencia:   '08',
+    deposito:        '08',
+    cash:            '02',
+    efectivo:        '02',
+    credit_card:     '03',
+    tarjeta_credito: '03',
+    debit_card:      '04',
+    tarjeta_debito:  '04',
+    check:           '09',
+    cheque:          '09'
+};
+function resolveFormaPago(paymentMethod) {
+    if (!paymentMethod) return EFACTURA_FORMA_PAGO.transfer;
+    const key = paymentMethod.toString().trim().toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip accents (transferéncia → transferencia)
+        .replace(/\s+/g, '_');
+    return EFACTURA_FORMA_PAGO[key] || EFACTURA_FORMA_PAGO.transfer;
+}
+
 // -------------------------------------------------------------------------------
 // ── POST /api/admin/issue-invoice ─────────────────────────────────────────────
 // Called from admin panel "Issue Invoice & Activate" button
@@ -4217,16 +4241,31 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
     if (!listing_id || !plan || !business_name || !ruc || !ruc_dv || !email)
         return res.status(400).json({ error: 'Missing required fields' });
 
-    const planCode    = plan === '2year' ? 'TPS02' : 'TPS01';
-    const planDesc    = plan === '2year' ? 'Membresía Trusted Panama Stays — 2 años' : 'Membresía Trusted Panama Stays — 1 año';
-    const totalPaid   = parseFloat(req.body.amount_total) || (plan === '2year' ? 48.15 : 25.68);
-    const netAmount   = Math.round(totalPaid / 1.07 * 100) / 100;
-    const itbmsAmount = Math.round(netAmount * 0.07 * 100) / 100;
-    const grossAmount = Math.round((netAmount + itbmsAmount) * 100) / 100;
-    const planPrice   = netAmount; // kept for backward compat with invoice body fields
+        const planCode    = plan === '2year' ? 'TPS02' : 'TPS01';
+        const planDesc    = plan === '2year' ? 'Membresía Trusted Panama Stays — 2 años' : 'Membresía Trusted Panama Stays — 1 año';
+        const totalPaid   = parseFloat(req.body.amount_total) || (plan === '2year' ? 48.15 : 25.68);
+        const netAmount   = Math.round(totalPaid / 1.07 * 100) / 100;
+        const itbmsAmount = Math.round(netAmount * 0.07 * 100) / 100;
+        const grossAmount = Math.round((netAmount + itbmsAmount) * 100) / 100;
+        const planPrice   = netAmount; // kept for backward compat with invoice body fields
 
-    // Multiple recipients: member + TPS copy
-    const recipients = `${email};info@trustedpanamastays.com`;
+        // Derive the actual payment method from the application record (set either
+        // from the join-application form or from AI-detected verification in
+        // pay.html), rather than assuming transfer — falls back to transfer if
+        // no application is linked or no method was recorded.
+        let recognizedPaymentMethod = null;
+        if (application_id) {
+            const { data: appRow } = await supabaseAdmin
+                .from('membership_applications')
+                .select('payment_method')
+                .eq('id', application_id)
+                .single();
+            recognizedPaymentMethod = appRow?.payment_method || null;
+        }
+        const formaPagoCode = resolveFormaPago(recognizedPaymentMethod);
+
+        // Multiple recipients: member + TPS copy
+        const recipients = `${email};info@trustedpanamastays.com`;
 
     const invoiceBody = {
         datosGenerales: {
@@ -4269,7 +4308,7 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
         totales: {
             tiempoPago: 1,  // Contado — the only other required field in this object
             grupoFormasPago: [{
-                formaPago:       '08',  // Transferencia bancaria
+                formaPago:       formaPagoCode,
                 valorCuotaPagada: grossAmount
             }]
             // totalNeto, totalITBMS, totalGravado, valorTotalFactura, sumaValoresRecibidos,
@@ -4365,7 +4404,7 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
                 amount_net:     planPrice,
                 itbms:          Math.round(planPrice * 0.07 * 100) / 100,
                 amount_total:   Math.round(planPrice * 1.07 * 100) / 100,
-                payment_method: 'transfer',
+                payment_method: recognizedPaymentMethod || 'transfer',
                 cufe:           invoice.cufe || null,
                 invoice_uuid:   invoice.invoice || null,
                 invoice_url:    invoice.invoice ? `https://admin.efacturapty.com/external/invoices/${invoice.invoice}` : null,
