@@ -385,13 +385,44 @@ function restoreSession(id) {
 
 function getPhoneNumbers(phoneStr) {
     if (!phoneStr) return { display: '', call: null, whatsapp: null };
-    const nums     = phoneStr.split('/').map(p => p.trim().replace(/\D/g,'')).filter(p => p.length >= 7);
-    const mobile   = nums.filter(n => n.startsWith('6'));
-    const fixed    = nums.filter(n => !n.startsWith('6'));
-    const call     = (fixed[0] || mobile[0] || nums[0] || '').substring(0,8) || null;
-    const whatsapp = mobile[0] ? mobile[0].substring(0,8) : null;
-    const display  = phoneStr.replace(/^\/+|\/+$/g,'').trim().replace(/\s*\/\s*/g,' / ');
-    return { display, call, whatsapp };
+    // A number prefixed with '-' has been confirmed NOT on WhatsApp (set from
+    // the admin panel) — strip the marker for display and exclude it entirely
+    // from call/WhatsApp candidate selection below.
+    const parts   = phoneStr.split('/').map(p => p.trim()).filter(Boolean);
+    const display = phoneStr.split('/').map(p => p.trim().replace(/^-/, '')).join(' / ');
+
+    const toInternational = raw => {
+        const hasPlus = raw.trim().startsWith('+');
+        const digits  = raw.replace(/\D/g,'');
+        if (!digits) return null;
+        if (hasPlus) return digits;
+        if (digits.length === 11 && digits.startsWith('1')) return digits;
+        if (digits.length === 10) return '1' + digits;
+        if (digits.length <= 8) return '507' + digits;
+        return digits;
+    };
+
+    const candidates = parts.filter(p => !p.startsWith('-') && p.replace(/\D/g,'').length >= 7);
+    const mobileLocal = candidates.filter(p => {
+        const d = p.replace(/\D/g,'');
+        return !p.trim().startsWith('+') && d.length === 8 && d.startsWith('6');
+    });
+    const foreignLike = candidates.filter(p => {
+        const d = p.replace(/\D/g,'');
+        return p.trim().startsWith('+') || d.length === 10 || (d.length === 11 && d.startsWith('1'));
+    });
+    const fixedLocal = candidates.filter(p =>
+        !mobileLocal.includes(p) && !foreignLike.includes(p) && p.replace(/\D/g,'').length <= 8
+    );
+
+    const callSource     = fixedLocal[0] || mobileLocal[0] || foreignLike[0] || candidates[0] || null;
+    const whatsappSource = mobileLocal[0] || foreignLike[0] || null;
+
+    return {
+        display,
+        call:     callSource     ? toInternational(callSource)     : null,
+        whatsapp: whatsappSource ? toInternational(whatsappSource) : null
+    };
 }
 
 function mapsUrl(rental) {
@@ -408,11 +439,10 @@ function buildQuickButtons(rental, editMode) {
         : (rental.is_member
             ? `<button class="qbtn login-btn" onclick="openLogin()">${T.memberLogin}</button>`
             : '');
-    return `
-        ${ph.call ? `<a href="tel:+507${ph.call}" class="qbtn">${T.call}</a>` : ''}
-        ${em      ? `<a href="mailto:${em}?subject=${isEs?'Consulta via TrustedPanamaStays.com':'Inquiry via TrustedPanamaStays.com'}" class="qbtn">${T.emailBtn}</a>` : ''}
-        ${ph.whatsapp ? `<a href="https://wa.me/507${ph.whatsapp}?text=${encodeURIComponent(isEs?'Consulta via TrustedPanamaStays.com:\n':'Inquiry via TrustedPanamaStays.com:\n')}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}
-        <a href="${url}" target="_blank" class="qbtn">${T.maps}</a>
+            return `
+                ${ph.call ? `<a href="tel:+${ph.call}" class="qbtn">${T.call}</a>` : ''}
+                ${em      ? `<a href="mailto:${em}?subject=${isEs?'Consulta via TrustedPanamaStays.com':'Inquiry via TrustedPanamaStays.com'}" class="qbtn">${T.emailBtn}</a>` : ''}
+                ${ph.whatsapp ? `<a href="https://wa.me/${ph.whatsapp}?text=${encodeURIComponent(isEs?'Consulta via TrustedPanamaStays.com:\n':'Inquiry via TrustedPanamaStays.com:\n')}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}<a href="${url}" target="_blank" class="qbtn">${T.maps}</a>
         ${editMode && (isExpiringSoon(rental.membership_paid_until) || isExpired(rental.membership_paid_until)) ? `<a href="pay.html?id=${rental.id}" class="qbtn" style="border-color:#b8860b;color:#b8860b;">${T.renewBtn}</a>` : ''}
         ${editMode ? `<button onclick="togglePwdForm()" class="qbtn" style="border-color:#a07800;color:#7a5c00;">${T.changePwd}</button>` : ''}
         ${loginLogout}`;
@@ -729,7 +759,7 @@ function renderEdit(rental) {
             <p style="font-size:0.85rem;color:#888;margin-bottom:0.8rem;">${T.keywordsHint || (isEs ? 'Seleccione las características que mejor describen su hospedaje. Los huéspedes pueden filtrar por estas características.' : 'Select the features that best describe your property. Guests can filter by these features.')}</p>
             <div id="keyword-checkboxes" style="display:flex;flex-wrap:wrap;gap:8px;padding:0.3rem 0;"></div>
             <div style="margin-top:1rem;display:flex;gap:8px;align-items:center;justify-content:center;">
-                <input type="text" id="keyword-suggestion" placeholder="${isEs ? 'Sugerir una característica...' : 'Suggest a feature...'}" 
+                <input type="text" id="keyword-suggestion" placeholder="${isEs ? 'Sugerir una característica...' : 'Suggest a feature...'}"
                     style="width:200px;padding:6px 10px;border:1px solid #ddd;border-radius:20px;font-size:0.82rem;">
                 <button onclick="submitKeywordSuggestion()" style="padding:6px 14px;background:#f0f0f0;border:1px solid #ddd;border-radius:20px;font-size:0.82rem;cursor:pointer;">
                     ${isEs ? '+ Sugerir' : '+ Suggest'}
