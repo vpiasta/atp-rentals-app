@@ -252,7 +252,7 @@ $faqSchema = [
         <?php foreach ($faqs as $f): ?>
         <div class="faq-item">
             <div class="faq-q"><?= $is_en ? htmlspecialchars($f['q_en']) : htmlspecialchars($f['q_es']) ?></div>
-            <div class="faq-a"><?= $is_en ? htmlspecialchars($f['a_en']) : htmlspecialchars($f['a_es']) ?></div>
+            <div class="faq-a"><?= $is_en ? $f['a_en'] : $f['a_es'] ?></div>f['a_en']) : htmlspecialchars($f['a_es']) ?></div>
         </div>
         <?php endforeach; ?>
     </div>
