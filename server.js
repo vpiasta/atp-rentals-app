@@ -1371,6 +1371,12 @@ app.post('/api/listing-update', async (req, res) => {
         .eq('id', id);
 
     if (error) return res.status(500).json({ error: error.message });
+
+    // Re-rank featured listings — a member adding photos/description here can
+    // move them into a higher tier (e.g. trial+photo vs trial+no-photo), which
+    // this endpoint previously never triggered a recalculation for.
+    await recalculateFeatureRanks();
+
     res.json({ success: true });
 });
 
