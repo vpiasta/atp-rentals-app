@@ -13,7 +13,7 @@ $t = [
     'about_href'   => 'about.html?lang=' . $lang,
     'lang_switch'  => $is_en ? 'Español' : 'English',
     'lang_href'    => $is_en ? 'index.php?lang=es' : 'index.php?lang=en',
-    'atp_label'    => $is_en ? 'Verified by' : 'Verificado por',
+   'atp_label'    => $is_en  ? 'Based on public data from' : 'Basado en datos públicos de',
     'updated'      => $is_en ? 'Updated:' : 'Actualizado:',
     'loading'      => $is_en ? 'Loading...' : 'Cargando...',
     'destacado'    => $is_en ? 'Featured Accomodations' : 'Hospedajes Destacados',
