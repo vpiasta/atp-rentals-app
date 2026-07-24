@@ -403,6 +403,7 @@
             <div class="wa-lang-toggle">
                 <button class="wa-lang-btn active" onclick="setWaLang('es')" id="wa-btn-es">🇵🇦 Español</button>
                 <button class="wa-lang-btn" onclick="setWaLang('en')" id="wa-btn-en">🇺🇸 English</button>
+                <button class="wa-lang-btn" onclick="editWaTemplate()" style="margin-left:auto;">✏️ Editar plantilla</button>
             </div>
             <textarea class="wa-message" id="wa-message" rows="8"></textarea>
             <div class="panel-actions" style="margin-top:1rem;flex-wrap:wrap;">
@@ -1073,7 +1074,19 @@ function openWaPanel(id) {
     document.getElementById('wa-panel').scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
-function setWaLang(lang) {
+let waTemplateEs = null; // cached after first fetch, so we don't re-fetch on every panel open
+
+async function loadWaTemplate() {
+    if (waTemplateEs !== null) return waTemplateEs;
+    try {
+        const res = await adminFetch('/api/admin/wa-template');
+        const data = await res.json();
+        waTemplateEs = data.template;
+    } catch { waTemplateEs = null; }
+    return waTemplateEs;
+}
+
+async function setWaLang(lang) {
     waLang = lang;
     document.getElementById('wa-btn-es').classList.toggle('active', lang==='es');
     document.getElementById('wa-btn-en').classList.toggle('active', lang==='en');
@@ -1082,12 +1095,31 @@ function setWaLang(lang) {
     const listingUrl = m.slug
         ? `https://trustedpanamastays.com/listing.html?slug=${m.slug}&lang=${lang}`
         : `https://trustedpanamastays.com/listing.html?id=${m.id}&lang=${lang}`;
-    const msgEs = `Hola! Su hospedaje *${m.name}* aparece en *Trusted Panama Stays*, el directorio oficial de hospedajes registrados ante la ATP en Panamá.\n\nCon una membresía de prueba (30 días gratis) puede agregar fotos, descripción completa y enlaces de reserva a su perfil.\n\nMás información: https://trustedpanamastays.com/about.html?lang=es\n\nVer su listado actual: ${listingUrl}\n\n¿Le interesa? Con gusto le ayudamos a configurar su perfil.`;
     const msgEn = `Hello! Your property *${m.name}* is listed on *Trusted Panama Stays*, the official directory of ATP-registered accommodations in Panama.\n\nWith a free 30-day trial membership you can add photos, a full description and booking links to your profile.\n\nMore info: https://trustedpanamastays.com/about.html\n\nView your current listing: ${listingUrl}\n\nInterested? We're happy to help you set up your profile.`;
-    const msg = lang==='es' ? msgEs : msgEn;
+
+    let msg;
+    if (lang === 'es') {
+        const template = await loadWaTemplate();
+        msg = (template || '').replace(/\{name\}/g, m.name).replace(/\{url\}/g, listingUrl);
+    } else {
+        msg = msgEn;
+    }
     document.getElementById('wa-message').value = msg;
     const phone = document.getElementById('wa-phone').value;
     if (phone) document.getElementById('wa-send-link').href = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+}
+
+async function editWaTemplate() {
+    const current = await loadWaTemplate();
+    const updated = prompt('Editar plantilla del mensaje de WhatsApp (use {name} y {url} donde corresponda):', current);
+    if (updated === null || updated.trim() === current.trim()) return;
+    try {
+        const res = await adminFetch('/api/admin/wa-template', { method: 'POST', body: JSON.stringify({ template: updated }) });
+        if (!res.ok) throw new Error('Failed to save');
+        waTemplateEs = updated;
+        if (waLang === 'es') setWaLang('es'); // refresh the currently displayed message
+        alert('✅ Plantilla guardada.');
+    } catch (err) { alert('Error: ' + err.message); }
 }
 
 async function markWhatsappInvalid() {
@@ -1289,7 +1321,7 @@ async function setPassword() {
 // personal number — exactly this invite pattern. This tracks sends locally
 // (per browser) to surface the risk before it happens, not enforce a hard
 // limit — the decision to proceed is still yours.
-const WA_DAILY_SAFE_LIMIT = 15;
+const WA_DAILY_SAFE_LIMIT = 3;
 const WA_MIN_GAP_MINUTES  = 3;
 
 function getWaSendLog() {

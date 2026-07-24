@@ -1732,6 +1732,27 @@ app.post('/api/admin/mark-whatsapp-invalid', requireAdmin, async (req, res) => {
     }
 });
 
+// ── Editable WhatsApp campaign message (Spanish) — stored in the settings ────
+// table instead of hardcoded, so wording can change without a code deploy.
+// {name} and {url} are replaced with the listing's name and its listing page link.
+const WA_TEMPLATE_DEFAULT = `Hola! Su hospedaje *{name}* aparece en *Trusted Panama Stays*, el directorio oficial de hospedajes registrados ante la ATP en Panamá.\n\nCon una membresía de prueba (30 días gratis) puede agregar fotos, descripción completa y enlaces de reserva a su perfil.\n\nMás información: https://trustedpanamastays.com/about.html?lang=es\n\nVer su listado actual: {url}\n\n¿Le interesa? Con gusto le ayudamos a configurar su perfil.`;
+
+app.get('/api/admin/wa-template', requireAdmin, async (req, res) => {
+    const { data } = await supabaseAdmin.from('settings').select('value').eq('key', 'wa_campaign_template_es').maybeSingle();
+    res.json({ template: data?.value || WA_TEMPLATE_DEFAULT, isDefault: !data?.value });
+});
+
+app.post('/api/admin/wa-template', requireAdmin, async (req, res) => {
+    const { template } = req.body;
+    if (!template || !template.trim()) return res.status(400).json({ error: 'Template cannot be empty' });
+    const { error } = await supabaseAdmin.from('settings').upsert({
+        key: 'wa_campaign_template_es', value: template, updated_at: new Date().toISOString()
+    });
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('wa_template_updated', {});
+    res.json({ success: true });
+});
+
 app.post('/api/admin/set-invitation-status', requireAdmin, async (req, res) => {
     const { id, status } = req.body;
     if (!id || !status) return res.status(400).json({ error: 'Missing fields' });
@@ -4714,20 +4735,45 @@ app.post('/api/admin/deactivate-membership', requireAdmin, async (req, res) => {
 // ── General ATP Campaign — daily batch of 280 emails at 10am Panama ──────────
 async function sendGeneralCampaignBatch() {
     try {
+        // Guard against duplicate runs: the schedule below re-registers itself
+        // every time the Node process restarts (e.g. on redeploy), so multiple
+        // restarts near 10am can each fire their own send. This persists a
+        // "last ran today" flag in the DB so restarts never trigger a second
+        // real send on the same calendar day (Panama time).
+        const todayStr = new Date().toISOString().split('T')[0];
+        const { data: lastRun } = await supabaseAdmin
+            .from('settings').select('value').eq('key', 'general_campaign_last_run').maybeSingle();
+        if (lastRun?.value === todayStr) {
+            console.log('General campaign: already ran today — skipping duplicate trigger');
+            return;
+        }
+
         // Check if there are any to send
-        const { data: listings } = await supabaseAdmin
+        const { data: rawListings } = await supabaseAdmin
             .from('listings')
             .select('id, name, email, province, rental_type, slug, apatel_member')
             .eq('is_member', false)
             .eq('atp_active', true)
             .is('general_campaign_sent_at', null)
-            .is('invitation_sent_at', null) // skip anyone already invited by any mechanism (e.g. the dedicated APATEL campaign)
+            .is('invitation_sent_at', null)
             .not('email', 'is', null)
             .limit(280);  // Stay under Brevo 300/day (leaves room for other emails)
 
+        // Same email-validity filter as the manual campaign button — excludes
+        // blank strings and placeholder text ("no aporto", "n/t", etc.) that
+        // pass the DB's not-null check but aren't real addresses.
+        const isValidEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e||'').trim());
+        const listings = (rawListings || []).filter(l => isValidEmail(l.email));
+
+        // Mark today as run regardless of outcome, so a redeploy 5 minutes
+        // later doesn't re-check an empty/tiny remaining list all over again
+        await supabaseAdmin.from('settings').upsert({
+            key: 'general_campaign_last_run', value: todayStr, updated_at: new Date().toISOString()
+        });
+
         if (!listings || listings.length === 0) {
-            console.log('General campaign: all listings contacted');
-            return;
+            console.log('General campaign: no eligible listings with a valid email today');
+            return; // nothing to report — no notification sent
         }
 
         // Load template
@@ -4773,13 +4819,14 @@ ${templateBody}
         }
 
         await logEvent('general_campaign_batch', { sent, errors, remaining: listings.length - sent });
-        console.log(`General campaign batch: ${sent} sent, ${errors} errors`);
+          console.log(`General campaign batch: ${sent} sent, ${errors} errors`);
 
-        // Notify admin
-        const notifyPath2 = path.join(__dirname, 'public', 'notify.php');
-        const adminMsg = `<p>General campaign batch completed: <strong>${sent} sent</strong>, ${errors} errors.</p>`;
-        execFileAsync('php', [notifyPath2, `TPS General Campaign: ${sent} sent`, adminMsg, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(console.error);
-
+          // Only notify if something actually happened — no point emailing "0 sent, 0 errors"
+          if (sent > 0 || errors > 0) {
+              const notifyPath2 = path.join(__dirname, 'public', 'notify.php');
+              const adminMsg = `<p>General campaign batch completed: <strong>${sent} sent</strong>, ${errors} errors.</p>`;
+              execFileAsync('php', [notifyPath2, `TPS General Campaign: ${sent} sent`, adminMsg, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(console.error);
+          }
     } catch(err) {
         console.error('sendGeneralCampaignBatch error:', err.message);
     }
