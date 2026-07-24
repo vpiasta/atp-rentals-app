@@ -390,11 +390,11 @@ if ($has_links): ?>
 <?php endif; ?>
 
 <footer>
-    <p style="font-size:0.8rem;">
-        <?= $lang === 'es'
-            ? 'Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>con datos adicionales proporcionados por nuestros miembros'
-            : 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>with additional data provided by our members' ?>
-    </p>
+  <p style="font-size:0.8rem;">
+      <?= $lang === 'es'
+          ? 'Basado en datos públicos de la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>con datos adicionales proporcionados por nuestros miembros'
+          : 'Based on public data from the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>with additional data provided by our members' ?>
+  </p>
     <p style="margin-top:0.8rem;color:#ccc;">
         Trusted Panama Stays is owned and copyrighted by Tuscany Real Estates SA<br>
         RUC 1401220-1-627960 DV21<br>
