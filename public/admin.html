@@ -435,9 +435,8 @@
                 </select>
                 <button class="tbtn primary" onclick="loadMembers()">🔄 Refresh</button>
                 <button class="tbtn success" onclick="recalcRanks()">🏆 Recalculate Ranks</button>
-                <button class="tbtn" style="background:#00a859;color:white;" onclick="scanWhatsappCandidates()">📱 Scan WhatsApp Candidates</button><button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('listings')">💾 Backup Listings</button>
-                <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('membership_applications')">💾 Backup Applications</button>
-                <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('payments')">💾 Backup Payments</button>
+                <button class="tbtn" style="background:#00a859;color:white;" onclick="scanWhatsappCandidates()">📱 Scan WhatsApp Candidates</button>
+                <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('listings')">💾 Backup Listings</button>
             </div>
             <div class="table-wrap">
                 <table>
@@ -890,6 +889,17 @@ async function exportTable(table) {
         a.click();
         URL.revokeObjectURL(url);
     } catch(err) { alert('Export error: ' + err.message); }
+}
+
+// Downloads all three backup files in one click. A small delay between each
+// avoids the browser blocking multiple near-simultaneous downloads (some
+// browsers treat rapid-fire downloads as suspicious and silently drop them).
+async function exportAllBackups() {
+    const tables = ['listings', 'membership_applications', 'payments'];
+    for (const table of tables) {
+        await exportTable(table);
+        await new Promise(r => setTimeout(r, 600));
+    }
 }
 
 async function recalcRanks() {
