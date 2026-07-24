@@ -15,9 +15,9 @@ $t = [
     'lang_text'   => $is_en ? 'Español' : 'English',
     'lang_href'   => $is_en ? 'faq.php?lang=es' : 'faq.php?lang=en',
     'footer_atp'  => $is_en
-        ? 'Data provided by the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>with additional data provided by our members'
-        : 'Datos proporcionados por la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>con datos adicionales proporcionados por nuestros miembros',
-];
+        ? 'Based on public data from the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>with additional data provided by our members'
+        : 'Basado en datos públicos de la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>con datos adicionales proporcionados por nuestros miembros',
+      ];
 
 // ── Single source of truth: every Q&A lives here once, in both languages. ──
 // The visible HTML below AND the FAQPage JSON-LD schema are both generated

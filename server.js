@@ -522,7 +522,7 @@ async function checkPendingAtpApplications() {
     <h1 style="color:white;margin:0;font-size:1.4rem;">¡Buenas noticias de Trusted Panama Stays!</h1>
 </div>
 <p>Estimado/a <strong>${app.contact_name}</strong>,</p>
-<p>Su hospedaje <strong>${listing.name}</strong> acaba de aparecer en el registro oficial de la ATP, y hemos activado automáticamente su membresía de prueba gratuita.</p>
+<p>Su hospedaje <strong>${listing.name}</strong> acaba de aparecer en el registro público de hospedajes de la ATP, y hemos activado automáticamente su membresía de prueba gratuita.</p>
 <p>Su prueba está activa hasta el <strong>${paidUntilStr}</strong>.</p>
 <h3 style="color:#005ca9;margin-top:1.2rem;">Sus datos de acceso:</h3>
 <table style="border:1px solid #e1e5e9;border-radius:8px;background:#f8f9fa;width:100%;margin-bottom:1rem;">
@@ -3072,7 +3072,7 @@ app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => 
             const joinUrl = 'https://trustedpanamastays.com/join.html';
 
             const isApatel = listing.apatel_member;
-            const greeting = `Le contactamos porque su hospedaje aparece en el registro oficial de la ATP.`;
+            const greeting = `Le contactamos porque su hospedaje aparece en el registro público de hospedajes de la ATP.`;
 
             const subject = `Su hospedaje ya está en Trusted Panama Stays — ${listing.name}`;
             const message = `
