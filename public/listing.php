@@ -132,13 +132,56 @@ $mici_label  = $listing['registry_source'] === 'mici' ? '✅ MiCI' : '✅ ATP';
 $apatel      = !empty($listing['apatel_member']);
 
 // ── Phone helpers ─────────────────────────────────────────────────────────────
-function clean_phone($phone) {
-    // Extract first 8-digit Panamanian number
-    preg_match('/6\d{7}/', preg_replace('/[^\d]/', '', $phone ?? ''), $m);
-    return $m[0] ?? preg_replace('/[^\d]/', '', explode('/', $phone ?? '')[0]);
+// ── Phone helpers ─────────────────────────────────────────────────────────────
+// A number prefixed with '-' has been confirmed NOT on WhatsApp (set from the
+// admin panel) — excluded entirely from call/WhatsApp candidate selection.
+// Matches the logic in index.php's getPhoneNumbers() / listing.html.
+function phone_parts($phone) {
+    $raw = explode('/', $phone ?? '');
+    return array_values(array_filter(array_map('trim', $raw), function($p) { return $p !== ''; }));
 }
-$phone_call = clean_phone($phone);
-$phone_wa   = preg_match('/^6/', $phone_call) ? $phone_call : '';
+
+function to_international($raw) {
+    $has_plus = strpos(trim($raw), '+') === 0;
+    $digits   = preg_replace('/\D/', '', $raw);
+    if ($digits === '') return null;
+    if ($has_plus) return $digits;
+    if (strlen($digits) === 11 && $digits[0] === '1') return $digits;
+    if (strlen($digits) === 10) return '1' . $digits;
+    if (strlen($digits) <= 8) return '507' . $digits;
+    return $digits; // ambiguous length — use as-is rather than guess wrong
+}
+
+function get_phone_numbers($phone) {
+    $parts = phone_parts($phone);
+    $candidates = array_values(array_filter($parts, function($p) {
+        return strpos($p, '-') !== 0 && strlen(preg_replace('/\D/', '', $p)) >= 7;
+    }));
+    $mobile_local = array_values(array_filter($candidates, function($p) {
+        $d = preg_replace('/\D/', '', $p);
+        return strpos(trim($p), '+') !== 0 && strlen($d) === 8 && $d[0] === '6';
+    }));
+    $foreign_like = array_values(array_filter($candidates, function($p) {
+        $d = preg_replace('/\D/', '', $p);
+        return strpos(trim($p), '+') === 0 || strlen($d) === 10 || (strlen($d) === 11 && $d[0] === '1');
+    }));
+    $fixed_local = array_values(array_filter($candidates, function($p) use ($mobile_local, $foreign_like) {
+        return !in_array($p, $mobile_local) && !in_array($p, $foreign_like)
+            && strlen(preg_replace('/\D/', '', $p)) <= 8;
+    }));
+
+    $call_source     = $fixed_local[0] ?? $mobile_local[0] ?? $foreign_like[0] ?? $candidates[0] ?? null;
+    $whatsapp_source = $mobile_local[0] ?? $foreign_like[0] ?? null;
+
+    return [
+        'call'     => $call_source     ? to_international($call_source)     : null,
+        'whatsapp' => $whatsapp_source ? to_international($whatsapp_source) : null,
+    ];
+}
+
+$phone_numbers = get_phone_numbers($phone);
+$phone_call    = $phone_numbers['call'];
+$phone_wa      = $phone_numbers['whatsapp'];
 $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($name . ' ' . $province . ' Panama');
 
 ?><!DOCTYPE html>
@@ -266,9 +309,9 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     </div>
 
     <div class="buttons">
-        <?php if ($phone_call): ?><a href="tel:+507<?= h($phone_call) ?>" class="btn">📞 <?= $lang === 'es' ? 'Llamar' : 'Call' ?></a><?php endif; ?>
-        <?php if ($email): ?><a href="mailto:<?= h($email) ?>?subject=<?= $lang === 'es' ? 'Consulta via TrustedPanamaStays.com' : 'Inquiry via TrustedPanamaStays.com' ?>" class="btn">✉️ <?= $lang === 'es' ? 'Correo' : 'Email' ?></a><?php endif; ?>
-        <?php if ($phone_wa): ?><a href="https://wa.me/507<?= h($phone_wa) ?>?text=<?= urlencode($lang === 'es' ? 'Consulta via TrustedPanamaStays.com:' : 'Inquiry via TrustedPanamaStays.com:') ?>" target="_blank" class="btn wa">💬 WhatsApp</a><?php endif; ?>
+      <?php if ($phone_call): ?><a href="tel:+<?= h($phone_call) ?>" class="btn">📞 <?= $lang === 'es' ? 'Llamar' : 'Call' ?></a><?php endif; ?>
+      <?php if ($email): ?><a href="mailto:<?= h($email) ?>?subject=<?= $lang === 'es' ? 'Consulta via TrustedPanamaStays.com' : 'Inquiry via TrustedPanamaStays.com' ?>" class="btn">✉️ <?= $lang === 'es' ? 'Correo' : 'Email' ?></a><?php endif; ?>
+      <?php if ($phone_wa): ?><a href="https://wa.me/<?= h($phone_wa) ?>?text=<?= urlencode($lang === 'es' ? 'Consulta via TrustedPanamaStays.com:' : 'Inquiry via TrustedPanamaStays.com:') ?>" target="_blank" class="btn wa">💬 WhatsApp</a><?php endif; ?>
         <a href="<?= h($maps_url) ?>" target="_blank" class="btn">📍 Maps</a>
         <a href="<?= h($listing_url) ?>" class="btn" style="border-color:#a07800;color:#a07800;background:#fffbe6;margin-left:auto;">🔐 <?= $lang === 'es' ? 'Acceso' : 'Login' ?></a>
     </div>
@@ -276,13 +319,14 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     <div class="section">
         <div class="section-title"><?= $lang === 'es' ? 'Contacto' : 'Contact' ?></div>
         <div class="info-grid">
-            <?php if ($phone): ?>
-            <div class="info-item">
-                <span class="info-icon">📞</span>
-                <div><div class="info-label"><?= $lang === 'es' ? 'Teléfono' : 'Phone' ?></div>
-                <div class="info-value"><?= h($phone) ?></div></div>
-            </div>
-            <?php endif; ?>
+          <?php if ($phone): ?>
+          <?php $phone_display = implode(' / ', array_map(function($p) { return ltrim($p, '-'); }, phone_parts($phone))); ?>
+          <div class="info-item">
+              <span class="info-icon">📞</span>
+              <div><div class="info-label"><?= $lang === 'es' ? 'Teléfono' : 'Phone' ?></div>
+              <div class="info-value"><?= h($phone_display) ?></div></div>
+          </div>
+          <?php endif; ?>
             <?php if ($email): ?>
             <div class="info-item">
                 <span class="info-icon">✉️</span>
