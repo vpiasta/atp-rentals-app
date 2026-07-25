@@ -4775,14 +4775,23 @@ async function sendGeneralCampaignBatch() {
     try {
         // Guard against duplicate runs: the schedule below re-registers itself
         // every time the Node process restarts (e.g. on redeploy), so multiple
-        // restarts near 10am can each fire their own send. This persists a
-        // "last ran today" flag in the DB so restarts never trigger a second
-        // real send on the same calendar day (Panama time).
+        // restarts near 10am — or several instances briefly overlapping — can
+        // each try to fire. A plain "check, then later write" guard has a race
+        // window (multiple callers can all pass the check before any of them
+        // writes back), which is what let 3 duplicate sends through on
+        // 2026-07-25. Fixed with an atomic claim: only the FIRST caller to
+        // insert today's row succeeds; every other concurrent caller sees a
+        // conflict and bails out immediately, before querying any listings.
         const todayStr = new Date().toISOString().split('T')[0];
-        const { data: lastRun } = await supabaseAdmin
-            .from('settings').select('value').eq('key', 'general_campaign_last_run').maybeSingle();
-        if (lastRun?.value === todayStr) {
-            console.log('General campaign: already ran today — skipping duplicate trigger');
+        const claimKey = 'general_campaign_last_run_' + todayStr;
+        const { error: claimError } = await supabaseAdmin
+            .from('settings')
+            .insert({ key: claimKey, value: todayStr, updated_at: new Date().toISOString() });
+        if (claimError) {
+            // Insert failed = another instance already claimed today (unique
+            // constraint conflict) — this is the expected, safe outcome for
+            // every caller except the first.
+            console.log('General campaign: already claimed today by another run — skipping duplicate trigger');
             return;
         }
 
@@ -4802,12 +4811,6 @@ async function sendGeneralCampaignBatch() {
         // pass the DB's not-null check but aren't real addresses.
         const isValidEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e||'').trim());
         const listings = (rawListings || []).filter(l => isValidEmail(l.email));
-
-        // Mark today as run regardless of outcome, so a redeploy 5 minutes
-        // later doesn't re-check an empty/tiny remaining list all over again
-        await supabaseAdmin.from('settings').upsert({
-            key: 'general_campaign_last_run', value: todayStr, updated_at: new Date().toISOString()
-        });
 
         if (!listings || listings.length === 0) {
             console.log('General campaign: no eligible listings with a valid email today');
