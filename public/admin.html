@@ -436,6 +436,7 @@
                 </select>
                 <button class="tbtn primary" onclick="loadMembers()">🔄 Refresh</button>
                 <button class="tbtn success" onclick="recalcRanks()">🏆 Recalculate Ranks</button>
+                <button class="tbtn" style="background:#8e44ad;color:white;" onclick="refreshPublicCache()">🌐 Refresh Public Site Cache</button>
                 <button class="tbtn" style="background:#00a859;color:white;" onclick="scanWhatsappCandidates()">📱 Scan WhatsApp Candidates</button>
                 <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('listings')">💾 Backup Listings</button>
             </div>
@@ -901,6 +902,16 @@ async function exportAllBackups() {
         await exportTable(table);
         await new Promise(r => setTimeout(r, 600));
     }
+}
+
+async function refreshPublicCache() {
+    if (!confirm('Refresh the public homepage\'s listing cache from the database now?')) return;
+    try {
+        const res  = await adminFetch('/api/admin/refresh-cache', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Refresh failed');
+        alert(`✅ Public site cache refreshed: ${data.count} listings now live.`);
+    } catch(err) { alert('Error: ' + err.message); }
 }
 
 async function recalcRanks() {
