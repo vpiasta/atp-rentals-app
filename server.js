@@ -8,7 +8,19 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const axios = require('axios');
-const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+// pdfjs-dist v5 is ESM-only — no CommonJS build exists, so it must be loaded
+// via dynamic import() even from this CommonJS file. Cached after first load
+// so every call to parsePDFWithCoordinates() doesn't re-import.
+let _pdfjsLib = null;
+async function getPdfjsLib() {
+    if (!_pdfjsLib) {
+        _pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    }
+    return _pdfjsLib;
+}
+const PDFJS_STANDARD_FONTS_URL = path.join(
+    path.dirname(require.resolve('pdfjs-dist/package.json')), 'standard_fonts'
+) + '/';
 const { supabase, supabaseAdmin } = require('./db');   // <-- Supabase client
 const { execFile } = require('child_process');
 const { promisify } = require('util');
@@ -884,9 +896,9 @@ async function parsePDFWithCoordinates() {
         if (!(data[0] === 0x25 && data[1] === 0x50 && data[2] === 0x44 && data[3] === 0x46)) {
             throw new Error('Invalid PDF format');
         }
-
         console.log('Processing PDF...');
-        const pdf = await pdfjsLib.getDocument(data).promise;
+        const pdfjsLib = await getPdfjsLib();
+        const pdf = await pdfjsLib.getDocument({ data, standardFontDataUrl: PDFJS_STANDARD_FONTS_URL }).promise;
         const numPages = pdf.numPages;
         console.log(`PDF loaded with ${numPages} pages...`);
 
