@@ -1,0 +1,63 @@
+<h3 style="color:#FFD700;margin-top:0;">Guía General — Panel de Administración</h3>
+
+<h4 style="color:#7ec8e3;">1. ¿Qué es Trusted Panama Stays?</h4>
+<p>TPS es un directorio de hospedajes turísticos en Panamá. Muestra hospedajes legalmente registrados — ante la ATP o mediante un Aviso de Operación del MiCI.</p>
+<p>El directorio funciona de dos maneras: los <strong>datos básicos</strong> se actualizan automáticamente desde el reporte oficial de la ATP, y las <strong>membresías</strong> (de prueba gratuita de 30 días, o de apoyo pagada) permiten a los propietarios mejorar su información.</p>
+
+<h4 style="color:#7ec8e3;">2. Conceptos frecuentes</h4>
+<ul style="padding-left:1.2rem;">
+    <li><strong>ATP</strong>: el hospedaje aparece en el reporte oficial de la ATP.</li>
+    <li><strong>MiCI</strong>: no está en el reporte ATP, pero tiene un Aviso de Operación válido.</li>
+    <li><strong>Miembro</strong>: hospedaje con membresía (prueba o apoyo).</li>
+    <li><strong>Hospedaje Destacado</strong>: los miembros aparecen destacados en la página principal — primero los de apoyo, luego por antigüedad, luego por información completa.</li>
+</ul>
+
+<h4 style="color:#7ec8e3;">3. Tabla de Hospedajes</h4>
+<p>Muestra todos los hospedajes. Las tarjetas de estadísticas arriba filtran la lista al hacer clic. Para cada hospedaje: <strong>✏️</strong> edita su información, <strong>🔑</strong> asigna nueva contraseña, <strong>💬</strong> abre WhatsApp (solo si hay número confirmado).</p>
+<p>La etiqueta de estado ("Invitar", etc.) avanza al hacer clic — si hay correo, envía una invitación real; si solo hay WhatsApp confirmado, abre el panel de WhatsApp.</p>
+<p style="background:#3a2a1a;padding:0.6rem;border-radius:6px;border-left:3px solid #e67e22;">⚠️ WhatsApp puede restringir su cuenta si envía muchos mensajes rápido. El panel avisa cuando se acerca al límite diario recomendado.</p>
+<p>Después de enviar un WhatsApp, añada el contacto a la lista "TrustedPanamaStays" (tres puntos → "Añadir a lista").</p>
+<p><strong>Botones del encabezado</strong>: "Recalcular Rangos" reordena los destacados; "Refrescar Caché Pública" actualiza lo que ven los visitantes sin reiniciar el servidor; "Escanear Candidatos WhatsApp" busca números válidos en todo el directorio; "Respaldo" descarga una copia de seguridad.</p>
+
+<h4 style="color:#7ec8e3;">4. Solicitudes</h4>
+<p>El propietario llena el formulario en <em>join.html</em>, sube sus documentos (Aviso de Operación, cédula, y comprobante de pago si aplica) y elige el tipo de membresía.</p>
+<p>Si el sistema logra relacionar la solicitud con un hospedaje del registro ATP y es una prueba gratuita, la IA revisa los documentos y <strong>la membresía se activa sola</strong>. Si no, o si es una membresía de apoyo (pagada), queda pendiente para su revisión manual aquí.</p>
+<p><strong>"Verificar con IA"</strong> ayuda a revisar los documentos — también puede revisarlos usted mismo abriéndolos directamente. <strong>"Aprobar"</strong> aprueba; <strong>"Enviar Factura"</strong> emite la factura oficial; <strong>"Rechazar/Desactivar"</strong> rechaza o desactiva.</p>
+
+<h4 style="color:#7ec8e3;">5. Facturas</h4>
+<p>Historial de facturas emitidas (✅ con CUFE y enlace al PDF) y recordatorios pendientes (⏳). La factura se envía cuando el importe de la membresía ha llegado a nuestra cuenta.</p>
+
+<h4 style="color:#7ec8e3;">6. Registro</h4>
+<p>Historial técnico de eventos del sistema. Solo es necesario revisarlo si algo no funcionó como se esperaba.</p>
+
+<h4 style="color:#7ec8e3;">7. Campaña</h4>
+<p>Envíos masivos de invitación por correo. <strong>"Contar destinatarios"</strong> muestra cuántos recibirían el correo sin enviarlo — revise siempre este número antes de enviar con <strong>"Enviar campaña"</strong>.</p>
+
+<h4 style="color:#7ec8e3;">8. Analítica</h4>
+<p>Muestra visitas y clics del sitio. Solo informativo, no requiere ninguna acción.</p>
+
+<h4 style="color:#7ec8e3;">9. IP</h4>
+<p>Muestra la IP registrada (la única autorizada para entrar) y la IP actual.</p>
+<p><strong>Si ve "Access denied: wrong IP address"</strong>: su conexión actual no coincide con la registrada — esto pasa si viajó o cambió de red. La contraseña no ayuda en este caso, ya que el sistema revisa la IP primero.</p>
+<p>Normalmente esto se actualiza solo cada mañana mediante una herramienta llamada <em>updateMyIP.php</em>. Esta misma herramienta puede abrirse manualmente desde cualquier dispositivo o lugar — incluso viajando — para declarar su ubicación actual a ambos sitios. El enlace exacto está guardado en el documento privado de accesos, no en esta guía.</p>
+
+<h4 style="color:#7ec8e3;">10. Sincronización ATP</h4>
+<p>Cada noche el sistema revisa si la ATP publicó un nuevo reporte. Tres estados posibles:</p>
+<ol style="padding-left:1.2rem;">
+    <li><strong>Sin actualización</strong>: todo al día.</li>
+    <li><strong>Reporte nuevo detectado, TPS no actualizado</strong>: aparece un botón para leerlo y analizarlo.</li>
+    <li><strong>Ya leído, requiere revisión</strong>: muestra los cambios (nuevos, reactivados, ya no en el reporte, y miembros de apoyo que desaparecieron — su membresía <strong>nunca</strong> se cancela automáticamente).</li>
+</ol>
+<p>Solo al hacer clic en <strong>"Aplicar cambios"</strong> los cambios se guardan de verdad.</p>
+
+<h4 style="color:#7ec8e3;">11. Palabras clave</h4>
+<p>Administra las características que los miembros pueden marcar en su perfil, y revisa sugerencias de nuevas características.</p>
+
+<h4 style="color:#7ec8e3;">12. ¿Qué hacer si algo no funciona?</h4>
+<ul style="padding-left:1.2rem;">
+    <li>No entre en pánico — casi nada se pierde con un error visual.</li>
+    <li>Anote qué botón presionó y qué mensaje apareció (una foto de pantalla ayuda).</li>
+    <li>Si la página no reacciona, recargue (F5) y vuelva a iniciar sesión si es necesario.</li>
+    <li>Si olvidó aplicar cambios en Sincronización ATP, no pasa nada — el sistema espera hasta que usted lo revise.</li>
+    <li>Si no sabe qué decisión tomar, es mejor dejarlo pendiente que decidir mal — nada se pierde por esperar.</li>
+</ul>
