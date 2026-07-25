@@ -297,34 +297,42 @@ async function sendAtpReviewEmail(listingId, propertyName) {
     }
 }
 
+// Update pdf_meta with the new URL
+async function savePdfMeta(pdfUrl, pdfHeading) {
+    // Try update first, then insert if no row exists.
+    // Uses supabaseAdmin — the anon client's writes were being silently blocked
+    // by RLS (no error thrown, but zero rows actually affected), which is why
+    // pdf_meta was frozen at a stale "force-reload" placeholder since 2026-06-05
+    // despite every apply-atp-diff run logging a false "✅ pdf_meta updated".
+    const existing = await getSavedPdfUrl();
+    if (existing) {
+        const { data, error } = await supabaseAdmin
+            .from('pdf_meta')
+            .update({ pdf_url: pdfUrl, pdf_heading: pdfHeading, last_updated: new Date().toISOString() })
+            .eq('id', existing.id)
+            .select();
+        if (error) throw error;
+        if (!data || data.length === 0) throw new Error('pdf_meta update affected 0 rows — check RLS policy for id=' + existing.id);
+    } else {
+        const { data, error } = await supabaseAdmin
+            .from('pdf_meta')
+            .insert({ pdf_url: pdfUrl, pdf_heading: pdfHeading, last_updated: new Date().toISOString() })
+            .select();
+        if (error) throw error;
+        if (!data || data.length === 0) throw new Error('pdf_meta insert returned no row');
+    }
+    console.log('✅ pdf_meta updated in Supabase (confirmed via .select())');
+}
+
 // Get the saved PDF URL from pdf_meta table
 async function getSavedPdfUrl() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from('pdf_meta')
         .select('*')
         .limit(1)
         .single();
     if (error) return null;
     return data;   // { id, pdf_url, pdf_heading, last_updated }
-}
-
-// Update pdf_meta with the new URL
-async function savePdfMeta(pdfUrl, pdfHeading) {
-    // Try update first, then insert if no row exists
-    const existing = await getSavedPdfUrl();
-    if (existing) {
-        const { error } = await supabase
-            .from('pdf_meta')
-            .update({ pdf_url: pdfUrl, pdf_heading: pdfHeading, last_updated: new Date().toISOString() })
-            .eq('id', existing.id);
-        if (error) throw error;
-    } else {
-        const { error } = await supabase
-            .from('pdf_meta')
-            .insert({ pdf_url: pdfUrl, pdf_heading: pdfHeading, last_updated: new Date().toISOString() });
-        if (error) throw error;
-    }
-    console.log('✅ pdf_meta updated in Supabase');
 }
 
 
@@ -414,7 +422,12 @@ async function checkForPdfUpdate() {
                 flagged_members: diff.toFlagMembers.length
             });
             console.log(`📋 STEP 2: New PDF parsed — ${diff.toInsert.length} new, ${diff.toReactivate.length} reactivated, ${diff.toDeactivateNonMembers.length} to deactivate, ${diff.toFlagMembers.length} members flagged — awaiting admin review`);
-            await notifyAtpDiffPending(diff);
+            const hasChanges = diff.toInsert.length + diff.toReactivate.length + diff.toDeactivateNonMembers.length + diff.toFlagMembers.length > 0;
+            if (hasChanges) {
+                await notifyAtpDiffPending(diff);
+            } else {
+                console.log('📋 STEP 2: No actual changes in this diff — skipping notification email');
+            }
         }
     } catch (err) {
         console.error('❌ STEP 2: PDF update check failed:', err.message);
@@ -1265,7 +1278,7 @@ app.post('/api/reload-pdf', async (req, res) => {
     try {
         console.log('🔄 PDF reload triggered...');
         if (req.query.force === 'true') {
-            await supabase.from('pdf_meta').update({ pdf_url: 'force-reload' }).neq('id', 0);
+            await supabaseAdmin.from('pdf_meta').update({ pdf_url: 'force-reload' }).neq('id', 0);
         }
         await checkForPdfUpdate();
         res.json({
