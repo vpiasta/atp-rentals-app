@@ -607,12 +607,23 @@ function initQuill(rental) {
 }
 
 function renderMembershipPromo() {
+    const rentalName = currentRental && currentRental.name ? currentRental.name : '';
     return `
     <div class="section" style="background:linear-gradient(135deg,#f0f7ff,#e8f4ea);border:2px solid #005ca9;border-radius:10px;padding:1.2rem;">
         <p style="margin:0 0 0.8rem;color:#333;line-height:1.6;">
             ${isEs
-                ? 'Esta página muestra únicamente los datos publicados por la ATP. Con una membresía de prueba gratuita (30 días) o de apoyo, esta podría ser <strong>su página personal</strong> — con fotos, una descripción completa en español e inglés, su dirección exacta, enlaces a su sitio web y sistema de reservas, y mucho más. Esto mejora significativamente cómo los turistas y Google la encuentran a usted y a su hospedaje.'
-                : 'This page currently shows only the data published by the ATP. With a free trial membership (30 days) or a supporting membership, this could be <strong>your own personal page</strong> — with photos, a full description in English and Spanish, your exact address, links to your website and booking system, and much more. This significantly improves how travelers and Google find you and your property.'}
+                ? `Estimado/a propietario/a de <strong>${rentalName}</strong>,`
+                : `Dear owner of <strong>${rentalName}</strong>,`}
+        </p>
+        <p style="margin:0 0 0.8rem;color:#333;line-height:1.6;">
+            ${isEs
+                ? 'Esta página muestra únicamente los datos publicados por la ATP. Con una membresía de prueba gratuita (30 días) o de apoyo, esta podría ser <strong>su página personal</strong> — con fotos, una descripción completa en español e inglés, su dirección exacta, enlaces a su sitio web y sistema de reservas, y mucho más. Las fotos le dan mejor visibilidad, y una dirección precisa permite que Google Maps encuentre su propiedad. Esto mejora significativamente cómo los turistas la encuentran a usted y a su hospedaje.'
+                : 'This page currently shows only the data published by the ATP. With a free trial membership (30 days) or a supporting membership, this could be <strong>your own personal page</strong> — with photos, a full description in English and Spanish, your exact address, links to your website and booking system, and much more. Photos give you better visibility, and a precise address lets Google Maps find your property. This significantly improves how travelers find you and your property.'}
+        </p>
+        <p style="margin:0 0 0.8rem;color:#333;line-height:1.6;">
+            ${isEs
+                ? 'Y no es solo lo que se ve aquí: como miembro, esta página también será registrada automáticamente en Google Search.'
+                : "And it's not only what can be seen here: as a member, this page will also be registered automatically with Google Search."}
         </p>
         <p style="text-align:center;margin:0;">
             <a href="join.html?id=${rentalIdForPromo()}&lang=${lang}" style="display:inline-block;background:#005ca9;color:white;padding:11px 26px;border-radius:8px;text-decoration:none;font-weight:700;">
