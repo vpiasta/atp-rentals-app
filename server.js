@@ -107,10 +107,8 @@ async function computeAtpDiff(parsedRentals) {
             if (data.length < BATCH) break;
             from += BATCH;
         }
-    }
-    if (fetchErr) throw new Error(fetchErr.message);
-
-    const existingMap = new Map();
+      }
+      const existingMap = new Map();
     (existing || []).forEach(l => existingMap.set(`${normalize(l.name)}|${normalize(l.province)}`, l));
 
     const seenIds = new Set();
@@ -208,14 +206,11 @@ async function mergeListingsWithDB(parsedRentals) {
             if (data.length < BATCH) break;
             from += BATCH;
         }
-    }
-    if (fetchErr) throw new Error(fetchErr.message);
-
-    const existingMap = new Map();
-    (existing || []).forEach(l => existingMap.set(`${normalize(l.name)}|${normalize(l.province)}`, l));
-
-    const seenIds = new Set();
-    let inserted = 0, updated = 0;
+      }
+      const existingMap = new Map();
+      (existing || []).forEach(l => existingMap.set(`${normalize(l.name)}|${normalize(l.province)}`, l));
+      const seenIds = new Set();
+      let inserted = 0, updated = 0;
 
     for (const rental of parsedRentals) {
         const key   = `${normalize(rental.name)}|${normalize(rental.province)}`;
