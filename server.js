@@ -4023,6 +4023,18 @@ app.get('/api/admin/recalculate-ranks', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── Refresh the in-memory listings cache from the database, without a restart ──
+// Useful after a direct DB change, or if apply-atp-diff's own in-memory
+// refresh step was interrupted (e.g. a server restart mid-request).
+app.post('/api/admin/refresh-cache', requireAdmin, async (req, res) => {
+    try {
+        CURRENT_RENTALS = await loadListingsFromDB();
+        res.json({ success: true, count: CURRENT_RENTALS.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── Quick CSV export/backup for any table — since Supabase dashboard export UI ──
 // isn't available on this plan. Handles pagination for tables over 1000 rows.
 app.get('/api/admin/export-table', requireAdmin, async (req, res) => {
