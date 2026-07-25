@@ -120,6 +120,27 @@ $t = [
         .contact-button:hover  { background: #005ca9; color: white; }
         .whatsapp-button       { border-color: #25D366; color: #25D366; }
         .whatsapp-button:hover { background: #25D366; color: white; }
+        .become-member-btn {
+            background: #1a3a6b;
+            color: white;
+            position: relative;
+        }
+        .become-member-btn::after {
+            content: attr(data-hover-text);
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #00a859;
+            color: white;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            border-radius: inherit;
+        }
+        .become-member-btn:hover::after {
+            opacity: 1;
+        }
         .seemore-button        { border-color: #b8860b; color: #7a5c00; background: #fffbe6; }
         .seemore-button:hover  { background: #b8860b; color: white; border-color: #b8860b; }
         /* ── Member thumbnail ── */
@@ -461,7 +482,9 @@ async function showDefaultView() {
                             ${email       ? `<a href="mailto:${email}?subject=${encodeURIComponent(LANG === 'en' ? 'Inquiry via TrustedPanamaStays.com' : 'Consulta via TrustedPanamaStays.com')}" class="contact-button"><span class="btn-icon">✉️</span><span class="btn-text"> Correo</span></a>` : ''}
                             ${ph.whatsapp ? `<a href="https://wa.me/${ph.whatsapp}?text=${encodeURIComponent(LANG === 'en' ? 'Inquiry via TrustedPanamaStays.com:' : 'Consulta via TrustedPanamaStays.com:')}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                             <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
-                            ${active ? `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 Acceso</a>` : ''}
+                            ${active
+                                ? `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 Acceso</a>`
+                                : `<a href="listing.html?id=${rental.id}&lang=${LANG}" onclick="saveSearchState()" class="contact-button become-member-btn" data-hover-text="${LANG === 'en' ? 'Become a Member' : 'Hazte Miembro'}">${LANG === 'en' ? 'Show more' : 'Ver más'}</a>`}
                         </div>
                     </div>
                 </div>`;

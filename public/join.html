@@ -653,6 +653,23 @@ function selectAtpListing(id, name, province) {
     document.getElementById('atp-selected').style.display = 'block';
 }
 
+// Auto-select a listing when arriving from a "Become a member" link on
+// listing.html (e.g. join.html?id=12345) — skips retyping the property
+// name the visitor just came from.
+(function preSelectFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const preId = params.get('id');
+    if (!preId) return;
+    fetch(`${API}/api/listing/${preId}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(rental => {
+            if (rental && rental.name) {
+                selectAtpListing(rental.id, rental.name, rental.province || '');
+            }
+        })
+        .catch(() => {});
+})();
+
 async function onManualIdChange() {
     const idVal = document.getElementById('atp-manual-id').value.trim();
     const statusEl = document.getElementById('atp-manual-status');

@@ -606,6 +606,26 @@ function initQuill(rental) {
     addQuillTooltips('quill-es');
 }
 
+function renderMembershipPromo() {
+    return `
+    <div class="section" style="background:linear-gradient(135deg,#f0f7ff,#e8f4ea);border:2px solid #005ca9;border-radius:10px;padding:1.2rem;">
+        <p style="margin:0 0 0.8rem;color:#333;line-height:1.6;">
+            ${isEs
+                ? 'Esta página muestra únicamente los datos publicados por la ATP. Con una membresía de prueba gratuita (30 días) o de apoyo, esta podría ser <strong>su página personal</strong> — con fotos, una descripción completa en español e inglés, su dirección exacta, enlaces a su sitio web y sistema de reservas, y mucho más. Esto mejora significativamente cómo los turistas y Google la encuentran a usted y a su hospedaje.'
+                : 'This page currently shows only the data published by the ATP. With a free trial membership (30 days) or a supporting membership, this could be <strong>your own personal page</strong> — with photos, a full description in English and Spanish, your exact address, links to your website and booking system, and much more. This significantly improves how travelers and Google find you and your property.'}
+        </p>
+        <p style="text-align:center;margin:0;">
+            <a href="join.html?id=${rentalIdForPromo()}&lang=${lang}" style="display:inline-block;background:#005ca9;color:white;padding:11px 26px;border-radius:8px;text-decoration:none;font-weight:700;">
+                ${isEs ? 'Hazte miembro →' : 'Become a member →'}
+            </a>
+        </p>
+    </div>`;
+}
+
+function rentalIdForPromo() {
+    return currentRental && currentRental.id ? currentRental.id : (listingId || '');
+}
+
 function renderView(rental) {
     viewPhotos = Array.isArray(rental.photos) ? rental.photos : []; currentPhoto = 0;
     const description = isEs
@@ -635,6 +655,7 @@ function renderView(rental) {
                 ${rental.address ? `<div class="info-item"><span class="info-icon">🗺️</span><div><div class="info-label">${T.address}</div><div class="info-value">${rental.address}</div></div></div>` : ''}
             </div>
         </div>
+        ${!rental.is_member ? renderMembershipPromo() : ''}
         ${galleryHTML()}
         ${(rental.listing_keywords && rental.listing_keywords.length) ? '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:0.5rem 0.5rem 0.2rem;">' + rental.listing_keywords.map(function(slug) { var k = (window._allKeywords||[]).find(function(x){return x.slug===slug;}); var label = k ? (isEs?k.label_es:k.label_en) : slug; return '<span style="padding:3px 10px;background:#e8f0fe;color:#1a3a6b;border:1px solid #c0cce0;border-radius:20px;font-size:0.78rem;">' + label + '</span>'; }).join('') + '</div>' : ''}
         ${rental.is_member && description !== T.noDesc ? `
