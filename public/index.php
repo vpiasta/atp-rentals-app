@@ -126,8 +126,10 @@ $t = [
             position: relative;
             margin-left: auto;
             font-size: 0.76rem;
-            white-space: nowrap;
+            white-space: normal;
             text-align: center;
+            line-height: 1.2;
+            max-width: 90px;
         }
         .become-member-btn::after {
             content: attr(data-hover-text);
