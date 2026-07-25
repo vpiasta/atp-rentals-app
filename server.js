@@ -168,9 +168,14 @@ ${diff.toFlagMembers.length ? `
     ${listOrNone(diff.toFlagMembers)}
 </div>` : ''}
 <p style="text-align:center;margin:1.5rem 0;">
-    <a href="https://trustedpanamastays.com/admin.html" style="background:#005ca9;color:white;padding:11px 28px;text-decoration:none;border-radius:8px;font-weight:700;">
-        Revisar en el panel de admin →
+    <a href="https://trustedpanamastays.com/admin.html?from=AtpUpdate" style="background:#005ca9;color:white;padding:16px 40px;text-decoration:none;border-radius:10px;font-weight:700;font-size:1.1rem;display:inline-block;">
+        📋 Revisar en el panel de admin →
     </a>
+    <br>
+    <span style="font-size:0.72rem;color:#999;display:inline-block;margin-top:0.6rem;">
+        Este botón lo lleva a: trustedpanamastays.com/admin.html<br>
+        (el enlace pasa por nuestro proveedor de correo, por eso la URL visible es distinta)
+    </span>
 </p>
 <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
 <p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>

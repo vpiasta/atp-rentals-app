@@ -815,7 +815,6 @@ async function adminFetch(url, options={}) {
     return res;
 }
 
-// ── Show admin ────────────────────────────────────────────────────────────────
 function showAdminScreen() {
     document.getElementById('login-screen').style.display  = 'none';
     document.getElementById('admin-screen').style.display  = 'block';
@@ -824,6 +823,15 @@ function showAdminScreen() {
     loadSuggestions();
     loadIPInfo();
     loadApplicationCount();
+
+    // Deep link from the ATP update notification email — jump straight to
+    // the ATP Sync tab instead of landing on the default Members view.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('from') === 'AtpUpdate') {
+        showTab('atpsync');
+        // Clean the URL so a page refresh doesn't keep re-triggering this
+        window.history.replaceState({}, '', window.location.pathname);
+    }
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
