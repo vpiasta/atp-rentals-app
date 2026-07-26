@@ -2740,7 +2740,12 @@ async function sendInvoiceOnly(appId) {
 <div id="help-panel" style="display:none;position:fixed;top:0;right:0;width:33%;min-width:320px;height:100vh;background:#152535;border-left:2px solid #00a859;box-shadow:-4px 0 15px rgba(0,0,0,0.3);z-index:9999;overflow-y:auto;padding:1.2rem;color:#ddd;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
         <h3 style="color:#FFD700;margin:0;">Ayuda</h3>
-        <button onclick="toggleHelpPanel()" style="background:red;border:none;color:white;font-size:1.4rem;cursor:pointer;line-height:1;padding:3px;">✕</button>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <button id="help-edit-btn" onclick="startHelpEdit()" style="background:#005ca9;color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:0.8rem;">✏️ Editar</button>
+            <button id="help-save-btn" onclick="saveHelpEdit()" style="display:none;background:#00a859;color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:0.8rem;">💾 Guardar</button>
+            <button id="help-cancel-btn" onclick="cancelHelpEdit()" style="display:none;background:#7a1a1a;color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:0.8rem;">✕ Cancelar</button>
+            <button onclick="toggleHelpPanel()" style="background:none;border:none;color:#aaa;font-size:1.4rem;cursor:pointer;line-height:1;">✕</button>
+        </div>
     </div>
     <div id="help-panel-content" style="line-height:1.6;font-size:0.9rem;">
         <p style="color:#888;">Contenido de ayuda pendiente — placeholder.</p>
@@ -2769,22 +2774,76 @@ async function loadGeneralHelp() {
     return generalHelpHtml;
 }
 
+let currentHelpKey = null; // tracks which file is currently shown, for saving
+
 async function toggleHelpPanel(topicKey) {
     const panel = document.getElementById('help-panel');
     const isOpen = panel.style.display === 'block';
     if (isOpen && !topicKey) {
         panel.style.display = 'none';
         document.getElementById('admin-screen').style.width = '';
+        cancelHelpEdit();
         return;
     }
     if (topicKey) {
         document.getElementById('help-panel-content').innerHTML = HELP_TOPICS[topicKey] || HELP_TOPICS.default;
+        currentHelpKey = null; // per-topic snippets aren't file-editable yet
+        document.getElementById('help-edit-btn').style.display = 'none';
     } else {
         document.getElementById('help-panel-content').innerHTML = '<p style="color:#888;">Cargando...</p>';
         document.getElementById('help-panel-content').innerHTML = await loadGeneralHelp();
+        currentHelpKey = 'general-es';
+        document.getElementById('help-edit-btn').style.display = 'inline-block';
     }
     panel.style.display = 'block';
     document.getElementById('admin-screen').style.width = '67%';
+}
+
+function startHelpEdit() {
+    const content = document.getElementById('help-panel-content');
+    content.contentEditable = 'true';
+    content.style.outline = '2px dashed #00a859';
+    content.style.padding = '8px';
+    document.getElementById('help-edit-btn').style.display = 'none';
+    document.getElementById('help-save-btn').style.display = 'inline-block';
+    document.getElementById('help-cancel-btn').style.display = 'inline-block';
+}
+
+function cancelHelpEdit() {
+    const content = document.getElementById('help-panel-content');
+    content.contentEditable = 'false';
+    content.style.outline = 'none';
+    content.style.padding = '0';
+    document.getElementById('help-edit-btn').style.display = currentHelpKey ? 'inline-block' : 'none';
+    document.getElementById('help-save-btn').style.display = 'none';
+    document.getElementById('help-cancel-btn').style.display = 'none';
+    // Reload the saved version, discarding any unsaved edits
+    if (currentHelpKey === 'general-es') { generalHelpHtml = null; toggleHelpPanel(); }
+}
+
+async function saveHelpEdit() {
+    if (!currentHelpKey) return;
+    const html = document.getElementById('help-panel-content').innerHTML;
+    try {
+        const res = await adminFetch('/api/admin/save-help-content', {
+            method: 'POST', body: JSON.stringify({ key: currentHelpKey, html })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Save failed');
+        generalHelpHtml = html; // update the cache so it doesn't refetch the old version
+        cancelHelpEditUIOnly();
+        alert('✅ Guardado.');
+    } catch (err) { alert('Error: ' + err.message); }
+}
+
+function cancelHelpEditUIOnly() {
+    const content = document.getElementById('help-panel-content');
+    content.contentEditable = 'false';
+    content.style.outline = 'none';
+    content.style.padding = '0';
+    document.getElementById('help-edit-btn').style.display = 'inline-block';
+    document.getElementById('help-save-btn').style.display = 'none';
+    document.getElementById('help-cancel-btn').style.display = 'none';
 }
 
 function dismissFirstTip() {

@@ -1784,6 +1784,24 @@ app.post('/api/admin/wa-template', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── Save edited help-panel content back to its HTML file ────────────────────
+// Whitelisted filenames only — never accepts an arbitrary path from the request.
+const HELP_FILES = { 'general-es': 'general-es.html' };
+app.post('/api/admin/save-help-content', requireAdmin, async (req, res) => {
+    const { key, html } = req.body;
+    const filename = HELP_FILES[key];
+    if (!filename) return res.status(400).json({ error: 'Unknown help content key' });
+    if (typeof html !== 'string' || !html.trim()) return res.status(400).json({ error: 'Empty content' });
+    try {
+        const filePath = path.join(__dirname, 'public', 'help', filename);
+        fs.writeFileSync(filePath, html, 'utf8');
+        await logEvent('help_content_edited', { key });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/admin/set-invitation-status', requireAdmin, async (req, res) => {
     const { id, status } = req.body;
     if (!id || !status) return res.status(400).json({ error: 'Missing fields' });
