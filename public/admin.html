@@ -2747,6 +2747,12 @@ async function sendInvoiceOnly(appId) {
             <button onclick="toggleHelpPanel()" style="background:none;border:none;color:#aaa;font-size:1.4rem;cursor:pointer;line-height:1;">✕</button>
         </div>
     </div>
+    <div id="help-toolbar" style="display:none;gap:6px;margin-bottom:0.6rem;padding-bottom:0.6rem;border-bottom:1px solid #3a5a7a;">
+        <button onmousedown="event.preventDefault()" onclick="document.execCommand('bold')" style="background:#2a3a4a;color:white;border:1px solid #4a6a8a;border-radius:4px;padding:4px 10px;cursor:pointer;font-weight:700;">B</button>
+        <button onmousedown="event.preventDefault()" onclick="document.execCommand('italic')" style="background:#2a3a4a;color:white;border:1px solid #4a6a8a;border-radius:4px;padding:4px 10px;cursor:pointer;font-style:italic;">I</button>
+        <button onmousedown="event.preventDefault()" onclick="document.execCommand('insertUnorderedList')" style="background:#2a3a4a;color:white;border:1px solid #4a6a8a;border-radius:4px;padding:4px 10px;cursor:pointer;">• Lista</button>
+        <button onmousedown="event.preventDefault()" onclick="document.execCommand('removeFormat')" style="background:#2a3a4a;color:white;border:1px solid #4a6a8a;border-radius:4px;padding:4px 10px;cursor:pointer;">Limpiar</button>
+    </div>
     <div id="help-panel-content" style="line-height:1.6;font-size:0.9rem;">
         <p style="color:#888;">Contenido de ayuda pendiente — placeholder.</p>
     </div>
@@ -2807,6 +2813,7 @@ function startHelpEdit() {
     document.getElementById('help-edit-btn').style.display = 'none';
     document.getElementById('help-save-btn').style.display = 'inline-block';
     document.getElementById('help-cancel-btn').style.display = 'inline-block';
+    document.getElementById('help-toolbar').style.display = 'flex';
 }
 
 function cancelHelpEdit() {
@@ -2817,6 +2824,7 @@ function cancelHelpEdit() {
     document.getElementById('help-edit-btn').style.display = currentHelpKey ? 'inline-block' : 'none';
     document.getElementById('help-save-btn').style.display = 'none';
     document.getElementById('help-cancel-btn').style.display = 'none';
+    document.getElementById('help-toolbar').style.display = 'none';
     // Reload the saved version, discarding any unsaved edits
     if (currentHelpKey === 'general-es') { generalHelpHtml = null; toggleHelpPanel(); }
 }
@@ -2844,6 +2852,7 @@ function cancelHelpEditUIOnly() {
     document.getElementById('help-edit-btn').style.display = 'inline-block';
     document.getElementById('help-save-btn').style.display = 'none';
     document.getElementById('help-cancel-btn').style.display = 'none';
+    document.getElementById('help-toolbar').style.display = 'none';
 }
 
 function dismissFirstTip() {
