@@ -4017,9 +4017,16 @@ async function recalculateFeatureRanks() {
         featured.sort((a, b) => {
             const td = tier(a) - tier(b);
             if (td !== 0) return td;
-            const da = a.trial_started_at ? new Date(a.trial_started_at) : new Date(0);
-            const db = b.trial_started_at ? new Date(b.trial_started_at) : new Date(0);
-            return da - db;
+            // Both have a real trial_started_at — use it to rank by seniority
+            if (a.trial_started_at && b.trial_started_at) {
+                const diff = new Date(a.trial_started_at) - new Date(b.trial_started_at);
+                if (diff !== 0) return diff;
+            }
+            // Otherwise (at least one has no trial date — e.g. went straight to a
+            // supporting membership) fall back to listing ID, which is always
+            // present and deterministic — avoids ties depending on arbitrary
+            // database row order, which was the actual bug here.
+            return a.id - b.id;
         });
 
         for (let i = 0; i < featured.length; i++) {
