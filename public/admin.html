@@ -2790,7 +2790,7 @@ async function toggleHelpPanel(topicKey) {
     if (isOpen && !topicKey) {
         panel.style.display = 'none';
         document.getElementById('admin-screen').style.width = '';
-        cancelHelpEdit();
+        cancelHelpEditUIOnly();
         return;
     }
     if (topicKey) {
@@ -2818,6 +2818,13 @@ function startHelpEdit() {
     document.getElementById('help-toolbar').style.display = 'flex';
 }
 
+async function reloadGeneralHelp() {
+    // Refetches and displays content WITHOUT touching panel open/closed state
+    // — separate from toggleHelpPanel(), which handles open/close only.
+    document.getElementById('help-panel-content').innerHTML = '<p style="color:#888;">Cargando...</p>';
+    document.getElementById('help-panel-content').innerHTML = await loadGeneralHelp();
+}
+
 function cancelHelpEdit() {
     const content = document.getElementById('help-panel-content');
     content.contentEditable = 'false';
@@ -2827,8 +2834,8 @@ function cancelHelpEdit() {
     document.getElementById('help-save-btn').style.display = 'none';
     document.getElementById('help-cancel-btn').style.display = 'none';
     document.getElementById('help-toolbar').style.display = 'none';
-    // Reload the saved version, discarding any unsaved edits
-    if (currentHelpKey === 'general-es') { generalHelpHtml = null; toggleHelpPanel(); }
+    // Reload the saved version, discarding any unsaved edits — panel stays open
+    if (currentHelpKey === 'general-es') { generalHelpHtml = null; reloadGeneralHelp(); }
 }
 
 async function saveHelpEdit() {
