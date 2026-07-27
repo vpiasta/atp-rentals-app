@@ -2795,25 +2795,25 @@ async function sendInvoiceOnly(appId) {
 </div>
 
 <script>
-// ── Help panel: right-click-for-context-help scaffolding ──────────────────────
-// Content is placeholder for now — HELP_TOPICS gets filled in once the guide
-// text is finalized. Structure: one key per admin section, matching the
-// eventual guide's own section headings.
-const HELP_TOPICS = {
-    default: '<p style="color:#888;">Contenido de ayuda pendiente para esta sección.</p>',
-    // e.g. hospedajes: '<p>...</p>', applications: '<p>...</p>', etc.
-};
 
-let generalHelpHtml = null; // cached after first load
-async function loadGeneralHelp() {
-    if (generalHelpHtml !== null) return generalHelpHtml;
+const helpContentCache = {}; // keyed by topic — cached after first load, cleared on save
+async function loadHelpTopic(key) {
+    if (helpContentCache[key] !== undefined) return helpContentCache[key];
     try {
-        const res = await fetch('help/general-es.html');
-        generalHelpHtml = res.ok ? await res.text() : '<p style="color:#ff7070;">No se pudo cargar la ayuda.</p>';
+        const res = await adminFetch('/api/admin/help-content/' + key);
+        const data = await res.json();
+        helpContentCache[key] = res.ok ? (data.html || '<p style="color:#888;">(vacío — clic en Editar para agregar contenido)</p>') : '<p style="color:#ff7070;">No se pudo cargar la ayuda.</p>';
     } catch {
-        generalHelpHtml = '<p style="color:#ff7070;">No se pudo cargar la ayuda.</p>';
+        helpContentCache[key] = '<p style="color:#ff7070;">No se pudo cargar la ayuda.</p>';
     }
-    return generalHelpHtml;
+    return helpContentCache[key];
+}
+
+async function reloadHelpTopic(key) {
+    // Refetches and displays content WITHOUT touching panel open/closed state
+    // — separate from toggleHelpPanel(), which handles open/close only.
+    document.getElementById('help-panel-content').innerHTML = '<p style="color:#888;">Cargando...</p>';
+    document.getElementById('help-panel-content').innerHTML = await loadHelpTopic(key);
 }
 
 let currentHelpKey = null; // tracks which file is currently shown, for saving
@@ -2827,16 +2827,10 @@ async function toggleHelpPanel(topicKey) {
         cancelHelpEditUIOnly();
         return;
     }
-    if (topicKey) {
-        document.getElementById('help-panel-content').innerHTML = HELP_TOPICS[topicKey] || HELP_TOPICS.default;
-        currentHelpKey = null; // per-topic snippets aren't file-editable yet
-        document.getElementById('help-edit-btn').style.display = 'none';
-    } else {
-        document.getElementById('help-panel-content').innerHTML = '<p style="color:#888;">Cargando...</p>';
-        document.getElementById('help-panel-content').innerHTML = await loadGeneralHelp();
-        currentHelpKey = 'general-es';
-        document.getElementById('help-edit-btn').style.display = 'inline-block';
-    }
+    currentHelpKey = topicKey || 'general-es';
+    document.getElementById('help-panel-content').innerHTML = '<p style="color:#888;">Cargando...</p>';
+    document.getElementById('help-panel-content').innerHTML = await loadHelpTopic(currentHelpKey);
+    document.getElementById('help-edit-btn').style.display = 'inline-block';
     panel.style.display = 'flex';
     document.getElementById('admin-screen').style.width = '67%';
 }
@@ -2878,12 +2872,6 @@ function startHelpEdit() {
     document.getElementById('help-cancel-btn').style.display = 'inline-block';
 }
 
-async function reloadGeneralHelp() {
-    // Refetches and displays content WITHOUT touching panel open/closed state
-    // — separate from toggleHelpPanel(), which handles open/close only.
-    document.getElementById('help-panel-content').innerHTML = '<p style="color:#888;">Cargando...</p>';
-    document.getElementById('help-panel-content').innerHTML = await loadGeneralHelp();
-}
 
 function cancelHelpEdit() {
     document.getElementById('help-quill-wrap').style.display = 'none';
@@ -2891,8 +2879,9 @@ function cancelHelpEdit() {
     document.getElementById('help-edit-btn').style.display = currentHelpKey ? 'inline-block' : 'none';
     document.getElementById('help-save-btn').style.display = 'none';
     document.getElementById('help-cancel-btn').style.display = 'none';
+    document.getElementById('help-toolbar').style.display = 'none';
     // Reload the saved version, discarding any unsaved edits — panel stays open
-    if (currentHelpKey === 'general-es') { generalHelpHtml = null; reloadGeneralHelp(); }
+    if (currentHelpKey) { delete helpContentCache[currentHelpKey]; reloadHelpTopic(currentHelpKey); }
 }
 
 async function saveHelpEdit() {
@@ -2904,7 +2893,7 @@ async function saveHelpEdit() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Save failed');
-        generalHelpHtml = html; // update the cache so it doesn't refetch the old version
+        helpContentCache[currentHelpKey] = html; // update the cache so it doesn't refetch the old version
         document.getElementById('help-panel-content').innerHTML = html;
         cancelHelpEditUIOnly();
         alert('✅ Guardado.');
@@ -2927,11 +2916,9 @@ function dismissFirstTip() {
 function initHelpSystem() {
     // Only show the split layout / right-click help on desktop-width screens
     if (window.innerWidth < 900) return;
-
     if (!localStorage.getItem('tps_help_tip_dismissed')) {
         document.getElementById('help-first-tip').style.display = 'block';
     }
-
     // Right-click on any element carrying data-help opens the panel jumped to
     // that topic — left-click on the same element is completely untouched.
     document.addEventListener('contextmenu', e => {
@@ -2939,6 +2926,12 @@ function initHelpSystem() {
         if (!target) return; // let the normal browser right-click menu show everywhere else
         e.preventDefault();
         toggleHelpPanel(target.getAttribute('data-help'));
+    });
+    // Add a discoverability hint (native browser tooltip on hover) to every
+    // help-tagged element automatically, so future data-help additions never
+    // need a manually-written title attribute.
+    document.querySelectorAll('[data-help]').forEach(el => {
+        if (!el.title) el.title = 'Clic derecho para ver ayuda';
     });
 }
 

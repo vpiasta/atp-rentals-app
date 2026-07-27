@@ -1789,9 +1789,28 @@ app.post('/api/admin/wa-template', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
-// ── Save edited help-panel content back to its HTML file ────────────────────
-// Whitelisted filenames only — never accepts an arbitrary path from the request.
-const HELP_FILES = { 'general-es': 'general-es.html' };
+// ── Editable help-panel content, one file per topic ──────────────────────────
+// Every topic (general guide + each per-button snippet) is its own HTML file
+// under public/help/, fetched on demand and editable via the same Quill panel.
+// Whitelisted keys only — never accepts an arbitrary filename from the request.
+const HELP_FILES = {
+    'general-es':     'general-es.html',
+    'applications':   'applications-es.html'
+    // add one entry here each time a new button/section gets tagged with data-help
+};
+
+app.get('/api/admin/help-content/:key', requireAdmin, async (req, res) => {
+    const filename = HELP_FILES[req.params.key];
+    if (!filename) return res.status(400).json({ error: 'Unknown help content key' });
+    try {
+        const filePath = path.join(__dirname, 'public', 'help', filename);
+        const html = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
+        res.json({ html });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/admin/save-help-content', requireAdmin, async (req, res) => {
     const { key, html } = req.body;
     const filename = HELP_FILES[key];
