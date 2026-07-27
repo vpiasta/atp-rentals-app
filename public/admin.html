@@ -330,7 +330,7 @@
                 <div class="stat-number" id="stat-refused">—</div>
                 <div class="stat-label">Refused</div>
             </div>
-            <div class="stat-card highlight" onclick="showTab('applications');filterApps('pending')">
+            <div class="stat-card highlight" onclick="showTab('applications');filterApps('pending')" data-help="applications">
                 <div class="stat-number" id="stat-pending-apps">—</div>
                 <div class="stat-label">Pending Applications</div>
             </div>
@@ -1448,8 +1448,6 @@ async function loadApplicationCount() {
         allApplications = apps;
         const pending = apps.filter(a=>a.status==='pending' || a.status==='pre_approved').length;
         document.getElementById('stat-pending-apps').textContent = pending;
-        const badge = document.getElementById('badge-applications');
-        if (badge) { badge.textContent = pending > 0 ? pending : ''; }
     } catch {}
 }
 
