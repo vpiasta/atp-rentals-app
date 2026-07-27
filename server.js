@@ -3271,6 +3271,7 @@ app.post('/api/track', async (req, res) => {
         await supabase.from('listing_events').insert({
             event_type,
             listing_id: listing_id ? parseInt(listing_id) : null,
+            ip,
             created_at: new Date().toISOString()
         });
         res.json({ success: true });
@@ -3284,26 +3285,29 @@ app.post('/api/track', async (req, res) => {
 app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     const days = parseInt(req.query.days) || 7;
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
     try {
+        const adminIp = await getAdminIP(); // excluded from all counts below
+
         // Total counts by event type
-        const { data: totals } = await supabaseAdmin
+        let totalsQuery = supabaseAdmin
             .from('listing_events')
             .select('event_type')
             .gte('created_at', since);
-
+        if (adminIp) totalsQuery = totalsQuery.or(`ip.is.null,ip.neq.${adminIp}`);
+        const { data: totals } = await totalsQuery;
         const counts = {};
         (totals || []).forEach(e => {
             counts[e.event_type] = (counts[e.event_type] || 0) + 1;
         });
-
         // Top listings by views
-        const { data: views } = await supabaseAdmin
+        let viewsQuery = supabaseAdmin
             .from('listing_events')
             .select('listing_id')
             .eq('event_type', 'listing_view')
             .gte('created_at', since)
             .not('listing_id', 'is', null);
+        if (adminIp) viewsQuery = viewsQuery.or(`ip.is.null,ip.neq.${adminIp}`);
+        const { data: views } = await viewsQuery;
 
         const listingCounts = {};
         (views || []).forEach(e => {
@@ -3345,14 +3349,16 @@ app.get('/api/admin/analytics/listing/:id', requireAdmin, async (req, res) => {
     const listingId = parseInt(req.params.id);
     const days      = parseInt(req.query.days) || 30;
     const since     = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
     try {
-        const { data: events } = await supabaseAdmin
+        const adminIp = await getAdminIP();
+        let eventsQuery = supabaseAdmin
             .from('listing_events')
             .select('event_type, created_at')
             .eq('listing_id', listingId)
             .gte('created_at', since)
             .order('created_at', { ascending: false });
+        if (adminIp) eventsQuery = eventsQuery.or(`ip.is.null,ip.neq.${adminIp}`);
+        const { data: events } = await eventsQuery;
 
         const counts = {};
         (events || []).forEach(e => {
