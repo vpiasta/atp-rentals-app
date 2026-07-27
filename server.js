@@ -1448,15 +1448,20 @@ app.post('/api/listing-photo-upload', upload.single('photo'), async (req, res) =
 
 // ── Update admin IP (call this from phone/PC daily) ───────────────────────────
 app.get('/api/update-admin-ip', async (req, res) => {
-    const { secret } = req.query;
+    const { secret, ip: explicitIp } = req.query;
     if (secret !== process.env.ADMIN_SECRET) return res.status(403).send('Denied');
-    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim()
+    // Prefer an explicitly-passed IP (from updateMyIP.php, which already knows
+    // the real caller's IP from its own $_SERVER["REMOTE_ADDR"]) over detecting
+    // it from this request's connection — since this endpoint is often called
+    // server-side via curl from aparthotel-boquete.com, the connection's own
+    // IP is the shared hosting server's IP, not the actual admin's device.
+    const ip = explicitIp || req.headers['x-forwarded-for']?.split(',')[0].trim()
              || req.socket.remoteAddress;
     const { error } = await supabaseAdmin
         .from('settings')
         .upsert({ key: 'admin_ip', value: ip, updated_at: new Date().toISOString() });
     if (error) return res.status(500).send('Error: ' + error.message);
-    console.log(`✅ Admin IP updated to: ${ip}`);
+    console.log(`✅ Admin IP updated to: ${ip}${explicitIp ? ' (explicit)' : ' (detected from connection)'}`);
     res.send(`✅ Admin IP updated: ${ip}`);
 });
 
