@@ -432,7 +432,7 @@ function updatePageDates() {
 document.addEventListener('DOMContentLoaded', () => { updatePageDates(); setInterval(updatePageDates, 30000); });
 
 async function showDefaultView() {
-    resultsContainer.innerHTML = '<div class="loading">Cargando...</div>';
+    resultsContainer.innerHTML = `<div class="loading">${LANG === 'en' ? 'Loading...' : 'Cargando...'}</div>`;
     try {
         const res      = await fetch(`${API_BASE_URL}/api/featured-listing`);
         if (!res.ok) throw new Error();
@@ -452,12 +452,12 @@ async function showDefaultView() {
             const photos  = Array.isArray(rental.photos) ? rental.photos : [];
             const thumb   = active && photos.length ? photos[0] : null;
             const listUrl = rental.slug
-                ? `listing.html?slug=${rental.slug}&lang=es`
-                : `listing.html?id=${rental.id}&lang=es`;
+                ? `listing.html?slug=${rental.slug}&lang=${LANG}`
+                : `listing.html?id=${rental.id}&lang=${LANG}`;
             const thumbHtml = (active && thumb)
                 ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
                     <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">
-                    <span class="member-thumb-label">Ver Más</span>
+                    <span class="member-thumb-label">${LANG === 'en' ? 'See More' : 'Ver Más'}</span>
                    </a>`
                 : '';
 
@@ -469,9 +469,9 @@ async function showDefaultView() {
                     <div class="card-info">
                         <h3 class="result-title">${rental.name} <span style="font-size:0.65rem;color:#bbb;font-weight:400;vertical-align:middle;">#${rental.id||''}</span></h3>
                         <div class="result-badges">
-                            ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
-                            ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
-                            ${active             ? `<span class="result-badge badge-member">⭐ Miembro</span>` : ''}
+                        ${rental.rental_type ? `<span class="result-badge badge-type">${(LANG === 'en' && window.TYPE_LABELS_EN && window.TYPE_LABELS_EN[rental.rental_type]) ? window.TYPE_LABELS_EN[rental.rental_type] : rental.rental_type}</span>` : ''}
+                        ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
+                        ${active             ? `<span class="result-badge badge-member">⭐ ${LANG === 'en' ? 'Member' : 'Miembro'}</span>` : ''}
 
                             ${rental.registry_source === 'mici'
                                 ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>`
@@ -503,10 +503,10 @@ async function showDefaultView() {
         hint.innerHTML = '<p><?= $t['use_search'] ?></p>';
         resultsContainer.appendChild(hint);
 
-    } catch {
-        resultsContainer.innerHTML = '<div class="no-results"><p>Use la búsqueda o los filtros para encontrar hospedajes registrados</p></div>';
-    }
-}
+      } catch {
+          resultsContainer.innerHTML = `<div class="no-results"><p>${LANG === 'en' ? 'Use the search or filters to find registered accommodations' : 'Use la búsqueda o los filtros para encontrar hospedajes registrados'}</p></div>`;
+      }
+  }
 
 async function loadStats() {
     try {
@@ -534,7 +534,24 @@ async function loadFilters() {
         provinces.forEach(({ province, count }) => {
             const o = document.createElement('option'); o.value = province; o.textContent = `${province} (${count})`; provinceFilter.appendChild(o);
         });
-        types.forEach(type => { const o = document.createElement('option'); o.value = type; o.textContent = type; typeFilter.appendChild(o); });
+        const TYPE_LABELS_EN = {
+            'Aparta-Hotel':        'Aparthotel',
+            'Apartamentos':        'Apartments',
+            'Hostal':              'Inn',
+            'Hostal Familiar':     'Family Guesthouse',
+            'Hotel':               'Hotel',
+            'Cabaña':              'Cabin',
+            'Alquiler vacacional': 'Vacation Rental',
+            'Sitio de acampar':    'Campsite',
+            'Albergue':            'Hostel'
+        };
+        window.TYPE_LABELS_EN = TYPE_LABELS_EN; // exposed for use elsewhere (e.g. result card badges)
+        types.forEach(type => {
+            const o = document.createElement('option');
+            o.value = type; // always the real Spanish value — search/filtering logic never changes
+            o.textContent = (LANG === 'en' && TYPE_LABELS_EN[type]) ? TYPE_LABELS_EN[type] : type;
+            typeFilter.appendChild(o);
+        });
     } catch {}
 }
 
@@ -654,36 +671,7 @@ function displayResults(rentals) {
           return (a.name || '').localeCompare(b.name || '');
       });
     }
-    rentals.forEach(rental => {
-        const card = document.createElement('div');
-        const active = isMemberActive(rental);
-        card.className = 'result-card' + (active ? ' is-member' : '');
-        const phone   = active ? (rental.phone_member || rental.phone) : rental.phone;
-        const email   = active ? (rental.email_member || rental.email) : rental.email;
-        const address = active ? (rental.address || '') : '';
-        const ph      = getPhoneNumbers(phone);
-        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name+' '+(rental.province||'')+' Panama')}`;
-        const photos  = Array.isArray(rental.photos) ? rental.photos : [];
-        const thumb   = active && photos.length ? photos[0] : null;
-        const searchState = new URLSearchParams(window.location.search).toString();
-        const listUrl = (rental.slug
-            ? `listing.html?slug=${rental.slug}&lang=es`
-            : `listing.html?id=${rental.id}&lang=es`) + (searchState ? `&from=${encodeURIComponent(window.location.search)}` : '');
-        const thumbHtml = (active && thumb)
-                ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
-                    <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">
-                    <span class="member-thumb-label">Ver Más</span>
-                   </a>`
-                : '';
-        card.innerHTML = `
-            <h3 class="result-title">${rental.name} <span style="font-size:0.65rem;color:#bbb;font-weight:400;vertical-align:middle;">#${rental.id||''}</span></h3>
-            <div class="result-badges">
-                ${rental.rental_type ? `<span class="result-badge badge-type">${rental.rental_type}</span>` : ''}
-                ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
-                ${active             ? `<span class="result-badge badge-member">⭐ Miembro</span>` : ''}
-                ${rental.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
-                ${active && rental.registry_source === 'mici' ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>` : (rental.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
-            </div>
+
             <div class="card-body">
                 ${thumbHtml}
                 <div class="card-info">
