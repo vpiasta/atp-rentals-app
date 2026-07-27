@@ -1795,7 +1795,14 @@ app.post('/api/admin/wa-template', requireAdmin, async (req, res) => {
 // Whitelisted keys only — never accepts an arbitrary filename from the request.
 const HELP_FILES = {
     'general-es':     'general-es.html',
-    'applications':   'applications-es.html'
+    'applications':   'applications-es.html',
+    'invoices':       'invoices-es.html',
+    'log':            'log-es.html',
+    'campaign':       'campaign-es.html',
+    'analytics':      'analytics-es.html',
+    'ip':             'ip-es.html',
+    'atpsync':        'atpsync-es.html',
+    'keywords':       'keywords-es.html'
     // add one entry here each time a new button/section gets tagged with data-help
 };
 
