@@ -193,6 +193,8 @@
         .no-results { text-align: center; padding: 2rem; color: #aaa; }
         .row-count { font-size: 0.78rem; color: #aaa; margin-top: 0.5rem; }
     </style>
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 </head>
 <body>
 
@@ -2748,16 +2750,14 @@ async function sendInvoiceOnly(appId) {
                 <button onclick="toggleHelpPanel()" style="background:red;border:none;color:white;font-size:1.4rem;cursor:pointer;line-height:1;padding:3px;">✕</button>
             </div>
         </div>
-        <div id="help-toolbar" style="display:none;gap:6px;margin-bottom:0.6rem;padding-bottom:0.6rem;border-bottom:1px solid #3a5a7a;">
-            <button onmousedown="event.preventDefault()" onclick="document.execCommand('bold')" style="background:#2a3a4a;color:white;border:1px solid #4a6a8a;border-radius:4px;padding:4px 10px;cursor:pointer;font-weight:700;">B</button>
-            <button onmousedown="event.preventDefault()" onclick="document.execCommand('italic')" style="background:#2a3a4a;color:white;border:1px solid #4a6a8a;border-radius:4px;padding:4px 10px;cursor:pointer;font-style:italic;">I</button>
-            <button onmousedown="event.preventDefault()" onclick="document.execCommand('insertUnorderedList')" style="background:#2a3a4a;color:white;border:1px solid #4a6a8a;border-radius:4px;padding:4px 10px;cursor:pointer;">• Lista</button>
-            <button onmousedown="event.preventDefault()" onclick="document.execCommand('removeFormat')" style="background:#2a3a4a;color:white;border:1px solid #4a6a8a;border-radius:4px;padding:4px 10px;cursor:pointer;">Limpiar</button>
-        </div>
-    </div>
-    <div id="help-panel-content" style="line-height:1.6;font-size:0.9rem;flex:1;overflow-y:auto;">
-        <p style="color:#888;">Contenido de ayuda pendiente — placeholder.</p>
-    </div>
+      </div>
+      <div id="help-panel-content" style="line-height:1.6;font-size:0.9rem;flex:1;overflow-y:auto;">
+          <p style="color:#888;">Contenido de ayuda pendiente — placeholder.</p>
+      </div>
+      <div id="help-quill-wrap" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+          <div id="help-quill-toolbar"></div>
+          <div id="help-quill-editor" style="flex:1;overflow-y:auto;background:white;color:#111;"></div>
+      </div>
 </div>
 
 <script>
@@ -2807,15 +2807,35 @@ async function toggleHelpPanel(topicKey) {
     document.getElementById('admin-screen').style.width = '67%';
 }
 
+let quillHelp = null;
+function initQuillHelp() {
+    if (quillHelp) return quillHelp;
+    quillHelp = new Quill('#help-quill-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: {
+                container: [
+                    [{ header: [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ color: [] }, { background: [] }],
+                    [{ list: 'ordered' }, { list: 'bullet' }],
+                    ['blockquote', 'link'],
+                    ['clean']
+                ]
+            }
+        }
+    });
+    return quillHelp;
+}
+
 function startHelpEdit() {
-    const content = document.getElementById('help-panel-content');
-    content.contentEditable = 'true';
-    content.style.outline = '2px dashed #00a859';
-    content.style.padding = '8px';
+    const q = initQuillHelp();
+    q.root.innerHTML = document.getElementById('help-panel-content').innerHTML;
+    document.getElementById('help-panel-content').style.display = 'none';
+    document.getElementById('help-quill-wrap').style.display = 'flex';
     document.getElementById('help-edit-btn').style.display = 'none';
     document.getElementById('help-save-btn').style.display = 'inline-block';
     document.getElementById('help-cancel-btn').style.display = 'inline-block';
-    document.getElementById('help-toolbar').style.display = 'flex';
 }
 
 async function reloadGeneralHelp() {
@@ -2826,21 +2846,18 @@ async function reloadGeneralHelp() {
 }
 
 function cancelHelpEdit() {
-    const content = document.getElementById('help-panel-content');
-    content.contentEditable = 'false';
-    content.style.outline = 'none';
-    content.style.padding = '0';
+    document.getElementById('help-quill-wrap').style.display = 'none';
+    document.getElementById('help-panel-content').style.display = 'block';
     document.getElementById('help-edit-btn').style.display = currentHelpKey ? 'inline-block' : 'none';
     document.getElementById('help-save-btn').style.display = 'none';
     document.getElementById('help-cancel-btn').style.display = 'none';
-    document.getElementById('help-toolbar').style.display = 'none';
     // Reload the saved version, discarding any unsaved edits — panel stays open
     if (currentHelpKey === 'general-es') { generalHelpHtml = null; reloadGeneralHelp(); }
 }
 
 async function saveHelpEdit() {
-    if (!currentHelpKey) return;
-    const html = document.getElementById('help-panel-content').innerHTML;
+    if (!currentHelpKey || !quillHelp) return;
+    const html = quillHelp.root.innerHTML;
     try {
         const res = await adminFetch('/api/admin/save-help-content', {
             method: 'POST', body: JSON.stringify({ key: currentHelpKey, html })
@@ -2848,20 +2865,18 @@ async function saveHelpEdit() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Save failed');
         generalHelpHtml = html; // update the cache so it doesn't refetch the old version
+        document.getElementById('help-panel-content').innerHTML = html;
         cancelHelpEditUIOnly();
         alert('✅ Guardado.');
     } catch (err) { alert('Error: ' + err.message); }
 }
 
 function cancelHelpEditUIOnly() {
-    const content = document.getElementById('help-panel-content');
-    content.contentEditable = 'false';
-    content.style.outline = 'none';
-    content.style.padding = '0';
+    document.getElementById('help-quill-wrap').style.display = 'none';
+    document.getElementById('help-panel-content').style.display = 'block';
     document.getElementById('help-edit-btn').style.display = 'inline-block';
     document.getElementById('help-save-btn').style.display = 'none';
     document.getElementById('help-cancel-btn').style.display = 'none';
-    document.getElementById('help-toolbar').style.display = 'none';
 }
 
 function dismissFirstTip() {
