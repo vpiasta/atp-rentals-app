@@ -198,24 +198,34 @@
     <style>
         /* Quill dark-theme override — the "snow" theme assumes a light page,
            so its toolbar icons/borders are dark and become invisible against
-           this admin panel's dark background without these overrides. */
+           this admin panel's dark background without these overrides.
+           !important used since Quill's own stylesheet may load after this
+           and win on equal specificity otherwise. */
         #help-quill-toolbar.ql-toolbar.ql-snow {
-            background: #2a3a4a;
-            border-color: #4a6a8a;
+            background: #2a3a4a !important;
+            border-color: #4a6a8a !important;
         }
-        #help-quill-toolbar .ql-stroke { stroke: #ddd; }
-        #help-quill-toolbar .ql-fill { fill: #ddd; }
-        #help-quill-toolbar .ql-picker-label { color: #ddd; }
+        #help-quill-toolbar .ql-stroke,
+        #help-quill-toolbar .ql-stroke-miter { stroke: #ddd !important; }
+        #help-quill-toolbar .ql-fill,
+        #help-quill-toolbar .ql-picker-item.ql-selected .ql-fill { fill: #ddd !important; }
+        #help-quill-toolbar .ql-picker-label { color: #ddd !important; }
+        #help-quill-toolbar .ql-picker-label .ql-stroke { stroke: #ddd !important; }
+        #help-quill-toolbar button:hover .ql-stroke { stroke: #00a859 !important; }
+        #help-quill-toolbar button:hover .ql-fill { fill: #00a859 !important; }
         #help-quill-toolbar .ql-picker-options {
-            background: #2a3a4a;
-            color: #ddd;
-            border-color: #4a6a8a;
+            background: #2a3a4a !important;
+            color: #ddd !important;
+            border-color: #4a6a8a !important;
+        }
+        #help-quill-toolbar .ql-picker-item {
+            color: #ddd !important;
         }
         #help-quill-editor.ql-container.ql-snow {
-            border-color: #4a6a8a;
+            border-color: #4a6a8a !important;
         }
         #help-quill-editor .ql-editor.ql-blank::before {
-            color: #888;
+            color: #888 !important;
         }
     </style>
 </head>
@@ -2853,7 +2863,8 @@ function initQuillHelp() {
 
 function startHelpEdit() {
     const q = initQuillHelp();
-    q.root.innerHTML = document.getElementById('help-panel-content').innerHTML;
+    const delta = q.clipboard.convert({ html: document.getElementById('help-panel-content').innerHTML });
+    q.setContents(delta);
     document.getElementById('help-panel-content').style.display = 'none';
     document.getElementById('help-quill-wrap').style.display = 'flex';
     document.getElementById('help-edit-btn').style.display = 'none';
