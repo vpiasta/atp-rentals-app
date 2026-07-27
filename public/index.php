@@ -671,8 +671,28 @@ function displayResults(rentals) {
           return (a.name || '').localeCompare(b.name || '');
       });
     }
+      rentals.forEach(rental => {
+          const active  = isMemberActive(rental);
+          const phone   = active ? (rental.phone_member || rental.phone) : rental.phone;
+          const email   = active ? (rental.email_member || rental.email) : rental.email;
+          const address = active ? (rental.address || '') : '';
+          const ph      = getPhoneNumbers(phone);
+          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.name+' '+(rental.province||'')+' Panama')}`;
+          const photos  = Array.isArray(rental.photos) ? rental.photos : [];
+          const thumb   = active && photos.length ? photos[0] : null;
+          const listUrl = rental.slug
+              ? `listing.html?slug=${rental.slug}&lang=${LANG}`
+              : `listing.html?id=${rental.id}&lang=${LANG}`;
+          const thumbHtml = (active && thumb)
+              ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
+                  <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">
+                 </a>`
+              : '';
 
-            <div class="card-body">
+          const card = document.createElement('div');
+          card.className = 'result-card is-member' + ((rental.feature_rank > 0) ? ' is-featured' : '');
+          card.innerHTML = `
+              <div class="card-body">
                 ${thumbHtml}
                 <div class="card-info">
                     <div class="result-details">
