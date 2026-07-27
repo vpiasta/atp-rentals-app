@@ -11,4 +11,5 @@ jobs:
     steps:
       - name: Send weekly analytics report
         run: |
-          curl -s "https://trustedpanamastays.com/api/admin/send-weekly-report?secret=${{ secrets.ADMIN_SECRET }}"
+          curl -s --connect-timeout 15 --max-time 60 --retry 2 --retry-delay 10 \
+            "https://trustedpanamastays.com/api/admin/send-weekly-report?secret=${{ secrets.ADMIN_SECRET }}"

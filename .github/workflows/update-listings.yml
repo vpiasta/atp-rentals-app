@@ -11,6 +11,7 @@ jobs:
     steps:
       - name: Trigger update on live site
         run: |
-          curl -X POST https://trustedpanamastays.com/api/reload-pdf \
+          curl -s --connect-timeout 15 --max-time 90 --retry 2 --retry-delay 10 \
+            -X POST https://trustedpanamastays.com/api/reload-pdf \
             -H "Content-Type: application/json" \
             -d '{"secret": "${{ secrets.ADMIN_SECRET }}"}'
