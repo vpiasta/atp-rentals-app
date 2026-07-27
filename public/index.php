@@ -714,9 +714,9 @@ function updateSelectedCount(count) {
         // Restore featured count
         const fc = document.getElementById('featuredCount');
         el.innerHTML = '<span id="featuredCount">' + (fc ? fc.innerHTML : '') + '</span>';
-    } else {
-        el.innerHTML = `· <strong>${count} seleccionados</strong>`;
-    }
+      } else {
+          el.innerHTML = `· <strong>${count} ${LANG === 'en' ? 'selected' : 'seleccionados'}</strong>`;
+      }
 }
 
 searchButton.addEventListener('click', () => performSearch().then(scrollToResults));
