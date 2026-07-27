@@ -516,9 +516,13 @@ async function loadStats() {
         // Fetch featured count in parallel
         const featuredData = await fetch('/api/featured-listing').then(r=>r.ok?r.json():[]).catch(()=>[]);
         const featuredCount = Array.isArray(featuredData) ? featuredData.length : 0;
-        const featuredText = featuredCount > 0 ? ` · <strong>${featuredCount}</strong> destacado${featuredCount>1?'s':''}` : '';
+        const featuredText = featuredCount > 0
+            ? (LANG === 'en'
+                ? ` · <strong>${featuredCount}</strong> featured`
+                : ` · <strong>${featuredCount}</strong> destacado${featuredCount>1?'s':''}`)
+            : '';
         statsPanel.innerHTML = `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:12px;font-size:0.85rem;padding:0.3rem 0;">
-            <span>🏨 <strong>${total}</strong> hospedajes verificados${featuredText}</span>
+            <span>🏨 <strong>${total}</strong> ${LANG === 'en' ? 'verified accommodations' : 'hospedajes verificados'}${featuredText}</span>
             <span id="selectedCount"></span></div>`;
     } catch { statsPanel.innerHTML = '<div style="color:#cc0000;">Error al cargar estadísticas</div>'; }
 }
