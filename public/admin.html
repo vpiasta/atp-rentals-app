@@ -219,8 +219,12 @@
                border-color: #4a6a8a !important;
            }
            #help-quill-wrap .ql-picker-item {
-               color: #ddd !important;
-           }
+            color: #ddd !important;
+        }
+        #help-quill-wrap .ql-toolbar button.ql-undo::before { content: '↶'; font-size:1.1rem; }
+        #help-quill-wrap .ql-toolbar button.ql-redo::before { content: '↷'; font-size:1.1rem; }
+        #help-quill-wrap .ql-toolbar button.ql-undo,
+        #help-quill-wrap .ql-toolbar button.ql-redo { color: #ddd !important; }
         #help-quill-editor.ql-container.ql-snow {
             border-color: #4a6a8a !important;
         }
@@ -2853,8 +2857,13 @@ function initQuillHelp() {
                     [{ color: [] }, { background: [] }],
                     [{ list: 'ordered' }, { list: 'bullet' }],
                     ['blockquote', 'link'],
+                    ['undo', 'redo'],
                     ['clean']
-                ]
+                ],
+                handlers: {
+                    undo: () => quillHelp.history.undo(),
+                    redo: () => quillHelp.history.redo()
+                }
             }
         }
     });
