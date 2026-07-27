@@ -638,7 +638,7 @@ function isMemberActive(rental) {
 
 function displayResults(rentals) {
     resultsContainer.innerHTML = '';
-    if (!rentals.length) { resultsContainer.innerHTML = '<div class="no-results"><p>No se encontraron hospedajes. Intente otra búsqueda.</p></div>'; return; }
+    if (!rentals.length) { resultsContainer.innerHTML = `<div class="no-results"><p>${LANG === 'en' ? 'No accommodations found. Try another search.' : 'No se encontraron hospedajes. Intente otra búsqueda.'}</p></div>`; return; }
     // Sort: 1=paid ATP, 2=paid MiCI, 3=trial, 4=non-members — alphabetical within each
     if (!document.getElementById('searchInput').value.trim()) {
       rentals.sort((a, b) => {
