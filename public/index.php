@@ -5,7 +5,7 @@ $is_en = $lang === 'en';
 $t = [
     'title'        => $is_en ? 'Trusted Panama Stays - Verified Tourist Rentals' : 'Trusted Panama Stays - Hospedajes Verificados',
     'description'  => $is_en ? 'Find trusted, publicly registered hotels, apartments and vacation rentals in Panama' : 'Encuentra aquí únicamente hoteles, apartamentos y alquileres vacacionales de confianza, registrados legalmente en Panamá',
-    'canonical'    => $is_en ? 'https://trustedpanamastays.com/index.php' : 'https://trustedpanamastays.com/index.php?lang=es',
+    'canonical'    => $is_en ? 'https://trustedpanamastays.com/' : 'https://trustedpanamastays.com/index.php?lang=es',
     'html_lang'    => $lang,
     'heading'      => 'Trusted Panama Stays',
     'subheading'   => $is_en ? 'Registered and verified hotels, apartments and vacation rentals in Panama' : 'Hoteles, apartamentos y alquileres vacacionales registrados y verificados en Panamá',
@@ -692,10 +692,20 @@ function displayResults(rentals) {
           const card = document.createElement('div');
           card.className = 'result-card is-member' + ((rental.feature_rank > 0) ? ' is-featured' : '');
           card.innerHTML = `
-              <div class="card-body">
-                ${thumbHtml}
-                <div class="card-info">
-                    <div class="result-details">
+          <div class="card-body">
+            ${thumbHtml}
+            <div class="card-info">
+                <h3 class="result-title">${rental.name} <span style="font-size:0.65rem;color:#bbb;font-weight:400;vertical-align:middle;">#${rental.id||''}</span></h3>
+                <div class="result-badges">
+                ${rental.rental_type ? `<span class="result-badge badge-type">${(LANG === 'en' && window.TYPE_LABELS_EN && window.TYPE_LABELS_EN[rental.rental_type]) ? window.TYPE_LABELS_EN[rental.rental_type] : rental.rental_type}</span>` : ''}
+                ${rental.province    ? `<span class="result-badge badge-province">${rental.province}</span>` : ''}
+                ${active             ? `<span class="result-badge badge-member">⭐ ${LANG === 'en' ? 'Member' : 'Miembro'}</span>` : ''}
+                ${rental.registry_source === 'mici'
+                    ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>`
+                    : (rental.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
+                ${rental.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
+                </div>
+                <div class="result-details">
                         ${ph.display ? `<div class="detail-item"><span>📞</span><span>${ph.display}</span></div>` : ''}
                         ${email      ? `<div class="detail-item"><span>✉️</span><span>${email}</span></div>` : ''}
                         ${address    ? `<div class="detail-item"><span>📍</span><span>${address}</span></div>` : ''}
