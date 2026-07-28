@@ -302,37 +302,37 @@
 
         <!-- Stats -->
         <div class="stats-grid">
-            <div class="stat-card" onclick="applyFilter('all')" data-help="stat-total">
+            <div class="stat-card" data-filter="all" onclick="applyFilter('all')" data-help="stat-total">
                 <div class="stat-number" id="stat-total">—</div>
-                <div class="stat-label">Total Listings</div>
+                <div class="stat-label">Total de Hospedajes</div>
             </div>
-            <div class="stat-card" onclick="applyFilter('members')" data-help="stat-members">
+            <div class="stat-card" data-filter="members" onclick="applyFilter('members')" data-help="stat-members">
                 <div class="stat-number" id="stat-members">—</div>
-                <div class="stat-label">Active Members</div>
+                <div class="stat-label">Miembros Activos</div>
             </div>
-            <div class="stat-card" onclick="applyFilter('expired')" data-help="stat-expired">
+            <div class="stat-card" data-filter="expired" onclick="applyFilter('expired')" data-help="stat-expired">
                 <div class="stat-number" id="stat-expired">—</div>
-                <div class="stat-label">Expired</div>
+                <div class="stat-label">Vencidos</div>
             </div>
-            <div class="stat-card" onclick="applyFilter('not-invited')" data-help="stat-not-invited">
+            <div class="stat-card" data-filter="not-invited" onclick="applyFilter('not-invited')" data-help="stat-not-invited">
                 <div class="stat-number" id="stat-not-invited">—</div>
-                <div class="stat-label">Not Invited</div>
+                <div class="stat-label">No Invitados</div>
             </div>
-            <div class="stat-card" onclick="applyFilter('invited')" data-help="stat-invited">
+            <div class="stat-card" data-filter="invited" onclick="applyFilter('invited')" data-help="stat-invited">
                 <div class="stat-number" id="stat-invited">—</div>
-                <div class="stat-label">Invited</div>
+                <div class="stat-label">Invitados</div>
             </div>
-            <div class="stat-card" onclick="applyFilter('no-response')" data-help="stat-no-response">
+            <div class="stat-card" data-filter="no-response" onclick="applyFilter('no-response')" data-help="stat-no-response">
                 <div class="stat-number" id="stat-no-response">—</div>
-                <div class="stat-label">No Response</div>
+                <div class="stat-label">Sin Respuesta</div>
             </div>
-            <div class="stat-card" onclick="applyFilter('refused')" data-help="stat-refused">
+            <div class="stat-card" data-filter="refused" onclick="applyFilter('refused')" data-help="stat-refused">
                 <div class="stat-number" id="stat-refused">—</div>
-                <div class="stat-label">Refused</div>
+                <div class="stat-label">Rechazados</div>
             </div>
-            <div class="stat-card highlight" onclick="showTab('applications');filterApps('pending')" data-help="applications">
+            <div class="stat-card" data-filter="pending-apps" onclick="showTab('applications');filterApps('pending');setActiveStatCard('pending-apps')" data-help="applications">
                 <div class="stat-number" id="stat-pending-apps">—</div>
-                <div class="stat-label">Pending Applications</div>
+                <div class="stat-label">Solicitudes Pendientes</div>
             </div>
         </div>
 
@@ -1003,6 +1003,13 @@ function applyFilter(filter) {
     document.getElementById('member-filter').value = filter;
     filterMembers();
     showTab('members');
+    setActiveStatCard(filter);
+}
+
+function setActiveStatCard(filter) {
+    document.querySelectorAll('.stat-card').forEach(card => {
+        card.classList.toggle('highlight', card.getAttribute('data-filter') === filter);
+    });
 }
 
 function filterMembers() {
