@@ -5,7 +5,7 @@ $is_en = $lang === 'en';
 $t = [
     'title'        => $is_en ? 'Trusted Panama Stays - Verified Tourist Rentals' : 'Trusted Panama Stays - Hospedajes Verificados',
     'description'  => $is_en ? 'Find trusted, publicly registered hotels, apartments and vacation rentals in Panama' : 'Encuentra aquí únicamente hoteles, apartamentos y alquileres vacacionales de confianza, registrados legalmente en Panamá',
-    'canonical'    => 'https://trustedpanamastays.com/index.php?lang=' . $lang,
+    'canonical'    => $is_en ? 'https://trustedpanamastays.com/index.php' : 'https://trustedpanamastays.com/index.php?lang=es',
     'html_lang'    => $lang,
     'heading'      => 'Trusted Panama Stays',
     'subheading'   => $is_en ? 'Registered and verified hotels, apartments and vacation rentals in Panama' : 'Hoteles, apartamentos y alquileres vacacionales registrados y verificados en Panamá',
