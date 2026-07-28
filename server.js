@@ -1814,10 +1814,15 @@ const HELP_FILES = {
 };
 
 app.get('/api/admin/help-content/:key', requireAdmin, async (req, res) => {
-    const filename = HELP_FILES[req.params.key];
-    if (!filename) return res.status(400).json({ error: 'Unknown help content key' });
+    if (!HELP_FILES[req.params.key]) return res.status(400).json({ error: 'Unknown help content key' });
     try {
-        const filePath = path.join(__dirname, 'public', 'help', filename);
+        const { data } = await supabaseAdmin
+            .from('help_content').select('html').eq('key', req.params.key).maybeSingle();
+        if (data) return res.json({ html: data.html });
+
+        // Not in the database yet — fall back to the seed file under public/help/
+        // (covers the one-time migration; once saved via the editor, the DB row wins from then on)
+        const filePath = path.join(__dirname, 'public', 'help', HELP_FILES[req.params.key]);
         const html = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
         res.json({ html });
     } catch (err) {
@@ -1827,12 +1832,13 @@ app.get('/api/admin/help-content/:key', requireAdmin, async (req, res) => {
 
 app.post('/api/admin/save-help-content', requireAdmin, async (req, res) => {
     const { key, html } = req.body;
-    const filename = HELP_FILES[key];
-    if (!filename) return res.status(400).json({ error: 'Unknown help content key' });
+    if (!HELP_FILES[key]) return res.status(400).json({ error: 'Unknown help content key' });
     if (typeof html !== 'string' || !html.trim()) return res.status(400).json({ error: 'Empty content' });
     try {
-        const filePath = path.join(__dirname, 'public', 'help', filename);
-        fs.writeFileSync(filePath, html, 'utf8');
+        const { error } = await supabaseAdmin
+            .from('help_content')
+            .upsert({ key, html, updated_at: new Date().toISOString() });
+        if (error) throw error;
         await logEvent('help_content_edited', { key });
         res.json({ success: true });
     } catch (err) {
