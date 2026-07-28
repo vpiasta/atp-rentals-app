@@ -752,8 +752,9 @@
         <!-- ATP Sync tab -->
         <div class="tab-content" id="content-atpsync">
           <div class="toolbar">
-              <button class="tbtn primary" onclick="loadAtpDiff()">🔄 Refresh</button>
-          </div>
+                <button class="tbtn primary" onclick="loadAtpDiff()">🔄 Actualizar</button>
+                <button class="tbtn" style="background:#00a859;color:white;" onclick="forceReloadPdf()">📥 Verificar ahora (descarga completa)</button>
+            </div>
           <div id="atpsync-content" style="background:#2c3e50;border-radius:10px;padding:1.5rem;">
               Loading...
           </div>
