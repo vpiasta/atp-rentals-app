@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>About — Trusted Panama Stays</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="canonical" id="canonical-link" href="https://trustedpanamastays.com/about.html">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/css/flag-icon.min.css">
-
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8f9fa; color: #111; line-height: 1.7; }
@@ -529,6 +529,9 @@ function applyLang() {
     document.getElementById('back-link').textContent    = isEs ? '← Volver' : '← Back';
     document.getElementById('back-link').href           = isEs ? 'index_es.html' : 'index.html';
     document.getElementById('lang-text').textContent    = isEs ? 'English' : 'Español';
+    document.getElementById('canonical-link').href      = isEs
+        ? 'https://trustedpanamastays.com/about.html?lang=es'
+        : 'https://trustedpanamastays.com/about.html';
     document.getElementById('footer-atp').innerHTML     = isEs
         ? 'Basado en datos públicos de la <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>con datos adicionales proporcionados por nuestros miembros'
         : 'Based on public data from the <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br>with additional data provided by our members';
