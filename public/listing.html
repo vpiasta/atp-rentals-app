@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Listing Details - Trusted Panama Stays</title>
     <meta name="description" content="Find verified, trusted and publicly registered hotels, apartments, and airbnb in Panamá">
+    <link rel="canonical" id="canonical-link" href="https://trustedpanamastays.com/listing.html">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css" rel="stylesheet">
@@ -1012,6 +1013,10 @@ async function loadListing() {
         if (!res.ok) throw new Error('Not found');
         currentRental = await res.json();
         listingId = currentRental.id;
+        const canonicalUrl = currentRental.slug
+            ? `https://trustedpanamastays.com/listing.html?slug=${currentRental.slug}&lang=${lang}`
+            : `https://trustedpanamastays.com/listing.html?id=${listingId}&lang=${lang}`;
+        document.getElementById('canonical-link').href = canonicalUrl;
         restoreSession(listingId);
         renderPage(currentRental);
     } catch {
