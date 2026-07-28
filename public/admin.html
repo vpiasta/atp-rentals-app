@@ -286,7 +286,7 @@
             <button class="hbtn" id="hbtn-campaign"     onclick="showTab('campaign')" data-help="campaign">📧 Campaña</button>
             <button class="hbtn" id="hbtn-analytics"    onclick="showTab('analytics')" data-help="analytics">📊 Analítica</button>
             <button class="hbtn" id="hbtn-ip"           onclick="showTab('ip')" data-help="ip">🌐 IP</button>
-            <button class="hbtn" id="hbtn-atpsync"      onclick="showTab('atpsync')" data-help="atpsync">🔄 Sincronización ATP <span id="badge-atpsync" style="background:#e67e22;color:white;border-radius:10px;padding:0 5px;font-size:0.75rem;"></span></button>
+            <button class="hbtn" id="hbtn-atpsync"      onclick="showTab('atpsync')" data-help="atpsync">🔄 Sincronización ATP <span id="badge-atpsync" style="display:none;background:#e67e22;color:white;border-radius:10px;padding:0 5px;font-size:0.75rem;"></span></button>
             <div style="position:relative;display:inline-block;"><button class="hbtn" id="keywords-btn" onclick="toggleKeywordsMenu()" style="position:relative;" data-help="keywords">
                 🏷️ Palabras Clave <span id="suggestions-count" style="background:#e67e22;color:white;border-radius:10px;padding:0 6px;font-size:0.75rem;margin-left:4px;display:none;"></span>
             </button>
@@ -1854,13 +1854,13 @@ async function loadAtpDiff() {
         const badge = document.getElementById('badge-atpsync');
 
         if (data.state === 'unknown') {
-            if (badge) badge.textContent = '';
+            if (badge) { badge.textContent = ''; badge.style.display = 'none'; }
             box.innerHTML = `<p style="color:#ff7070;">No se pudo verificar el sitio de la ATP: ${data.error}</p>`;
             return;
         }
 
         if (data.state === 3) {
-              if (badge) badge.textContent = '!';
+              if (badge) { badge.textContent = '!'; badge.style.display = 'inline-block'; }
               const d = data.diff;
               const listOrNone = (arr) => arr.length
                   ? '<ul style="margin:0.4rem 0 0 1.2rem;">' + arr.map(x => `<li>${x.name}${x.id?` (ID: ${x.id})`:''}</li>`).join('') + '</ul>'
@@ -1892,7 +1892,7 @@ async function loadAtpDiff() {
         }
 
         if (data.state === 2) {
-            if (badge) badge.textContent = '!';
+            if (badge) { badge.textContent = '!'; badge.style.display = 'inline-block'; }
             box.innerHTML = `
                 <p style="color:#FFD700;font-weight:700;margin-bottom:0.5rem;">Reporte ATP actualizado el ${data.reportDate||'(fecha desconocida)'}. TPS no está actualizado.</p>
                 <p style="color:#aaa;font-size:0.82rem;margin-bottom:1rem;">Se detectó un nuevo enlace de reporte en el sitio de la ATP, pero TPS aún no lo ha descargado ni analizado.</p>
@@ -1901,7 +1901,7 @@ async function loadAtpDiff() {
         }
 
         // state 1 — no update
-        if (badge) badge.textContent = '';
+        if (badge) { badge.textContent = ''; badge.style.display = 'none'; }
         box.innerHTML = `<p style="color:#aaa;">No hay actualización del Reporte ATP desde ${data.reportDate||'—'}.</p>`;
     } catch(err) {
         box.innerHTML = `<p style="color:#ff7070;">Error: ${err.message}</p>`;
