@@ -1794,15 +1794,22 @@ app.post('/api/admin/wa-template', requireAdmin, async (req, res) => {
 // under public/help/, fetched on demand and editable via the same Quill panel.
 // Whitelisted keys only — never accepts an arbitrary filename from the request.
 const HELP_FILES = {
-    'general-es':     'general-es.html',
-    'applications':   'applications-es.html',
-    'invoices':       'invoices-es.html',
-    'log':            'log-es.html',
-    'campaign':       'campaign-es.html',
-    'analytics':      'analytics-es.html',
-    'ip':             'ip-es.html',
-    'atpsync':        'atpsync-es.html',
-    'keywords':       'keywords-es.html'
+    'general-es':        'general-es.html',
+    'applications':      'applications-es.html',
+    'invoices':          'invoices-es.html',
+    'log':               'log-es.html',
+    'campaign':          'campaign-es.html',
+    'analytics':         'analytics-es.html',
+    'ip':                'ip-es.html',
+    'atpsync':           'atpsync-es.html',
+    'keywords':          'keywords-es.html',
+    'stat-total':        'stat-total-es.html',
+    'stat-members':      'stat-members-es.html',
+    'stat-expired':      'stat-expired-es.html',
+    'stat-not-invited':  'stat-not-invited-es.html',
+    'stat-invited':      'stat-invited-es.html',
+    'stat-no-response':  'stat-no-response-es.html',
+    'stat-refused':      'stat-refused-es.html'
     // add one entry here each time a new button/section gets tagged with data-help
 };
 
