@@ -617,6 +617,18 @@
                             <button onclick="runApatelCampaign()" class="action-btn" style="background:#1a5c1a;">📨 Send APATEL campaign</button>
                         </div>
                     </div>
+
+                    <div style="background:#1a1a2a;border:1px solid #3a3a6a;border-radius:8px;padding:1rem;">
+                        <h4 style="color:#a8b8ff;margin-bottom:0.5rem;">📋 Enviar a hospedajes seleccionados</h4>
+                        <p style="font-size:0.82rem;color:#aaa;margin-bottom:0.5rem;">Envía un correo únicamente a los hospedajes marcados con casilla de verificación en la pestaña Hospedajes.</p>
+                        <textarea id="selection-recipients-list" readonly rows="4" placeholder="No hay hospedajes seleccionados — vaya a la pestaña Hospedajes y marque las casillas de los que desea contactar."
+                            style="width:100%;padding:8px;background:#0d1520;border:1px solid #3a3a6a;border-radius:5px;color:#ccc;font-size:0.8rem;font-family:monospace;box-sizing:border-box;margin-bottom:0.8rem;resize:vertical;"></textarea>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                            <button onclick="refreshSelectionRecipientsList()" class="action-btn edit">🔄 Actualizar lista</button>
+                            <button onclick="sendToSelectionDirect()" class="action-btn" style="background:#3a3a8a;color:white;">📨 Enviar a seleccionados</button>
+                        </div>
+                        <div id="selection-send-result" style="margin-top:0.6rem;font-size:0.85rem;"></div>
+                    </div>
                 </div>
 
                 <div id="campaign-result" style="margin-top:1rem;padding:1rem;background:#2c3e50;border-radius:8px;display:none;"></div>
@@ -697,11 +709,6 @@
                             <div id="recipient-selector" style="display:none;background:#111;border:1px solid #3a5a3a;border-radius:8px;padding:1rem;">
                                 <h4 style="color:#adf5ad;margin-bottom:0.8rem;">Select recipients:</h4>
                                 <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
-                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                                        <input type="radio" name="recipient-type" value="apatel_all" checked>
-                                        <span style="font-size:0.85rem;">All APATEL members (from official roster)</span>
-                                        <span id="rc-apatel-all-count" style="color:#aaa;font-size:0.75rem;"></span>
-                                    </label>
                                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
                                         <input type="radio" name="recipient-type" value="apatel_new">
                                         <span style="font-size:0.85rem;">APATEL members not yet contacted</span>
@@ -1071,6 +1078,41 @@ function toggleSelectAll(checked) {
         if (checked) selectedMemberIds.add(id); else selectedMemberIds.delete(id);
     });
     updateSelectionCount();
+}
+
+function refreshSelectionRecipientsList() {
+    const selected = allMembers.filter(m => selectedMemberIds.has(m.id));
+    const withEmail = selected.filter(m => (m.email_member || m.email) && (m.email_member || m.email).includes('@'));
+    const box = document.getElementById('selection-recipients-list');
+    if (!box) return;
+    box.value = withEmail.length
+        ? withEmail.map(m => `${m.name} — ${m.email_member || m.email}`).join('\n')
+        : '';
+    box.placeholder = withEmail.length ? '' : 'No hay hospedajes seleccionados con correo válido.';
+}
+
+async function sendToSelectionDirect() {
+    const subject = document.getElementById('followup-subject').value;
+    const body = (document.getElementById('followup-editor')||{}).innerHTML||'';
+    const resultEl = document.getElementById('selection-send-result');
+    if (!subject || body.trim().length < 50) { alert('Escriba o cargue el contenido del correo primero.'); return; }
+
+    const selected = allMembers.filter(m => selectedMemberIds.has(m.id));
+    const emails = selected.map(m => m.email_member || m.email).filter(e => e && e.includes('@'));
+    if (!emails.length) { alert('No hay hospedajes seleccionados con un correo válido.'); return; }
+
+    if (!confirm(`¿Enviar este correo a ${emails.length} hospedaje(s) seleccionado(s)?`)) return;
+    resultEl.innerHTML = '<span style="color:#FFD700;">Enviando... no cierre esta página.</span>';
+    try {
+        const res = await adminFetch('/api/admin/send-followup-specific', {
+            method: 'POST',
+            body: JSON.stringify({ subject, body, emails })
+        });
+        const d = await res.json();
+        resultEl.innerHTML = d.success
+            ? '<span style="color:#adf5ad;">✅ Enviando en segundo plano. Recibirá un reporte por correo.</span>'
+            : '<span style="color:#ff7070;">Error: ' + (d.error||'unknown') + '</span>';
+    } catch(e) { resultEl.innerHTML = '<span style="color:#ff7070;">' + e.message + '</span>'; }
 }
 
 
@@ -2433,14 +2475,6 @@ async function confirmAndSend() {
           confirmMsg = 'Send to ' + emails.length + ' specific email(s)?';
           endpoint = '/api/admin/send-followup-specific';
           extra = { emails };
-      } else if (type === 'selection') {
-          const selected = allMembers.filter(m => selectedMemberIds.has(m.id));
-          const emails = selected.map(m => m.email_member || m.email).filter(e => e && e.includes('@'));
-          if (!emails.length) { alert('Ninguno de los hospedajes seleccionados en la pestaña Hospedajes tiene un correo válido.'); return; }
-          confirmMsg = `¿Enviar a ${emails.length} hospedaje(s) seleccionado(s) en la pestaña Hospedajes?`;
-          endpoint = '/api/admin/send-followup-specific';
-          extra = { emails };
-      }
 
     if (!confirm(confirmMsg)) return;
     document.getElementById('recipient-selector').style.display = 'none';
