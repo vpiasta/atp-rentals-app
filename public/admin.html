@@ -78,6 +78,8 @@
         .s-no-response  { background: #7a0000; color: white; }
         .s-refused      { background: #444; color: #aaa; }
         .s-member       { background: #005ca9; color: white; }
+        .s-member.s-member-has-photo { color: #FFD700; }
+        .s-member.s-member-no-photo  { color: white; }
         .s-unpaid       { background: #7a0000; color: #ffaaaa; }
         .s-unregistered { background: #333; color: #888; }
         .s-atp          { background: #1a7a1a; color: white; font-size: 0.65rem; }
@@ -906,9 +908,11 @@ function showTab(name) {
 function getInvitationStatus(m) {
     const today = new Date().toISOString().split('T')[0];
     if (m.is_member && m.membership_paid_until >= today) {
+        const hasPhoto = Array.isArray(m.photos) && m.photos.length > 0;
+        const photoCls = hasPhoto ? 's-member-has-photo' : 's-member-no-photo';
         return m.is_trial
-            ? { key:'member', subkey:'trial',   label:'PRUEBA',  cls:'s-member s-member-trial' }
-            : { key:'member', subkey:'support', label:'MIEMBRO', cls:'s-member s-member-support' };
+            ? { key:'member', subkey:'trial',   label:'PRUEBA',  cls:`s-member s-member-trial ${photoCls}` }
+            : { key:'member', subkey:'support', label:'MIEMBRO', cls:`s-member s-member-support ${photoCls}` };
     }
     if (m.is_member && m.membership_paid_until <  today) return { key:'expired',     label:'VENCIDO',      cls:'s-unpaid' };
     if (!m.atp_active)                                   return { key:'unregistered',label:'NO REGISTRADO',cls:'s-unregistered' };
