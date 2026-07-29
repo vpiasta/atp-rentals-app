@@ -488,15 +488,16 @@
             </div>
             <div class="table-wrap">
                 <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th><th>Name / Contact</th><th>Province</th><th>Type</th>
-                            <th>Email / Phone</th><th>Status</th><th>Paid Until</th><th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="members-tbody">
-                        <tr class="loading-row"><td colspan="8">Loading...</td></tr>
-                    </tbody>
+                  <thead>
+                      <tr>
+                          <th><input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)"></th>
+                          <th>ID</th><th>Name / Contact</th><th>Province</th><th>Type</th>
+                          <th>Email / Phone</th><th>Status</th><th>Paid Until</th><th>Actions</th>
+                      </tr>
+                  </thead>
+                  <tbody id="members-tbody">
+                      <tr class="loading-row"><td colspan="9">Loading...</td></tr>
+                  </tbody>
                 </table>
             </div>
             <div class="row-count">Showing <span id="showing-count">0</span> of <span id="total-count">0</span> listings</div>
@@ -1049,11 +1050,77 @@ function filterMembers() {
     renderMembers(filtered);
 }
 
+// ── Multi-select for targeted email sends ────────────────────────────────────
+const selectedMemberIds = new Set(); // persists across filtering/search/re-render
+
+function toggleMemberSelection(id, checked) {
+    if (checked) selectedMemberIds.add(id); else selectedMemberIds.delete(id);
+    updateSelectionToolbar();
+}
+
+function updateSelectionToolbar() {
+    const bar = document.getElementById('selection-toolbar');
+    const count = selectedMemberIds.size;
+    if (!bar) return;
+    if (count === 0) { bar.style.display = 'none'; return; }
+    bar.style.display = 'flex';
+    document.getElementById('selection-count').textContent = count;
+}
+
+function clearSelection() {
+    selectedMemberIds.clear();
+    document.querySelectorAll('.member-select-cb').forEach(cb => cb.checked = false);
+    updateSelectionCount();
+}
+
+function toggleSelectAll(checked) {
+    document.querySelectorAll('.member-select-cb').forEach(cb => {
+        cb.checked = checked;
+        const id = parseInt(cb.getAttribute('data-id'));
+        if (checked) selectedMemberIds.add(id); else selectedMemberIds.delete(id);
+    });
+    updateSelectionCount();
+}
+
+function openSelectionEmailPanel() {
+    const selected = allMembers.filter(m => selectedMemberIds.has(m.id));
+    const withEmail = selected.filter(m => m.email && m.email.includes('@'));
+    if (withEmail.length === 0) { alert('Ninguno de los hospedajes seleccionados tiene un correo válido.'); return; }
+    document.getElementById('selection-email-list').innerHTML = withEmail.map(m => `<li>${m.name} — ${m.email}</li>`).join('');
+    document.getElementById('selection-email-count').textContent = withEmail.length;
+    document.getElementById('selection-email-panel').style.display = 'block';
+    window._selectionEmailTargets = withEmail;
+}
+
+async function sendSelectionEmail() {
+    const subject = document.getElementById('selection-email-subject').value.trim();
+    const body    = document.getElementById('selection-email-body').value.trim();
+    const targets = window._selectionEmailTargets || [];
+    if (!subject || !body) { alert('Escriba un asunto y un mensaje.'); return; }
+    if (!targets.length) return;
+    if (!confirm(`¿Enviar este correo a ${targets.length} hospedaje(s) seleccionado(s)?`)) return;
+
+    const resultEl = document.getElementById('selection-email-result');
+    resultEl.textContent = '⏳ Enviando...';
+    try {
+        const res = await adminFetch('/api/admin/send-to-selection', {
+            method: 'POST',
+            body: JSON.stringify({ ids: targets.map(m => m.id), subject, body })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al enviar');
+        resultEl.innerHTML = `<span style="color:#adf5ad;">✅ Enviado: ${data.sent}, errores: ${data.errors}</span>`;
+        clearSelection();
+    } catch (err) {
+        resultEl.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`;
+    }
+}
+
 function renderMembers(members) {
     document.getElementById('showing-count').textContent = members.length;
     document.getElementById('total-count').textContent   = allMembers.length;
     const tbody = document.getElementById('members-tbody');
-    if (!members.length) { tbody.innerHTML = '<tr class="loading-row"><td colspan="8">No results</td></tr>'; return; }
+    if (!members.length) { tbody.innerHTML = '<tr class="loading-row"><td colspan="9">No results</td></tr>'; return; }
     const today = new Date().toISOString().split('T')[0];
     members = [...members].sort((a,b) => {
         const ra = a.feature_rank || 0;
@@ -1065,6 +1132,7 @@ function renderMembers(members) {
     });
     tbody.innerHTML = members.map(m => {
         const s = getInvitationStatus(m);
+        const isChecked = selectedMemberIds.has(m.id) ? 'checked' : '';
         const apatelBadge = m.apatel_member
             ? `<span style="background:#1a3a6b;color:#7ec8e3;padding:1px 6px;border-radius:8px;font-size:0.65rem;font-weight:700;">APATEL</span>`
             : '';
@@ -1080,6 +1148,7 @@ function renderMembers(members) {
             ? `<span style="color:${m.membership_paid_until<today?'#ff7070':'#adf5ad'};font-size:0.78rem;">${m.membership_paid_until}</span>`
             : '<span style="color:#555;">—</span>';
         const waBtn = m.whatsapp ? `<button class="action-btn wa" onclick="openWaPanel(${m.id})" title="WhatsApp">💬</button>` : '';return `<tr>
+            <td><input type="checkbox" class="member-select-cb" data-id="${m.id}" ${isChecked} onchange="toggleMemberSelection(${m.id}, this.checked)"></td>
             <td style="color:#ccc;font-size:0.72rem;">${m.id}</td>
             <td><strong style="font-size:0.85rem;cursor:pointer;" title="Ver detalles" onclick="openEditPanel(${m.id})">${m.name}</strong>
                 ${m.contact_name?`<br><span style="color:#aaa;font-size:0.72rem;">${m.contact_name}</span>`:''}
@@ -2399,14 +2468,21 @@ async function confirmAndSend() {
         confirmMsg = 'Send to all ATP non-members with email? This may be 1000+ emails.';
         endpoint = '/api/admin/send-invitation-emails';
         extra = { filter: 'all', dry_run: false };
-    } else if (type === 'specific') {
-        const emails = document.getElementById('specific-emails').value
-            .split(',').map(e => e.trim()).filter(e => e.includes('@'));
-        if (!emails.length) { alert('Enter at least one valid email.'); return; }
-        confirmMsg = 'Send to ' + emails.length + ' specific email(s)?';
-        endpoint = '/api/admin/send-followup-specific';
-        extra = { emails };
-    }
+      } else if (type === 'specific') {
+          const emails = document.getElementById('specific-emails').value
+              .split(',').map(e => e.trim()).filter(e => e.includes('@'));
+          if (!emails.length) { alert('Enter at least one valid email.'); return; }
+          confirmMsg = 'Send to ' + emails.length + ' specific email(s)?';
+          endpoint = '/api/admin/send-followup-specific';
+          extra = { emails };
+      } else if (type === 'selection') {
+          const selected = allMembers.filter(m => selectedMemberIds.has(m.id));
+          const emails = selected.map(m => m.email_member || m.email).filter(e => e && e.includes('@'));
+          if (!emails.length) { alert('Ninguno de los hospedajes seleccionados en la pestaña Hospedajes tiene un correo válido.'); return; }
+          confirmMsg = `¿Enviar a ${emails.length} hospedaje(s) seleccionado(s) en la pestaña Hospedajes?`;
+          endpoint = '/api/admin/send-followup-specific';
+          extra = { emails };
+      }
 
     if (!confirm(confirmMsg)) return;
     document.getElementById('recipient-selector').style.display = 'none';
