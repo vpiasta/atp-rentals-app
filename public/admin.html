@@ -1065,6 +1065,16 @@ function filterMembers() {
 
 const selectedMemberIds = new Set(); // persists across filtering/search/re-render
 
+function toggleMemberSelection(id, checked) {
+    if (checked) selectedMemberIds.add(id); else selectedMemberIds.delete(id);
+    updateSelectionCount();
+}
+
+function updateSelectionCount() {
+    const el = document.getElementById('rc-selection-count');
+    if (el) el.textContent = `(${selectedMemberIds.size} seleccionados)`;
+}
+
 function clearSelection() {
     selectedMemberIds.clear();
     document.querySelectorAll('.member-select-cb').forEach(cb => cb.checked = false);
