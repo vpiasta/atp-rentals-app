@@ -905,17 +905,21 @@ function showTab(name) {
 // ── Status helpers ────────────────────────────────────────────────────────────
 function getInvitationStatus(m) {
     const today = new Date().toISOString().split('T')[0];
-    if (m.is_member && m.membership_paid_until >= today) return { key:'member',      label:'MEMBER',       cls:'s-member' };
-    if (m.is_member && m.membership_paid_until <  today) return { key:'expired',     label:'UNPAID',       cls:'s-unpaid' };
-    if (!m.atp_active)                                   return { key:'unregistered',label:'UNREGISTERED', cls:'s-unregistered' };
-    if (m.invitation_status === 'refused')               return { key:'refused',     label:'REFUSED',      cls:'s-refused' };
+    if (m.is_member && m.membership_paid_until >= today) {
+        return m.is_trial
+            ? { key:'member', subkey:'trial',   label:'PRUEBA',  cls:'s-member s-member-trial' }
+            : { key:'member', subkey:'support', label:'MIEMBRO', cls:'s-member s-member-support' };
+    }
+    if (m.is_member && m.membership_paid_until <  today) return { key:'expired',     label:'VENCIDO',      cls:'s-unpaid' };
+    if (!m.atp_active)                                   return { key:'unregistered',label:'NO REGISTRADO',cls:'s-unregistered' };
+    if (m.invitation_status === 'refused')               return { key:'refused',     label:'RECHAZADO',    cls:'s-refused' };
     if (m.invitation_status === 'invited' || m.invitation_sent_at) {
         const sentAt = new Date(m.invitation_sent_at);
         const daysSince = (new Date() - sentAt) / (1000*60*60*24);
-        if (daysSince >= 30) return { key:'no_response', label:'NO RESPONSE', cls:'s-no-response' };
-        return { key:'invited', label:'INVITED', cls:'s-invited', date: sentAt.toLocaleDateString() };
+        if (daysSince >= 30) return { key:'no_response', label:'SIN RESPUESTA', cls:'s-no-response' };
+        return { key:'invited', label:'INVITADO', cls:'s-invited', date: sentAt.toLocaleDateString() };
     }
-    return { key:'not_invited', label:'INVITE', cls:'s-not-invited' };
+    return { key:'not_invited', label:'INVITAR', cls:'s-not-invited' };
 }
 
 // ── Load members ──────────────────────────────────────────────────────────────
