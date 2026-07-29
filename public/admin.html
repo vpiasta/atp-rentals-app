@@ -1056,6 +1056,8 @@ function filterMembers() {
 }
 
 
+const selectedMemberIds = new Set(); // persists across filtering/search/re-render
+
 function clearSelection() {
     selectedMemberIds.clear();
     document.querySelectorAll('.member-select-cb').forEach(cb => cb.checked = false);
