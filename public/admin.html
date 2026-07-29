@@ -2475,7 +2475,7 @@ async function confirmAndSend() {
           confirmMsg = 'Send to ' + emails.length + ' specific email(s)?';
           endpoint = '/api/admin/send-followup-specific';
           extra = { emails };
-
+      }
     if (!confirm(confirmMsg)) return;
     document.getElementById('recipient-selector').style.display = 'none';
     result.innerHTML = '<span style="color:#FFD700;">Sending... do not close this page.</span>';
