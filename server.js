@@ -3063,24 +3063,29 @@ app.get('/api/send-trial-reminders', async (req, res) => {
 
             const subject = `Su prueba gratuita vence en 5 días — ${listing.name}`;
             const message = `
-<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
-<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
-    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
-</div>
-<p>Estimado/a propietario/a de <strong>${listing.name}</strong>,</p>
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;margin:0;padding:0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto 1.5rem;">
+    <tr><td bgcolor="#005ca9" style="background-color:#005ca9;" width="600">
+        <img src="https://trustedpanamastays.com/images/email-header.png" alt="Trusted Panama Stays — Directorio de hospedajes legalmente registrados en Panamá" width="600" style="display:block;width:600px;border:0;color:#ffffff;font-size:22px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;text-align:center;padding:40px 20px;background-color:#005ca9;">
+    </td></tr>
+</table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto;">
+    <tr><td height="20" style="font-size:1px;line-height:1px;">&nbsp;</td></tr>
+    <tr><td style="padding:0 20px;">
+<p style="margin-top:0;">Estimado/a propietario/a de <strong>${listing.name}</strong>,</p>
 <p>Su período de prueba gratuita vence el <strong>${listing.membership_paid_until}</strong> — en 5 días.</p>
 <p>Para continuar con acceso completo a su listado (fotos, descripción, enlaces de reserva),
    renueve su membresía ahora:</p>
-<table style="border:1px solid #e1e5e9;border-radius:8px;background:#f8f9fa;width:100%;margin:1rem 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e1e5e9;border-radius:8px;background-color:#f8f9fa;width:100%;margin:1rem 0;">
     <tr><td style="padding:8px;font-weight:bold;">1 año:</td><td style="padding:8px;"><strong>$24</strong> + ITBMS ($25.68 inclusive)</td></tr>
     <tr><td style="padding:8px;font-weight:bold;">2 años:</td><td style="padding:8px;"><strong>$45</strong> + ITBMS ($48.15 inclusive) · Ahorre $3</td></tr>
     <tr><td style="padding:8px;font-weight:bold;">N° membresía:</td><td style="padding:8px;font-family:monospace;"><strong>${listing.id}</strong></td></tr>
 </table>
-<p style="text-align:center;margin:1.5rem 0;">
-    <a href="${payUrl}" style="background:#005ca9;color:white;padding:11px 28px;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;">
-        Renovar membresía →
-    </a>
-</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:1.5rem auto;">
+    <tr><td style="background-color:#005ca9;border-radius:8px;padding:11px 28px;" align="center">
+        <a href="${payUrl}" style="color:white;text-decoration:none;font-weight:700;font-size:1rem;display:inline-block;">Renovar membresía →</a>
+    </td></tr>
+</table>
 <p style="font-size:0.85rem;color:#666;">
     También puede renovar iniciando sesión en su listado:<br>
     <a href="${listingUrl}" style="color:#005ca9;">${listingUrl}</a>
@@ -3094,6 +3099,8 @@ app.get('/api/send-trial-reminders', async (req, res) => {
     Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
     <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a>
 </p>
+    </td></tr>
+</table>
 </body></html>`;
 
             try {
