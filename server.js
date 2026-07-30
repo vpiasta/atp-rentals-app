@@ -3590,8 +3590,8 @@ function buildFollowupHtml(hotel, manager, bodyContent) {
         : (hotel ? `propietario/a de <strong>${hotel}</strong>` : 'propietario/a');
         return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:1.5rem;">
-    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;">
-        <img src="https://trustedpanamastays.com/images/email-header.png" alt="Trusted Panama Stays — Directorio de hospedajes legalmente registrados en Panamá" width="600" style="display:block;width:100%;max-width:600px;border:0;">
+    <tr><td bgcolor="#005ca9" style="background-color:#005ca9;">
+        <img src="https://trustedpanamastays.com/images/email-header.png" alt="Trusted Panama Stays — Directorio de hospedajes legalmente registrados en Panamá" width="600" style="display:block;width:100%;max-width:600px;border:0;color:#ffffff;font-size:22px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;text-align:center;padding:40px 20px;background-color:#005ca9;">
     </td></tr>
 </table>
 <p>Estimado/a ${greeting},</p>
