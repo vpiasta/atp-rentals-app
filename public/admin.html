@@ -194,7 +194,13 @@
         .loading-row td { text-align: center; padding: 2rem; color: #aaa; }
         .no-results { text-align: center; padding: 2rem; color: #aaa; }
         .row-count { font-size: 0.78rem; color: #aaa; margin-top: 0.5rem; }
+
+        .fb-toggle { background:#2c3e50; color:#ccc; border:1px solid #555; border-radius:20px; padding:5px 14px; font-size:0.8rem; cursor:pointer; }
+        .fb-toggle.fb-require { background:#1a5c1a; color:white; border-color:#2a7a2a; }
+        .fb-toggle.fb-exclude { background:#7a1a1a; color:white; border-color:#9a2a2a; }
+
     </style>
+
     <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
     <style>
@@ -616,6 +622,61 @@
                         <textarea id="selection-recipients-list" readonly rows="4" placeholder="No hay hospedajes seleccionados — vaya a la pestaña Hospedajes y marque las casillas de los que desea contactar."
                             style="width:100%;padding:8px;background:#0d1520;border:1px solid #3a3a6a;border-radius:5px;color:#ccc;font-size:0.8rem;font-family:monospace;box-sizing:border-box;resize:vertical;"></textarea>
                     </div>
+
+                    <div style="background:#1a2a2a;border:1px solid #2a5a5a;border-radius:8px;padding:1rem;">
+                    <h4 style="color:#7ec8e3;margin-bottom:0.8rem;">🔍 Constructor de filtros</h4>
+
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.8rem;margin-bottom:1rem;">
+                        <div>
+                            <label style="font-size:0.75rem;color:#aaa;display:block;margin-bottom:4px;">Registro</label>
+                            <select id="fb-registro" onchange="updateFilterBuilder()" style="width:100%;padding:6px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.85rem;">
+                                <option value="any">Cualquiera</option>
+                                <option value="atp">ATP</option>
+                                <option value="mici">MiCI</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:0.75rem;color:#aaa;display:block;margin-bottom:4px;">Membresía</label>
+                            <select id="fb-membresia" onchange="updateFilterBuilder()" style="width:100%;padding:6px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.85rem;">
+                                <option value="any">Cualquiera</option>
+                                <option value="none">No miembro</option>
+                                <option value="trial">Prueba</option>
+                                <option value="support">Apoyo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:0.75rem;color:#aaa;display:block;margin-bottom:4px;">Invitación</label>
+                            <select id="fb-invitacion" onchange="updateFilterBuilder()" style="width:100%;padding:6px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.85rem;">
+                                <option value="any">Cualquiera (excluye rechazados)</option>
+                                <option value="not_invited">No invitado</option>
+                                <option value="invited">Invitado</option>
+                                <option value="no_response">Sin respuesta</option>
+                                <option value="refused">Rechazado</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1rem;">
+                        <button type="button" class="fb-toggle" data-key="foto" onclick="cycleFbToggle('foto')">Foto: cualquiera</button>
+                        <button type="button" class="fb-toggle" data-key="apatel" onclick="cycleFbToggle('apatel')">APATEL: cualquiera</button>
+                        <button type="button" class="fb-toggle" data-key="whatsapp" onclick="cycleFbToggle('whatsapp')">WhatsApp: cualquiera</button>
+                        <button type="button" class="fb-toggle" data-key="email" onclick="cycleFbToggle('email')">Correo: cualquiera</button>
+                    </div>
+
+                    <div id="fb-description" style="font-size:0.85rem;color:#adf5ad;margin-bottom:0.6rem;">Cargando...</div>
+
+                    <button onclick="openFbReview()" class="action-btn edit">👁️ Ver selección</button>
+                </div>
+
+                <div id="fb-review-panel" style="display:none;background:#111;border:1px solid #3a5a3a;border-radius:8px;padding:1rem;margin-top:0.8rem;">
+                    <h4 style="color:#adf5ad;margin-bottom:0.6rem;">Revisar destinatarios (<span id="fb-review-count">0</span>)</h4>
+                    <p style="font-size:0.78rem;color:#aaa;margin-bottom:0.6rem;">Desmarque cualquiera que no desee incluir.</p>
+                    <div id="fb-review-list" style="max-height:260px;overflow-y:auto;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:0.6rem;margin-bottom:0.8rem;"></div>
+                    <div style="display:flex;gap:8px;">
+                        <button onclick="confirmFbSelection()" class="action-btn" style="background:#1a5c1a;color:white;">✅ Confirmar selección</button>
+                        <button onclick="document.getElementById('fb-review-panel').style.display='none'" class="action-btn edit">Cancelar</button>
+                    </div>
+                </div>
                 </div>
 
                 <div id="campaign-result" style="margin-top:1rem;padding:1rem;background:#2c3e50;border-radius:8px;display:none;"></div>
@@ -657,7 +718,7 @@
                         <!-- Template manager -->
                         <div style="background:#111;border-radius:6px;padding:0.7rem;margin-bottom:0.5rem;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                             <label style="font-size:0.75rem;color:#aaa;flex-shrink:0;">Template:</label>
-                            <select id="template-selector" style="flex:1;min-width:150px;padding:5px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;font-size:0.82rem;">
+                            <select id="template-selector" onchange="loadTemplate()" style="flex:1;min-width:150px;padding:5px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;font-size:0.82rem;">
                                 <option value="">— select —</option>
                             </select>
                             <button onclick="loadTemplate()" style="padding:5px 10px;background:#2c3e50;color:#adf5ad;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">📂 Load</button>
@@ -689,6 +750,7 @@
                         <div style="margin-top:1rem;">
                             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.8rem;">
                                 <button onclick="sendTestFollowup()" class="action-btn edit">📨 Send test to info@</button>
+                                <button onclick="sendToFbTargets()" class="action-btn" style="background:#1a5c1a;color:white;">📨 Enviar a selección confirmada</button>
                                 <button onclick="openRecipientSelector()" class="action-btn" style="background:#1a5c1a;color:white;">📨 Send campaign...</button>
                             </div>
 
@@ -2963,6 +3025,118 @@ function initHelpSystem() {
     document.querySelectorAll('[data-help]').forEach(el => {
         if (!el.title) el.title = 'Clic derecho para ver ayuda';
     });
+}
+
+// ── Filter builder: badge/toggle-based recipient targeting ───────────────────
+const fbToggleState = { foto: 'any', apatel: 'any', whatsapp: 'any', email: 'any' };
+let fbConfirmedTargets = [];
+
+function cycleFbToggle(key) {
+    const order = ['any', 'yes', 'no'];
+    fbToggleState[key] = order[(order.indexOf(fbToggleState[key]) + 1) % 3];
+    updateFilterBuilder();
+}
+
+function computeFilterMatches() {
+    const registro    = document.getElementById('fb-registro')?.value || 'any';
+    const membresia   = document.getElementById('fb-membresia')?.value || 'any';
+    const invitacion  = document.getElementById('fb-invitacion')?.value || 'any';
+
+    return allMembers.filter(m => {
+        if (registro === 'atp'  && m.registry_source === 'mici') return false;
+        if (registro === 'mici' && m.registry_source !== 'mici') return false;
+
+        const isActive = m.is_member && m.membership_paid_until && m.membership_paid_until >= new Date().toISOString().split('T')[0];
+        if (membresia === 'none'    && isActive) return false;
+        if (membresia === 'trial'   && !(isActive && m.is_trial)) return false;
+        if (membresia === 'support' && !(isActive && !m.is_trial)) return false;
+
+        const s = getInvitationStatus(m);
+        if (invitacion === 'any' && s.key === 'refused') return false;
+        if (invitacion !== 'any' && s.key !== invitacion) return false;
+        if (invitacion === 'refused' && s.key !== 'refused') return false;
+
+        const hasPhoto = Array.isArray(m.photos) && m.photos.length > 0;
+        if (fbToggleState.foto === 'yes' && !hasPhoto) return false;
+        if (fbToggleState.foto === 'no'  && hasPhoto) return false;
+
+        if (fbToggleState.apatel === 'yes' && !m.apatel_member) return false;
+        if (fbToggleState.apatel === 'no'  && m.apatel_member) return false;
+
+        if (fbToggleState.whatsapp === 'yes' && !m.whatsapp) return false;
+        if (fbToggleState.whatsapp === 'no'  && m.whatsapp) return false;
+
+        const hasEmail = !!(m.email_member || m.email);
+        if (fbToggleState.email === 'yes' && !hasEmail) return false;
+        if (fbToggleState.email === 'no'  && hasEmail) return false;
+
+        return true;
+    });
+}
+
+function fbLabel(key) {
+    const names = { foto:'Foto', apatel:'APATEL', whatsapp:'WhatsApp', email:'Correo' };
+    const vals  = { any:'cualquiera', yes:'sí', no:'no' };
+    return `${names[key]}: ${vals[fbToggleState[key]]}`;
+}
+
+function updateFilterBuilder() {
+    document.querySelectorAll('.fb-toggle').forEach(btn => {
+        const key = btn.getAttribute('data-key');
+        btn.textContent = fbLabel(key);
+        btn.classList.remove('fb-require', 'fb-exclude');
+        if (fbToggleState[key] === 'yes') btn.classList.add('fb-require');
+        if (fbToggleState[key] === 'no')  btn.classList.add('fb-exclude');
+    });
+
+    const matches = computeFilterMatches();
+    const withEmail = matches.filter(m => m.email_member || m.email);
+    const desc = document.getElementById('fb-description');
+    if (desc) desc.textContent = `${matches.length} hospedaje(s) coinciden — ${withEmail.length} con correo válido.`;
+}
+
+function openFbReview() {
+    const matches = computeFilterMatches().filter(m => m.email_member || m.email);
+    const panel = document.getElementById('fb-review-panel');
+    const list  = document.getElementById('fb-review-list');
+    document.getElementById('fb-review-count').textContent = matches.length;
+    list.innerHTML = matches.map(m => `
+        <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:0.85rem;">
+            <input type="checkbox" class="fb-review-cb" data-id="${m.id}" checked>
+            <span>${m.name} — ${m.email_member || m.email}</span>
+        </label>`).join('');
+    panel.style.display = 'block';
+    panel.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+function confirmFbSelection() {
+    const checkedIds = Array.from(document.querySelectorAll('.fb-review-cb:checked')).map(cb => parseInt(cb.getAttribute('data-id')));
+    fbConfirmedTargets = allMembers
+        .filter(m => checkedIds.includes(m.id))
+        .map(m => ({ email: m.email_member || m.email, name: m.name, contact_name: m.contact_name || '', id: m.id, slug: m.slug || '' }));
+    document.getElementById('fb-review-panel').style.display = 'none';
+    alert(`✅ ${fbConfirmedTargets.length} destinatario(s) confirmados. Ahora escriba/cargue su mensaje y envíe.`);
+}
+
+async function sendToFbTargets() {
+    const subject = document.getElementById('followup-subject').value;
+    const body = (document.getElementById('followup-editor')||{}).innerHTML||'';
+    if (!subject || body.trim().length < 50) { alert('Escriba o cargue el contenido del correo primero.'); return; }
+    if (!fbConfirmedTargets.length) { alert('Primero construya y confirme una selección de destinatarios arriba.'); return; }
+    if (!confirm(`¿Enviar a ${fbConfirmedTargets.length} destinatario(s) confirmado(s)?`)) return;
+
+    const resultEl = document.getElementById('followup-result');
+    resultEl.innerHTML = '<span style="color:#FFD700;">Enviando... no cierre esta página.</span>';
+    try {
+        const res = await adminFetch('/api/admin/send-followup-specific', {
+            method: 'POST',
+            body: JSON.stringify({ subject, body, targets: fbConfirmedTargets })
+        });
+        const d = await res.json();
+        resultEl.innerHTML = d.success
+            ? '<span style="color:#adf5ad;">✅ Enviando en segundo plano. Recibirá un reporte por correo.</span>'
+            : '<span style="color:#ff7070;">Error: ' + (d.error||'unknown') + '</span>';
+    } catch(e) { resultEl.innerHTML = '<span style="color:#ff7070;">' + e.message + '</span>'; }
 }
 
 document.addEventListener('DOMContentLoaded', initHelpSystem);
