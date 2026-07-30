@@ -3595,8 +3595,8 @@ function buildFollowupHtml(hotel, manager, bodyContent) {
     </td></tr>
 </table>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto;">
-    <tr><td style="padding:0 20px;">
-<p>Estimado/a ${greeting},</p>
+<tr><td style="padding:0 20px;">
+<p style="margin-top:1.2rem;">Estimado/a ${greeting},</p>
 ${bodyContent}
 <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
 <p style="color:#888;font-size:0.78rem;">
@@ -3604,6 +3604,8 @@ ${bodyContent}
     <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a><br>
     Para cancelar estas comunicaciones responda con "No gracias".
 </p>
+    </td></tr>
+</table>
 </body></html>`;
 }
 
