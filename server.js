@@ -3588,12 +3588,14 @@ function buildFollowupHtml(hotel, manager, bodyContent) {
     const greeting = firstName && firstName.length > 2
         ? (hotel ? `${firstName}, propietario/a de <strong>${hotel}</strong>` : firstName)
         : (hotel ? `propietario/a de <strong>${hotel}</strong>` : 'propietario/a');
-        return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:1.5rem;">
-    <tr><td bgcolor="#005ca9" style="background-color:#005ca9;">
-        <img src="https://trustedpanamastays.com/images/email-header.png" alt="Trusted Panama Stays — Directorio de hospedajes legalmente registrados en Panamá" width="600" style="display:block;width:100%;max-width:600px;border:0;color:#ffffff;font-size:22px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;text-align:center;padding:40px 20px;background-color:#005ca9;">
+        return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;margin:0;padding:0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto 1.5rem;">
+    <tr><td bgcolor="#005ca9" style="background-color:#005ca9;" width="600">
+        <img src="https://trustedpanamastays.com/images/email-header.png" alt="Trusted Panama Stays — Directorio de hospedajes legalmente registrados en Panamá" width="600" style="display:block;width:600px;border:0;color:#ffffff;font-size:22px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;text-align:center;padding:40px 20px;background-color:#005ca9;">
     </td></tr>
 </table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto;">
+    <tr><td style="padding:0 20px;">
 <p>Estimado/a ${greeting},</p>
 ${bodyContent}
 <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
