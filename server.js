@@ -4874,18 +4874,24 @@ async function sendGeneralCampaignBatch() {
         for (const listing of listings) {
             if (!listing.email || !listing.email.includes('@')) continue;
             try {
-                const subject = 'Su hospedaje en Trusted Panama Stays — directorio verificado de turismo';
-                const html = `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;">
-<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
-    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
-    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
-</div>
-<p>Estimado/a propietario/a de <strong>${listing.name}</strong>,</p>
+              const subject = 'Su hospedaje en Trusted Panama Stays — directorio verificado de turismo';
+              const html = `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;margin:0;padding:0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto 1.5rem;">
+  <tr><td bgcolor="#005ca9" style="background-color:#005ca9;" width="600">
+      <img src="https://trustedpanamastays.com/images/email-header.png" alt="Trusted Panama Stays — Directorio de hospedajes legalmente registrados en Panamá" width="600" style="display:block;width:600px;border:0;color:#ffffff;font-size:22px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;text-align:center;padding:40px 20px;background-color:#005ca9;">
+  </td></tr>
+</table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto;">
+  <tr><td height="20" style="font-size:1px;line-height:1px;">&nbsp;</td></tr>
+  <tr><td style="padding:0 20px;">
+<p style="margin-top:0;">Estimado/a propietario/a de <strong>${listing.name}</strong>,</p>
 ${templateBody}
 <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
 <p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
 <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a><br>
 <a href="https://trustedpanamastays.com/index.php?lang=es" style="color:#7ec8e3;">trustedpanamastays.com</a></p>
+  </td></tr>
+</table>
 </body></html>`;
 
                 await execFileAsync('php', [notifyPath, subject, html, listing.email], { timeout: 15000 });
