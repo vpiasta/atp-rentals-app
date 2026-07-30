@@ -3595,8 +3595,9 @@ function buildFollowupHtml(hotel, manager, bodyContent) {
     </td></tr>
 </table>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto;">
-<tr><td style="padding:0 20px;">
-<p style="margin-top:1.2rem;">Estimado/a ${greeting},</p>
+<tr><td height="20" style="font-size:1px;line-height:1px;">&nbsp;</td></tr>
+    <tr><td style="padding:0 20px;">
+<p style="margin-top:0;">Estimado/a ${greeting},</p>
 ${bodyContent}
 <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
 <p style="color:#888;font-size:0.78rem;">
