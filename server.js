@@ -3512,6 +3512,20 @@ app.get('/api/admin/apatel-campaign-stats', requireAdmin, async (req, res) => {
     }
 });
 
+// ── Preview: builds the actual email HTML using the real template function,
+// with example placeholder values — so the in-panel preview genuinely matches
+// what a real recipient receives, instead of a separately-maintained copy.
+app.post('/api/admin/preview-followup-html', requireAdmin, async (req, res) => {
+    const { body } = req.body;
+    if (typeof body !== 'string') return res.status(400).json({ error: 'Missing body' });
+    const sampleBody = body.includes('{url}')
+        ? body.split('{url}').join('https://trustedpanamastays.com/listing.php?id=00000&lang=es')
+        : body;
+    const html = buildFollowupHtml('HOTEL EJEMPLO', 'Juan García', sampleBody);
+    res.json({ html });
+});
+
+
 // ── POST /api/admin/send-followup-test ───────────────────────────────────────
 // Send test email to info@ only
 app.post('/api/admin/send-followup-test', requireAdmin, async (req, res) => {

@@ -2174,9 +2174,10 @@ function showEditorTab(tab) {
     if (preview) preview.style.display = tab === 'preview' ? 'block' : 'none';
     if (htmlPan) htmlPan.style.display = tab === 'html'    ? 'block' : 'none';
     if (tab === 'preview') {
-        const body = buildFullEmail(document.getElementById('followup-editor').innerHTML);
-        const iframe = document.getElementById('followup-iframe');
-        if (iframe) iframe.srcdoc = body;
+        buildFullEmail(document.getElementById('followup-editor').innerHTML).then(body => {
+            const iframe = document.getElementById('followup-iframe');
+            if (iframe) iframe.srcdoc = body;
+        });
     }
     if (tab === 'html') {
         const src = document.getElementById('followup-html-source');
@@ -2189,21 +2190,20 @@ function syncFromHTML() {
     const ed  = document.getElementById('followup-editor');
     if (src && ed) { ed.innerHTML = src.value; updatePreview(); }
 }
-function buildFullEmail(bodyContent) {
-    return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;padding:20px;">
-<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
-    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
-    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
-</div>
-<p>Estimado/a propietario/a,</p>
-${bodyContent}
-<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
-<p style="color:#888;font-size:0.78rem;">
-    Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
-    <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a><br>
-    Para cancelar estas comunicaciones responda con "No gracias".
-</p>
-</body></html>`;
+
+async function buildFullEmail(bodyContent) {
+    // Uses the SAME server-side builder real sends go through (buildFollowupHtml),
+    // with example placeholder values, so the preview genuinely matches what
+    // recipients receive instead of maintaining a second, separately-styled copy.
+    try {
+        const res = await adminFetch('/api/admin/preview-followup-html', {
+            method: 'POST',
+            body: JSON.stringify({ body: bodyContent })
+        });
+        const data = await res.json();
+        if (res.ok && data.html) return data.html;
+    } catch(e) {}
+    return `<html><body><p>(No se pudo generar la vista previa real — ${bodyContent})</p></body></html>`;
 }
 
 function loadFollowupTemplate() {
