@@ -3588,11 +3588,13 @@ function buildFollowupHtml(hotel, manager, bodyContent) {
     const greeting = firstName && firstName.length > 2
         ? (hotel ? `${firstName}, propietario/a de <strong>${hotel}</strong>` : firstName)
         : (hotel ? `propietario/a de <strong>${hotel}</strong>` : 'propietario/a');
-    return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;">
-<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
-    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
-    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
-</div>
+        return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:1.5rem;">
+    <tr><td bgcolor="#005ca9" style="background-color:#005ca9;padding:1.5rem;border-radius:10px;">
+        <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
+        <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
+    </td></tr>
+</table>
 <p>Estimado/a ${greeting},</p>
 ${bodyContent}
 <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
