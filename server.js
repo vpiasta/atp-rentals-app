@@ -3493,140 +3493,6 @@ app.get('/api/admin/send-weekly-report', async (req, res) => {
     }
 });
 
-app.post('/api/admin/send-apatel-campaign', requireAdmin, async (req, res) => {
-    const { dry_run, start_from } = req.body;
-    const startIndex = parseInt(start_from) || 0;
-
-    try {
-        const notifyPath = path.join(__dirname, 'public', 'notify.php');
-        let sent = 0, skipped = 0, errors = 0;
-        const results = [];
-
-        for (let i = startIndex; i < APATEL_ROSTER.length; i++) {
-            const member = APATEL_ROSTER[i];
-            if (!member.email || !member.email.includes('@')) {
-                skipped++;
-                continue;
-            }
-
-            // Find their listing in DB to get the listing URL
-            const { data: listings } = await supabase
-                .from('listings')
-                .select('id, name, slug, apatel_member')
-                .eq('apatel_member', true)
-                .ilike('name', `%${member.hotel.substring(0, 15)}%`)
-                .limit(1);
-
-            const listing   = listings?.[0];
-            const listingUrl = listing?.slug
-                ? `https://trustedpanamastays.com/listing.php?slug=${listing.slug}&lang=es`
-                : listing
-                ? `https://trustedpanamastays.com/listing.php?id=${listing.id}&lang=es`
-                : 'https://trustedpanamastays.com/index_es.html';
-
-            const joinUrl = 'https://trustedpanamastays.com/join.html';
-
-            // Manager first name
-            const firstName = member.manager.split(' ')[0];
-            const greeting  = firstName && firstName.length > 2
-                ? `Estimado/a <strong>${firstName}</strong>`
-                : `Estimado/a propietario/a`;
-
-            const subject = `${member.hotel} ya aparece en Trusted Panama Stays`;
-            const message = `
-<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
-<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
-    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
-    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
-</div>
-
-<p>${greeting},</p>
-<p>Como miembro de <strong>APATEL</strong>, le escribimos con una invitación especial.</p>
-<p>Hemos creado <strong>Trusted Panama Stays</strong>, un directorio en línea para turistas internacionales que buscan hospedajes legalmente registrados en Panamá — sin las comisiones de Booking.com o Airbnb (15–20%).</p>
-
-<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
-    <p style="margin:0 0 0.5rem;font-weight:bold;color:#005ca9;">Su hospedaje ya aparece en nuestro directorio:</p>
-    <p style="margin:0;"><a href="${listingUrl}" style="color:#005ca9;font-size:0.95rem;">${listingUrl}</a></p>
-</div>
-
-<p>Con una <strong>membresía de prueba gratuita</strong> (sin costo, sin obligación) puede agregar:</p>
-<ul style="margin:0.5rem 0 1rem 1.5rem;line-height:2;">
-    <li>Hasta <strong>20 fotos</strong> de su hospedaje</li>
-    <li>Descripción en <strong>inglés y español</strong></li>
-    <li>Dirección completa y enlaces a su sitio web</li>
-    <li>Botones de contacto directo (WhatsApp, correo, reservas)</li>
-</ul>
-
-<p style="text-align:center;margin:1.5rem 0;">
-    <a href="${joinUrl}" style="background:#005ca9;color:white;padding:12px 30px;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;display:inline-block;">
-        Solicitar membresía gratuita →
-    </a>
-</p>
-
-<p style="font-size:0.85rem;color:#666;">
-    Creado por Volker Piasta, propietario del <strong>Aparthotel Boquete</strong> y miembro de APATEL.<br>
-    El costo después de la prueba es solo <strong>$24/año + ITBMS</strong> — menos de $2 al mes.
-</p>
-
-<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
-<p style="color:#888;font-size:0.78rem;">
-    Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
-    <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a><br>
-    Para cancelar estas comunicaciones responda con "No gracias".
-</p>
-</body></html>`;
-
-            if (dry_run) {
-                results.push({ index: i, hotel: member.hotel, email: member.email, listing_found: !!listing });
-                sent++;
-                continue;
-            }
-
-            try {
-                await execFileAsync('php', [notifyPath, subject, message, member.email], { timeout: 15000 });
-
-                // Mark as invited in DB if listing found
-                if (listing) {
-                    await supabase.from('listings').update({
-                        invitation_status:  'invited',
-                        invitation_sent_at: new Date().toISOString()
-                    }).eq('id', listing.id);
-                }
-
-                await logEvent('apatel_campaign_sent', {
-                    hotel:      member.hotel,
-                    email:      member.email,
-                    listing_id: listing?.id || null,
-                    index:      i
-                });
-
-                sent++;
-                results.push({ index: i, hotel: member.hotel, email: member.email, status: 'sent' });
-
-                // Throttle — 1 email per 500ms
-                await new Promise(r => setTimeout(r, 500));
-
-            } catch (err) {
-                console.error(`Campaign email failed for ${member.hotel}:`, err.message);
-                errors++;
-                results.push({ index: i, hotel: member.hotel, email: member.email, status: 'error', error: err.message });
-            }
-        }
-
-        res.json({
-            success: true, dry_run: !!dry_run,
-            sent, skipped, errors,
-            total: APATEL_ROSTER.length,
-            results: dry_run ? results : results.slice(-5) // return last 5 if live
-        });
-
-    } catch (err) {
-        console.error('APATEL campaign error:', err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
 // ── GET /api/admin/apatel-campaign-stats ──────────────────────────────────────
 app.get('/api/admin/apatel-campaign-stats', requireAdmin, async (req, res) => {
     try {
@@ -3705,13 +3571,15 @@ app.post('/api/admin/send-followup-all', requireAdmin, async (req, res) => {
 // ── Helper: wrap body content in full email template ─────────────────────────
 function buildFollowupHtml(hotel, manager, bodyContent) {
     const firstName = (manager || '').split(' ')[0];
-    const greeting  = firstName && firstName.length > 2 ? firstName : 'propietario/a';
+    const greeting = firstName && firstName.length > 2
+        ? (hotel ? `${firstName}, propietario/a de <strong>${hotel}</strong>` : firstName)
+        : (hotel ? `propietario/a de <strong>${hotel}</strong>` : 'propietario/a');
     return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;">
 <div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
     <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
     <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
 </div>
-<p>Estimado/a <strong>${greeting}</strong>,</p>
+<p>Estimado/a ${greeting},</p>
 ${bodyContent}
 <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
 <p style="color:#888;font-size:0.78rem;">
@@ -3733,26 +3601,54 @@ if (!fs.existsSync(TEMPLATES_DIR)) {
 // members, if it doesn't already exist — editable via the admin template manager.
 const reminderTemplatePath = path.join(TEMPLATES_DIR, 'apatel_reminder_not_subscribed.html');
 if (!fs.existsSync(reminderTemplatePath)) {
-    const reminderTemplate = `<p>Le escribimos nuevamente porque hace un tiempo le compartimos información sobre <strong>Trusted Panama Stays</strong>, y notamos que aún no ha activado su membresía.</p>
-
+    const reminderTemplate = `
+<p>Le escribimos nuevamente porque hace un tiempo le compartimos información sobre <strong>Trusted Panama Stays</strong>, y notamos que aún no ha activado su membresía.</p>
 <p>Como recordatorio, su hospedaje ya aparece en el directorio, y con una <strong>membresía de prueba gratuita de 30 días</strong> (sin costo, sin obligación) puede:</p>
-
 <ul style="line-height:2;margin:0.5rem 0 1rem 1.5rem;">
     <li>Agregar hasta <strong>20 fotos</strong> de su hospedaje</li>
     <li>Publicar una <strong>descripción en inglés y español</strong></li>
     <li>Mostrar su <strong>dirección completa</strong> y enlaces de reserva</li>
 </ul>
-
 <p>Si ya no le interesa, puede ignorar este mensaje sin problema — no volveremos a insistir.</p>
-
 <p style="text-align:center;margin:1.5rem 0;">
     <a href="https://trustedpanamastays.com/join.html" style="background:#005ca9;color:white;padding:12px 30px;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;display:inline-block;">
         Solicitar membresía gratuita →
     </a>
 </p>
-
 <p style="font-size:0.85rem;color:#666;">Creado por Volker Piasta, propietario del Aparthotel Boquete y miembro de APATEL.</p>`;
-    fs.writeFileSync(reminderTemplatePath, reminderTemplate, 'utf8');
+fs.writeFileSync(reminderTemplatePath, reminderTemplate.trim(), 'utf8');
+}
+
+// Seed the original APATEL direct-invitation email as a real, editable
+// template (was previously hardcoded server-side in the now-retired
+// send-apatel-campaign endpoint) — {url} is replaced per recipient with
+// their actual listing page by sendToRosterList().
+const apatelDirectPath = path.join(TEMPLATES_DIR, 'apatel_direct_invitation.html');
+if (!fs.existsSync(apatelDirectPath)) {
+const apatelDirectTemplate = `
+<p>Como miembro de <strong>APATEL</strong>, le escribimos con una invitación especial.</p>
+<p>Hemos creado <strong>Trusted Panama Stays</strong>, un directorio en línea para turistas internacionales que buscan hospedajes legalmente registrados en Panamá — sin las comisiones de Booking.com o Airbnb (15–20%).</p>
+<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
+<p style="margin:0 0 0.5rem;font-weight:bold;color:#005ca9;">Su hospedaje ya aparece en nuestro directorio:</p>
+<p style="margin:0;"><a href="{url}" style="color:#005ca9;font-size:0.95rem;">{url}</a></p>
+</div>
+<p>Con una <strong>membresía de prueba gratuita</strong> (sin costo, sin obligación) puede agregar:</p>
+<ul style="margin:0.5rem 0 1rem 1.5rem;line-height:2;">
+<li>Hasta <strong>20 fotos</strong> de su hospedaje</li>
+<li>Descripción en <strong>inglés y español</strong></li>
+<li>Dirección completa y enlaces a su sitio web</li>
+<li>Botones de contacto directo (WhatsApp, correo, reservas)</li>
+</ul>
+<p style="text-align:center;margin:1.5rem 0;">
+<a href="https://trustedpanamastays.com/join.html" style="background:#005ca9;color:white;padding:12px 30px;text-decoration:none;border-radius:8px;font-weight:700;font-size:1rem;display:inline-block;">
+    Solicitar membresía gratuita →
+</a>
+</p>
+<p style="font-size:0.85rem;color:#666;">
+Creado por Volker Piasta, propietario del <strong>Aparthotel Boquete</strong> y miembro de APATEL.<br>
+El costo después de la prueba es solo <strong>$24/año + ITBMS</strong> — menos de $2 al mes.
+</p>`;
+fs.writeFileSync(apatelDirectPath, apatelDirectTemplate.trim(), 'utf8');
 }
 
 // ── GET /api/admin/templates ──────────────────────────────────────────────────
@@ -3930,43 +3826,79 @@ app.post('/api/admin/send-followup-new', requireAdmin, async (req, res) => {
     await sendToRosterList(targets, subject, body);
 });
 
-// ── POST /api/admin/send-followup-specific ────────────────────────────────────
-// Send to a specific list of emails
 app.post('/api/admin/send-followup-specific', requireAdmin, async (req, res) => {
-    const { subject, body, emails } = req.body;
-    if (!subject || !body || !emails?.length) return res.status(400).json({ error: 'Missing fields' });
-
-    // Build targets from roster where possible, otherwise use email only
-    const roster = require('./apatel_emails.json');
-    const rosterMap = {};
-    roster.forEach(m => { if (m.email) rosterMap[m.email.toLowerCase()] = m; });
-
-    const targets = emails.map(email => {
-        const match = rosterMap[email.toLowerCase()];
-        return match || { hotel: email, email, manager: '' };
-    });
-
-    res.json({ success: true, message: `Sending to ${targets.length} specific recipients`, total: targets.length });
+    const { subject, body, emails, targets: directTargets } = req.body;
+    let targets;
+    if (Array.isArray(directTargets) && directTargets.length) {
+        // Called from the Hospedajes-tab selection — real listing names/emails
+        // already provided directly, no roster lookup needed for the greeting.
+        // id/slug are passed through so resolveListingUrl() can skip the fuzzy
+        // name-match lookup and use the exact listing directly.
+        targets = directTargets.map(t => ({ hotel: t.name, email: t.email, manager: t.contact_name || '', id: t.id, slug: t.slug }));
+    } else if (emails?.length) {
+        // Plain email list (the "specific emails" textbox) — try matching
+        // against the APATEL roster for a name, otherwise send unpersonalized.
+        const roster = require('./apatel_emails.json');
+        const rosterMap = {};
+        roster.forEach(m => { if (m.email) rosterMap[m.email.toLowerCase()] = m; });
+        targets = emails.map(email => {
+            const match = rosterMap[email.toLowerCase()];
+            return match || { hotel: email, email, manager: '' };
+        });
+    } else {
+        return res.status(400).json({ error: 'Missing fields' });
+    }
+    if (!subject || !body || !targets.length) return res.status(400).json({ error: 'Missing fields' });
+    res.json({ success: true, message: `Sending to ${targets.length} recipients`, total: targets.length });
     await sendToRosterList(targets, subject, body);
 });
 
 // ── Helper: send to a list of roster-format members ───────────────────────────
+// Finds a member's listing URL: uses an exact id/slug if the caller already
+// knows it (e.g. selections made in the Hospedajes tab), otherwise falls back
+// to a fuzzy name match against the database (needed for roster-based sends
+// like APATEL, which have no listing id on file) — same lookup the old
+// standalone APATEL campaign used, now shared by every send path.
+async function resolveListingUrl(member) {
+    try {
+        let listing = null;
+        if (member.id) {
+            const { data } = await supabase.from('listings').select('id, slug').eq('id', member.id).maybeSingle();
+            listing = data;
+        } else if (member.hotel) {
+            const { data } = await supabase
+                .from('listings')
+                .select('id, slug')
+                .ilike('name', `%${member.hotel.substring(0, 15)}%`)
+                .limit(1);
+            listing = data?.[0];
+        }
+        if (!listing) return 'https://trustedpanamastays.com/index_es.html';
+        return listing.slug
+            ? `https://trustedpanamastays.com/listing.php?slug=${listing.slug}&lang=es`
+            : `https://trustedpanamastays.com/listing.php?id=${listing.id}&lang=es`;
+    } catch {
+        return 'https://trustedpanamastays.com/index_es.html';
+    }
+}
+
 async function sendToRosterList(targets, subject, body) {
     const notifyPath = path.join(__dirname, 'public', 'notify.php');
     let sent = 0, errors = 0;
-
     for (const member of targets) {
         if (!member.email || !member.email.includes('@')) continue;
         try {
-            const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', body);
+            // Replace the {url} placeholder (if the message uses it) with this
+            // recipient's actual listing page — works for any send path.
+            const listingUrl = body.includes('{url}') ? await resolveListingUrl(member) : null;
+            const personalizedBody = listingUrl ? body.split('{url}').join(listingUrl) : body;
+            const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', personalizedBody);
             await execFileAsync('php', [notifyPath, subject, html, member.email], { timeout: 15000 });
-
             // Mark as contacted in DB
             await supabase.from('listings')
                 .update({ apatel_contacted_at: new Date().toISOString() })
                 .or(`email.ilike.%${member.email}%,email_member.ilike.%${member.email}%`)
                 .eq('apatel_member', true);
-
             await logEvent('followup_sent', { hotel: member.hotel, email: member.email });
             sent++;
             await new Promise(r => setTimeout(r, 600));
@@ -3975,7 +3907,6 @@ async function sendToRosterList(targets, subject, body) {
             console.error(`Failed for ${member.hotel||member.email}:`, err.message);
         }
     }
-
     // Completion report to admin
     const report = `<p>Campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${targets.length} total.</p>`;
     execFileAsync('php', [path.join(__dirname, 'public', 'notify.php'),

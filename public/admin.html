@@ -608,15 +608,6 @@
                         <p style="font-size:0.82rem;color:#aaa;margin-bottom:0.8rem;">Download a list of non-members with no email address for manual WhatsApp outreach.</p>
                         <button onclick="downloadNoEmailList()" class="action-btn edit">⬇️ Download list</button>
                     </div>
-                    <div style="background:#1a2a1a;border:1px solid #2a5a2a;border-radius:8px;padding:1rem;">
-                        <h4 style="color:#adf5ad;margin-bottom:0.5rem;">🏨 APATEL Direct Campaign (121 members)</h4>
-                        <p style="font-size:0.82rem;color:#aaa;margin-bottom:0.5rem;">Uses official APATEL email roster — more reliable than ATP registry emails. Personalized with manager name and listing URL.</p>
-                        <div id="apatel-campaign-stats" style="font-size:0.8rem;color:#7ec8e3;margin-bottom:0.8rem;">Loading...</div>
-                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                            <button onclick="dryRunApatel()" class="action-btn edit">🔍 Preview</button>
-                            <button onclick="runApatelCampaign()" class="action-btn" style="background:#1a5c1a;">📨 Send APATEL campaign</button>
-                        </div>
-                    </div>
 
                     <div style="background:#1a1a2a;border:1px solid #3a3a6a;border-radius:8px;padding:1rem;">
                         <h4 style="color:#a8b8ff;margin-bottom:0.5rem;">📋 Hospedajes seleccionados (vista previa)</h4>
@@ -2126,25 +2117,6 @@ async function runCampaign(filter) {
     loadCampaignStats();
 }
 
-async function dryRunApatel() {
-    const resultEl = document.getElementById('campaign-result');
-    resultEl.style.display = 'block';
-    resultEl.innerHTML = '<span style="color:#aaa;">⏳ Previewing...</span>';
-    const res  = await adminFetch('/api/admin/send-apatel-campaign', {method:'POST',body:JSON.stringify({dry_run:true})});
-    const data = await res.json();
-    resultEl.innerHTML = `<span style="color:#adf5ad;">Would send to <strong>${data.sent}</strong> APATEL members.</span>`;
-}
-
-async function runApatelCampaign() {
-    const resultEl = document.getElementById('campaign-result');
-    if (!confirm('Send to all 121 APATEL members?')) return;
-    resultEl.style.display = 'block';
-    resultEl.innerHTML = '<span style="color:#FFD700;">⏳ Sending APATEL campaign...</span>';
-    const res  = await adminFetch('/api/admin/send-apatel-campaign', {method:'POST',body:JSON.stringify({dry_run:false})});
-    const data = await res.json();
-    resultEl.innerHTML = `<span style="color:#adf5ad;">✅ Done: <strong>${data.sent}</strong> sent.</span>`;
-}
-
 async function downloadNoEmailList() {
     const res2 = await adminFetch('/api/admin/members');
     const all  = await res2.json();
@@ -2157,14 +2129,6 @@ async function downloadNoEmailList() {
     a.href=url; a.download='no_email_listings.csv'; a.click();
 }
 
-async function loadApatelStats() {
-    try {
-        const res  = await adminFetch('/api/admin/apatel-campaign-stats');
-        const data = await res.json();
-        const el   = document.getElementById('apatel-campaign-stats');
-        if (el) el.innerHTML = `Sent: <strong>${data.sent}</strong> / ${data.total} · Remaining: <strong>${data.remaining}</strong>`;
-    } catch(e) {}
-}
 
 // ── Follow-up email editor ────────────────────────────────────────────────────
 function fmt(cmd) {
@@ -2219,6 +2183,7 @@ function showEditorTab(tab) {
         if (src) src.value = document.getElementById('followup-editor').innerHTML;
     }
 }
+
 function syncFromHTML() {
     const src = document.getElementById('followup-html-source');
     const ed  = document.getElementById('followup-editor');
@@ -2240,6 +2205,7 @@ ${bodyContent}
 </p>
 </body></html>`;
 }
+
 function loadFollowupTemplate() {
     const template = `<p>Es posible que algunos de ustedes hayan recibido un correo con informaci&oacute;n incompleta sobre la plataforma Trusted Panama Stays. Les pido disculpas por el inconveniente. Por favor, ignoren el mensaje anterior.</p>
 
@@ -2370,22 +2336,6 @@ async function sendTestFollowup() {
             : `<span style="color:#ff7070;">&#10007; ${data.error||'Error'}</span>`;
     } catch(err) { resultEl.innerHTML = `<span style="color:#ff7070;">&#10007; ${err.message}</span>`; }
 }
-async function sendFollowupToAll() {
-    const subject  = document.getElementById('followup-subject').value;
-    const body     = document.getElementById('followup-editor').innerHTML;
-    const resultEl = document.getElementById('followup-result');
-    if (!subject || !body || body.trim().length < 50) { alert('Please write the email content first.'); return; }
-    if (!confirm('Send this email to all 121 APATEL members? Preview it first.')) return;
-    resultEl.innerHTML = '<span style="color:#FFD700;">&#9203; Sending to all APATEL members... do not close this page.</span>';
-    try {
-        const res  = await adminFetch('/api/admin/send-followup-all', {method:'POST',body:JSON.stringify({subject,body})});
-        const data = await res.json();
-        resultEl.innerHTML = data.success
-            ? `<span style="color:#adf5ad;">&#10003; Sending in background. You will receive a completion report by email.</span>`
-            : `<span style="color:#ff7070;">&#10007; ${data.error||'Error'}</span>`;
-    } catch(err) { resultEl.innerHTML = `<span style="color:#ff7070;">&#10007; ${err.message}</span>`; }
-}
-
 
 // ── Recipient selector ────────────────────────────────────────────────────────
 async function openRecipientSelector() {
@@ -2462,14 +2412,16 @@ async function confirmAndSend() {
           confirmMsg = 'Send to ' + emails.length + ' specific email(s)?';
           endpoint = '/api/admin/send-followup-specific';
           extra = { emails };
-      } else if (type === 'selection') {
-          const selected = allMembers.filter(m => selectedMemberIds.has(m.id));
-          const emails = selected.map(m => m.email_member || m.email).filter(e => e && e.includes('@'));
-          if (!emails.length) { alert('Ninguno de los hospedajes seleccionados en la pestaña Hospedajes tiene un correo válido.'); return; }
-          confirmMsg = `¿Enviar a ${emails.length} hospedaje(s) seleccionado(s) en la pestaña Hospedajes?`;
-          endpoint = '/api/admin/send-followup-specific';
-          extra = { emails };
-      }
+        } else if (type === 'selection') {
+            const selected = allMembers.filter(m => selectedMemberIds.has(m.id));
+            const targets = selected
+                .map(m => ({ email: m.email_member || m.email, name: m.name, contact_name: m.contact_name || '', id: m.id, slug: m.slug || '' }))
+                .filter(t => t.email && t.email.includes('@'));
+            if (!targets.length) { alert('Ninguno de los hospedajes seleccionados en la pestaña Hospedajes tiene un correo válido.'); return; }
+            confirmMsg = `¿Enviar a ${targets.length} hospedaje(s) seleccionado(s) en la pestaña Hospedajes?`;
+            endpoint = '/api/admin/send-followup-specific';
+            extra = { targets };
+        }
     if (!confirm(confirmMsg)) return;
     document.getElementById('recipient-selector').style.display = 'none';
     result.innerHTML = '<span style="color:#FFD700;">Sending... do not close this page.</span>';
