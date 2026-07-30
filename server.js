@@ -142,44 +142,51 @@ async function notifyAtpDiffPending(diff) {
         ? '<ul style="margin:0.3rem 0 0 1.2rem;">' + arr.map(x => `<li>${x.name}${x.id?` (ID: ${x.id})`:''}</li>`).join('') + '</ul>'
         : '<p style="color:#888;margin:0.3rem 0 0 0.2rem;">— ninguno —</p>';
 
-    const message = `
-<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
-<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
-    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
-    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">El reporte de la ATP ha sido actualizado</p>
-</div>
-<p>La ATP publicó un nuevo reporte de hospedajes vigentes. Aquí un resumen de los cambios detectados — <strong>nada se ha aplicado todavía</strong>, requiere su revisión en el panel de admin:</p>
-<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
-    <strong style="color:#005ca9;">➕ Nuevos hospedajes (${diff.toInsert.length})</strong>
-    ${listOrNone(diff.toInsert)}
-</div>
-<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
-    <strong style="color:#005ca9;">🔄 Reactivados (${diff.toReactivate.length})</strong>
-    ${listOrNone(diff.toReactivate)}
-</div>
-<div style="background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0;">
-    <strong style="color:#555;">➖ Ya no en el reporte — no miembros (${diff.toDeactivateNonMembers.length})</strong>
-    ${listOrNone(diff.toDeactivateNonMembers)}
-</div>
-${diff.toFlagMembers.length ? `
-<div style="background:#fde8e8;border:1px solid #ffcccc;border-radius:8px;padding:1rem;margin:1rem 0;">
-    <strong style="color:#cc0000;">⚠️ Miembros pagos ya no en el reporte (${diff.toFlagMembers.length})</strong>
-    <p style="font-size:0.82rem;color:#a00;margin:0.3rem 0 0;">Su membresía NO será modificada automáticamente.</p>
-    ${listOrNone(diff.toFlagMembers)}
-</div>` : ''}
-<p style="text-align:center;margin:1.5rem 0;">
-    <a href="https://trustedpanamastays.com/admin.html?from=AtpUpdate" style="background:#005ca9;color:white;padding:16px 40px;text-decoration:none;border-radius:10px;font-weight:700;font-size:1.1rem;display:inline-block;">
-        📋 Revisar en el panel de admin →
-    </a>
-    <br>
-    <span style="font-size:0.72rem;color:#999;display:inline-block;margin-top:0.6rem;">
-        Este botón lo lleva a: trustedpanamastays.com/admin.html<br>
-        (el enlace pasa por nuestro proveedor de correo, por eso la URL visible es distinta)
-    </span>
-</p>
-<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
-<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
-</body></html>`;
+        const message = `
+    <html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;margin:0;padding:0;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto 1.5rem;">
+        <tr><td bgcolor="#005ca9" style="background-color:#005ca9;" width="600">
+            <img src="https://trustedpanamastays.com/images/email-header.png" alt="Trusted Panama Stays — El reporte de la ATP ha sido actualizado" width="600" style="display:block;width:600px;border:0;color:#ffffff;font-size:22px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;text-align:center;padding:40px 20px;background-color:#005ca9;">
+        </td></tr>
+    </table>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto;">
+        <tr><td height="20" style="font-size:1px;line-height:1px;">&nbsp;</td></tr>
+        <tr><td style="padding:0 20px;">
+    <p style="margin-top:0;">La ATP publicó un nuevo reporte de hospedajes vigentes. Aquí un resumen de los cambios detectados — <strong>nada se ha aplicado todavía</strong>, requiere su revisión en el panel de admin:</p>
+    <div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
+        <strong style="color:#005ca9;">➕ Nuevos hospedajes (${diff.toInsert.length})</strong>
+        ${listOrNone(diff.toInsert)}
+    </div>
+    <div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:1rem;margin:1rem 0;">
+        <strong style="color:#005ca9;">🔄 Reactivados (${diff.toReactivate.length})</strong>
+        ${listOrNone(diff.toReactivate)}
+    </div>
+    <div style="background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0;">
+        <strong style="color:#555;">➖ Ya no en el reporte — no miembros (${diff.toDeactivateNonMembers.length})</strong>
+        ${listOrNone(diff.toDeactivateNonMembers)}
+    </div>
+    ${diff.toFlagMembers.length ? `
+    <div style="background:#fde8e8;border:1px solid #ffcccc;border-radius:8px;padding:1rem;margin:1rem 0;">
+        <strong style="color:#cc0000;">⚠️ Miembros pagos ya no en el reporte (${diff.toFlagMembers.length})</strong>
+        <p style="font-size:0.82rem;color:#a00;margin:0.3rem 0 0;">Su membresía NO será modificada automáticamente.</p>
+        ${listOrNone(diff.toFlagMembers)}
+    </div>` : ''}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:1.5rem auto;">
+        <tr><td style="background-color:#005ca9;border-radius:10px;padding:16px 40px;" align="center">
+            <a href="https://trustedpanamastays.com/admin.html?from=AtpUpdate" style="color:white;text-decoration:none;font-weight:700;font-size:1.1rem;display:inline-block;">📋 Revisar en el panel de admin →</a>
+        </td></tr>
+    </table>
+    <p style="text-align:center;">
+        <span style="font-size:0.72rem;color:#999;">
+            Este botón lo lleva a: trustedpanamastays.com/admin.html<br>
+            (el enlace pasa por nuestro proveedor de correo, por eso la URL visible es distinta)
+        </span>
+    </p>
+    <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+    <p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>
+        </td></tr>
+    </table>
+    </body></html>`;
 
     await execFileAsync('php', [notifyPath, subject, message, 'info@trustedpanamastays.com']).catch(err =>
         console.error('ATP diff notification email failed:', err.message)
