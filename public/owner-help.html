@@ -127,6 +127,17 @@
     </div>
 </div>
 <script>
+(function initLangFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('lang') === 'en') {
+        document.getElementById('content-es').style.display = 'none';
+        document.getElementById('content-en').style.display = 'block';
+        document.getElementById('page-title').textContent = 'Owner Help';
+        document.getElementById('lang-toggle').textContent = 'Español';
+        document.getElementById('back-link').textContent = '← Back';
+    }
+})();
+
 function toggleLang() {
     const es = document.getElementById('content-es');
     const en = document.getElementById('content-en');
