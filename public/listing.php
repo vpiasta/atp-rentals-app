@@ -186,7 +186,7 @@ function get_phone_numbers($phone) {
 $phone_numbers = get_phone_numbers($phone);
 $phone_call    = $phone_numbers['call'];
 $phone_wa      = $phone_numbers['whatsapp'];
-$maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($name . ' ' . $province . ' Panama');
+$maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($name . ' ' . ($address ?: $province) . ' Panama');
 
 ?><!DOCTYPE html>
 <html lang="<?= $lang ?>">
