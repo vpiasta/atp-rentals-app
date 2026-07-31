@@ -1550,7 +1550,7 @@ app.get('/api/admin/members', requireAdmin, async (req, res) => {
     while (true) {
       const { data, error } = await supabase
           .from('listings')
-          .select('id, name, email, phone, province, rental_type, is_member, is_trial, membership_paid_until, invitation_sent_at, invitation_status, atp_active, slug, contact_name, notes, password_changed, apatel_member, feature_rank, whatsapp, photos')
+          .select('id, name, email, phone, province, rental_type, is_member, is_trial, membership_paid_until, invitation_sent_at, invitation_status, atp_active, slug, contact_name, notes, password_changed, apatel_member, feature_rank, whatsapp, photos, registry_source')
           .order('name')
           .range(from, from + BATCH - 1);
         if (error) return res.status(500).json({ error: error.message });

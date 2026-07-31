@@ -615,16 +615,8 @@
                         <button onclick="downloadNoEmailList()" class="action-btn edit">⬇️ Download list</button>
                     </div>
 
-                    <div style="background:#1a1a2a;border:1px solid #3a3a6a;border-radius:8px;padding:1rem;">
-                        <h4 style="color:#a8b8ff;margin-bottom:0.5rem;">📋 Hospedajes seleccionados (vista previa)</h4>
-                        <p style="font-size:0.82rem;color:#aaa;margin-bottom:0.5rem;">Marque casillas en la pestaña Hospedajes, luego use "📨 Send campaign..." abajo y elija "Hospedajes seleccionados" como destinatarios.</p>
-                        <button onclick="refreshSelectionRecipientsList()" class="action-btn edit" style="margin-bottom:0.6rem;">🔄 Actualizar lista</button>
-                        <textarea id="selection-recipients-list" readonly rows="4" placeholder="No hay hospedajes seleccionados — vaya a la pestaña Hospedajes y marque las casillas de los que desea contactar."
-                            style="width:100%;padding:8px;background:#0d1520;border:1px solid #3a3a6a;border-radius:5px;color:#ccc;font-size:0.8rem;font-family:monospace;box-sizing:border-box;resize:vertical;"></textarea>
-                    </div>
-
                     <div style="background:#1a2a2a;border:1px solid #2a5a5a;border-radius:8px;padding:1rem;">
-                    <h4 style="color:#7ec8e3;margin-bottom:0.8rem;">🔍 Constructor de filtros</h4>
+                    <h4 style="color:#7ec8e3;margin-bottom:0.8rem;">🎯 Seleccionar Receptores del Mensaje</h4>
 
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.8rem;margin-bottom:1rem;">
                         <div>
@@ -671,8 +663,11 @@
                 <div id="fb-review-panel" style="display:none;background:#111;border:1px solid #3a5a3a;border-radius:8px;padding:1rem;margin-top:0.8rem;">
                     <h4 style="color:#adf5ad;margin-bottom:0.6rem;">Revisar destinatarios (<span id="fb-review-count">0</span>)</h4>
                     <p style="font-size:0.78rem;color:#aaa;margin-bottom:0.6rem;">Desmarque cualquiera que no desee incluir.</p>
-                    <div id="fb-review-list" style="max-height:260px;overflow-y:auto;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:0.6rem;margin-bottom:0.8rem;"></div>
-                    <div style="display:flex;gap:8px;">
+                    <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:0.85rem;border-bottom:1px solid #333;margin-bottom:4px;">
+                    <input type="checkbox" id="fb-select-all-cb" checked onchange="toggleFbSelectAll(this.checked)">
+                    <strong>Seleccionar / deseleccionar todos</strong>
+                    </label>
+                    <div id="fb-review-list" style="max-height:260px;overflow-y:auto;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:0.6rem;margin-bottom:0.8rem;"></div>  <div style="display:flex;gap:8px;">
                         <button onclick="confirmFbSelection()" class="action-btn" style="background:#1a5c1a;color:white;">✅ Confirmar selección</button>
                         <button onclick="document.getElementById('fb-review-panel').style.display='none'" class="action-btn edit">Cancelar</button>
                     </div>
@@ -751,55 +746,20 @@
                             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.8rem;">
                                 <button onclick="sendTestFollowup()" class="action-btn edit">📨 Send test to info@</button>
                                 <button onclick="sendToFbTargets()" class="action-btn" style="background:#1a5c1a;color:white;">📨 Enviar a selección confirmada</button>
-                                <button onclick="openRecipientSelector()" class="action-btn" style="background:#1a5c1a;color:white;">📨 Send campaign...</button>
                             </div>
 
-                            <!-- Recipient selector modal -->
-                            <div id="recipient-selector" style="display:none;background:#111;border:1px solid #3a5a3a;border-radius:8px;padding:1rem;">
-                                <h4 style="color:#adf5ad;margin-bottom:0.8rem;">Select recipients:</h4>
-                                <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
-                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                                        <input type="radio" name="recipient-type" value="apatel_all" checked>
-                                        <span style="font-size:0.85rem;">All APATEL members (from official roster)</span>
-                                        <span id="rc-apatel-all-count" style="color:#aaa;font-size:0.75rem;"></span>
-                                    </label>
-                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                                        <input type="radio" name="recipient-type" value="apatel_new">
-                                        <span style="font-size:0.85rem;">APATEL members not yet contacted</span>
-                                        <span id="rc-apatel-new-count" style="color:#aaa;font-size:0.75rem;"></span>
-                                    </label>
-                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                                        <input type="radio" name="recipient-type" value="apatel_reminder">
-                                        <span style="font-size:0.85rem;">APATEL members contacted but not subscribed</span>
-                                        <span id="rc-apatel-reminder-count" style="color:#aaa;font-size:0.75rem;"></span>
-                                    </label>
-                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                                        <input type="radio" name="recipient-type" value="selection">
-                                        <span style="font-size:0.85rem;">Hospedajes seleccionados (pestaña Hospedajes)</span>
-                                        <span id="rc-selection-count" style="color:#aaa;font-size:0.75rem;">(0 seleccionados)</span>
-                                    </label>
-                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                                        <input type="radio" name="recipient-type" value="atp_non_members">
-                                        <span style="font-size:0.85rem;">All ATP non-members with email</span>
-                                        <span id="rc-atp-count" style="color:#aaa;font-size:0.75rem;"></span>
-                                    </label>
-                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                                        <input type="radio" name="recipient-type" value="specific">
-                                        <span style="font-size:0.85rem;">Specific emails (comma-separated):</span>
-                                    </label>
-                                    <textarea id="specific-emails" rows="3" placeholder="email1@hotel.com, email2@hotel.com, ..."
-                                        style="width:100%;padding:6px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;font-family:monospace;box-sizing:border-box;"
-                                        onclick="document.querySelector('[value=specific]').checked=true"></textarea>
-                                </div>
-                                <div style="display:flex;gap:8px;align-items:center;">
-                                    <button onclick="confirmAndSend()" class="action-btn" style="background:#1a5c1a;">✅ Confirm &amp; Send</button>
-                                    <button onclick="document.getElementById('recipient-selector').style.display='none'" class="action-btn edit">Cancel</button>
-                                    <span id="rc-preview" style="font-size:0.78rem;color:#aaa;"></span>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="followup-result" style="margin-top:0.8rem;font-size:0.85rem;"></div>
-                    </div>
+                          </div>
+                      <div id="followup-result" style="margin-top:0.8rem;font-size:0.85rem;"></div>
+                  </div>
+
+                  <div style="background:#1a1a1a;border:1px solid #444;border-radius:8px;padding:1rem;margin-top:0.8rem;">
+                      <h4 style="color:#ccc;margin-bottom:0.5rem;font-size:0.9rem;">✉️ Correos específicos (opcional)</h4>
+                      <p style="font-size:0.78rem;color:#888;margin-bottom:0.5rem;">Para enviar a direcciones sueltas que no están en el directorio, no relacionadas con la selección de arriba.</p>
+                      <textarea id="specific-emails" rows="2" placeholder="correo1@ejemplo.com, correo2@ejemplo.com, ..."
+                          style="width:100%;padding:6px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;font-family:monospace;box-sizing:border-box;margin-bottom:0.6rem;"></textarea>
+                      <button onclick="sendToSpecificEmails()" class="action-btn edit">📨 Enviar a estos correos</button>
+                      <div id="specific-emails-result" style="margin-top:0.5rem;font-size:0.82rem;"></div>
+                  </div>
             </div>
         </div>
 
@@ -965,7 +925,7 @@ function showTab(name) {
     if (name === 'atpsync')      loadAtpDiff();
     if (name === 'applications') loadApplications().then(() => filterApps('all'));
     if (name === 'invoices')     loadInvoiceLog();
-    if (name === 'campaign')     { loadCampaignStats(); loadTemplateList(); }
+    if (name === 'campaign')     { loadCampaignStats(); loadTemplateList(); updateFilterBuilder(); }
     if (name === 'analytics')    loadAnalytics(7);
     if (name === 'suggestions') renderSuggestions();
     if (name === 'keywords-edit') loadKeywordsEdit();
@@ -2399,107 +2359,27 @@ async function sendTestFollowup() {
     } catch(err) { resultEl.innerHTML = `<span style="color:#ff7070;">&#10007; ${err.message}</span>`; }
 }
 
-// ── Recipient selector ────────────────────────────────────────────────────────
-async function openRecipientSelector() {
-    const body = (document.getElementById('followup-editor')||{}).innerHTML||'';
-    if (!body || body.trim().length < 50) { alert('Write or load email content first.'); return; }
-    const sel = document.getElementById('recipient-selector');
-    sel.style.display = sel.style.display === 'none' ? 'block' : 'none';
-    if (sel.style.display === 'block') loadRecipientCounts();
-}
-
-async function loadRecipientCounts() {
-    // APATEL all count
-    try {
-        const res = await adminFetch('/api/admin/apatel-roster-count');
-        const d = await res.json();
-        const el = document.getElementById('rc-apatel-all-count');
-        if (el) el.textContent = '(' + (d.count||0) + ' members)';
-    } catch(e) {}
-
-    // APATEL not contacted
-    try {
-        const res = await adminFetch('/api/admin/apatel-not-contacted-count');
-        const d = await res.json();
-        const el = document.getElementById('rc-apatel-new-count');
-        if (el) el.textContent = '(' + (d.count||0) + ' not yet contacted)';
-    } catch(e) {}
-
-    // APATEL contacted but not subscribed
-    try {
-        const res = await adminFetch('/api/admin/apatel-contacted-not-member-count');
-        const d = await res.json();
-        const el = document.getElementById('rc-apatel-reminder-count');
-        if (el) el.textContent = '(' + (d.count||0) + ' contacted, not subscribed)';
-    } catch(e) {}
-
-    // ATP non-members count
-    try {
-        const res = await adminFetch('/api/admin/invitation-stats');
-        const d = await res.json();
-        const el = document.getElementById('rc-atp-count');
-        if (el) el.textContent = '(' + (d.has_email||0) + ' listings)';
-    } catch(e) {}
-}
-
-async function confirmAndSend() {
-    const type = document.querySelector('[name=recipient-type]:checked')?.value;
+async function sendToSpecificEmails() {
     const subject = document.getElementById('followup-subject').value;
     const body = (document.getElementById('followup-editor')||{}).innerHTML||'';
-    const result = document.getElementById('followup-result');
-
-    if (!subject || body.trim().length < 50) { alert('Email content is missing.'); return; }
-
-    let confirmMsg = '';
-    let endpoint = '';
-    let extra = {};
-
-    if (type === 'apatel_all') {
-        confirmMsg = 'Send to ALL APATEL members from the official roster?';
-        endpoint = '/api/admin/send-followup-all';
-      } else if (type === 'apatel_new') {
-          confirmMsg = 'Send to APATEL members not yet contacted?';
-          endpoint = '/api/admin/send-followup-new';
-      } else if (type === 'apatel_reminder') {
-          confirmMsg = 'Send reminder to APATEL members contacted but not subscribed?';
-          endpoint = '/api/admin/send-followup-reminder';
-    } else if (type === 'atp_non_members') {
-        confirmMsg = 'Send to all ATP non-members with email? This may be 1000+ emails.';
-        endpoint = '/api/admin/send-invitation-emails';
-        extra = { filter: 'all', dry_run: false };
-      } else if (type === 'specific') {
-          const emails = document.getElementById('specific-emails').value
-              .split(',').map(e => e.trim()).filter(e => e.includes('@'));
-          if (!emails.length) { alert('Enter at least one valid email.'); return; }
-          confirmMsg = 'Send to ' + emails.length + ' specific email(s)?';
-          endpoint = '/api/admin/send-followup-specific';
-          extra = { emails };
-        } else if (type === 'selection') {
-            const selected = allMembers.filter(m => selectedMemberIds.has(m.id));
-            const targets = selected
-                .map(m => ({ email: m.email_member || m.email, name: m.name, contact_name: m.contact_name || '', id: m.id, slug: m.slug || '' }))
-                .filter(t => t.email && t.email.includes('@'));
-            if (!targets.length) { alert('Ninguno de los hospedajes seleccionados en la pestaña Hospedajes tiene un correo válido.'); return; }
-            confirmMsg = `¿Enviar a ${targets.length} hospedaje(s) seleccionado(s) en la pestaña Hospedajes?`;
-            endpoint = '/api/admin/send-followup-specific';
-            extra = { targets };
-        }
-    if (!confirm(confirmMsg)) return;
-    document.getElementById('recipient-selector').style.display = 'none';
-    result.innerHTML = '<span style="color:#FFD700;">Sending... do not close this page.</span>';
-
+    const resultEl = document.getElementById('specific-emails-result');
+    if (!subject || body.trim().length < 50) { alert('Escriba o cargue el contenido del correo primero.'); return; }
+    const emails = document.getElementById('specific-emails').value
+        .split(',').map(e => e.trim()).filter(e => e.includes('@'));
+    if (!emails.length) { alert('Ingrese al menos un correo válido.'); return; }
+    if (!confirm(`¿Enviar a ${emails.length} correo(s)?`)) return;
+    resultEl.innerHTML = '<span style="color:#FFD700;">Enviando...</span>';
     try {
-        const res = await adminFetch(endpoint, {
+        const res = await adminFetch('/api/admin/send-followup-specific', {
             method: 'POST',
-            body: JSON.stringify({ subject, body, ...extra })
+            body: JSON.stringify({ subject, body, emails })
         });
         const d = await res.json();
-        result.innerHTML = d.success
-            ? '<span style="color:#adf5ad;">Sending in background. Report coming by email.</span>'
+        resultEl.innerHTML = d.success
+            ? '<span style="color:#adf5ad;">✅ Enviando en segundo plano.</span>'
             : '<span style="color:#ff7070;">Error: ' + (d.error||'unknown') + '</span>';
-    } catch(e) { result.innerHTML = '<span style="color:#ff7070;">' + e.message + '</span>'; }
+    } catch(e) { resultEl.innerHTML = '<span style="color:#ff7070;">' + e.message + '</span>'; }
 }
-
 
 // ── Feature suggestions ───────────────────────────────────────────────────────
 async function loadSuggestions() {
@@ -3095,11 +2975,17 @@ function updateFilterBuilder() {
     if (desc) desc.textContent = `${matches.length} hospedaje(s) coinciden — ${withEmail.length} con correo válido.`;
 }
 
+function toggleFbSelectAll(checked) {
+    document.querySelectorAll('.fb-review-cb').forEach(cb => cb.checked = checked);
+}
+
 function openFbReview() {
     const matches = computeFilterMatches().filter(m => m.email_member || m.email);
     const panel = document.getElementById('fb-review-panel');
     const list  = document.getElementById('fb-review-list');
     document.getElementById('fb-review-count').textContent = matches.length;
+    const selectAllCb = document.getElementById('fb-select-all-cb');
+    if (selectAllCb) selectAllCb.checked = true;
     list.innerHTML = matches.map(m => `
         <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:0.85rem;">
             <input type="checkbox" class="fb-review-cb" data-id="${m.id}" checked>
