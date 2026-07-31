@@ -444,11 +444,11 @@ function buildQuickButtons(rental, editMode) {
                 ${ph.call ? `<a href="tel:+${ph.call}" class="qbtn">${T.call}</a>` : ''}
                 ${em      ? `<a href="mailto:${em}?subject=${isEs?'Consulta via TrustedPanamaStays.com':'Inquiry via TrustedPanamaStays.com'}" class="qbtn">${T.emailBtn}</a>` : ''}
                 ${ph.whatsapp ? `<a href="https://wa.me/${ph.whatsapp}?text=${encodeURIComponent(isEs?'Consulta via TrustedPanamaStays.com:\n':'Inquiry via TrustedPanamaStays.com:\n')}" target="_blank" class="qbtn whatsapp">${T.whatsapp}</a>` : ''}<a href="${url}" target="_blank" class="qbtn">${T.maps}</a>
-        ${editMode && (isExpiringSoon(rental.membership_paid_until) || isExpired(rental.membership_paid_until)) ? `<a href="pay.html?id=${rental.id}" class="qbtn" style="border-color:#b8860b;color:#b8860b;">${T.renewBtn}</a>` : ''}
-        ${editMode ? `<button onclick="togglePwdForm()" class="qbtn" style="border-color:#a07800;color:#7a5c00;">${T.changePwd}</button>` : ''}
-        ${editMode ? `<a href="owner-help.html" target="_blank" class="qbtn" style="border-color:#005ca9;color:#005ca9;">❓ ${isEs ? 'Ayuda' : 'Help'}</a>` : ''}
-        ${loginLogout}`;
-}
+                ${editMode && (isExpiringSoon(rental.membership_paid_until) || isExpired(rental.membership_paid_until)) ? `<a href="pay.html?id=${rental.id}" class="qbtn" style="border-color:#b8860b;color:#b8860b;">${T.renewBtn}</a>` : ''}
+                ${editMode ? `<a href="owner-help.html" target="_blank" class="qbtn" style="border-color:#005ca9;color:#005ca9;padding-top:10px;padding-bottom:10px;">❓ ${isEs ? 'Ayuda' : 'Help'}</a>` : ''}
+                ${editMode ? `<button onclick="togglePwdForm()" class="qbtn" style="border-color:#a07800;color:#7a5c00;padding-top:10px;padding-bottom:10px;font-size:0.78rem;line-height:1.2;white-space:normal;max-width:90px;">${isEs ? 'Cambiar<br>Contraseña' : 'Change<br>Password'}</button>` : ''}
+                ${loginLogout.replace('class="qbtn', 'style="padding-top:10px;padding-bottom:10px;" class="qbtn')}`;
+        }
 
 let viewPhotos = [], currentPhoto = 0;
 function galleryHTML() {
