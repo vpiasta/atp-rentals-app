@@ -427,7 +427,7 @@ function getPhoneNumbers(phoneStr) {
 }
 
 function mapsUrl(rental) {
-    const query = [rental.name, rental.address || rental.province, 'Panama'].filter(Boolean).join(' ');
+    const query = [rental.name, rental.address, rental.province, 'Panama'].filter(Boolean).join(' - ');
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 

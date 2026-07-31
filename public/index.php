@@ -448,7 +448,7 @@ async function showDefaultView() {
             const email   = active ? (rental.email_member || rental.email) : rental.email;
             const address = active ? (rental.address || '') : '';
             const ph      = getPhoneNumbers(phone);
-            const mapsQuery = `${rental.name} ${(active && rental.address) ? rental.address : (rental.province||'')} Panama`;
+            const mapsQuery = [rental.name, (active ? rental.address : null), rental.province, 'Panama'].filter(Boolean).join(' - ');
             const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
             const photos  = Array.isArray(rental.photos) ? rental.photos : [];
             const thumb   = active && photos.length ? photos[0] : null;
@@ -678,7 +678,7 @@ function displayResults(rentals) {
           const email   = active ? (rental.email_member || rental.email) : rental.email;
           const address = active ? (rental.address || '') : '';
           const ph      = getPhoneNumbers(phone);
-          const mapsQuery = `${rental.name} ${(active && rental.address) ? rental.address : (rental.province||'')} Panama`;
+          const mapsQuery = [rental.name, (active ? rental.address : null), rental.province, 'Panama'].filter(Boolean).join(' - ');
           const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
           const photos  = Array.isArray(rental.photos) ? rental.photos : [];
           const thumb   = active && photos.length ? photos[0] : null;
