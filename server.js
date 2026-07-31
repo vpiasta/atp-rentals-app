@@ -1796,6 +1796,48 @@ app.post('/api/admin/wa-template', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── WhatsApp campaign queue — persistent, click-through-one-at-a-time list ───
+app.post('/api/admin/wa-queue/add', requireAdmin, async (req, res) => {
+    const { targets } = req.body;
+    if (!Array.isArray(targets) || !targets.length) return res.status(400).json({ error: 'No targets provided' });
+    const rows = targets.filter(t => t.whatsapp).map(t => ({
+        listing_id: t.id, name: t.name, slug: t.slug || null, whatsapp: t.whatsapp, status: 'pending'
+    }));
+    if (!rows.length) return res.status(400).json({ error: 'Ninguno de los seleccionados tiene WhatsApp confirmado' });
+    const ids = rows.map(r => r.listing_id);
+    await supabaseAdmin.from('wa_campaign_queue').delete().eq('status', 'pending').in('listing_id', ids);
+    const { error } = await supabaseAdmin.from('wa_campaign_queue').insert(rows);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, added: rows.length });
+});
+
+app.get('/api/admin/wa-queue', requireAdmin, async (req, res) => {
+    const { data, error } = await supabaseAdmin
+        .from('wa_campaign_queue')
+        .select('id, listing_id, name, slug, whatsapp, status, created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+app.post('/api/admin/wa-queue/:id/mark-sent', requireAdmin, async (req, res) => {
+    const id = parseInt(req.params.id);
+    const { data: row } = await supabaseAdmin.from('wa_campaign_queue').select('listing_id').eq('id', id).single();
+    await supabaseAdmin.from('wa_campaign_queue').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', id);
+    if (row) {
+        await supabaseAdmin.from('listings').update({
+            invitation_status: 'invited', invitation_sent_at: new Date().toISOString()
+        }).eq('id', row.listing_id);
+    }
+    res.json({ success: true });
+});
+
+app.post('/api/admin/wa-queue/:id/skip', requireAdmin, async (req, res) => {
+    await supabaseAdmin.from('wa_campaign_queue').update({ status: 'skipped' }).eq('id', parseInt(req.params.id));
+    res.json({ success: true });
+});
+
 // ── Editable help-panel content, one file per topic ──────────────────────────
 // Every topic (general guide + each per-button snippet) is its own HTML file
 // under public/help/, fetched on demand and editable via the same Quill panel.
