@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ayuda para Propietarios — Trusted Panama Stays</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8f9fa; color: #111; line-height: 1.7; }
+        .container { max-width: 720px; margin: 0 auto; padding: 20px; }
+        header {
+            background: linear-gradient(135deg, #005ca9, #00a859);
+            color: white; padding: 1.2rem 1.8rem; border-radius: 10px;
+            margin-bottom: 2rem; display: flex; align-items: center;
+            justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;
+        }
+        .header-left h1 { font-size: 1.4rem; font-weight: 700; }
+        .header-left p  { font-size: 0.82rem; opacity: 0.85; }
+        .lang-toggle, .back-link {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 20px; padding: 5px 14px; text-decoration: none;
+            color: white; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+        }
+        .lang-toggle:hover, .back-link:hover { background: rgba(255,255,255,0.28); }
+        .content { background: white; border-radius: 12px; padding: 2.2rem; box-shadow: 0 2px 20px rgba(0,0,0,0.08); }
+        .content h2 { color: #005ca9; font-size: 1.15rem; margin: 1.6rem 0 0.5rem; }
+        .content h2:first-child { margin-top: 0; }
+        .content p { margin-bottom: 0.6rem; color: #333; }
+        .content ul { margin: 0.4rem 0 0.8rem 1.4rem; }
+        .content li { margin-bottom: 0.3rem; }
+        .tip { background: #f0f7ff; border-left: 4px solid #005ca9; border-radius: 6px; padding: 0.8rem 1rem; margin: 0.8rem 0; font-size: 0.92rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div class="header-left">
+            <h1 id="page-title">Ayuda para Propietarios</h1>
+            <p id="page-subtitle">Trusted Panama Stays</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <a href="#" id="back-link" class="back-link" onclick="window.close();return false;">← Volver</a>
+            <a href="#" id="lang-toggle" class="lang-toggle" onclick="toggleLang();return false;">English</a>
+        </div>
+    </header>
+
+    <div class="content" id="content-es">
+        <h2>¿Qué puedo hacer en esta página?</h2>
+        <p>Esta es la página de edición de su hospedaje. Aquí puede agregar toda la información que hace que su perfil sea mucho más atractivo y fácil de encontrar que un listado básico.</p>
+
+        <h2>📞 Teléfono y correo (miembro)</h2>
+        <p>Estos campos reemplazan los datos del reporte de la ATP, que a veces están desactualizados. Ingrese aquí su número y correo actuales de contacto.</p>
+
+        <h2>📍 Dirección completa</h2>
+        <p>Este es uno de los datos más importantes. El reporte de la ATP solo indica la provincia — con una dirección completa, el botón "Maps" de su listado llevará a los turistas exactamente a su ubicación, no solo a la provincia en general.</p>
+        <div class="tip">💡 Consejo: escriba la dirección tal como la buscaría en Google Maps — puede incluir el nombre del pueblo, corregimiento, o un punto de referencia conocido cercano.</div>
+
+        <h2>📷 Fotos</h2>
+        <p>Puede agregar hasta 20 fotos arrastrándolas directamente al recuadro, o haciendo clic para seleccionarlas desde su computadora. Formatos aceptados: JPG, PNG, WebP — máximo 5MB por foto.</p>
+        <ul>
+            <li>La primera foto de la lista es la que aparece en los resultados de búsqueda — puede cambiar cuál es la principal marcándola con la estrella ⭐.</li>
+            <li>Puede reordenar sus fotos y eliminar las que no desee.</li>
+        </ul>
+
+        <h2>📝 Descripción</h2>
+        <p>Escriba una descripción de su hospedaje en español y en inglés. Esto ayuda a que los turistas internacionales entiendan qué ofrece, y mejora cómo Google indexa su página.</p>
+
+        <h2>🔗 Enlaces personalizados</h2>
+        <p>Puede agregar hasta varios botones adicionales con enlaces a su sitio web, página de reservas, redes sociales, tours virtuales, o cualquier otra página que desee compartir.</p>
+
+        <h2>🏷️ Características</h2>
+        <p>Seleccione las características que describen su hospedaje (piscina, WiFi, aire acondicionado, etc.). Esto ayuda a que los turistas le encuentren al buscar por estas palabras.</p>
+
+        <h2>🔑 Cambiar contraseña</h2>
+        <p>Puede cambiar su contraseña de acceso en cualquier momento desde el botón correspondiente en esta misma página.</p>
+
+        <h2>💳 Renovar membresía</h2>
+        <p>Si su membresía de prueba o de apoyo está por vencer, verá un botón para renovarla directamente desde aquí.</p>
+
+        <h2>💾 No olvide guardar</h2>
+        <p>Después de hacer cualquier cambio, haga clic en el botón <strong>💾 Guardar</strong> en la parte superior de la página para que sus cambios se publiquen.</p>
+
+        <h2>¿Preguntas?</h2>
+        <p>Escríbanos a <a href="mailto:info@trustedpanamastays.com" style="color:#005ca9;">info@trustedpanamastays.com</a> — con gusto le ayudamos.</p>
+    </div>
+
+    <div class="content" id="content-en" style="display:none;">
+        <h2>What can I do on this page?</h2>
+        <p>This is your property's editing page. Here you can add all the information that makes your profile far more attractive and easier to find than a basic listing.</p>
+
+        <h2>📞 Phone and email (member)</h2>
+        <p>These fields replace the data from the ATP report, which is sometimes outdated. Enter your current contact number and email here.</p>
+
+        <h2>📍 Full address</h2>
+        <p>This is one of the most important details. The ATP report only shows the province — with a full address, your listing's "Maps" button will take travelers exactly to your location, not just the general province.</p>
+        <div class="tip">💡 Tip: write your address the way you'd search for it on Google Maps — you can include the nearby town, district, or a well-known landmark.</div>
+
+        <h2>📷 Photos</h2>
+        <p>You can add up to 20 photos by dragging them directly into the box, or clicking to select them from your computer. Accepted formats: JPG, PNG, WebP — 5MB max per photo.</p>
+        <ul>
+            <li>The first photo in the list is the one shown in search results — you can change which one is the main photo using the star ⭐.</li>
+            <li>You can reorder your photos and remove any you don't want.</li>
+        </ul>
+
+        <h2>📝 Description</h2>
+        <p>Write a description of your property in both Spanish and English. This helps international travelers understand what you offer, and improves how Google indexes your page.</p>
+
+        <h2>🔗 Custom links</h2>
+        <p>You can add several extra buttons linking to your website, booking page, social media, virtual tours, or any other page you'd like to share.</p>
+
+        <h2>🏷️ Features</h2>
+        <p>Select the features that describe your property (pool, WiFi, air conditioning, etc.). This helps travelers find you when searching by these terms.</p>
+
+        <h2>🔑 Change password</h2>
+        <p>You can change your access password at any time from the corresponding button on this page.</p>
+
+        <h2>💳 Renew membership</h2>
+        <p>If your trial or supporting membership is about to expire, you'll see a button to renew it directly from here.</p>
+
+        <h2>💾 Don't forget to save</h2>
+        <p>After making any changes, click the <strong>💾 Save</strong> button at the top of the page so your changes go live.</p>
+
+        <h2>Questions?</h2>
+        <p>Write to us at <a href="mailto:info@trustedpanamastays.com" style="color:#005ca9;">info@trustedpanamastays.com</a> — we're happy to help.</p>
+    </div>
+</div>
+<script>
+function toggleLang() {
+    const es = document.getElementById('content-es');
+    const en = document.getElementById('content-en');
+    const isEs = es.style.display !== 'none';
+    es.style.display = isEs ? 'none' : 'block';
+    en.style.display = isEs ? 'block' : 'none';
+    document.getElementById('page-title').textContent = isEs ? 'Owner Help' : 'Ayuda para Propietarios';
+    document.getElementById('lang-toggle').textContent = isEs ? 'Español' : 'English';
+    document.getElementById('back-link').textContent = isEs ? '← Back' : '← Volver';
+}
+</script>
+</body>
+</html>
