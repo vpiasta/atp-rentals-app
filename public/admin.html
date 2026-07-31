@@ -347,6 +347,7 @@
         <!-- Edit panel -->
         <div class="panel edit-panel" id="edit-panel">
             <h3 id="edit-panel-title">Edit Member</h3>
+            <button onclick="openListingAsAdmin()" class="tbtn" style="background:#005ca9;color:white;margin-bottom:0.8rem;">🔓 Editar como este hospedaje</button>
             <input type="hidden" id="edit-id">
             <div class="edit-grid">
                 <div class="field-group">
@@ -1298,6 +1299,21 @@ function openEditPanel(id) {
     document.getElementById('edit-panel').classList.add('active');
     document.getElementById('edit-panel').scrollIntoView({ behavior:'smooth', block:'start' });
     loadApplicationInfoForEdit(m.id);
+    window._currentEditListing = m; // used by openListingAsAdmin()
+}
+
+async function openListingAsAdmin() {
+    const m = window._currentEditListing;
+    if (!m) return;
+    try {
+        const res = await adminFetch(`/api/admin/listing-access-token/${m.id}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error');
+        const url = m.slug
+            ? `listing.html?slug=${m.slug}&lang=es&admin_token=${encodeURIComponent(data.token)}`
+            : `listing.html?id=${m.id}&lang=es&admin_token=${encodeURIComponent(data.token)}`;
+        window.open(url, '_blank');
+    } catch(err) { alert('Error: ' + err.message); }
 }
 
 async function loadApplicationInfoForEdit(listingId) {

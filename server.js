@@ -1352,6 +1352,20 @@ app.get('/api/listing/:id', async (req, res) => {
     res.json(data);
 });
 
+// ── Admin-only: mint a valid listing session token without the member's ──
+// password. Uses the exact same token format /api/listing-login produces,
+// so it works identically once loaded — no password reset, no shared
+// credential, member's own password is completely untouched.
+app.get('/api/admin/listing-access-token/:id', requireAdmin, async (req, res) => {
+    const id = parseInt(req.params.id);
+    const { data, error } = await supabaseAdmin
+        .from('listings').select('id, is_member').eq('id', id).single();
+    if (error || !data) return res.status(404).json({ error: 'Listing not found' });
+    const token = Buffer.from(`${id}:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
+    res.json({ token });
+});
+
+
 app.post('/api/listing-login', async (req, res) => {
     const bcrypt = require('bcrypt');
     const { id, password } = req.body;

@@ -380,6 +380,16 @@ langLink.addEventListener('click', e => {
 });
 
 function restoreSession(id) {
+    // Admin-provided token via URL takes priority — also persisted to
+    // sessionStorage so the rest of the page (save, photo upload, etc.)
+    // works exactly as a normal logged-in session would.
+    const urlToken = new URLSearchParams(window.location.search).get('admin_token');
+    if (urlToken) {
+        sessionToken = urlToken;
+        isLoggedIn = true;
+        sessionStorage.setItem(`tps_token_${id}`, urlToken);
+        return;
+    }
     const token = sessionStorage.getItem(`tps_token_${id}`);
     if (token) { sessionToken = token; isLoggedIn = true; }
 }
