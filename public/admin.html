@@ -570,11 +570,6 @@
                 <h3 style="color:#FFD700;margin-bottom:1rem;">📧 Campaña de Mensajes por Correo y WhatsApp (Invitos, Recordatarios)</h3>
 
                 <div style="display:flex;flex-direction:column;gap:1rem;">
-                    <div style="background:#2c3e50;border-radius:8px;padding:1rem;">
-                        <h4 style="color:#ff7070;margin-bottom:0.5rem;">📱 No-email list (for WhatsApp)</h4>
-                        <p style="font-size:0.82rem;color:#aaa;margin-bottom:0.8rem;">Download a list of non-members with no email address for manual WhatsApp outreach.</p>
-                        <button onclick="downloadNoEmailList()" class="action-btn edit">⬇️ Download list</button>
-                    </div>
 
                     <div style="background:#1a2a2a;border:1px solid #2a5a5a;border-radius:8px;padding:1rem;">
                     <h4 style="color:#7ec8e3;margin-bottom:0.8rem;">🎯 Seleccionar Receptores del Mensaje</h4>
@@ -633,6 +628,15 @@
                         <button onclick="document.getElementById('fb-review-panel').style.display='none'" class="action-btn edit">Cancelar</button>
                     </div>
                 </div>
+
+                <div style="background:#0f2a1f;border:1px solid #1a5c3a;border-radius:8px;padding:1rem;margin-top:0.8rem;">
+                    <h4 style="color:#25D366;margin-bottom:0.5rem;">📱 Cola de WhatsApp (<span id="wa-queue-count">0</span> pendientes)</h4>
+                    <p style="font-size:0.78rem;color:#aaa;margin-bottom:0.6rem;">Haga clic en "Abrir WhatsApp" para enviar uno a la vez. Cada uno se marca como enviado automáticamente y se elimina de la cola. La cola se guarda aunque cierre el panel.</p>
+                    <button onclick="addFbSelectionToWaQueue()" class="action-btn" style="background:#25D366;color:white;margin-bottom:0.6rem;">➕ Agregar selección confirmada a la cola</button>
+                    <div id="wa-queue-send-counter" style="font-size:0.8rem;font-weight:700;margin-bottom:0.6rem;"></div>
+                    <div id="wa-queue-list" style="max-height:320px;overflow-y:auto;"></div>
+                </div>
+
                 </div>
 
                 <div id="campaign-result" style="margin-top:1rem;padding:1rem;background:#2c3e50;border-radius:8px;display:none;"></div>
@@ -886,7 +890,7 @@ function showTab(name) {
     if (name === 'atpsync')      loadAtpDiff();
     if (name === 'applications') loadApplications().then(() => filterApps('all'));
     if (name === 'invoices')     loadInvoiceLog();
-    if (name === 'campaign')     { loadTemplateList(); updateFilterBuilder(); }
+    if (name === 'campaign')     { loadTemplateList(); updateFilterBuilder(); loadWaQueue(); }
     if (name === 'analytics')    loadAnalytics(7);
     if (name === 'suggestions') renderSuggestions();
     if (name === 'keywords-edit') loadKeywordsEdit();
@@ -1437,6 +1441,7 @@ function getWaSendLog() {
     try { return JSON.parse(localStorage.getItem('tps_wa_send_log') || '{}'); }
     catch { return {}; }
 }
+
 function recordWaSend() {
     const log = getWaSendLog();
     const today = new Date().toISOString().split('T')[0];
@@ -1446,6 +1451,7 @@ function recordWaSend() {
     localStorage.setItem('tps_wa_send_log', JSON.stringify(log));
     return log;
 }
+
 function getWaSendStatus() {
     const log = getWaSendLog();
     const today = new Date().toISOString().split('T')[0];
@@ -2906,17 +2912,20 @@ function toggleFbSelectAll(checked) {
 }
 
 function openFbReview() {
-    const matches = computeFilterMatches().filter(m => m.email_member || m.email);
+    const matches = computeFilterMatches();
     const panel = document.getElementById('fb-review-panel');
     const list  = document.getElementById('fb-review-list');
     document.getElementById('fb-review-count').textContent = matches.length;
     const selectAllCb = document.getElementById('fb-select-all-cb');
     if (selectAllCb) selectAllCb.checked = true;
-    list.innerHTML = matches.map(m => `
-        <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:0.85rem;">
+    list.innerHTML = matches.map(m => {
+        const email = m.email_member || m.email;
+        const contact = email ? email : (m.whatsapp ? `WhatsApp: ${m.whatsapp}` : 'sin correo ni WhatsApp');
+        return `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:0.85rem;">
             <input type="checkbox" class="fb-review-cb" data-id="${m.id}" checked>
-            <span>${m.name} — ${m.email_member || m.email}</span>
-        </label>`).join('');
+            <span>${m.name} — ${contact}</span>
+        </label>`;
+    }).join('');
     panel.style.display = 'block';
     panel.scrollIntoView({ behavior:'smooth', block:'center' });
 }
@@ -2925,9 +2934,76 @@ function confirmFbSelection() {
     const checkedIds = Array.from(document.querySelectorAll('.fb-review-cb:checked')).map(cb => parseInt(cb.getAttribute('data-id')));
     fbConfirmedTargets = allMembers
         .filter(m => checkedIds.includes(m.id))
-        .map(m => ({ email: m.email_member || m.email, name: m.name, contact_name: m.contact_name || '', id: m.id, slug: m.slug || '' }));
+        .map(m => ({ email: m.email_member || m.email, name: m.name, contact_name: m.contact_name || '', id: m.id, slug: m.slug || '', whatsapp: m.whatsapp || '' }));
     document.getElementById('fb-review-panel').style.display = 'none';
-    alert(`✅ ${fbConfirmedTargets.length} destinatario(s) confirmados. Ahora escriba/cargue su mensaje y envíe.`);
+    alert(`✅ ${fbConfirmedTargets.length} destinatario(s) confirmados. Puede enviar por correo, o agregarlos a la cola de WhatsApp abajo.`);
+}
+
+// ── WhatsApp campaign queue ───────────────────────────────────────────────────
+async function addFbSelectionToWaQueue() {
+    if (!fbConfirmedTargets.length) { alert('Primero construya y confirme una selección arriba.'); return; }
+    const withWa = fbConfirmedTargets.filter(t => t.whatsapp);
+    if (!withWa.length) { alert('Ninguno de los seleccionados tiene WhatsApp confirmado.'); return; }
+    if (!confirm(`¿Agregar ${withWa.length} hospedaje(s) a la cola de WhatsApp?`)) return;
+    try {
+        const res = await adminFetch('/api/admin/wa-queue/add', { method: 'POST', body: JSON.stringify({ targets: withWa }) });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Error');
+        loadWaQueue();
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function loadWaQueue() {
+    try {
+        const res  = await adminFetch('/api/admin/wa-queue');
+        const rows = await res.json();
+        const tRes = await adminFetch('/api/admin/wa-template');
+        const tData = await tRes.json();
+        const template = tData.template;
+        document.getElementById('wa-queue-count').textContent = rows.length;
+        const list = document.getElementById('wa-queue-list');
+        if (!rows.length) { list.innerHTML = '<p style="color:#888;font-size:0.85rem;">No hay hospedajes en la cola.</p>'; return; }
+        list.innerHTML = rows.map(r => {
+            const listingUrl = r.slug
+                ? `https://trustedpanamastays.com/listing.html?slug=${r.slug}&lang=es`
+                : `https://trustedpanamastays.com/listing.html?id=${r.listing_id}&lang=es`;
+            const msg = (template || '').replace(/\{name\}/g, r.name).replace(/\{url\}/g, listingUrl);
+            const waUrl = `https://wa.me/${r.whatsapp}?text=${encodeURIComponent(msg)}`;
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px solid #1a3a2a;">
+                <span style="font-size:0.85rem;">${r.name}</span>
+                <span style="display:flex;gap:6px;">
+                    <a href="${waUrl}" target="_blank" onclick="markWaQueueSent(${r.id})" style="background:#25D366;color:white;text-decoration:none;padding:5px 10px;border-radius:5px;font-size:0.8rem;">💬 Abrir WhatsApp</a>
+                    <button onclick="markWaQueueInvalid(${r.id},${r.listing_id})" class="action-btn edit" style="color:#ff7070;">❌ No es WhatsApp</button>
+                </span>
+            </div>`;
+        }).join('');
+        updateWaQueueCounter();
+    } catch(e) {}
+}
+
+function markWaQueueSent(rowId) {
+    if (!checkWaSendSafety()) return;
+    recordWaSend();
+    adminFetch(`/api/admin/wa-queue/${rowId}/mark-sent`, { method: 'POST' })
+        .then(() => setTimeout(loadWaQueue, 700))
+        .catch(() => {});
+}
+
+async function markWaQueueInvalid(rowId, listingId) {
+    if (!confirm('¿Marcar este número como confirmado SIN WhatsApp?')) return;
+    try {
+        await adminFetch('/api/admin/mark-whatsapp-invalid', { method: 'POST', body: JSON.stringify({ id: listingId }) });
+        await adminFetch(`/api/admin/wa-queue/${rowId}/skip`, { method: 'POST' });
+        loadWaQueue();
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+function updateWaQueueCounter() {
+    const el = document.getElementById('wa-queue-send-counter');
+    if (!el) return;
+    const { count } = getWaSendStatus();
+    const color = count >= WA_DAILY_SAFE_LIMIT ? '#ff7070' : (count >= WA_DAILY_SAFE_LIMIT - 1 ? '#FFD700' : '#aaa');
+    el.innerHTML = `<span style="color:${color};">Enviados hoy: ${count}/${WA_DAILY_SAFE_LIMIT}</span>`;
 }
 
 async function sendToFbTargets() {
