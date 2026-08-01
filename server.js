@@ -5000,6 +5000,51 @@ app.post('/api/admin/send-general-campaign-now', requireAdmin, async (req, res) 
     sendGeneralCampaignBatch(); // Run in background
 });
 
+// ── Inbound application email webhook (Hostinger) ─────────────────────────────
+// Receives replies to the lightweight trial campaign. Captures the raw
+// payload unconditionally first (so nothing is ever lost, even before we
+// fully understand the payload shape), then does best-effort parsing.
+app.post('/api/inbound-application', express.json({ limit: '10mb' }), async (req, res) => {
+    const auth = req.get('authorization') || '';
+    if (!auth.startsWith('Bearer ') || auth.slice(7) !== process.env.INBOUND_WEBHOOK_SECRET) {
+        return res.status(401).send('Unauthorized');
+    }
+    // Acknowledge immediately — all processing happens after, per Hostinger's guidance
+    res.sendStatus(200);
+
+    try {
+        const payload = req.body;
+        const sender  = payload.from?.email || payload.sender?.email || payload.from || payload.sender || null;
+        const subject = payload.subject || payload.data?.subject || null;
+        const body    = payload.text || payload.body || payload.data?.text || payload.data?.body || null;
+        const html    = payload.html || payload.data?.html || null;
+
+        // Extract listing ID from a tag like [TPS-12345] in the subject
+        const idMatch = subject ? subject.match(/\[TPS-(\d+)\]/) : null;
+        const listingId = idMatch ? parseInt(idMatch[1]) : null;
+
+        // Simple Spanish/English heuristic — refine once we see real replies
+        const textForLangCheck = (body || html || '').toLowerCase();
+        const spanishHits = (textForLangCheck.match(/\b(el|la|de|que|hospedaje|habitaciones|fotos|gracias)\b/g) || []).length;
+        const detectedLang = spanishHits >= 2 ? 'es' : 'en';
+
+        await supabaseAdmin.from('pending_submissions').insert({
+            listing_id: listingId,
+            sender_email: sender,
+            subject: subject,
+            description_text: body || html || null,
+            detected_lang: detectedLang,
+            raw_payload: payload,
+            status: 'pending'
+        });
+
+        await logEvent('inbound_application_received', { sender, subject, listing_id: listingId, matched: !!listingId });
+        console.log(`📩 Inbound application received — sender: ${sender}, listing: ${listingId || 'UNMATCHED'}`);
+    } catch (err) {
+        console.error('Inbound application processing error:', err.message);
+        await logEvent('inbound_application_error', { error: err.message }).catch(() => {});
+    }
+});
 
 
 //========== temporary endpoints ============================
