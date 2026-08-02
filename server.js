@@ -5021,13 +5021,88 @@ app.post('/api/admin/send-general-campaign-now', requireAdmin, async (req, res) 
 });
 
 // ── Inbound application email webhook (Hostinger) ─────────────────────────────
-// Phase 1: capture the raw payload unconditionally, no confident field
-// parsing yet. Hostinger's own docs suggest this webhook may only deliver
-// lightweight metadata (sender, subject, truncated message) — not the full
-// email or attachments — in which case fetching the full message/attachments
-// would need a separate follow-up call to the Agentic Mail REST API using an
-// API token (different from this webhook's bearer secret). We confirm the
-// real shape from a live test before building any parsing logic on top.
+// Phase 2: full parsing. Confirmed live payload shape (2026-08-01): Hostinger's
+// "Agentic Mail" message.received event delivers plainBody/htmlBody inline
+// (not truncated) plus attachments[] with pre-signed, time-limited GCS
+// fileUrls — no follow-up Mail REST API call needed.
+
+// Extract the listing ID from a [TPS-#####] tag in the subject line, e.g.
+// "Re: Trial Listing Application [TPS-1234]" → 1234.
+function extractListingIdFromSubject(subject) {
+    const m = (subject || '').match(/\[TPS-(\d+)\]/i);
+    return m ? parseInt(m[1], 10) : null;
+}
+
+// Primary description extraction: look for the delimiter markers we ask
+// senders to reply between. Handles both the Spanish and English marker
+// text, and strips leading "> " reply-quote prefixes some mail clients add
+// per line if the sender replied inline rather than at the top.
+function extractDescriptionByDelimiter(plainBody) {
+    if (!plainBody) return null;
+    const unquoted = plainBody.replace(/^>+\s?/gm, '');
+    const m = unquoted.match(/-{3,}\s*(?:INICIO DESCRIPCI[ÓO]N|DESCRIPTION START)\s*-{3,}\s*([\s\S]*?)\s*-{3,}\s*(?:FIN DESCRIPCI[ÓO]N|DESCRIPTION END)\s*-{3,}/i);
+    if (!m) return null;
+    const text = m[1].trim();
+    return text.length >= 5 ? text : null;
+}
+
+// Fallback: ask the AI to pull just the description out of a messy reply
+// (greetings/signature/quoted history included), when the delimiter wasn't
+// followed. Text-only — no images — matching runAiVerification()'s call
+// pattern but with a much smaller prompt/response.
+async function aiExtractDescription(plainBody) {
+    if (!plainBody) return null;
+    const prompt = `The following is an email reply from a hotel/rental owner to a signup campaign. They were asked to write a short description of their property, but may not have followed the requested format (they may have included greetings, a signature, quoted previous messages, or unrelated text).
+
+Extract ONLY the property description text, in the sender's own words. If no genuine property description is present at all, return an empty string.
+
+Email body:
+"""
+${plainBody.slice(0, 4000)}
+"""
+
+Return ONLY a JSON object, no other text:
+{ "description": "..." }`;
+    try {
+        const response = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-opus-4-5', max_tokens: 500,
+            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+        }, {
+            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+            timeout: 30000
+        });
+        const result = JSON.parse(response.data.content[0].text.replace(/```json\n?|\n?```/g, '').trim());
+        const text = (result.description || '').trim();
+        return text.length >= 5 ? text : null;
+    } catch (err) {
+        console.error('aiExtractDescription error:', err.message);
+        return null;
+    }
+}
+
+// Very rough language guess — good enough to flag for admin review, not a
+// substitute for careful checking. Counts a handful of common Spanish-only
+// stopwords vs English-only stopwords.
+function detectLanguage(text) {
+    if (!text) return null;
+    const t = ' ' + text.toLowerCase() + ' ';
+    const esHits = (t.match(/ (el|la|los|las|de|para|con|nuestro|nuestra|hospedaje|habitaciones) /g) || []).length;
+    const enHits = (t.match(/ (the|and|for|with|our|rooms|property) /g) || []).length;
+    if (esHits === 0 && enHits === 0) return null;
+    return esHits >= enHits ? 'es' : 'en';
+}
+
+// Sanitize an attachment filename the same way as /api/listing-photo-upload,
+// for consistency across both storage paths.
+function safeAttachmentName(originalname) {
+    return originalname
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9._-]/g, '_')
+        .replace(/_+/g, '_')
+        .toLowerCase();
+}
+
 app.post('/api/inbound-application', express.json({ limit: '10mb' }), async (req, res) => {
     const auth = req.get('authorization') || '';
     if (!auth.startsWith('Bearer ') || auth.slice(7) !== process.env.INBOUND_WEBHOOK_SECRET) {
@@ -5036,17 +5111,93 @@ app.post('/api/inbound-application', express.json({ limit: '10mb' }), async (req
     res.sendStatus(200); // acknowledge immediately, per Hostinger's guidance
 
     try {
-        await supabaseAdmin.from('pending_submissions').insert({
-            raw_payload: req.body,
-            status: 'raw_unparsed'
+        const payload = req.body?.data || {};
+        const subject = payload.subject || '';
+        const senderEmail = payload.from || null;
+        const plainBody = payload.plainBody || '';
+        const attachments = Array.isArray(payload.attachments) ? payload.attachments : [];
+
+        const listingId = extractListingIdFromSubject(subject);
+        const matchMethod = listingId ? 'subject_tag' : 'unmatched';
+
+        let descriptionText = extractDescriptionByDelimiter(plainBody);
+        let extractionMethod = descriptionText ? 'delimiter' : null;
+        if (!descriptionText) {
+            descriptionText = await aiExtractDescription(plainBody);
+            if (descriptionText) extractionMethod = 'ai_fallback';
+        }
+
+        const detectedLang = detectLanguage(descriptionText);
+
+        // Insert first (without photos) to obtain the submission id, which
+        // is needed for the pending/{submission_id}/ storage path.
+        const { data: inserted, error: insertErr } = await supabaseAdmin
+            .from('pending_submissions')
+            .insert({
+                listing_id: listingId,
+                sender_email: senderEmail,
+                subject,
+                description_text: descriptionText,
+                detected_lang: detectedLang,
+                extraction_method: extractionMethod,
+                match_method: matchMethod,
+                raw_payload: req.body,
+                status: 'pending'
+            })
+            .select('id')
+            .single();
+        if (insertErr) throw insertErr;
+        const submissionId = inserted.id;
+
+        // Download each attachment from its pre-signed GCS URL and re-upload
+        // to Supabase Storage under pending/{submissionId}/ — kept separate
+        // from the real listing-photos tree until admin approval.
+        const storedPhotos = [];
+        for (let i = 0; i < attachments.length; i++) {
+            const att = attachments[i];
+            if (!att.fileUrl || !(att.contentType || '').startsWith('image/')) continue;
+            try {
+                const fileRes = await axios.get(att.fileUrl, { responseType: 'arraybuffer', timeout: 30000 });
+                const safeName = safeAttachmentName(att.filename || `photo-${i}.jpg`);
+                const storagePath = `pending/${submissionId}/${i}-${safeName}`;
+                const { error: upErr } = await supabaseAdmin.storage
+                    .from('listing-photos')
+                    .upload(storagePath, Buffer.from(fileRes.data), {
+                        contentType: att.contentType,
+                        upsert: false
+                    });
+                if (upErr) throw upErr;
+                const { data: urlData } = supabaseAdmin.storage.from('listing-photos').getPublicUrl(storagePath);
+                storedPhotos.push({ url: urlData.publicUrl, filename: att.filename || null, sizeBytes: att.sizeBytes || null });
+            } catch (attErr) {
+                console.error(`Inbound application: attachment ${i} failed:`, attErr.message);
+            }
+        }
+
+        if (storedPhotos.length) {
+            await supabaseAdmin.from('pending_submissions')
+                .update({ photos: storedPhotos })
+                .eq('id', submissionId);
+        }
+
+        await logEvent('inbound_application_parsed', {
+            submissionId, listingId, matchMethod, extractionMethod,
+            photosStored: storedPhotos.length, photosTotal: attachments.length
         });
-        await logEvent('inbound_application_raw_received', { keys: Object.keys(req.body || {}) });
-        console.log('📩 Inbound webhook received — raw payload keys:', Object.keys(req.body || {}));
+        console.log(`📩 Inbound application #${submissionId} parsed — listing ${listingId || 'UNMATCHED'}, ${extractionMethod || 'NO DESCRIPTION'}, ${storedPhotos.length}/${attachments.length} photos`);
     } catch (err) {
-        console.error('Inbound application capture error:', err.message);
+        console.error('Inbound application processing error:', err.message);
+        // Fall back to raw capture so the submission isn't lost entirely
+        try {
+            await supabaseAdmin.from('pending_submissions').insert({
+                raw_payload: req.body,
+                status: 'raw_unparsed'
+            });
+        } catch (fallbackErr) {
+            console.error('Inbound application fallback capture also failed:', fallbackErr.message);
+        }
     }
 });
-
 
 //========== temporary endpoints ============================
 
