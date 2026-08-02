@@ -21,9 +21,11 @@ if (!$isCLI && !in_array($callerIP, $allowedIPs)) {
 // ── Load arguments ────────────────────────────────────────────────────────────
 // When called from Node.js via execFile:
 // php notify.php "subject" "html_message" "recipient_email"
-$subject  = $argv[1] ?? 'Notificación - Trusted Panama Stays';
-$message  = $argv[2] ?? '(sin mensaje)';
-$to       = $argv[3] ?? 'info@trustedpanamastays.com';
+$subject   = $argv[1] ?? 'Notificación - Trusted Panama Stays';
+$message   = $argv[2] ?? '(sin mensaje)';
+$to        = $argv[3] ?? 'info@trustedpanamastays.com';
+$fromEmail = $argv[4] ?? 'info@trustedpanamastays.com';
+$fromName  = $argv[5] ?? 'Trusted Panama Stays';
 
 // ── Load environment variables (shared with aparthotel-boquete.com) ──────────
 require_once '/home/u945180857/secure_beds24_tokens/env_loader.php';
@@ -51,7 +53,7 @@ try {
     $mail->Port       = env('SMTP_TPS_PORT');
     $mail->SMTPDebug  = 0;
 
-    $mail->setFrom('info@trustedpanamastays.com', 'Trusted Panama Stays');
+    $mail->setFrom($fromEmail, $fromName);
     $mail->addAddress($to);
     // $mail->addCC('info@trustedpanamastays.com');
     $mail->Subject = $subject;

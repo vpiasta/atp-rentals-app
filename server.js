@@ -3599,17 +3599,21 @@ app.post('/api/admin/preview-followup-html', requireAdmin, async (req, res) => {
 // ── POST /api/admin/send-followup-test ───────────────────────────────────────
 // Send test email to info@ only
 app.post('/api/admin/send-followup-test', requireAdmin, async (req, res) => {
-    const { subject, body } = req.body;
+    const { subject, body, from } = req.body;
     if (!subject || !body) return res.status(400).json({ error: 'Missing subject or body' });
 
+    const sender = resolveSender(from);
+    const testSubject = subject.includes('{id}') ? subject.split('{id}').join('99999') : subject;
     const fullHtml = buildFollowupHtml('HOTEL EJEMPLO', 'Juan García', body);
     const notifyPath = path.join(__dirname, 'public', 'notify.php');
     try {
         await execFileAsync('php', [
             notifyPath,
-            '[TEST] ' + subject,
+            '[TEST] ' + testSubject,
             fullHtml,
-            'info@trustedpanamastays.com'
+            'info@trustedpanamastays.com',
+            sender.email,
+            sender.name
         ], { timeout: 15000 });
         res.json({ success: true });
     } catch (err) {
@@ -3651,6 +3655,16 @@ app.post('/api/admin/send-followup-all', requireAdmin, async (req, res) => {
     console.log(`Follow-up done: ${sent} sent, ${errors} errors`);
 });
 
+
+// ── Allowed "From" addresses for admin-composed campaign emails ──────────────
+const ALLOWED_SENDERS = {
+    'info@trustedpanamastays.com': 'Trusted Panama Stays',
+    'members@trustedpanamastays.com': 'Trusted Panama Stays'
+};
+function resolveSender(from) {
+    const email = ALLOWED_SENDERS[from] ? from : 'info@trustedpanamastays.com';
+    return { email, name: ALLOWED_SENDERS[email] };
+}
 
 // ── Helper: wrap body content in full email template ─────────────────────────
 function buildFollowupHtml(hotel, manager, bodyContent) {
@@ -3917,7 +3931,7 @@ app.post('/api/admin/send-followup-new', requireAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/send-followup-specific', requireAdmin, async (req, res) => {
-    const { subject, body, emails, targets: directTargets } = req.body;
+    const { subject, body, emails, targets: directTargets, from } = req.body;
     let targets;
     if (Array.isArray(directTargets) && directTargets.length) {
         // Called from the Hospedajes-tab selection — real listing names/emails
@@ -3940,7 +3954,7 @@ app.post('/api/admin/send-followup-specific', requireAdmin, async (req, res) => 
     }
     if (!subject || !body || !targets.length) return res.status(400).json({ error: 'Missing fields' });
     res.json({ success: true, message: `Sending to ${targets.length} recipients`, total: targets.length });
-    await sendToRosterList(targets, subject, body);
+    await sendToRosterList(targets, subject, body, from);
 });
 
 // ── Helper: send to a list of roster-format members ───────────────────────────
@@ -3972,8 +3986,9 @@ async function resolveListingUrl(member) {
     }
 }
 
-async function sendToRosterList(targets, subject, body) {
+async function sendToRosterList(targets, subject, body, from) {
     const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    const sender = resolveSender(from);
     let sent = 0, errors = 0;
     for (const member of targets) {
         if (!member.email || !member.email.includes('@')) continue;
@@ -3982,8 +3997,13 @@ async function sendToRosterList(targets, subject, body) {
             // recipient's actual listing page — works for any send path.
             const listingUrl = body.includes('{url}') ? await resolveListingUrl(member) : null;
             const personalizedBody = listingUrl ? body.split('{url}').join(listingUrl) : body;
+            // Replace the {id} placeholder (if the subject uses it) with this
+            // recipient's listing ID — e.g. for the [TPS-{id}] reply tag.
+            const personalizedSubject = (subject.includes('{id}') && member.id)
+                ? subject.split('{id}').join(member.id)
+                : subject;
             const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', personalizedBody);
-            await execFileAsync('php', [notifyPath, subject, html, member.email], { timeout: 15000 });
+            await execFileAsync('php', [notifyPath, personalizedSubject, html, member.email, sender.email, sender.name], { timeout: 15000 });
             // Mark as contacted in DB
             await supabase.from('listings')
                 .update({ apatel_contacted_at: new Date().toISOString() })
