@@ -499,6 +499,19 @@ document.addEventListener('change', function(e) {
     }
 });
 
+// Pre-fill membership ID when arriving from a reminder email link
+// (e.g. pay.html?id=12345) — skips retyping the number we already know.
+(function preFillFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const preId = params.get('id');
+    if (!preId) return;
+    const idField = document.getElementById('membership-id');
+    if (idField) {
+        idField.value = preId;
+        lookupMember();
+    }
+})();
+
 </script>
 </body>
 </html>
