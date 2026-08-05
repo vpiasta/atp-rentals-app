@@ -3085,7 +3085,6 @@ app.get('/api/featured-listing', async (req, res) => {
 });
 
 
-// ── GET /api/send-trial-reminders
 
 app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => {
     const { filter, dry_run } = req.body;
@@ -4344,77 +4343,236 @@ Return ONLY the JSON, no other text.`;
     }
 });
 
-// ── Trial expiry reminder — runs daily ───────────────────────────────────────
-async function sendTrialExpiryReminders() {
-    try {
-        const in7days = new Date();
-        in7days.setDate(in7days.getDate() + 7);
-        const dateStr = in7days.toISOString().split('T')[0];
-
-        const { data: expiring } = await supabaseAdmin
-            .from('listings')
-            .select('id, name, contact_name, email_member, email, membership_paid_until, photos')
-            .eq('is_trial', true)
-            .eq('is_member', true)
-            .eq('membership_paid_until', dateStr);
-
-        if (!expiring || !expiring.length) return;
-
-        const reminderPath = path.join(__dirname, 'public', 'templates', 'trial_expiry_reminder.html');
-        let reminderBody = '';
-        try { reminderBody = fs.readFileSync(reminderPath, 'utf8'); } catch(e) {
-            console.error('Could not load trial reminder template'); return;
-        }
-
-        const notifyPath = path.join(__dirname, 'public', 'notify.php');
-        for (const listing of expiring) {
-            const toEmail = listing.email_member || listing.email;
-            if (!toEmail || !toEmail.includes('@')) continue;
-            const name = listing.contact_name || 'propietario/a';
-            const html = `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;margin:0 auto;">
-<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
-    <h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1>
-    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.88rem;">Directorio de hospedajes legalmente registrados en Panamá</p>
-</div>
-<p>Estimado/a <strong>${name}</strong>,</p>
-${reminderBody}
-${(!listing.photos || !listing.photos.length) ? `
-<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:1rem;margin:1rem 0;">
-    <p style="margin:0;color:#856404;"><strong>💡 Notamos que su listado aún no tiene fotos.</strong> Con solo una foto, su hospedaje aparecerá destacado en la página principal de Trusted Panama Stays — visible para todos los turistas que buscan hospedaje en Panamá.</p>
-</div>` : ''}
-<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
-<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
-<a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a></p>
-</body></html>`;
-
-            try {
-                await execFileAsync('php', [notifyPath,
-                    'Su membresía de prueba vence pronto — ' + listing.name,
-                    html, toEmail], { timeout: 15000 });
-                await logEvent('trial_reminder_sent', { listing_id: listing.id, email: toEmail });
-                console.log(`Trial reminder sent to ${listing.name}`);
-            } catch(err) {
-                console.error(`Trial reminder failed for ${listing.name}:`, err.message);
-            }
-        }
-    } catch(err) {
-        console.error('sendTrialExpiryReminders error:', err.message);
-    }
+// Determine whether a listing has verified ownership documents on file —
+// same check /api/payment-info uses (a non-archived membership_applications
+// row with a recorded RUC). If not, renewal must route through join.html
+// (to collect documents) rather than pay.html (which assumes RUC/DV known).
+async function hasDocumentedApplication(listingId) {
+    const { data } = await supabaseAdmin
+        .from('membership_applications')
+        .select('id')
+        .eq('listing_id', listingId)
+        .not('ruc', 'is', null)
+        .neq('status', 'archived')
+        .limit(1)
+        .maybeSingle();
+    return !!data;
 }
 
-// Run daily at 9am Panama time (UTC-5 = 14:00 UTC)
-const now = new Date();
-const msUntil9am = (() => {
-    const next = new Date();
-    next.setUTCHours(14, 0, 0, 0);
-    if (next <= now) next.setDate(next.getDate() + 1);
-    return next - now;
-})();
-setTimeout(() => {
-    sendTrialExpiryReminders();
-    setInterval(sendTrialExpiryReminders, 24 * 60 * 60 * 1000);
-}, msUntil9am);
-console.log(`Trial reminder scheduler set — first run in ${Math.round(msUntil9am/3600000)}h`);
+// ── Shared email wrapper (header table + footer, matches site style) ────────
+function wrapTrialEmailHtml(bodyHtml) {
+    return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;margin:0;padding:0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto 1.5rem;">
+    <tr><td bgcolor="#005ca9" style="background-color:#005ca9;" width="600">
+        <img src="https://trustedpanamastays.com/images/email-header.png" alt="Trusted Panama Stays — Directorio de hospedajes legalmente registrados en Panamá" width="600" style="display:block;width:600px;border:0;color:#ffffff;font-size:22px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;text-align:center;padding:40px 20px;background-color:#005ca9;">
+    </td></tr>
+</table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto;">
+    <tr><td height="20" style="font-size:1px;line-height:1px;">&nbsp;</td></tr>
+    <tr><td style="padding:0 20px;">
+${bodyHtml}
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">
+    Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
+    <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a>
+</p>
+    </td></tr>
+</table>
+</body></html>`;
+}
+
+// ── GET /api/send-trial-reminders (called daily by GitHub Action) ───────────
+// Full trial lifecycle, all stages checked in one daily pass:
+//   1. 5 days before expiry           → renewal reminder
+//   2. 2 days (48h) before expiry     → one-time 7-day extension offer (click link)
+//   3. On expiry (original or extended) → final notice + demotion
+app.get('/api/send-trial-reminders', async (req, res) => {
+    const { secret } = req.query;
+    if (secret !== process.env.ADMIN_SECRET) return res.status(403).send('Denied');
+
+    const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    const today    = new Date();
+    const dateStr  = d => d.toISOString().split('T')[0];
+    const plusDays = n => { const d = new Date(today); d.setDate(d.getDate() + n); return d; };
+
+    const results = { reminder5day: 0, extensionOffer: 0, finalNotice: 0, errors: 0 };
+
+    try {
+        // ── Stage 1: 5-day renewal reminder ──────────────────────────────────
+        const { data: dueReminder } = await supabaseAdmin
+            .from('listings')
+            .select('id, name, contact_name, email_member, email, membership_paid_until, slug, photos')
+            .eq('is_member', true).eq('is_trial', true)
+            .is('trial_reminder_sent_at', null)
+            .eq('membership_paid_until', dateStr(plusDays(5)));
+
+        for (const listing of dueReminder || []) {
+            const toEmail = listing.email_member || listing.email;
+            if (!toEmail || !toEmail.includes('@')) continue;
+            try {
+              const name = listing.contact_name || 'propietario/a';
+              const listingUrl = listing.slug
+                  ? `https://trustedpanamastays.com/listing.html?slug=${listing.slug}&lang=es`
+                  : `https://trustedpanamastays.com/listing.html?id=${listing.id}&lang=es`;
+              const documented = await hasDocumentedApplication(listing.id);
+              const renewUrl = documented
+                  ? `https://trustedpanamastays.com/pay.html?id=${listing.id}`
+                  : `https://trustedpanamastays.com/join.html?id=${listing.id}`;
+              const renewLabel = documented ? 'Renovar membresía →' : 'Completar registro →';
+              const noPhotosBlock = (!listing.photos || !listing.photos.length) ? `
+<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:1rem;margin:1rem 0;">
+    <p style="margin:0;color:#856404;"><strong>💡 Notamos que su listado aún no tiene fotos.</strong> Con solo una foto, su hospedaje aparecerá destacado en la página principal de Trusted Panama Stays.</p>
+</div>` : '';
+                const body = `
+<p style="margin-top:0;">Estimado/a <strong>${name}</strong>, propietario/a de <strong>${listing.name}</strong>,</p>
+<p>Su período de prueba gratuita vence el <strong>${listing.membership_paid_until}</strong> — en 5 días.</p>
+<p>Para continuar con acceso completo a su listado (fotos, descripción, enlaces de reserva), renueve su membresía ahora:</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e1e5e9;border-radius:8px;background-color:#f8f9fa;width:100%;margin:1rem 0;">
+    <tr><td style="padding:8px;font-weight:bold;">1 año:</td><td style="padding:8px;"><strong>$24</strong> + ITBMS ($25.68 inclusive)</td></tr>
+    <tr><td style="padding:8px;font-weight:bold;">2 años:</td><td style="padding:8px;"><strong>$45</strong> + ITBMS ($48.15 inclusive) · Ahorre $3</td></tr>
+    <tr><td style="padding:8px;font-weight:bold;">N° membresía:</td><td style="padding:8px;font-family:monospace;"><strong>${listing.id}</strong></td></tr>
+</table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:1.5rem auto;">
+    <tr><td style="background-color:#005ca9;border-radius:8px;padding:11px 28px;" align="center">
+        <a href="${renewUrl}" style="color:white;text-decoration:none;font-weight:700;font-size:1rem;display:inline-block;">${renewLabel}</a>
+    </td></tr>
+</table>
+<p style="font-size:0.85rem;color:#666;">También puede renovar iniciando sesión en su listado:<br>
+<a href="${listingUrl}" style="color:#005ca9;">${listingUrl}</a></p>
+${noPhotosBlock}`;
+                await execFileAsync('php', [notifyPath, `Su prueba gratuita vence en 5 días — ${listing.name}`, wrapTrialEmailHtml(body), toEmail], { timeout: 15000 });
+                await supabaseAdmin.from('listings').update({ trial_reminder_sent_at: new Date().toISOString() }).eq('id', listing.id);
+                await logEvent('trial_reminder_sent', { listing_id: listing.id, email: toEmail });
+                results.reminder5day++;
+            } catch (err) { results.errors++; console.error(`5-day reminder failed for listing ${listing.id}:`, err.message); }
+        }
+
+        // ── Stage 2: 48-hour extension offer (one-time click-to-extend link) ─
+        const { data: dueOffer } = await supabaseAdmin
+            .from('listings')
+            .select('id, name, contact_name, email_member, email, membership_paid_until')
+            .eq('is_member', true).eq('is_trial', true)
+            .is('trial_extension_offer_sent_at', null)
+            .eq('membership_paid_until', dateStr(plusDays(2)));
+
+        for (const listing of dueOffer || []) {
+            const toEmail = listing.email_member || listing.email;
+            if (!toEmail || !toEmail.includes('@')) continue;
+            try {
+                const token = Buffer.from(`${listing.id}:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
+                const extendUrl = `https://trustedpanamastays.com/api/extend-trial?id=${listing.id}&token=${encodeURIComponent(token)}`;
+                const name = listing.contact_name || 'propietario/a';
+                const body = `
+<p style="margin-top:0;">Estimado/a <strong>${name}</strong>, propietario/a de <strong>${listing.name}</strong>,</p>
+<p>Su período de prueba gratuita vence en <strong>48 horas</strong>, el ${listing.membership_paid_until}.</p>
+<p>Si necesita un poco más de tiempo para terminar de configurar su página, con gusto le damos <strong>7 días adicionales gratis</strong> — solo haga clic abajo antes de que venza su prueba:</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:1.5rem auto;">
+    <tr><td style="background-color:#00a859;border-radius:8px;padding:11px 28px;" align="center">
+        <a href="${extendUrl}" style="color:white;text-decoration:none;font-weight:700;font-size:1rem;display:inline-block;">Sí, deme 7 días más →</a>
+    </td></tr>
+</table>
+<p style="font-size:0.85rem;color:#666;">Este enlace solo puede usarse una vez. Si prefiere continuar como miembro de forma permanente, también puede renovar directamente en <a href="https://trustedpanamastays.com/pay.html" style="color:#005ca9;">trustedpanamastays.com/pay.html</a>.</p>`;
+                await execFileAsync('php', [notifyPath, `¿Necesita más tiempo? 7 días gratis — ${listing.name}`, wrapTrialEmailHtml(body), toEmail], { timeout: 15000 });
+                await supabaseAdmin.from('listings').update({ trial_extension_offer_sent_at: new Date().toISOString() }).eq('id', listing.id);
+                await logEvent('trial_extension_offer_sent', { listing_id: listing.id, email: toEmail });
+                results.extensionOffer++;
+            } catch (err) { results.errors++; console.error(`Extension offer failed for listing ${listing.id}:`, err.message); }
+        }
+
+        // ── Stage 3: expiry reached (original or extended) → final notice, then demote.
+        const { data: dueFinalNotice } = await supabaseAdmin
+            .from('listings')
+            .select('id, name, contact_name, email_member, email, trial_extended_at')
+            .eq('is_member', true).eq('is_trial', true)
+            .is('trial_final_notice_sent_at', null)
+            .eq('membership_paid_until', dateStr(today));
+
+        for (const listing of dueFinalNotice || []) {
+            const toEmail = listing.email_member || listing.email;
+            const wasExtended = !!listing.trial_extended_at;
+            try {
+              if (toEmail && toEmail.includes('@')) {
+                  const name = listing.contact_name || 'propietario/a';
+                  const documented = await hasDocumentedApplication(listing.id);
+                  const renewUrl = documented
+                      ? `https://trustedpanamastays.com/pay.html?id=${listing.id}`
+                      : `https://trustedpanamastays.com/join.html?id=${listing.id}`;
+                  const body = `
+<p style="margin-top:0;">Estimado/a <strong>${name}</strong>, propietario/a de <strong>${listing.name}</strong>,</p>
+<p>Su período de prueba gratuita${wasExtended ? ' (incluyendo los 7 días adicionales)' : ''} ha llegado a su fin.</p>
+<p>Su página quedará desactivada por ahora, pero puede convertirse en miembro de apoyo (supporting member) en cualquier momento — su información se conserva.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:1.5rem auto;">
+  <tr><td style="background-color:#005ca9;border-radius:8px;padding:11px 28px;" align="center">
+      <a href="${renewUrl}" style="color:white;text-decoration:none;font-weight:700;font-size:1rem;display:inline-block;">Unirme como miembro de apoyo →</a>
+  </td></tr>
+</table>`;
+                  await execFileAsync('php', [notifyPath, `Su prueba gratuita ha finalizado — ${listing.name}`, wrapTrialEmailHtml(body), toEmail], { timeout: 15000 });
+              }
+                await supabaseAdmin.from('listings').update({
+                    trial_final_notice_sent_at: new Date().toISOString(),
+                    is_member: false, is_trial: false, membership_paid_until: null
+                }).eq('id', listing.id);
+                await logEvent('trial_expired_demoted', { listing_id: listing.id, extended: wasExtended });
+                results.finalNotice++;
+            } catch (err) { results.errors++; console.error(`Final notice/demotion failed for listing ${listing.id}:`, err.message); }
+        }
+
+        if (results.finalNotice > 0) await recalculateFeatureRanks();
+
+        res.json({ success: true, ...results });
+    } catch (err) {
+        console.error('Trial lifecycle check error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── GET /api/extend-trial — one-click 7-day extension from the offer email ──
+app.get('/api/extend-trial', async (req, res) => {
+    const { id, token } = req.query;
+    const showPage = (title, message, ok) => res.send(`<html><body style="font-family:Arial,sans-serif;text-align:center;padding:60px 20px;color:#111;">
+<h2 style="color:${ok ? '#00a859' : '#c0392b'};">${title}</h2><p>${message}</p>
+<p><a href="https://trustedpanamastays.com" style="color:#005ca9;">trustedpanamastays.com</a></p>
+</body></html>`);
+
+    try {
+        const decoded = Buffer.from(token || '', 'base64').toString();
+        const [tokenId, tokenTime, tokenSecret] = decoded.split(':');
+        if (tokenId !== String(id) || tokenSecret !== process.env.ADMIN_SECRET) {
+            return showPage('Enlace inválido', 'Este enlace no es válido.', false);
+        }
+        if (Date.now() - parseInt(tokenTime, 10) > 10 * 24 * 60 * 60 * 1000) {
+            return showPage('Enlace vencido', 'Este enlace ya no es válido.', false);
+        }
+
+        const { data: listing, error } = await supabaseAdmin
+            .from('listings')
+            .select('id, is_member, is_trial, membership_paid_until, trial_extended_at')
+            .eq('id', id).single();
+        if (error || !listing) return showPage('No encontrado', 'No se encontró su hospedaje.', false);
+        if (listing.trial_extended_at) {
+            return showPage('Ya utilizado', 'Este enlace de extensión ya fue utilizado anteriormente.', false);
+        }
+        if (!listing.is_member || !listing.is_trial) {
+            return showPage('No disponible', 'Su prueba gratuita ya no está activa.', false);
+        }
+
+        const base = listing.membership_paid_until ? new Date(listing.membership_paid_until) : new Date();
+        base.setDate(base.getDate() + 7);
+        const newExpiry = base.toISOString().split('T')[0];
+
+        await supabaseAdmin.from('listings').update({
+            membership_paid_until: newExpiry,
+            trial_extended_at: new Date().toISOString()
+        }).eq('id', id);
+        await logEvent('trial_extended', { listing_id: id, new_expiry: newExpiry });
+
+        return showPage('¡Listo!', `Su prueba gratuita ahora vence el <strong>${newExpiry}</strong>. Gracias por continuar con nosotros.`, true);
+    } catch (err) {
+        console.error('extend-trial error:', err.message);
+        return showPage('Error', 'Ocurrió un error. Por favor contáctenos.', false);
+    }
+});
+
 
 async function generateUniqueSlug(propertyName, listingId) {
     const baseSlug = propertyName.toLowerCase()
