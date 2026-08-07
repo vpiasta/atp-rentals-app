@@ -2023,13 +2023,53 @@ function renderAtpDiffPanel() {
     renderAtpCompareBox();
 }
 
+let ATP_ANALYSIS_CACHE = {}; // droppedId -> {verdict, matchName, explanation} | 'loading' | {error}
+
 function selectAtpNew(tempId) {
     ATP_SELECTED_NEW = (ATP_SELECTED_NEW === tempId) ? null : tempId;
     renderAtpDiffPanel();
 }
+
 function selectAtpDropped(id, bucket) {
     ATP_SELECTED_DROPPED = (ATP_SELECTED_DROPPED && ATP_SELECTED_DROPPED.id === id) ? null : { id, bucket };
+    ATP_SELECTED_NEW = null;
     renderAtpDiffPanel();
+    if (!ATP_SELECTED_DROPPED) return;
+
+    // Already have a phone match? Show it immediately, no need to ask Claude.
+    const phoneMatch = (CURRENT_ATP_DIFF.toInsert || []).find(x => !x.matched && x.possibleMatchId === id);
+    if (phoneMatch) {
+        ATP_SELECTED_NEW = phoneMatch.tempId;
+        renderAtpDiffPanel();
+        return;
+    }
+
+    // No phone match — ask Claude, unless already cached for this listing.
+    if (ATP_ANALYSIS_CACHE[id]) { renderAtpCompareBox(); return; }
+    ATP_ANALYSIS_CACHE[id] = 'loading';
+    renderAtpCompareBox();
+    analyzeDroppedWithClaude(id);
+}
+
+async function analyzeDroppedWithClaude(droppedId) {
+    try {
+        const res  = await adminFetch('/api/admin/atp-diff/analyze-dropped', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ droppedId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        ATP_ANALYSIS_CACHE[droppedId] = data;
+        if (data.verdict === 'renamed' && data.matchName && ATP_SELECTED_DROPPED && ATP_SELECTED_DROPPED.id === droppedId) {
+            const norm = s => (s||'').toUpperCase().trim();
+            const candidate = (CURRENT_ATP_DIFF.toInsert || []).find(x => !x.matched && norm(x.name) === norm(data.matchName));
+            if (candidate) ATP_SELECTED_NEW = candidate.tempId;
+        }
+    } catch (err) {
+        ATP_ANALYSIS_CACHE[droppedId] = { error: err.message };
+    }
+    if (ATP_SELECTED_DROPPED && ATP_SELECTED_DROPPED.id === droppedId) renderAtpDiffPanel();
 }
 
 function renderAtpCompareBox() {
@@ -2045,7 +2085,24 @@ function renderAtpCompareBox() {
     const fieldRow = (label, a, b) => `<tr><td style="color:#888;padding:2px 8px 2px 0;">${label}</td><td style="padding:2px 8px;">${a||'—'}</td><td style="padding:2px 8px;">${b||'—'}</td></tr>`;
     const searchQuery = encodeURIComponent(`"${(droppedEntry?.name)||''}" "${(newEntry?.name)||''}" Panama`);
 
+    let aiHtml = '';
+    if (droppedEntry) {
+        const cached = ATP_ANALYSIS_CACHE[droppedEntry.id];
+        if (cached === 'loading') {
+            aiHtml = `<p style="color:#7ec8e3;font-size:0.85rem;margin:0 0 0.8rem;">🤖 Asking Claude what happened to this listing...</p>`;
+        } else if (cached && cached.error) {
+            aiHtml = `<p style="color:#ff7070;font-size:0.85rem;margin:0 0 0.8rem;">🤖 Claude analysis failed: ${cached.error}</p>`;
+        } else if (cached) {
+            const verdictLabel = { renamed: '🔄 Likely renamed', closed: '🚫 Likely closed / not renewed', unclear: '❓ Unclear' }[cached.verdict] || cached.verdict;
+            aiHtml = `<div style="background:#0f2818;border:1px solid #1a5c1a;border-radius:8px;padding:0.8rem;margin:0 0 0.8rem;">
+                <strong style="color:#adf5ad;">🤖 Claude's take: ${verdictLabel}</strong>
+                <p style="font-size:0.85rem;color:#ddd;margin:0.4rem 0 0;">${cached.explanation || ''}</p>
+            </div>`;
+        }
+    }
+
     cbox.innerHTML = `
+        ${aiHtml}
         <div style="background:#0f1c2b;border:1px solid #2a4a6a;border-radius:8px;padding:1rem;">
             <table style="width:100%;font-size:0.85rem;border-collapse:collapse;">
                 <tr><td></td><td style="color:#888;">➖ Dropped</td><td style="color:#adf5ad;">➕ New</td></tr>
@@ -2057,7 +2114,7 @@ function renderAtpCompareBox() {
             </table>
             <div style="margin-top:0.8rem;display:flex;gap:10px;flex-wrap:wrap;">
                 <a href="https://www.google.com/search?q=${searchQuery}" target="_blank" style="padding:7px 14px;background:#333;color:#ddd;border-radius:6px;text-decoration:none;font-size:0.82rem;">🔍 Search on Google</a>
-                ${newEntry && droppedEntry ? `<button onclick="confirmAtpMatch()" style="padding:7px 16px;background:#00a859;color:white;border:none;border-radius:6px;font-weight:700;cursor:pointer;">✅ Match found — treat as rename</button>` : `<span style="color:#888;font-size:0.82rem;align-self:center;">Select one item from each list to compare.</span>`}
+                ${newEntry && droppedEntry ? `<button onclick="confirmAtpMatch()" style="padding:7px 16px;background:#00a859;color:white;border:none;border-radius:6px;font-weight:700;cursor:pointer;">✅ Match found — treat as rename</button>` : `<span style="color:#888;font-size:0.82rem;align-self:center;">Select a "New" item to compare manually, or wait for Claude's analysis above.</span>`}
                 <button onclick="clearAtpSelection()" style="padding:7px 14px;background:#444;color:#ddd;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">✕ Clear selection</button>
             </div>
             <div id="atp-match-result" style="margin-top:0.6rem;font-size:0.85rem;"></div>
@@ -2102,6 +2159,69 @@ async function applyAtpDiff() {
     } catch(err) {
         resultEl.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`;
     }
+}
+
+// ── Ask Claude (with web search) what happened to a dropped ATP listing ──
+// Only called on-demand from the admin panel, never from the automated
+// daily checkForPdfUpdate flow — keeps this slow, external-API-dependent
+// step fully decoupled from the resource-sensitive cron path.
+async function analyzeDroppedListing(dropped, candidateNames) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured on the server');
+
+    const candidatesText = candidateNames.length
+        ? `Also, these NEW businesses appeared in the same updated ATP report (same source, same update cycle):\n${candidateNames.map(n => `- ${n}`).join('\n')}`
+        : 'No new businesses appeared in this report update.';
+
+    const prompt = `A short-term rental / hotel business registered with Panama's ATP (Autoridad de Turismo de Panamá) tourism registry no longer appears in the latest official ATP report.
+
+Business details:
+- Name: ${dropped.name}
+- Province: ${dropped.province}
+- Phone: ${dropped.phone || 'unknown'}
+- Type: ${dropped.rental_type || 'unknown'}
+
+${candidatesText}
+
+Please research and determine ONE of the following:
+1. This business likely renamed/rebranded and is one of the NEW businesses listed above — say which one and why.
+2. This business likely closed, stopped operating, or did not renew its ATP registration — say what evidence supports this.
+3. Unclear — not enough information available.
+
+Respond in exactly this format:
+VERDICT: renamed|closed|unclear
+MATCH: <exact name from the new list above, or "none">
+EXPLANATION: <2-3 sentences, mention what you found>`;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+            model: 'claude-sonnet-5',
+            max_tokens: 500,
+            messages: [{ role: 'user', content: prompt }],
+            tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }]
+        })
+    });
+    if (!response.ok) {
+        throw new Error(`Claude API error ${response.status}: ${await response.text()}`);
+    }
+    const data = await response.json();
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+
+    const verdictM     = text.match(/VERDICT:\s*(renamed|closed|unclear)/i);
+    const matchM       = text.match(/MATCH:\s*(.+)/i);
+    const explanationM = text.match(/EXPLANATION:\s*([\s\S]+)/i);
+
+    return {
+        verdict:     verdictM ? verdictM[1].toLowerCase() : 'unclear',
+        matchName:   (matchM && matchM[1].trim().toLowerCase() !== 'none') ? matchM[1].trim() : null,
+        explanation: explanationM ? explanationM[1].trim() : text.trim()
+    };
 }
 
 async function loadIPInfo() {

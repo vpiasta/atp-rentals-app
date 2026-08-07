@@ -4225,6 +4225,25 @@ app.post('/api/admin/atp-diff/confirm-match', requireAdmin, async (req, res) => 
     }
 });
 
+// ── On-demand: ask Claude what happened to one dropped listing ──
+app.post('/api/admin/atp-diff/analyze-dropped', requireAdmin, async (req, res) => {
+    if (!PENDING_ATP_DIFF) return res.status(400).json({ error: 'No pending diff' });
+    const { droppedId } = req.body || {};
+    if (droppedId == null) return res.status(400).json({ error: 'droppedId required' });
+    try {
+        const diff = PENDING_ATP_DIFF.diff;
+        const dropped = diff.toDeactivateNonMembers.find(x => x.id === droppedId && !x.matched)
+                      || diff.toFlagMembers.find(x => x.id === droppedId && !x.matched);
+        if (!dropped) return res.status(400).json({ error: 'Listing not found in pending diff' });
+
+        const candidateNames = (diff.toInsert || []).filter(x => !x.matched).map(x => x.name);
+        const analysis = await analyzeDroppedListing(dropped, candidateNames);
+        res.json(analysis);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── GET /api/admin/document-url ───────────────────────────────────────────────
 app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
     const { path: docPath } = req.query;
