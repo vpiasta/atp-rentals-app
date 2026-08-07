@@ -4225,6 +4225,69 @@ app.post('/api/admin/atp-diff/confirm-match', requireAdmin, async (req, res) => 
     }
 });
 
+// ── Ask Claude (with web search) what happened to a dropped ATP listing ──
+// Only called on-demand from the admin panel, never from the automated
+// daily checkForPdfUpdate flow — keeps this slow, external-API-dependent
+// step fully decoupled from the resource-sensitive cron path.
+async function analyzeDroppedListing(dropped, candidateNames) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured on the server');
+
+    const candidatesText = candidateNames.length
+        ? `Also, these NEW businesses appeared in the same updated ATP report (same source, same update cycle):\n${candidateNames.map(n => `- ${n}`).join('\n')}`
+        : 'No new businesses appeared in this report update.';
+
+    const prompt = `A short-term rental / hotel business registered with Panama's ATP (Autoridad de Turismo de Panamá) tourism registry no longer appears in the latest official ATP report.
+
+Business details:
+- Name: ${dropped.name}
+- Province: ${dropped.province}
+- Phone: ${dropped.phone || 'unknown'}
+- Type: ${dropped.rental_type || 'unknown'}
+
+${candidatesText}
+
+Please research and determine ONE of the following:
+1. This business likely renamed/rebranded and is one of the NEW businesses listed above — say which one and why.
+2. This business likely closed, stopped operating, or did not renew its ATP registration — say what evidence supports this.
+3. Unclear — not enough information available.
+
+Respond in exactly this format:
+VERDICT: renamed|closed|unclear
+MATCH: <exact name from the new list above, or "none">
+EXPLANATION: <2-3 sentences, mention what you found>`;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+            model: 'claude-sonnet-5',
+            max_tokens: 500,
+            messages: [{ role: 'user', content: prompt }],
+            tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }]
+        })
+    });
+    if (!response.ok) {
+        throw new Error(`Claude API error ${response.status}: ${await response.text()}`);
+    }
+    const data = await response.json();
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+
+    const verdictM     = text.match(/VERDICT:\s*(renamed|closed|unclear)/i);
+    const matchM       = text.match(/MATCH:\s*(.+)/i);
+    const explanationM = text.match(/EXPLANATION:\s*([\s\S]+)/i);
+
+    return {
+        verdict:     verdictM ? verdictM[1].toLowerCase() : 'unclear',
+        matchName:   (matchM && matchM[1].trim().toLowerCase() !== 'none') ? matchM[1].trim() : null,
+        explanation: explanationM ? explanationM[1].trim() : text.trim()
+    };
+}
+
 // ── On-demand: ask Claude what happened to one dropped listing ──
 app.post('/api/admin/atp-diff/analyze-dropped', requireAdmin, async (req, res) => {
     if (!PENDING_ATP_DIFF) return res.status(400).json({ error: 'No pending diff' });
