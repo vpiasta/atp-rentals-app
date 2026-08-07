@@ -490,8 +490,9 @@ async function showDefaultView() {
                         ${ph.whatsapp ? `<a href="https://wa.me/${ph.whatsapp}?text=${encodeURIComponent(LANG === 'en' ? 'Inquiry via TrustedPanamaStays.com:' : 'Consulta via TrustedPanamaStays.com:')}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                         <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
                         ${active
-                            ? `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 ${LANG === 'en' ? 'Access' : 'Acceso'}</a>`
-                            : `<a href="listing.html?id=${rental.id}&lang=${LANG}" onclick="saveSearchState()" class="contact-button become-member-btn" data-hover-text="${LANG === 'en' ? 'Become a Member' : 'Hazte Miembro'}">${LANG === 'en' ? 'Show more' : 'Ver más'}</a>`}
+                          ${active
+                          ? (thumb ? '' : `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 ${LANG === 'en' ? 'See More' : 'Ver Más'}</a>`)
+                          : `<a href="listing.html?id=${rental.id}&lang=${LANG}" onclick="saveSearchState()" class="contact-button become-member-btn" data-hover-text="${LANG === 'en' ? 'Become a Member' : 'Hazte Miembro'}">${LANG === 'en' ? 'Show more' : 'Ver más'}</a>`}
                         </div>
                     </div>
                 </div>`;
@@ -685,11 +686,12 @@ function displayResults(rentals) {
           const listUrl = rental.slug
               ? `listing.html?slug=${rental.slug}&lang=${LANG}`
               : `listing.html?id=${rental.id}&lang=${LANG}`;
-          const thumbHtml = (active && thumb)
-              ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
-                  <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">
-                 </a>`
-              : '';
+              const thumbHtml = (active && thumb)
+                  ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
+                      <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">
+                      <span class="member-thumb-label">${LANG === 'en' ? 'See More' : 'Ver Más'}</span>
+                     </a>`
+                  : '';
 
           const card = document.createElement('div');
           card.className = 'result-card is-member' + ((rental.feature_rank > 0) ? ' is-featured' : '');
@@ -718,8 +720,8 @@ function displayResults(rentals) {
                     ${ph.whatsapp ? `<a href="https://wa.me/${ph.whatsapp}?text=${encodeURIComponent(LANG === 'en' ? 'Inquiry via TrustedPanamaStays.com:' : 'Consulta via TrustedPanamaStays.com:')}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                     <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
                     ${active
-                        ? `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 ${LANG === 'en' ? 'Access' : 'Acceso'}</a>`
-                        : `<a href="listing.html?id=${rental.id}&lang=${LANG}" onclick="saveSearchState()" class="contact-button become-member-btn" data-hover-text="${LANG === 'en' ? 'Become a Member' : 'Hazte Miembro'}">${LANG === 'en' ? 'Show more' : 'Ver más'}</a>`}
+                            ? (thumb ? '' : `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 ${LANG === 'en' ? 'See More' : 'Ver Más'}</a>`)
+                            : `<a href="listing.html?id=${rental.id}&lang=${LANG}" onclick="saveSearchState()" class="contact-button become-member-btn" data-hover-text="${LANG === 'en' ? 'Become a Member' : 'Hazte Miembro'}">${LANG === 'en' ? 'Show more' : 'Ver más'}</a>`}
                     </div>
                 </div>
             </div>`;

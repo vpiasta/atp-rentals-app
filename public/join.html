@@ -653,9 +653,12 @@ function selectAtpListing(id, name, province) {
     document.getElementById('atp-selected').style.display = 'block';
 }
 
-// Auto-select a listing when arriving from a "Become a member" link on
-// listing.html (e.g. join.html?id=12345) — skips retyping the property
-// name the visitor just came from.
+// Auto-select a listing when arriving from a link with ?id= — either the
+// "Become a member" link on listing.html, or a renewal-reminder email for
+// a hasslefree-trial member who has no documents on file yet and needs to
+// complete join.html to become a supporting member. Also auto-selects the
+// "Registrado con la ATP" registration type and reveals the form section,
+// since previously the fields were pre-filled but stayed hidden.
 (function preSelectFromUrl() {
     const params = new URLSearchParams(window.location.search);
     const preId = params.get('id');
@@ -664,6 +667,8 @@ function selectAtpListing(id, name, province) {
         .then(res => res.ok ? res.json() : null)
         .then(rental => {
             if (rental && rental.name) {
+                document.getElementById('reg-atp').checked = true;
+                setRegType('atp');
                 selectAtpListing(rental.id, rental.name, rental.province || '');
             }
         })
