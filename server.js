@@ -384,38 +384,46 @@ async function initializeData() {
     );
 }
 
+let PDF_CHECK_IN_PROGRESS = false; // prevents overlapping runs (e.g. GitHub Actions curl retries) from re-parsing and re-emailing
+
 // Background check: only re-parses PDF when the URL has changed
 async function checkForPdfUpdate() {
+    if (PDF_CHECK_IN_PROGRESS) {
+        console.log('⏭️  STEP 2: Check already in progress — skipping overlapping run');
+        return;
+    }
+    PDF_CHECK_IN_PROGRESS = true;
     console.log('🔄 STEP 2: Checking ATP for PDF updates (background)...');
     try {
         const atpResult = await getLatestPdfUrl();
         const newUrl = atpResult.pdfUrl;
-
         if (!newUrl) {
             console.log('⚠️  Could not retrieve PDF URL from ATP — skipping update');
             return;
         }
-
         // Compare with what's saved in the database
         const meta = await getSavedPdfUrl();
         const savedUrl = meta ? meta.pdf_url : null;
-
         if (newUrl === savedUrl && CURRENT_RENTALS.length > 0) {
             console.log('✅ STEP 2: PDF URL unchanged — using existing database data');
             PDF_URL = newUrl;
             PDF_HEADING = atpResult.headingText || PDF_HEADING;
             return;
         }
-
+        // A diff for this exact URL is already pending admin review — don't
+        // re-parse the whole PDF and re-send the notification email every
+        // time this runs again before it's been reviewed.
+        if (PENDING_ATP_DIFF && PENDING_ATP_DIFF.newUrl === newUrl) {
+            console.log('⏭️  STEP 2: Diff for this PDF is already pending admin review — skipping re-parse and re-notification');
+            return;
+        }
         // URL has changed (or DB was empty) — re-parse the PDF
         console.log(`🆕 STEP 2: New PDF detected!`);
         console.log(`   Old: ${savedUrl}`);
         console.log(`   New: ${newUrl}`);
-
         // Temporarily set URL so parsePDFWithCoordinates picks it up
         PDF_URL = newUrl;
         PDF_HEADING = atpResult.headingText || PDF_HEADING;
-
         const result = await parsePDFWithCoordinates();
         if (result.success && PDF_RENTALS.length > 0) {
             // Compute what would change, but wait for admin review before writing/emailing
@@ -444,6 +452,8 @@ async function checkForPdfUpdate() {
     } catch (err) {
         console.error('❌ STEP 2: PDF update check failed:', err.message);
         // If we already have data from STEP 1, keep serving it — no problem
+    } finally {
+        PDF_CHECK_IN_PROGRESS = false;
     }
 }
 
