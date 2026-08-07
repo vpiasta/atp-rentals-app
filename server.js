@@ -91,7 +91,7 @@ async function loadListingsFromDB() {
 // ── Compute what WOULD change, without writing anything — for admin review ──
 async function computeAtpDiff(parsedRentals) {
     const normalize = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
-
+    const normalizePhone = s => (s||'').replace(/\D/g,'');
     let existing = [];
     {
         let from = 0;
@@ -99,7 +99,7 @@ async function computeAtpDiff(parsedRentals) {
         while (true) {
             const { data, error } = await supabaseAdmin
                 .from('listings')
-                .select('id, name, province, atp_active, is_member')
+                .select('id, name, province, phone, email, rental_type, atp_active, is_member')
                 .or('registry_source.is.null,registry_source.neq.mici') // include NULL (native ATP listings) and anything not explicitly MiCI
                 .range(from, from + BATCH - 1);
             if (error) throw new Error(error.message);
@@ -110,11 +110,10 @@ async function computeAtpDiff(parsedRentals) {
       }
       const existingMap = new Map();
     (existing || []).forEach(l => existingMap.set(`${normalize(l.name)}|${normalize(l.province)}`, l));
-
     const seenIds = new Set();
     const toInsert = [];
     const toReactivate = [];
-
+    let tempIdCounter = 0;
     for (const rental of parsedRentals) {
         const key   = `${normalize(rental.name)}|${normalize(rental.province)}`;
         const match = existingMap.get(key);
@@ -122,13 +121,35 @@ async function computeAtpDiff(parsedRentals) {
             seenIds.add(match.id);
             if (!match.atp_active) toReactivate.push({ id: match.id, name: match.name });
         } else {
-            toInsert.push({ name: rental.name, province: rental.province });
+            toInsert.push({
+                tempId:      tempIdCounter++,
+                name:        rental.name,
+                province:    rental.province,
+                phone:       rental.phone || '',
+                email:       rental.email || '',
+                rental_type: rental.rental_type || ''
+            });
         }
     }
-
     const missing = (existing || []).filter(l => l.atp_active && !seenIds.has(l.id));
-    const toDeactivateNonMembers = missing.filter(l => !l.is_member).map(l => ({ id: l.id, name: l.name }));
-    const toFlagMembers          = missing.filter(l => l.is_member).map(l => ({ id: l.id, name: l.name }));
+    const mapDropped = l => ({
+        id: l.id, name: l.name, province: l.province,
+        phone: l.phone || '', email: l.email || '', rental_type: l.rental_type || ''
+    });
+    const toDeactivateNonMembers = missing.filter(l => !l.is_member).map(mapDropped);
+    const toFlagMembers          = missing.filter(l => l.is_member).map(mapDropped);
+
+    // Flag likely renames: same normalized phone on both a "new" and a "dropped"
+    // entry. Purely a UI hint for admin review — never auto-applied.
+    const droppedByPhone = new Map();
+    [...toDeactivateNonMembers, ...toFlagMembers].forEach(d => {
+        const p = normalizePhone(d.phone);
+        if (p.length >= 7) droppedByPhone.set(p, d.id);
+    });
+    toInsert.forEach(n => {
+        const p = normalizePhone(n.phone);
+        if (p.length >= 7 && droppedByPhone.has(p)) n.possibleMatchId = droppedByPhone.get(p);
+    });
 
     return { toInsert, toReactivate, toDeactivateNonMembers, toFlagMembers, totalParsed: parsedRentals.length };
 }
@@ -4161,6 +4182,44 @@ app.post('/api/admin/apply-atp-diff', requireAdmin, async (req, res) => {
         await checkPendingAtpApplications();
         await logEvent('atp_diff_applied', result);
         res.json({ success: true, ...result });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Manually confirm a "new" entry is actually a rename of a "dropped" entry ──
+// Renames the existing listing in place instead of drop+insert, preserving its
+// ID, atp_first_seen, and any member/admin data. Marks both diff entries as
+// matched so "Apply changes" skips them afterward.
+app.post('/api/admin/atp-diff/confirm-match', requireAdmin, async (req, res) => {
+    if (!PENDING_ATP_DIFF) return res.status(400).json({ error: 'No pending diff' });
+    const { droppedId, newTempId } = req.body || {};
+    if (droppedId == null || newTempId == null) return res.status(400).json({ error: 'droppedId and newTempId required' });
+    try {
+        const diff = PENDING_ATP_DIFF.diff;
+        const newEntry = diff.toInsert.find(x => x.tempId === newTempId && !x.matched);
+        const droppedInList = diff.toDeactivateNonMembers.find(x => x.id === droppedId && !x.matched)
+                            || diff.toFlagMembers.find(x => x.id === droppedId && !x.matched);
+        if (!newEntry || !droppedInList) return res.status(400).json({ error: 'Match entries not found or already matched' });
+
+        const nowIso = new Date().toISOString();
+        const { error } = await supabaseAdmin.from('listings').update({
+            name:                  newEntry.name,
+            province:              newEntry.province,
+            phone:                 newEntry.phone || null,
+            email:                 newEntry.email || null,
+            rental_type:           newEntry.rental_type || null,
+            atp_active:            true,
+            atp_last_seen:         nowIso,
+            atp_review_flagged_at: null
+        }).eq('id', droppedId);
+        if (error) throw new Error(error.message);
+
+        newEntry.matched = true;
+        droppedInList.matched = true;
+        await logEvent('atp_diff_manual_match', { listing_id: droppedId, old_name: droppedInList.name, new_name: newEntry.name });
+
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
