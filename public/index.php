@@ -490,7 +490,6 @@ async function showDefaultView() {
                         ${ph.whatsapp ? `<a href="https://wa.me/${ph.whatsapp}?text=${encodeURIComponent(LANG === 'en' ? 'Inquiry via TrustedPanamaStays.com:' : 'Consulta via TrustedPanamaStays.com:')}" target="_blank" class="contact-button whatsapp-button"><span class="btn-icon">💬</span><span class="btn-text"> WhatsApp</span></a>` : ''}
                         <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
                         ${active
-                          ${active
                           ? (thumb ? '' : `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 ${LANG === 'en' ? 'See More' : 'Ver Más'}</a>`)
                           : `<a href="listing.html?id=${rental.id}&lang=${LANG}" onclick="saveSearchState()" class="contact-button become-member-btn" data-hover-text="${LANG === 'en' ? 'Become a Member' : 'Hazte Miembro'}">${LANG === 'en' ? 'Show more' : 'Ver más'}</a>`}
                         </div>
