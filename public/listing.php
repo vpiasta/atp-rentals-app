@@ -199,7 +199,7 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= h($page_title) ?></title>
     <meta name="description" content="<?= h($page_desc) ?>">
-    <link rel="canonical" href="<?= h($canonical) ?>">
+    <?= $active ? '' : '<meta name="robots" content="noindex,follow">' . "\n    " ?><link rel="canonical" href="<?= h($canonical) ?>">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <!-- Open Graph -->
     <meta property="og:title"       content="<?= h($page_title) ?>">
