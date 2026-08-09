@@ -35,6 +35,38 @@ $t = [
     'footer_owned' => $is_en ? 'Trusted Panama Stays is owned by Tuscany Real Estates SA' : 'Trusted Panama Stays es propiedad de Tuscany Real Estates SA',
     'lang_js'      => $is_en ? 'en' : 'es',
 ];
+
+// ── Server-render featured listings (SEO/crawler fallback) ──────────────────
+// JS replaces this for real visitors after load; it exists purely so
+// crawlers that don't (fully) execute JS still see real content instead of
+// a bare "use search" placeholder — which was triggering Google's soft-404
+// detection on this exact page.
+define('SUPABASE_URL', 'https://caqdkxukezpckqphogwl.supabase.co');
+define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcWRreHVrZXpwY2txcGhvZ3dsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDc2MDIsImV4cCI6MjA5NjAyMzYwMn0.xqNuCWm_ALivBRpl3pSTDDJeoBN1WfX4-G_OJq2Sd8g');
+
+function ssr_featured_listings() {
+    $today = date('Y-m-d');
+    $select = 'id,name,province,rental_type,slug,registry_source,apatel_member,atp_active';
+    $url = SUPABASE_URL . '/rest/v1/listings?select=' . $select
+         . '&feature_rank=gt.0&is_member=eq.true&membership_paid_until=gte.' . $today
+         . '&order=feature_rank.asc';
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . SUPABASE_KEY,
+            'Authorization: Bearer ' . SUPABASE_KEY,
+            'Accept: application/json',
+        ],
+        CURLOPT_TIMEOUT => 5,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    $body = curl_exec($ch);
+    curl_close($ch);
+    $data = json_decode($body, true);
+    return is_array($data) ? $data : [];
+}
+$ssr_listings = ssr_featured_listings();
 ?>
 <!DOCTYPE html>
 <html lang="<?= $t['html_lang'] ?>">
@@ -357,7 +389,21 @@ $t = [
     </section>
 
     <section class="results-section" id="resultsContainer">
+        <?php if (!empty($ssr_listings)): ?>
+            <?php foreach ($ssr_listings as $r): ?>
+            <div class="result-card is-member">
+                <h3 class="result-title"><?= htmlspecialchars($r['name'] ?? '', ENT_QUOTES, 'UTF-8') ?></h3>
+                <div class="result-badges">
+                    <?php if (!empty($r['rental_type'])): ?><span class="result-badge badge-type"><?= htmlspecialchars($r['rental_type'], ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
+                    <?php if (!empty($r['province'])): ?><span class="result-badge badge-province"><?= htmlspecialchars($r['province'], ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
+                    <span class="result-badge badge-member">⭐ <?= $is_en ? 'Member' : 'Miembro' ?></span>
+                </div>
+                <a href="listing.html?<?= !empty($r['slug']) ? 'slug=' . urlencode($r['slug']) : 'id=' . intval($r['id']) ?>&lang=<?= $lang ?>" class="contact-button"><?= $is_en ? 'See More' : 'Ver Más' ?></a>
+            </div>
+            <?php endforeach; ?>
+        <?php else: ?>
         <div class="no-results"><p><?= $t['no_results'] ?></p></div>
+        <?php endif; ?>
     </section>
 
     <div style="text-align:center;padding:1.2rem 1rem;background:white;border-radius:10px;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
