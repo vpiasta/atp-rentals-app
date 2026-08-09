@@ -119,12 +119,16 @@ $province    = $listing['province'] ?? '';
 $type        = $listing['rental_type'] ?? '';
 $slug_val    = $listing['slug'] ?? '';
 $listing_url = $slug_val ? SITE_URL . '/listing.html?slug=' . urlencode($slug_val) . '&lang=' . $lang : SITE_URL . '/listing.html?id=' . $listing['id'] . '&lang=' . $lang;
-// Canonical points to listing.html — the real interactive page — not this
-// PHP shell, which exists purely for server-rendered SEO/crawler purposes.
+// Canonical self-references this page, matching the URLs submitted in
+// sitemap.php. listing.html is a client-rendered SPA with a generic
+// pre-JS title/canonical — pointing search engines there caused most
+// listings to go unindexed. listing.php already has full per-listing
+// server-rendered content, so it's the correct canonical target.
 $canonical_slug = $listing['slug'] ?? '';
+$lang_qs = $lang === 'es' ? '&lang=es' : '';
 $canonical = $canonical_slug
-    ? SITE_URL . '/listing.html?slug=' . urlencode($canonical_slug) . '&lang=' . $lang
-    : SITE_URL . '/listing.html?id=' . $listing['id'] . '&lang=' . $lang;
+    ? SITE_URL . '/listing.php?slug=' . urlencode($canonical_slug) . $lang_qs
+    : SITE_URL . '/listing.php?id=' . $listing['id'] . $lang_qs;
 
 $title_en    = $name . ' — Trusted Panama Stays';
 $title_es    = $name . ' — Trusted Panama Stays';
