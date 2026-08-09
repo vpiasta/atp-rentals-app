@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Listing Details - Trusted Panama Stays</title>
     <meta name="description" content="Find verified, trusted and publicly registered hotels, apartments, and airbnb in Panamá">
+    <meta name="robots" id="robots-meta" content="noindex,follow">
     <link rel="canonical" id="canonical-link" href="https://trustedpanamastays.com/listing.html">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
@@ -1011,6 +1012,13 @@ function renderPage(rental) {
     }
 }
 
+// Canonical is set synchronously from the URL itself (not from fetched
+// data) so it's correct immediately on load, with no dependency on the
+// async fetch below resolving in time for a crawler's first pass.
+document.getElementById('canonical-link').href = slugParam
+    ? `https://trustedpanamastays.com/listing.php?slug=${slugParam}${lang === 'es' ? '&lang=es' : ''}`
+    : `https://trustedpanamastays.com/listing.php?id=${listingId}${lang === 'es' ? '&lang=es' : ''}`;
+
 async function loadListing() {
     if (!listingId && !slugParam) {
         document.getElementById('listing-content').innerHTML = `<div class="error-state">${T.notFound}</div>`;
@@ -1024,10 +1032,6 @@ async function loadListing() {
         if (!res.ok) throw new Error('Not found');
         currentRental = await res.json();
         listingId = currentRental.id;
-        const canonicalUrl = currentRental.slug
-            ? `https://trustedpanamastays.com/listing.html?slug=${currentRental.slug}&lang=${lang}`
-            : `https://trustedpanamastays.com/listing.html?id=${listingId}&lang=${lang}`;
-        document.getElementById('canonical-link').href = canonicalUrl;
         restoreSession(listingId);
         renderPage(currentRental);
     } catch {
