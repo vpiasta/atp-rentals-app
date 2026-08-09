@@ -3099,11 +3099,14 @@ app.post('/api/reset-password', async (req, res) => {
 
 app.get('/api/featured-listing', async (req, res) => {
     try {
-        const { data: listings, error } = await supabase
-            .from('listings')
-            .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, website_url, booking_url, registry_source, atp_active, apatel_member, is_trial, feature_rank')
-            .gt('feature_rank', 0)
-            .order('feature_rank', { ascending: false });
+      const today = new Date().toISOString().split('T')[0];
+      const { data: listings, error } = await supabase
+          .from('listings')
+          .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, website_url, booking_url, registry_source, atp_active, apatel_member, is_trial, feature_rank')
+          .gt('feature_rank', 0)
+          .eq('is_member', true)
+          .gte('membership_paid_until', today)
+          .order('feature_rank', { ascending: false });
 
         if (error) throw new Error(error.message);
         if (!listings || listings.length === 0)
@@ -4060,12 +4063,15 @@ async function recalculateFeatureRanks() {
                 .update({ feature_rank: i + 1 })
                 .eq('id', featured[i].id);
         }
-        // Zero out expired members
+        // Zero out anyone who isn't currently a valid active member — covers
+        // both natural expiry (is_member still true, date lapsed) and manual
+        // deactivation (is_member already false), which the old query missed
+        // since it required is_member = true.
         await supabaseAdmin
             .from('listings')
             .update({ feature_rank: 0 })
-            .eq('is_member', true)
-            .lt('membership_paid_until', today);
+            .neq('feature_rank', 0)
+            .or(`is_member.eq.false,membership_paid_until.lt.${today}`);
         console.log(`Feature ranks recalculated for ${featured.length} listings`);
     } catch (err) {
         console.error('recalculateFeatureRanks error:', err.message);
