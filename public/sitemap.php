@@ -33,6 +33,9 @@ $filter = 'listings?select=' . $select
 
 $listings = supabase_get_all($filter);
 
+$blogFilter = 'blog_posts?select=slug,published_at,updated_at&status=eq.published';
+$blogPosts  = supabase_get_all($blogFilter);
+
 echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 
@@ -44,6 +47,8 @@ $staticPages = [
     ['loc' => '/about.html?lang=es',  'priority' => '0.80'],
     ['loc' => '/faq.php?lang=en',     'priority' => '0.80'],
     ['loc' => '/faq.php?lang=es',     'priority' => '0.80'],
+    ['loc' => '/blog.php?lang=en',    'priority' => '0.80'],
+    ['loc' => '/blog.php?lang=es',    'priority' => '0.80'],
     ['loc' => '/join.html',           'priority' => '0.60'],
 ];
 
@@ -56,6 +61,14 @@ foreach ($listings as $l) {
     $loc  = SITE_URL . '/listing.php?slug=' . $slug;
     $lastmod = !empty($l['created_at']) ? date('Y-m-d', strtotime($l['created_at'])) : $today;
     echo "  <url><loc>{$loc}</loc><lastmod>{$lastmod}</lastmod><priority>0.90</priority></url>\n";
+}
+
+foreach ($blogPosts as $b) {
+    $slug    = urlencode($b['slug']);
+    $loc     = SITE_URL . '/blog-post.php?slug=' . $slug;
+    $stamp   = $b['updated_at'] ?? $b['published_at'] ?? null;
+    $lastmod = $stamp ? date('Y-m-d', strtotime($stamp)) : $today;
+    echo "  <url><loc>{$loc}</loc><lastmod>{$lastmod}</lastmod><priority>0.70</priority></url>\n";
 }
 
 echo '</urlset>';

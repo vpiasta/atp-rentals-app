@@ -1,0 +1,16 @@
+name: Generate weekly blog draft
+
+on:
+  schedule:
+    - cron: '0 13 * * 1'  # Mondays 8am Panama (UTC-5) = 13:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request a new blog draft
+        run: |
+          curl -sS -X POST https://trustedpanamastays.com/api/admin/blog/generate-draft \
+            -H "Content-Type: application/json" \
+            -d '{"secret":"${{ secrets.ADMIN_SECRET }}"}'

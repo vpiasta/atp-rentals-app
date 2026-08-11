@@ -5418,6 +5418,206 @@ app.post('/api/inbound-application', express.json({ limit: '10mb' }), async (req
     }
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  BLOG
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ── GET /api/blog/posts — public, published only ──────────────────────────────
+app.get('/api/blog/posts', async (req, res) => {
+    const lang = req.query.lang === 'en' ? 'en' : 'es';
+    const { data, error } = await supabase
+        .from('blog_posts')
+        .select(`id, slug, title_${lang}, excerpt_${lang}, meta_description_${lang}, featured_image_url, category, author, published_at`)
+        .eq('status', 'published')
+        .order('published_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+// ── GET /api/blog/post/:slug — public, published only ─────────────────────────
+app.get('/api/blog/post/:slug', async (req, res) => {
+    const { data, error } = await supabase
+        .from('blog_posts')
+        .select('*')
+        .eq('slug', req.params.slug)
+        .eq('status', 'published')
+        .single();
+    if (error || !data) return res.status(404).json({ error: 'Not found' });
+    res.json(data);
+});
+
+// ── GET /api/admin/blog/pending — drafts awaiting review ──────────────────────
+app.get('/api/admin/blog/pending', requireAdmin, async (req, res) => {
+    const { data, error } = await supabaseAdmin
+        .from('blog_posts')
+        .select('*')
+        .eq('status', 'pending_review')
+        .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+// ── GET /api/admin/blog/all — every post, any status ───────────────────────────
+app.get('/api/admin/blog/all', requireAdmin, async (req, res) => {
+    const { data, error } = await supabaseAdmin
+        .from('blog_posts')
+        .select('*')
+        .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+// ── POST /api/admin/blog/:id/edit — admin edits a draft before approving ──────
+app.post('/api/admin/blog/:id/edit', requireAdmin, async (req, res) => {
+    const { title_en, title_es, excerpt_en, excerpt_es, body_en, body_es,
+            meta_description_en, meta_description_es, featured_image_url, category, slug } = req.body;
+    const updates = { updated_at: new Date().toISOString() };
+    if (title_en !== undefined) updates.title_en = title_en;
+    if (title_es !== undefined) updates.title_es = title_es;
+    if (excerpt_en !== undefined) updates.excerpt_en = excerpt_en;
+    if (excerpt_es !== undefined) updates.excerpt_es = excerpt_es;
+    if (body_en !== undefined) updates.body_en = body_en;
+    if (body_es !== undefined) updates.body_es = body_es;
+    if (meta_description_en !== undefined) updates.meta_description_en = meta_description_en;
+    if (meta_description_es !== undefined) updates.meta_description_es = meta_description_es;
+    if (featured_image_url !== undefined) updates.featured_image_url = featured_image_url;
+    if (category !== undefined) updates.category = category;
+    if (slug !== undefined) updates.slug = slug;
+    const { error } = await supabaseAdmin.from('blog_posts').update(updates).eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('blog_post_edited', { id: req.params.id });
+    res.json({ success: true });
+});
+
+// ── POST /api/admin/blog/:id/approve ───────────────────────────────────────────
+app.post('/api/admin/blog/:id/approve', requireAdmin, async (req, res) => {
+    const { error } = await supabaseAdmin.from('blog_posts').update({
+        status: 'published',
+        published_at: new Date().toISOString()
+    }).eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('blog_post_approved', { id: req.params.id });
+    res.json({ success: true });
+});
+
+// ── POST /api/admin/blog/:id/reject ────────────────────────────────────────────
+app.post('/api/admin/blog/:id/reject', requireAdmin, async (req, res) => {
+    const { error } = await supabaseAdmin.from('blog_posts').update({ status: 'rejected' }).eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('blog_post_rejected', { id: req.params.id });
+    res.json({ success: true });
+});
+
+// ── POST /api/admin/blog/:id/delete ────────────────────────────────────────────
+app.post('/api/admin/blog/:id/delete', requireAdmin, async (req, res) => {
+    const { error } = await supabaseAdmin.from('blog_posts').delete().eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('blog_post_deleted', { id: req.params.id });
+    res.json({ success: true });
+});
+
+// ── Rotating topic list for AI-proposed posts. Editable here — no DB needed ────
+// for something this simple; expand freely as ideas come up.
+const BLOG_TOPIC_IDEAS = [
+    'Why booking an ATP-registered rental protects tourists legally and financially',
+    'How to verify a short-term rental is legally registered in Panama',
+    'The difference between ATP and MiCI registration for Panama rentals',
+    'What Panama\'s tourism authority requires from legal short-term rental hosts',
+    'Seasonal travel guide: best times to visit Panama\'s different regions',
+    'Common scams to avoid when booking accommodation in Panama',
+    'What documents a legitimate Panama rental host should be able to show you',
+    'Boquete vs. Bocas del Toro vs. Panama City: choosing where to stay'
+];
+
+// ── Generates one bilingual blog post via the Anthropic API. If seedText is ───
+// provided, the post is built from the user's own notes/concept explanation
+// instead of an AI-chosen topic. Always lands as 'pending_review' — never
+// auto-publishes, per the current human-approval workflow.
+async function generateBlogDraft(seedText) {
+    const topic = seedText || BLOG_TOPIC_IDEAS[Math.floor(Math.random() * BLOG_TOPIC_IDEAS.length)];
+    const mode = seedText ? 'seed' : 'topic';
+
+    const prompt = `You are writing a blog post for Trusted Panama Stays, a directory of legally ATP/MiCI-registered short-term rentals in Panama (trustedpanamastays.com). The audience is international tourists researching where to stay in Panama, plus Panama property owners considering registering their rental legally.
+
+${mode === 'seed'
+    ? `Turn the following rough notes/concept explanation into a polished, well-structured blog post. Preserve the author's intent and any factual specifics — do not invent facts they didn't provide:\n\n"""${seedText}"""`
+    : `Write an original blog post on this topic: "${topic}"`}
+
+Requirements:
+- Write in BOTH English and Spanish (Panama Spanish, natural for a Panamanian reader) — full separate versions, not a translation-in-parentheses style
+- Structure: use <h2>/<h3> for section headings (NEVER <h1>, that's reserved for the title), <p> paragraphs, <ul>/<ol> only where a list is genuinely clearer than prose
+- Where natural, include ONE internal link suggestion back to the directory using a placeholder like <a href="/index.php?lang=es">our directory</a> — don't force it if it doesn't fit
+- No inline styling — plain semantic HTML only
+- Tone: helpful, credible, not salesy
+- Length: 500-900 words per language version
+
+Return ONLY a JSON object, no other text, no markdown fences:
+{
+  "slug": "url-friendly-slug-in-english",
+  "title_en": "...", "title_es": "...",
+  "excerpt_en": "one sentence, under 25 words", "excerpt_es": "...",
+  "meta_description_en": "under 155 chars", "meta_description_es": "...",
+  "body_en": "<h2>...</h2><p>...</p>...", "body_es": "...",
+  "category": "one or two words, e.g. Legal Compliance, Travel Guide, Area Guide"
+}`;
+
+    const response = await axios.post('https://api.anthropic.com/v1/messages', {
+        model: 'claude-sonnet-5',
+        max_tokens: 4000,
+        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+    }, {
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        timeout: 60000
+    });
+
+    const raw = response.data.content[0].text.replace(/```json\n?|\n?```/g, '').trim();
+    const draft = JSON.parse(raw);
+
+    // Ensure slug uniqueness the same way listing slugs are handled
+    const baseSlug = (draft.slug || draft.title_en).toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const { data: conflict } = await supabaseAdmin.from('blog_posts').select('id').eq('slug', baseSlug).maybeSingle();
+    const finalSlug = conflict ? `${baseSlug}-${Date.now()}` : baseSlug;
+
+    const { data: inserted, error } = await supabaseAdmin.from('blog_posts').insert({
+        slug: finalSlug,
+        title_en: draft.title_en, title_es: draft.title_es,
+        excerpt_en: draft.excerpt_en, excerpt_es: draft.excerpt_es,
+        meta_description_en: draft.meta_description_en, meta_description_es: draft.meta_description_es,
+        body_en: draft.body_en, body_es: draft.body_es,
+        category: draft.category || null,
+        status: 'pending_review',
+        ai_generated: true
+    }).select().single();
+    if (error) throw new Error(error.message);
+
+    await logEvent('blog_draft_generated', { id: inserted.id, mode, topic: mode === 'topic' ? topic : null });
+    return inserted;
+}
+
+// ── POST /api/admin/blog/generate-draft ────────────────────────────────────────
+// Called from the admin panel ("Generate topic idea" or "Generate from my notes")
+// AND from the weekly GitHub Actions cron (shared secret, same pattern as /api/reload-pdf).
+app.post('/api/admin/blog/generate-draft', async (req, res) => {
+    const bearer = req.headers['authorization']?.replace('Bearer ', '');
+    let isAdminToken = false;
+    if (bearer) {
+        try { isAdminToken = Buffer.from(bearer, 'base64').toString().split(':')[0] === 'admin'; } catch {}
+    }
+    const isCronSecret = req.body?.secret && req.body.secret === process.env.ADMIN_SECRET;
+    if (!isAdminToken && !isCronSecret) return res.status(403).json({ error: 'Denied' });
+
+    try {
+        const draft = await generateBlogDraft(req.body?.seed_text || null);
+        res.json({ success: true, draft });
+    } catch (err) {
+        console.error('Blog draft generation error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
 //========== temporary endpoints ============================
 
 //==========================================================

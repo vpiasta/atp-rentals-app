@@ -78,38 +78,13 @@ $ssr_listings = ssr_featured_listings();
     <link rel="canonical" href="<?= $t['canonical'] ?>">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/site-header-footer.css">
     <style>
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #111; background: #f8f9fa; }
         .container { max-width: 800px; margin: 0 auto; padding: 20px; }
-        /* ── Header ── */
-        header { background: linear-gradient(135deg, #005ca9, #00a859); color: white; padding: 0.6rem 0.8rem; border-radius: 10px; margin-bottom: 0.6rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .header-inner { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
-        .header-logo  { flex-shrink: 0; width: 44px; height: 44px; }
-        .header-text  { flex: 1 1 auto; min-width: 0; overflow: hidden; }
-        .header-text h1 { font-size: 1.05rem; font-weight: 700; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .header-text p  { font-size: 0.72rem; opacity: 0.85; margin: 0; white-space: normal; line-height: 1.3; }
-        .header-right { display: flex; flex-direction: row; align-items: center; gap: 5px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; max-width: 45%; }
-        .lang-toggle { display: inline-flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); border-radius: 20px; padding: 4px 9px; text-decoration: none; color: white; font-size: 0.76rem; font-weight: 600; transition: background 0.3s; white-space: nowrap; }
-        .lang-toggle:hover { background: rgba(255,255,255,0.28); }
-        .atp-badge { font-size: 0.62rem; opacity: 0.85; flex-basis: 100%; text-align: right; line-height: 1.4; }
-        .atp-badge a { color: white; }
-
-        footer { background: #2c3e50; color: #ccc; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; text-align: center; font-size: 0.85rem; line-height: 1.8; }
-        footer a { color: #7ec8e3; text-decoration: none; }
-        footer a:hover { text-decoration: underline; }
-
-
-        /* Mobile: logo+title row 1, buttons+badge row 2 centered */
-        @media (max-width: 600px) {
-            .header-inner { flex-wrap: wrap; gap: 6px; }
-            .header-logo  { width: 36px; height: 36px; }
-            .header-text  { flex: 1; }
-            .header-text h1 { font-size: 0.9rem; }
-            .header-right { max-width: 100%; width: 100%; justify-content: center; flex-wrap: nowrap; }
-            .atp-badge { display: block; text-align: right; flex-basis: 100%; }
-        }
+        /* Header/footer styles moved to /css/site-header-footer.css */
 
         /* ── Stats ── */
         .stats { background: white; padding: 0.3rem 0.8rem; border-radius: 8px; margin-bottom: 0.5rem; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.06); font-size: 0.85rem; }
@@ -296,66 +271,20 @@ $ssr_listings = ssr_featured_listings();
         }
         .up-btn:hover { background: #004885; }
         .up-btn.visible { display: flex; }
-        @media (max-width: 768px) {
-            .header-inner { gap: 0.8rem; } .header-logo { width: 54px; height: 54px; }
-            .header-text h1 { font-size: 1.2rem; }
-            .header-right { margin-left: 0; flex-direction: row; align-items: center; width: 100%; justify-content: flex-end; }
-        }
-
             .no-results { display:flex; justify-content:center; margin:1rem 0; } .no-results p { display:inline-block; padding:5px 12px; background:#fffde7; border:2px solid #1a3a6b; border-radius:8px; color:#1a3a6b; font-size:0.95rem; margin:0; }
         .no-results p { margin:0; font-size:0.95rem; }
 </style>
 </head>
 <body>
 <div class="container">
-    <header>
-        <div class="header-inner">
-            <svg class="header-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260" role="img" aria-label="Trusted Panama Stays logo">
-                <rect x="30" y="130" width="100" height="62" fill="white"/>
-                <rect x="130" y="130" width="100" height="62" fill="#cc0000"/>
-                <rect x="30" y="192" width="100" height="62" fill="#1a3a6b"/>
-                <rect x="130" y="192" width="100" height="62" fill="white"/>
-                <rect x="30" y="130" width="200" height="124" fill="none" stroke="white" stroke-width="2"/>
-                <polygon points="80,147 82.5,155 91,155 84,160 86.5,168 80,163 73.5,168 76,160 69,155 77.5,155" fill="#1a3a6b"/>
-                <polygon points="180,209 182.5,217 191,217 184,222 186.5,230 180,225 173.5,230 176,222 169,217 177.5,217" fill="#cc0000"/>
-                <polyline points="5,128 130,16 255,128" fill="none" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M54,138 L98,246 L218,26" fill="none" stroke="#FFD700" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <div class="header-text">
-                <h1><?= $t['heading'] ?></h1>
-                <p><?= $t['subheading'] ?></p>
-            </div>
-            <div class="header-right">
-              <a href="<?= $t['about_href'] ?>" class="lang-toggle"><?= $t['about_link'] ?></a>
-              <a href="faq.php?lang=<?= $lang ?>" class="lang-toggle"><?= $is_en ? 'FAQ' : 'Preguntas' ?></a>
-                <a href="<?= $t['lang_href'] ?>" class="lang-toggle">
-                    <?php if ($is_en): ?>
-                      <svg width="20" height="14" viewBox="0 0 20 14" style="flex-shrink:0;">
-                        <rect x="0" y="0" width="10" height="7" fill="white"/>
-                        <rect x="10" y="0" width="10" height="7" fill="#cc0000"/>
-                        <rect x="0" y="7" width="10" height="7" fill="#003189"/>
-                        <rect x="10" y="7" width="10" height="7" fill="white"/>
-                        <polygon points="5,1.5 5.9,4.2 8.8,4.2 6.4,5.9 7.3,8.6 5,6.9 2.7,8.6 3.6,5.9 1.2,4.2 4.1,4.2" fill="#cc0000"/>
-                        <polygon points="15,5.5 15.9,8.2 18.8,8.2 16.4,9.9 17.3,12.6 15,10.9 12.7,12.6 13.6,9.9 11.2,8.2 14.1,8.2" fill="#003189"/>
-                    </svg>
-                    <?php else: ?>
-                    <svg width="20" height="14" viewBox="0 0 20 14" style="flex-shrink:0;">
-                        <rect x="0" y="0" width="20" height="14" fill="#B22234"/>
-                        <rect x="0" y="2" width="20" height="2" fill="white"/>
-                        <rect x="0" y="6" width="20" height="2" fill="white"/>
-                        <rect x="0" y="10" width="20" height="2" fill="white"/>
-                        <rect x="0" y="0" width="8" height="8" fill="#3C3B6E"/>
-                    </svg>
-                    <?php endif; ?>
-                    <?= $t['lang_switch'] ?>
-                </a>
-                <div class="atp-badge">
-                    <?= $t['atp_label'] ?> <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">ATP</a>
-                    · <?= $t['updated'] ?> <span id="formatted-date"><?= $t['loading'] ?></span>
-                </div>
-            </div>
-        </div>
-    </header>
+    <?php
+      $heading          = $t['heading'];
+      $subheading       = $t['subheading'];
+      $lang_toggle_href = $t['lang_href'];
+      $show_atp_badge   = true;
+      $atp_badge_extra  = '· ' . $t['updated'] . ' <span id="formatted-date">' . $t['loading'] . '</span>';
+      include __DIR__ . '/includes/header.php';
+    ?>
 
     <div class="stats" id="statsPanel"><div class="loading"><?= $t['loading'] ?></div></div>
 
@@ -410,14 +339,7 @@ $ssr_listings = ssr_featured_listings();
         <p style="font-size:0.88rem;color:#555;margin-bottom:0.6rem;"><?= $t['join_text'] ?></p>
         <a href="join.html" style="display:inline-block;padding:9px 24px;background:#005ca9;color:white;text-decoration:none;border-radius:7px;font-weight:700;font-size:0.92rem;"><?= $t['join_btn'] ?></a>
     </div>
-    <footer>
-        <p style="font-size:0.8rem;"><?= $t['footer_data'] ?> <a href="https://www.atp.gob.pa/industrias/hoteleros/" target="_blank">Autoridad de Turismo de Panamá (ATP)</a><br><?= $t['footer_extra'] ?></p>
-        <p style="margin-top:0.8rem;">
-            <?= $t['footer_owned'] ?><br>
-            RUC 1401220-1-627960 DV21<br>
-            <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a>
-        </p>
-    </footer>
+    <?php include __DIR__ . '/includes/footer.php'; ?>
 </div>
 
 <button class="up-btn" id="up-btn" onclick="scrollToTop()" title="<?= $is_en ? 'Back to top' : 'Volver arriba' ?>">↑</button>
