@@ -6,9 +6,36 @@ $slug  = isset($_GET['slug']) ? trim($_GET['slug']) : '';
 define('SUPABASE_URL', 'https://caqdkxukezpckqphogwl.supabase.co');
 define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcWRreHVrZXpwY2txcGhvZ3dsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDc2MDIsImV4cCI6MjA5NjAyMzYwMn0.xqNuCWm_ALivBRpl3pSTDDJeoBN1WfX4-G_OJq2Sd8g');
 
-function ssr_blog_post($slug) {
+// ── Preview mode: a signed, time-limited admin token lets an unpublished ──
+// draft be viewed before approval. Same token shape as the rest of the app:
+// base64(id:timestamp:ADMIN_SECRET), minted by /api/admin/blog/:id/preview-link.
+function is_valid_preview_token($token) {
+    if (!$token) return false;
+    $adminSecret = getenv('ADMIN_SECRET');
+    if (!$adminSecret) return false; // can't validate without the secret available to PHP
+    $decoded = base64_decode($token, true);
+    if ($decoded === false) return false;
+    $parts = explode(':', $decoded);
+    if (count($parts) !== 3) return false;
+    [$tokenId, $tokenTime, $tokenSecret] = $parts;
+    if ($tokenSecret !== $adminSecret) return false;
+    if ((microtime(true) * 1000) - (float)$tokenTime > 24 * 60 * 60 * 1000) return false; // 24h expiry
+    return true;
+}
+$isPreview = is_valid_preview_token($_GET['preview'] ?? null);
+
+// ── TEMPORARY DEBUG — remove after diagnosing ────────────────────────────────
+if (($_GET['debug'] ?? '') === '1') {
+    $secretPresent = getenv('ADMIN_SECRET') ? 'YES' : 'NO';
+    $tokenGiven = $_GET['preview'] ?? '(none)';
+    $decodedToken = $tokenGiven !== '(none)' ? base64_decode($tokenGiven, true) : '(n/a)';
+    die("getenv('ADMIN_SECRET') resolved: $secretPresent\ntoken received: $tokenGiven\ndecoded: $decodedToken\nisPreview result: " . ($isPreview ? 'true' : 'false'));
+}
+
+function ssr_blog_post($slug, $allowUnpublished) {
     if ($slug === '') return null;
-    $url = SUPABASE_URL . '/rest/v1/blog_posts?select=*&slug=eq.' . urlencode($slug) . '&status=eq.published&limit=1';
+    $statusFilter = $allowUnpublished ? '' : '&status=eq.published';
+    $url = SUPABASE_URL . '/rest/v1/blog_posts?select=*&slug=eq.' . urlencode($slug) . $statusFilter . '&limit=1';
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -25,7 +52,7 @@ function ssr_blog_post($slug) {
     $data = json_decode($body, true);
     return (is_array($data) && count($data)) ? $data[0] : null;
 }
-$post = ssr_blog_post($slug);
+$post = ssr_blog_post($slug, $isPreview);
 if (!$post) http_response_code(404);
 
 $title     = $post ? ($post["title_$lang"] ?? '')            : ($is_en ? 'Post not found' : 'Publicación no encontrada');
@@ -48,7 +75,7 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
     <title><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?> - Trusted Panama Stays</title>
     <meta name="description" content="<?= htmlspecialchars($metaDesc, ENT_QUOTES, 'UTF-8') ?>">
     <link rel="canonical" href="<?= htmlspecialchars($canonical, ENT_QUOTES, 'UTF-8') ?>">
-    <?php if ($post): ?>
+    <?php if ($post && !$isPreview): ?>
     <link rel="alternate" hreflang="en" href="https://trustedpanamastays.com/blog-post.php?slug=<?= urlencode($slug) ?>">
     <link rel="alternate" hreflang="es" href="https://trustedpanamastays.com/blog-post.php?slug=<?= urlencode($slug) ?>&lang=es">
     <link rel="alternate" hreflang="x-default" href="https://trustedpanamastays.com/blog-post.php?slug=<?= urlencode($slug) ?>">
@@ -76,7 +103,7 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
         .back-link { display: inline-block; margin-bottom: 1rem; color: #005ca9; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
         .not-found { background: white; padding: 2rem; border-radius: 10px; text-align: center; }
     </style>
-    <?php if ($post): ?>
+    <?php if ($post && !$isPreview): ?>
     <script type="application/ld+json">
     <?= json_encode([
         "@context" => "https://schema.org",
@@ -103,6 +130,12 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
     ?>
 
     <a class="back-link" href="blog.php?lang=<?= $lang ?>">&larr; <?= $is_en ? 'Back to Blog' : 'Volver al Blog' ?></a>
+
+    <?php if ($post && $isPreview): ?>
+        <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:0.8rem 1rem;margin-bottom:1rem;font-size:0.9rem;color:#856404;">
+            👁️ <strong><?= $is_en ? 'PREVIEW' : 'VISTA PREVIA' ?></strong> — <?= $is_en ? 'status:' : 'estado:' ?> <?= htmlspecialchars($post['status'], ENT_QUOTES, 'UTF-8') ?>. <?= $is_en ? 'Not visible to the public yet.' : 'Aún no es visible al público.' ?>
+        </div>
+    <?php endif; ?>
 
     <?php if ($post): ?>
         <div class="post-header">
