@@ -5508,6 +5508,14 @@ app.post('/api/admin/blog/:id/reject', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── POST /api/admin/blog/:id/unpublish — take a live post back to draft ──────
+app.post('/api/admin/blog/:id/unpublish', requireAdmin, async (req, res) => {
+    const { error } = await supabaseAdmin.from('blog_posts').update({ status: 'pending_review', published_at: null }).eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('blog_post_unpublished', { id: req.params.id });
+    res.json({ success: true });
+});
+
 // ── POST /api/admin/blog/:id/delete ────────────────────────────────────────────
 app.post('/api/admin/blog/:id/delete', requireAdmin, async (req, res) => {
     const { error } = await supabaseAdmin.from('blog_posts').delete().eq('id', req.params.id);

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Blog Admin - Trusted Panama Stays</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8f9fa; color: #111; line-height: 1.5; }
+  .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+  header { background: linear-gradient(135deg, #005ca9, #00a859); color: white; padding: 1rem 1.4rem; border-radius: 10px; margin-bottom: 1rem; }
+  header h1 { font-size: 1.3rem; }
+  .login-box { max-width: 360px; margin: 4rem auto; background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+  .login-box input { width: 100%; padding: 10px; margin-bottom: 10px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 14px; }
+  .login-box button, .btn { background: #005ca9; color: white; border: none; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px; }
+  .login-box button:hover, .btn:hover { background: #004885; }
+  .btn-green { background: #00a859; } .btn-green:hover { background: #008a48; }
+  .btn-red { background: #cc3333; } .btn-red:hover { background: #a82828; }
+  .btn-gray { background: #888; } .btn-gray:hover { background: #666; }
+  .btn-outline { background: white; color: #005ca9; border: 2px solid #005ca9; }
+  .error { color: #cc3333; font-size: 0.85rem; margin-top: 6px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 1rem; flex-wrap: wrap; }
+  .tab { padding: 8px 16px; background: white; border-radius: 20px; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: #555; border: 2px solid transparent; }
+  .tab.active { background: #005ca9; color: white; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card { background: white; border-radius: 10px; padding: 1.2rem; margin-bottom: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+  .card h3 { color: #005ca9; margin-bottom: 4px; font-size: 1.05rem; }
+  .card .meta { font-size: 0.78rem; color: #888; margin-bottom: 8px; }
+  .card .excerpt { font-size: 0.9rem; color: #444; margin-bottom: 10px; }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; margin-right: 6px; }
+  .badge-pending { background: #fff3cd; color: #856404; }
+  .badge-published { background: #d4f5dd; color: #1a5c1a; }
+  .badge-rejected { background: #fde8e8; color: #a82828; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .edit-form { display: none; margin-top: 12px; border-top: 1px solid #e1e5e9; padding-top: 12px; }
+  .edit-form.open { display: block; }
+  .edit-form label { display: block; font-size: 0.78rem; font-weight: 600; color: #555; margin: 8px 0 3px; }
+  .edit-form input, .edit-form textarea { width: 100%; padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 13px; font-family: inherit; }
+  .edit-form textarea { min-height: 100px; font-family: monospace; font-size: 12px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+  .material-form { background: white; border-radius: 10px; padding: 1.2rem; margin-bottom: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+  .material-form select, .material-form input, .material-form textarea { width: 100%; padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 13px; margin-bottom: 8px; font-family: inherit; }
+  .material-form textarea { min-height: 140px; }
+  .loading { text-align: center; padding: 2rem; color: #888; }
+  .empty { text-align: center; padding: 2rem; color: #888; background: white; border-radius: 10px; }
+  .toast { position: fixed; bottom: 20px; right: 20px; background: #1a3a6b; color: white; padding: 10px 18px; border-radius: 8px; font-size: 0.85rem; opacity: 0; transition: opacity 0.3s; z-index: 999; }
+  .toast.show { opacity: 1; }
+  .gen-box { background: white; border-radius: 10px; padding: 1.2rem; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 1rem; }
+  .gen-box textarea { width: 100%; min-height: 100px; padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 13px; margin: 8px 0; font-family: inherit; }
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="container">
+  <div class="login-box">
+    <h2 style="color:#005ca9;margin-bottom:1rem;">Blog Admin Login</h2>
+    <input type="password" id="loginPassword" placeholder="Admin password">
+    <button onclick="doLogin()">Log in</button>
+    <div id="loginError" class="error"></div>
+  </div>
+</div>
+
+<div id="app" class="container" style="display:none;">
+  <header>
+    <h1>📝 Blog Admin — Trusted Panama Stays</h1>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="pending" onclick="switchTab('pending')">Pending Review</div>
+    <div class="tab" data-tab="published" onclick="switchTab('published')">Published</div>
+    <div class="tab" data-tab="material" onclick="switchTab('material')">Material Bank</div>
+    <div class="tab" data-tab="generate" onclick="switchTab('generate')">Generate New</div>
+    <div style="margin-left:auto;"><button class="btn btn-gray" onclick="logout()">Log out</button></div>
+  </div>
+
+  <div id="panel-pending" class="panel active"><div class="loading">Loading…</div></div>
+  <div id="panel-published" class="panel"><div class="loading">Loading…</div></div>
+  <div id="panel-material" class="panel"></div>
+  <div id="panel-generate" class="panel"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+let TOKEN = sessionStorage.getItem('tps_blog_admin_token') || null;
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN, ...(opts.headers||{}) }
+  });
+  if (res.status === 401 || res.status === 403) {
+    const body = await res.json().catch(()=>({}));
+    if (body.error === 'Session expired' || body.error === 'No token' || body.error === 'IP changed') {
+      logout();
+      throw new Error('Session expired — please log in again');
+    }
+  }
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+async function doLogin() {
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  try {
+    const res = await fetch('/api/admin-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    TOKEN = data.token;
+    sessionStorage.setItem('tps_blog_admin_token', TOKEN);
+    showApp();
+  } catch (e) {
+    errEl.textContent = e.message;
+  }
+}
+
+function logout() {
+  TOKEN = null;
+  sessionStorage.removeItem('tps_blog_admin_token');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'block';
+}
+
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  loadPending();
+  loadPublished();
+  renderMaterialPanel();
+  renderGeneratePanel();
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+}
+
+// ── Shared post card renderer (used for both pending + published) ───────────
+function postCard(p) {
+  const badgeClass = p.status === 'published' ? 'badge-published' : (p.status === 'rejected' ? 'badge-rejected' : 'badge-pending');
+  const div = document.createElement('div');
+  div.className = 'card';
+  div.innerHTML = `
+    <span class="badge ${badgeClass}">${p.status.replace('_',' ')}</span>
+    <h3>${escapeHtml(p.title_en || '(no title)')}</h3>
+    <div class="meta">slug: ${escapeHtml(p.slug)} · id: ${p.id} · category: ${escapeHtml(p.category||'—')} · ${p.ai_generated ? 'AI-generated' : 'manual'}</div>
+    <div class="excerpt">${escapeHtml(p.excerpt_en || '')}</div>
+    <div class="row">
+      <button class="btn btn-outline" onclick="togglePostEdit(${p.id})">Edit</button>
+      <button class="btn" onclick="getPreviewLink(${p.id})">Preview</button>
+      ${p.status !== 'published' ? `<button class="btn btn-green" onclick="approvePost(${p.id})">Approve &amp; Publish</button>` : ''}
+      ${p.status !== 'published' ? `<button class="btn btn-red" onclick="rejectPost(${p.id})">Reject</button>` : ''}
+      ${p.status === 'published' ? `<button class="btn btn-gray" onclick="unpublishPost(${p.id})">Unpublish</button>` : ''}
+      <button class="btn btn-red" onclick="deletePost(${p.id})">Delete</button>
+    </div>
+    <div class="edit-form" id="edit-${p.id}">
+      <div class="two-col">
+        <div><label>Title (EN)</label><input id="f-title_en-${p.id}" value="${escapeAttr(p.title_en)}"></div>
+        <div><label>Title (ES)</label><input id="f-title_es-${p.id}" value="${escapeAttr(p.title_es)}"></div>
+      </div>
+      <div class="two-col">
+        <div><label>Excerpt (EN)</label><input id="f-excerpt_en-${p.id}" value="${escapeAttr(p.excerpt_en)}"></div>
+        <div><label>Excerpt (ES)</label><input id="f-excerpt_es-${p.id}" value="${escapeAttr(p.excerpt_es)}"></div>
+      </div>
+      <div class="two-col">
+        <div><label>Meta description (EN)</label><input id="f-meta_description_en-${p.id}" value="${escapeAttr(p.meta_description_en)}"></div>
+        <div><label>Meta description (ES)</label><input id="f-meta_description_es-${p.id}" value="${escapeAttr(p.meta_description_es)}"></div>
+      </div>
+      <label>Category</label><input id="f-category-${p.id}" value="${escapeAttr(p.category)}">
+      <label>Slug</label><input id="f-slug-${p.id}" value="${escapeAttr(p.slug)}">
+      <label>Featured image URL</label><input id="f-featured_image_url-${p.id}" value="${escapeAttr(p.featured_image_url)}">
+      <div class="two-col">
+        <div><label>Body HTML (EN)</label><textarea id="f-body_en-${p.id}">${escapeHtml(p.body_en||'')}</textarea></div>
+        <div><label>Body HTML (ES)</label><textarea id="f-body_es-${p.id}">${escapeHtml(p.body_es||'')}</textarea></div>
+      </div>
+      <div class="row"><button class="btn btn-green" onclick="saveEdit(${p.id})">Save Changes</button></div>
+    </div>
+  `;
+  return div;
+}
+
+function togglePostEdit(id) {
+  document.getElementById('edit-' + id).classList.toggle('open');
+}
+
+async function saveEdit(id) {
+  const fields = ['title_en','title_es','excerpt_en','excerpt_es','meta_description_en','meta_description_es','category','slug','featured_image_url','body_en','body_es'];
+  const payload = {};
+  fields.forEach(f => { payload[f] = document.getElementById(`f-${f}-${id}`).value; });
+  try {
+    await api(`/api/admin/blog/${id}/edit`, { method: 'POST', body: JSON.stringify(payload) });
+    showToast('Saved');
+    loadPending(); loadPublished();
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+
+async function approvePost(id) {
+  if (!confirm('Publish this post live?')) return;
+  try { await api(`/api/admin/blog/${id}/approve`, { method: 'POST' }); showToast('Published'); loadPending(); loadPublished(); }
+  catch (e) { showToast('Error: ' + e.message); }
+}
+async function rejectPost(id) {
+  if (!confirm('Reject this draft?')) return;
+  try { await api(`/api/admin/blog/${id}/reject`, { method: 'POST' }); showToast('Rejected'); loadPending(); }
+  catch (e) { showToast('Error: ' + e.message); }
+}
+async function unpublishPost(id) {
+  if (!confirm('Take this post offline and back to draft?')) return;
+  try { await api(`/api/admin/blog/${id}/unpublish`, { method: 'POST' }); showToast('Unpublished'); loadPending(); loadPublished(); }
+  catch (e) { showToast('Error: ' + e.message); }
+}
+async function deletePost(id) {
+  if (!confirm('Permanently delete this post? This cannot be undone.')) return;
+  try { await api(`/api/admin/blog/${id}/delete`, { method: 'POST' }); showToast('Deleted'); loadPending(); loadPublished(); }
+  catch (e) { showToast('Error: ' + e.message); }
+}
+async function getPreviewLink(id) {
+  try {
+    const data = await api(`/api/admin/blog/${id}/preview-link`);
+    window.open(data.url_en, '_blank');
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+
+async function loadPending() {
+  const panel = document.getElementById('panel-pending');
+  try {
+    const posts = await api('/api/admin/blog/pending');
+    panel.innerHTML = '';
+    if (!posts.length) { panel.innerHTML = '<div class="empty">No drafts waiting for review.</div>'; return; }
+    posts.forEach(p => panel.appendChild(postCard(p)));
+  } catch (e) { panel.innerHTML = `<div class="empty">Error: ${escapeHtml(e.message)}</div>`; }
+}
+
+async function loadPublished() {
+  const panel = document.getElementById('panel-published');
+  try {
+    const all = await api('/api/admin/blog/all');
+    const posts = all.filter(p => p.status === 'published');
+    panel.innerHTML = '';
+    if (!posts.length) { panel.innerHTML = '<div class="empty">No published posts yet.</div>'; return; }
+    posts.forEach(p => panel.appendChild(postCard(p)));
+  } catch (e) { panel.innerHTML = `<div class="empty">Error: ${escapeHtml(e.message)}</div>`; }
+}
+
+// ── Material bank ──────────────────────────────────────────────────────────
+function renderMaterialPanel() {
+  const panel = document.getElementById('panel-material');
+  panel.innerHTML = `
+    <div class="material-form">
+      <h3 style="color:#005ca9;margin-bottom:10px;">Add material for a future post</h3>
+      <input id="mat-title" placeholder="Title / short label (optional)">
+      <select id="mat-type">
+        <option value="facebook_post">Facebook post</option>
+        <option value="legal_analysis">Legal analysis</option>
+        <option value="note">Note / other</option>
+      </select>
+      <textarea id="mat-content" placeholder="Paste the content here — a Facebook post, a write-up on a law or regulation, or any raw notes."></textarea>
+      <button class="btn btn-green" onclick="addMaterial()">Save to Material Bank</button>
+    </div>
+    <div id="material-list"><div class="loading">Loading…</div></div>
+  `;
+  loadMaterial();
+}
+
+async function addMaterial() {
+  const title = document.getElementById('mat-title').value;
+  const source_type = document.getElementById('mat-type').value;
+  const content = document.getElementById('mat-content').value;
+  if (!content.trim()) { showToast('Content is required'); return; }
+  try {
+    await api('/api/admin/blog/material', { method: 'POST', body: JSON.stringify({ title, source_type, content }) });
+    document.getElementById('mat-title').value = '';
+    document.getElementById('mat-content').value = '';
+    showToast('Saved to material bank');
+    loadMaterial();
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+
+async function loadMaterial() {
+  const listEl = document.getElementById('material-list');
+  try {
+    const items = await api('/api/admin/blog/material');
+    listEl.innerHTML = '';
+    if (!items.length) { listEl.innerHTML = '<div class="empty">Nothing saved yet.</div>'; return; }
+    items.forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.innerHTML = `
+        <span class="badge ${m.used ? 'badge-published' : 'badge-pending'}">${m.used ? 'used' : 'unused'}</span>
+        <h3>${escapeHtml(m.title || '(untitled)')}</h3>
+        <div class="meta">${escapeHtml(m.source_type)} · added ${new Date(m.created_at).toLocaleDateString()}${m.used_in_post_id ? ' · used in post #' + m.used_in_post_id : ''}</div>
+        <div class="excerpt">${escapeHtml((m.content||'').slice(0,220))}${m.content && m.content.length > 220 ? '…' : ''}</div>
+        <div class="row"><button class="btn btn-red" onclick="deleteMaterial(${m.id})">Delete</button></div>
+      `;
+      listEl.appendChild(div);
+    });
+  } catch (e) { listEl.innerHTML = `<div class="empty">Error: ${escapeHtml(e.message)}</div>`; }
+}
+
+async function deleteMaterial(id) {
+  if (!confirm('Delete this saved material?')) return;
+  try { await api(`/api/admin/blog/material/${id}/delete`, { method: 'POST' }); showToast('Deleted'); loadMaterial(); }
+  catch (e) { showToast('Error: ' + e.message); }
+}
+
+// ── Generate new draft ───────────────────────────────────────────────────────
+function renderGeneratePanel() {
+  const panel = document.getElementById('panel-generate');
+  panel.innerHTML = `
+    <div class="gen-box">
+      <h3 style="color:#005ca9;">Generate a topic-based draft</h3>
+      <p style="font-size:0.85rem;color:#666;margin:6px 0 10px;">Pulls the oldest unused item from the Material Bank first, if there is one — otherwise picks a random topic idea.</p>
+      <button class="btn btn-green" id="gen-topic-btn" onclick="generateDraft(null, 'gen-topic-btn')">Generate Draft</button>
+    </div>
+    <div class="gen-box">
+      <h3 style="color:#005ca9;">Generate from notes right now</h3>
+      <p style="font-size:0.85rem;color:#666;margin:6px 0 10px;">Skips the material bank — turns whatever you paste below into a draft immediately.</p>
+      <textarea id="gen-seed" placeholder="Paste rough notes, a concept explanation, or anything you want turned into a post."></textarea>
+      <button class="btn btn-green" id="gen-seed-btn" onclick="generateFromSeed()">Generate from These Notes</button>
+    </div>
+  `;
+}
+
+async function generateDraft(seedText, btnId) {
+  const btn = document.getElementById(btnId);
+  btn.disabled = true; btn.textContent = 'Generating… (15–30s)';
+  try {
+    const data = await api('/api/admin/blog/generate-draft', { method: 'POST', body: JSON.stringify(seedText ? { seed_text: seedText } : {}) });
+    showToast('Draft created: ' + data.draft.title_en);
+    switchTab('pending');
+    loadPending();
+  } catch (e) { showToast('Error: ' + e.message); }
+  btn.disabled = false; btn.textContent = btnId === 'gen-topic-btn' ? 'Generate Draft' : 'Generate from These Notes';
+}
+
+function generateFromSeed() {
+  const seed = document.getElementById('gen-seed').value;
+  if (!seed.trim()) { showToast('Paste some notes first'); return; }
+  generateDraft(seed, 'gen-seed-btn');
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+function escapeHtml(str) {
+  return (str||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(str) { return escapeHtml(str); }
+
+// Auto-resume session if a token is still stored
+if (TOKEN) showApp();
+
+document.getElementById('loginPassword').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
+</script>
+</body>
+</html>
