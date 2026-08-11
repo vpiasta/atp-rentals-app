@@ -5546,7 +5546,7 @@ ${mode === 'seed'
 Requirements:
 - Write in BOTH English and Spanish (Panama Spanish, natural for a Panamanian reader) — full separate versions, not a translation-in-parentheses style
 - Structure: use <h2>/<h3> for section headings (NEVER <h1>, that's reserved for the title), <p> paragraphs, <ul>/<ol> only where a list is genuinely clearer than prose
-- Where natural, include ONE internal link suggestion back to the directory using a placeholder like <a href="/index.php?lang=es">our directory</a> — don't force it if it doesn't fit
+- Where natural, include ONE internal link back to the directory in each language version, pointing to the CORRECT language homepage for that version: use <a href="/index.php">our directory</a> in body_en (English homepage, no lang param) and <a href="/index.php?lang=es">nuestro directorio</a> in body_es (Spanish homepage) — don't force it if it doesn't fit
 - No inline styling — plain semantic HTML only
 - Tone: helpful, credible, not salesy
 - Length: 500-900 words per language version
