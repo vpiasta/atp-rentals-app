@@ -5,10 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex">
 <title>Blog Admin - Trusted Panama Stays</title>
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8f9fa; color: #111; line-height: 1.5; }
   .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+  .quill-editor { background: white; border-radius: 0 0 6px 6px; }
+  .quill-editor .ql-editor { min-height: 180px; font-size: 13px; }
+  .quill-editor .ql-toolbar { border-radius: 6px 6px 0 0; background: #f8f9fa; }
   header { background: linear-gradient(135deg, #005ca9, #00a859); color: white; padding: 1rem 1.4rem; border-radius: 10px; margin-bottom: 1rem; }
   header h1 { font-size: 1.3rem; }
   .login-box { max-width: 360px; margin: 4rem auto; background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
@@ -187,8 +192,8 @@ function postCard(p) {
       <label>Slug</label><input id="f-slug-${p.id}" value="${escapeAttr(p.slug)}">
       <label>Featured image URL</label><input id="f-featured_image_url-${p.id}" value="${escapeAttr(p.featured_image_url)}">
       <div class="two-col">
-        <div><label>Body HTML (EN)</label><textarea id="f-body_en-${p.id}">${escapeHtml(p.body_en||'')}</textarea></div>
-        <div><label>Body HTML (ES)</label><textarea id="f-body_es-${p.id}">${escapeHtml(p.body_es||'')}</textarea></div>
+        <div><label>Body (EN)</label><div class="quill-editor" id="quill-body_en-${p.id}">${p.body_en||''}</div></div>
+        <div><label>Body (ES)</label><div class="quill-editor" id="quill-body_es-${p.id}">${p.body_es||''}</div></div>
       </div>
       <div class="row"><button class="btn btn-green" onclick="saveEdit(${p.id})">Save Changes</button></div>
     </div>
@@ -197,13 +202,48 @@ function postCard(p) {
 }
 
 function togglePostEdit(id) {
-  document.getElementById('edit-' + id).classList.toggle('open');
+  const form = document.getElementById('edit-' + id);
+  const opening = !form.classList.contains('open');
+  form.classList.toggle('open');
+  if (opening) {
+    // Defer to next tick so the container has real dimensions before Quill measures it
+    setTimeout(() => ensureQuillEditors(postsById[id]), 0);
+  }
+}
+
+let quillInstances = {};
+let postsById = {};
+
+function ensureQuillEditors(p) {
+  if (!p) return;
+  ['body_en', 'body_es'].forEach(field => {
+    const key = `${field}-${p.id}`;
+    if (quillInstances[key]) return; // already initialized this render cycle
+    const container = document.getElementById(`quill-${key}`);
+    if (!container) return;
+    quillInstances[key] = new Quill(container, {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ header: [2, 3, false] }],   // h2/h3 only — h1 is reserved for the post title
+          ['bold', 'italic', 'underline'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['link'],
+          ['clean']
+        ]
+      }
+    });
+  });
 }
 
 async function saveEdit(id) {
-  const fields = ['title_en','title_es','excerpt_en','excerpt_es','meta_description_en','meta_description_es','category','slug','featured_image_url','body_en','body_es'];
+  const fields = ['title_en','title_es','excerpt_en','excerpt_es','meta_description_en','meta_description_es','category','slug','featured_image_url'];
   const payload = {};
   fields.forEach(f => { payload[f] = document.getElementById(`f-${f}-${id}`).value; });
+  const qEn = quillInstances[`body_en-${id}`];
+  const qEs = quillInstances[`body_es-${id}`];
+  if (qEn) payload.body_en = qEn.root.innerHTML;
+  if (qEs) payload.body_es = qEs.root.innerHTML;
   try {
     await api(`/api/admin/blog/${id}/edit`, { method: 'POST', body: JSON.stringify(payload) });
     showToast('Saved');
@@ -242,6 +282,8 @@ async function loadPending() {
   const panel = document.getElementById('panel-pending');
   try {
     const posts = await api('/api/admin/blog/pending');
+    quillInstances = {};
+    posts.forEach(p => postsById[p.id] = p);
     panel.innerHTML = '';
     if (!posts.length) { panel.innerHTML = '<div class="empty">No drafts waiting for review.</div>'; return; }
     posts.forEach(p => panel.appendChild(postCard(p)));
@@ -253,6 +295,8 @@ async function loadPublished() {
   try {
     const all = await api('/api/admin/blog/all');
     const posts = all.filter(p => p.status === 'published');
+    quillInstances = {};
+    posts.forEach(p => postsById[p.id] = p);
     panel.innerHTML = '';
     if (!posts.length) { panel.innerHTML = '<div class="empty">No published posts yet.</div>'; return; }
     posts.forEach(p => panel.appendChild(postCard(p)));
