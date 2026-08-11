@@ -24,13 +24,6 @@ function is_valid_preview_token($token) {
 }
 $isPreview = is_valid_preview_token($_GET['preview'] ?? null);
 
-// ── TEMPORARY DEBUG — remove after diagnosing ────────────────────────────────
-if (($_GET['debug'] ?? '') === '1') {
-    $secretPresent = getenv('ADMIN_SECRET') ? 'YES' : 'NO';
-    $tokenGiven = $_GET['preview'] ?? '(none)';
-    $decodedToken = $tokenGiven !== '(none)' ? base64_decode($tokenGiven, true) : '(n/a)';
-    die("getenv('ADMIN_SECRET') resolved: $secretPresent\ntoken received: $tokenGiven\ndecoded: $decodedToken\nisPreview result: " . ($isPreview ? 'true' : 'false'));
-}
 
 function ssr_blog_post($slug, $allowUnpublished) {
     if ($slug === '') return null;
