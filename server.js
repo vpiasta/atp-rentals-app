@@ -5563,16 +5563,16 @@ Return ONLY a JSON object, no other text, no markdown fences:
 
     const response = await axios.post('https://api.anthropic.com/v1/messages', {
         model: 'claude-sonnet-5',
-        max_tokens: 4000,
+        max_tokens: 8000,
+        thinking: { type: 'disabled' },
         messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
     }, {
         headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
         timeout: 60000
     });
 
-    // claude-sonnet-5 can return a non-text block (e.g. thinking) before the
-    // actual text response — index [0] isn't reliably the answer here, unlike
-    // the opus-4-5 calls elsewhere in this file. Find the text block explicitly.
+    // Find the text block explicitly — with thinking disabled this should be
+    // content[0], but stay defensive rather than assume a fixed index.
     const textBlock = (response.data.content || []).find(b => b.type === 'text');
     if (!textBlock || !textBlock.text) {
         throw new Error('No text content in Claude response: ' + JSON.stringify(response.data.content));
