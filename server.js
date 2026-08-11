@@ -5516,6 +5516,17 @@ app.post('/api/admin/blog/:id/delete', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── GET /api/admin/blog/:id/preview-link — signed link to view any status ────
+app.get('/api/admin/blog/:id/preview-link', requireAdmin, async (req, res) => {
+    const { data, error } = await supabaseAdmin.from('blog_posts').select('id, slug').eq('id', req.params.id).single();
+    if (error || !data) return res.status(404).json({ error: 'Not found' });
+    const token = Buffer.from(`${data.id}:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
+    res.json({
+        url_en: `https://trustedpanamastays.com/blog-post.php?slug=${encodeURIComponent(data.slug)}&preview=${encodeURIComponent(token)}`,
+        url_es: `https://trustedpanamastays.com/blog-post.php?slug=${encodeURIComponent(data.slug)}&lang=es&preview=${encodeURIComponent(token)}`
+    });
+});
+
 // ── Rotating topic list for AI-proposed posts. Editable here — no DB needed ────
 // for something this simple; expand freely as ideas come up.
 const BLOG_TOPIC_IDEAS = [
