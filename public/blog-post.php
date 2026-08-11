@@ -35,13 +35,17 @@ if (($_GET['debug'] ?? '') === '1') {
 function ssr_blog_post($slug, $allowUnpublished) {
     if ($slug === '') return null;
     $statusFilter = $allowUnpublished ? '' : '&status=eq.published';
+    // Preview requests need to see pending_review rows, which RLS hides from
+    // the anon key entirely (no query filter can override that) — so previews
+    // use the service-role key instead, same as supabaseAdmin does in server.js.
+    $key = $allowUnpublished ? (getenv('SUPABASE_SERVICE_KEY') ?: SUPABASE_KEY) : SUPABASE_KEY;
     $url = SUPABASE_URL . '/rest/v1/blog_posts?select=*&slug=eq.' . urlencode($slug) . $statusFilter . '&limit=1';
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => [
-            'apikey: ' . SUPABASE_KEY,
-            'Authorization: Bearer ' . SUPABASE_KEY,
+            'apikey: ' . $key,
+            'Authorization: Bearer ' . $key,
             'Accept: application/json',
         ],
         CURLOPT_TIMEOUT => 5,
@@ -52,6 +56,7 @@ function ssr_blog_post($slug, $allowUnpublished) {
     $data = json_decode($body, true);
     return (is_array($data) && count($data)) ? $data[0] : null;
 }
+
 $post = ssr_blog_post($slug, $isPreview);
 if (!$post) http_response_code(404);
 
