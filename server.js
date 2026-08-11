@@ -5570,7 +5570,14 @@ Return ONLY a JSON object, no other text, no markdown fences:
         timeout: 60000
     });
 
-    const raw = response.data.content[0].text.replace(/```json\n?|\n?```/g, '').trim();
+    // claude-sonnet-5 can return a non-text block (e.g. thinking) before the
+    // actual text response — index [0] isn't reliably the answer here, unlike
+    // the opus-4-5 calls elsewhere in this file. Find the text block explicitly.
+    const textBlock = (response.data.content || []).find(b => b.type === 'text');
+    if (!textBlock || !textBlock.text) {
+        throw new Error('No text content in Claude response: ' + JSON.stringify(response.data.content));
+    }
+    const raw = textBlock.text.replace(/```json\n?|\n?```/g, '').trim();
     const draft = JSON.parse(raw);
 
     // Ensure slug uniqueness the same way listing slugs are handled
