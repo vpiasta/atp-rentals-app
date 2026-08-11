@@ -5535,6 +5535,39 @@ app.get('/api/admin/blog/:id/preview-link', requireAdmin, async (req, res) => {
     });
 });
 
+// ── POST /api/admin/blog/knowledge — add PERMANENT reference material (law ──
+// texts, your write-ups, corrected post examples). Unlike Material Bank, these
+// are never marked "used" — every future draft is grounded in ALL of them.
+app.post('/api/admin/blog/knowledge', requireAdmin, async (req, res) => {
+    const { title, content, category } = req.body;
+    if (!content || !content.trim()) return res.status(400).json({ error: 'Missing content' });
+    const { data, error } = await supabaseAdmin.from('blog_knowledge_base').insert({
+        title: title || null,
+        content: content.trim(),
+        category: category || 'reference'
+    }).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('blog_knowledge_added', { id: data.id, category: data.category });
+    res.json({ success: true, knowledge: data });
+});
+
+// ── GET /api/admin/blog/knowledge ─────────────────────────────────────────────
+app.get('/api/admin/blog/knowledge', requireAdmin, async (req, res) => {
+    const { data, error } = await supabaseAdmin
+        .from('blog_knowledge_base')
+        .select('*')
+        .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+// ── POST /api/admin/blog/knowledge/:id/delete ─────────────────────────────────
+app.post('/api/admin/blog/knowledge/:id/delete', requireAdmin, async (req, res) => {
+    const { error } = await supabaseAdmin.from('blog_knowledge_base').delete().eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
+});
+
 // ── Rotating topic list for AI-proposed posts. Editable here — no DB needed ────
 // for something this simple; expand freely as ideas come up.
 const BLOG_TOPIC_IDEAS = [
@@ -5553,12 +5586,40 @@ const BLOG_TOPIC_IDEAS = [
 // instead of an AI-chosen topic. Always lands as 'pending_review' — never
 // auto-publishes, per the current human-approval workflow.
 async function generateBlogDraft(seedText) {
+    let mode = seedText ? 'seed' : 'topic';
+    let materialUsed = null;
+
+    if (!seedText) {
+        const { data: material } = await supabaseAdmin
+            .from('blog_source_material')
+            .select('*')
+            .eq('used', false)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+        if (material) {
+            seedText = material.content;
+            materialUsed = material;
+            mode = 'material';
+        }
+    }
+
     const topic = seedText || BLOG_TOPIC_IDEAS[Math.floor(Math.random() * BLOG_TOPIC_IDEAS.length)];
-    const mode = seedText ? 'seed' : 'topic';
+
+    // ── Permanent knowledge base (law texts, your write-ups, corrected post ──
+    // examples) — never consumed, unlike the material bank above. Every draft
+    // gets grounded in everything saved here.
+    const { data: knowledgeRows } = await supabaseAdmin
+        .from('blog_knowledge_base')
+        .select('title, content, category')
+        .order('created_at', { ascending: true });
+    const knowledgeBlock = (knowledgeRows && knowledgeRows.length)
+        ? knowledgeRows.map(k => `[${k.category || 'reference'}] ${k.title || '(untitled)'}\n${k.content}`).join('\n\n---\n\n')
+        : null;
 
     const prompt = `You are writing a blog post for Trusted Panama Stays, a directory of legally ATP/MiCI-registered short-term rentals in Panama (trustedpanamastays.com). The audience is international tourists researching where to stay in Panama, plus Panama property owners considering registering their rental legally.
 
-${mode === 'seed'
+${knowledgeBlock ? `REFERENCE MATERIAL — verified, owner-provided knowledge about Panama's actual laws and regulations. Ground every legal or factual claim in this material. Do NOT state specific legal requirements, law numbers, deadlines, fees, or procedures unless explicitly supported below — if something legal isn't covered here, omit it or phrase it generally (e.g. "consult a lawyer for current requirements") rather than inventing specifics:\n\n"""${knowledgeBlock}"""\n\n` : ''}${seedText
     ? `Turn the following rough notes/concept explanation into a polished, well-structured blog post. Preserve the author's intent and any factual specifics — do not invent facts they didn't provide:\n\n"""${seedText}"""`
     : `Write an original blog post on this topic: "${topic}"`}
 
@@ -5568,6 +5629,7 @@ Requirements:
 - Where natural, include ONE internal link back to the directory in each language version, pointing to the CORRECT language homepage for that version: use <a href="/index.php">our directory</a> in body_en (English homepage, no lang param) and <a href="/index.php?lang=es">nuestro directorio</a> in body_es (Spanish homepage) — don't force it if it doesn't fit
 - No inline styling — plain semantic HTML only
 - Tone: helpful, credible, not salesy
+- Be conservative with legal specifics not covered by the reference material above — general guidance and "consult a professional" framing is safer than a confident but unverified legal claim
 - Length: 500-900 words per language version
 
 Return ONLY a JSON object, no other text, no markdown fences:
@@ -5590,8 +5652,6 @@ Return ONLY a JSON object, no other text, no markdown fences:
         timeout: 60000
     });
 
-    // Find the text block explicitly — with thinking disabled this should be
-    // content[0], but stay defensive rather than assume a fixed index.
     const textBlock = (response.data.content || []).find(b => b.type === 'text');
     if (!textBlock || !textBlock.text) {
         throw new Error('No text content in Claude response: ' + JSON.stringify(response.data.content));
@@ -5599,7 +5659,6 @@ Return ONLY a JSON object, no other text, no markdown fences:
     const raw = textBlock.text.replace(/```json\n?|\n?```/g, '').trim();
     const draft = JSON.parse(raw);
 
-    // Ensure slug uniqueness the same way listing slugs are handled
     const baseSlug = (draft.slug || draft.title_en).toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -5618,7 +5677,18 @@ Return ONLY a JSON object, no other text, no markdown fences:
     }).select().single();
     if (error) throw new Error(error.message);
 
-    await logEvent('blog_draft_generated', { id: inserted.id, mode, topic: mode === 'topic' ? topic : null });
+    if (materialUsed) {
+        await supabaseAdmin.from('blog_source_material')
+            .update({ used: true, used_in_post_id: inserted.id })
+            .eq('id', materialUsed.id);
+    }
+
+    await logEvent('blog_draft_generated', {
+        id: inserted.id, mode,
+        topic: mode === 'topic' ? topic : null,
+        material_id: materialUsed?.id || null,
+        knowledge_entries_used: knowledgeRows?.length || 0
+    });
     return inserted;
 }
 

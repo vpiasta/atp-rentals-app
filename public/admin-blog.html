@@ -77,6 +77,7 @@
     <div class="tab active" data-tab="pending" onclick="switchTab('pending')">Pending Review</div>
     <div class="tab" data-tab="published" onclick="switchTab('published')">Published</div>
     <div class="tab" data-tab="material" onclick="switchTab('material')">Material Bank</div>
+    <div class="tab" data-tab="knowledge" onclick="switchTab('knowledge')">Knowledge Base</div>
     <div class="tab" data-tab="generate" onclick="switchTab('generate')">Generate New</div>
     <div style="margin-left:auto;"><button class="btn btn-gray" onclick="logout()">Log out</button></div>
   </div>
@@ -84,6 +85,7 @@
   <div id="panel-pending" class="panel active"><div class="loading">Loading…</div></div>
   <div id="panel-published" class="panel"><div class="loading">Loading…</div></div>
   <div id="panel-material" class="panel"></div>
+  <div id="panel-knowledge" class="panel"></div>
   <div id="panel-generate" class="panel"></div>
 </div>
 
@@ -149,6 +151,7 @@ function showApp() {
   loadPending();
   loadPublished();
   renderMaterialPanel();
+  renderKnowledgePanel();
   renderGeneratePanel();
 }
 
@@ -173,6 +176,7 @@ function postCard(p) {
       ${p.status !== 'published' ? `<button class="btn btn-green" onclick="approvePost(${p.id})">Approve &amp; Publish</button>` : ''}
       ${p.status !== 'published' ? `<button class="btn btn-red" onclick="rejectPost(${p.id})">Reject</button>` : ''}
       ${p.status === 'published' ? `<button class="btn btn-gray" onclick="unpublishPost(${p.id})">Unpublish</button>` : ''}
+      ${p.status === 'published' ? `<button class="btn btn-outline" onclick="addPostToKnowledge(${p.id})">📚 Save as Knowledge Base example</button>` : ''}
       <button class="btn btn-red" onclick="deletePost(${p.id})">Delete</button>
     </div>
     <div class="edit-form" id="edit-${p.id}">
@@ -362,6 +366,81 @@ async function deleteMaterial(id) {
   if (!confirm('Delete this saved material?')) return;
   try { await api(`/api/admin/blog/material/${id}/delete`, { method: 'POST' }); showToast('Deleted'); loadMaterial(); }
   catch (e) { showToast('Error: ' + e.message); }
+}
+
+// ── Knowledge base (permanent — never consumed, grounds every draft) ────────
+function renderKnowledgePanel() {
+  const panel = document.getElementById('panel-knowledge');
+  panel.innerHTML = `
+    <div class="material-form">
+      <h3 style="color:#005ca9;margin-bottom:10px;">Add permanent reference material</h3>
+      <p style="font-size:0.85rem;color:#666;margin-bottom:10px;">Unlike the Material Bank, nothing here gets used up — every future draft (weekly cron or manual) is grounded in everything saved here, every time.</p>
+      <input id="know-title" placeholder="Title / short label">
+      <select id="know-category">
+        <option value="law_text">Law text</option>
+        <option value="write_up">My write-up / analysis</option>
+        <option value="corrected_example">Corrected post example</option>
+        <option value="reference">Other reference</option>
+      </select>
+      <textarea id="know-content" placeholder="Paste the law text, your analysis, or corrected content here."></textarea>
+      <button class="btn btn-green" onclick="addKnowledge()">Save to Knowledge Base</button>
+    </div>
+    <div id="knowledge-list"><div class="loading">Loading…</div></div>
+  `;
+  loadKnowledge();
+}
+
+async function addKnowledge() {
+  const title = document.getElementById('know-title').value;
+  const category = document.getElementById('know-category').value;
+  const content = document.getElementById('know-content').value;
+  if (!content.trim()) { showToast('Content is required'); return; }
+  try {
+    await api('/api/admin/blog/knowledge', { method: 'POST', body: JSON.stringify({ title, category, content }) });
+    document.getElementById('know-title').value = '';
+    document.getElementById('know-content').value = '';
+    showToast('Saved to knowledge base');
+    loadKnowledge();
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+
+async function loadKnowledge() {
+  const listEl = document.getElementById('knowledge-list');
+  try {
+    const items = await api('/api/admin/blog/knowledge');
+    listEl.innerHTML = '';
+    if (!items.length) { listEl.innerHTML = '<div class="empty">Nothing saved yet — future drafts have no grounding material.</div>'; return; }
+    items.forEach(k => {
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.innerHTML = `
+        <span class="badge badge-pending">${escapeHtml(k.category)}</span>
+        <h3>${escapeHtml(k.title || '(untitled)')}</h3>
+        <div class="meta">added ${new Date(k.created_at).toLocaleDateString()}</div>
+        <div class="excerpt">${escapeHtml((k.content||'').slice(0,220))}${k.content && k.content.length > 220 ? '…' : ''}</div>
+        <div class="row"><button class="btn btn-red" onclick="deleteKnowledge(${k.id})">Delete</button></div>
+      `;
+      listEl.appendChild(div);
+    });
+  } catch (e) { listEl.innerHTML = `<div class="empty">Error: ${escapeHtml(e.message)}</div>`; }
+}
+
+async function deleteKnowledge(id) {
+  if (!confirm('Delete this reference material? Future drafts will no longer be grounded in it.')) return;
+  try { await api(`/api/admin/blog/knowledge/${id}/delete`, { method: 'POST' }); showToast('Deleted'); loadKnowledge(); }
+  catch (e) { showToast('Error: ' + e.message); }
+}
+
+async function addPostToKnowledge(id) {
+  const p = postsById[id];
+  if (!p) return;
+  if (!confirm(`Save "${p.title_en}" to the Knowledge Base as a corrected example?`)) return;
+  try {
+    await api('/api/admin/blog/knowledge', { method: 'POST', body: JSON.stringify({
+      title: p.title_en, category: 'corrected_example', content: p.body_en
+    }) });
+    showToast('Added to Knowledge Base');
+  } catch (e) { showToast('Error: ' + e.message); }
 }
 
 // ── Generate new draft ───────────────────────────────────────────────────────
