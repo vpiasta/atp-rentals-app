@@ -20,7 +20,6 @@
   .quill-editor .ql-editor a { color: #005ca9; }
   .quill-editor .ql-picker.ql-color .ql-picker-label, .quill-editor .ql-picker.ql-background .ql-picker-label { padding: 2px; }
   .edit-form { max-height: 75vh; overflow-y: auto; }
-  .edit-toolbar { position: sticky; top: 0; background: white; z-index: 10; padding: 8px 0; border-bottom: 1px solid #e1e5e9; margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
   .autosave-status { font-size: 0.75rem; color: #888; }
   header { background: linear-gradient(135deg, #005ca9, #00a859); color: white; padding: 1rem 1.4rem; border-radius: 10px; margin-bottom: 1rem; }
   header h1 { font-size: 1.3rem; }
@@ -114,14 +113,14 @@ async function api(path, opts = {}) {
     ...opts,
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN, ...(opts.headers||{}) }
   });
+  let data;
+  try { data = await res.json(); } catch (e) { data = {}; }
   if (res.status === 401 || res.status === 403) {
-    const body = await res.json().catch(()=>({}));
-    if (body.error === 'Session expired' || body.error === 'No token' || body.error === 'IP changed') {
-      logout();
+    if (data.error === 'Session expired' || data.error === 'No token' || data.error === 'IP changed') {
+      logout('Your session expired (this happens after 4 hours). Nothing was lost — any unsaved edits were backed up on this device. Log in again, then reopen the post to recover them.');
       throw new Error('Session expired — please log in again');
     }
   }
-  const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Request failed');
   return data;
 }
@@ -146,11 +145,19 @@ async function doLogin() {
   }
 }
 
-function logout() {
+function logout(message) {
   TOKEN = null;
   sessionStorage.removeItem('tps_blog_admin_token');
   document.getElementById('app').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'block';
+  const errEl = document.getElementById('loginError');
+  if (message) {
+    errEl.style.color = '#005ca9';
+    errEl.textContent = message;
+  } else {
+    errEl.style.color = '';
+    errEl.textContent = '';
+  }
 }
 
 function showApp() {
@@ -181,17 +188,15 @@ function postCard(p) {
     <div class="row">
       <button class="btn btn-outline" onclick="togglePostEdit(${p.id})">Edit</button>
       <button class="btn" onclick="getPreviewLink(${p.id})">Preview</button>
+      <button class="btn btn-green" onclick="saveEdit(${p.id})">💾 Save</button>
       ${p.status !== 'published' ? `<button class="btn btn-green" onclick="approvePost(${p.id})">Approve &amp; Publish</button>` : ''}
       ${p.status !== 'published' ? `<button class="btn btn-red" onclick="rejectPost(${p.id})">Reject</button>` : ''}
       ${p.status === 'published' ? `<button class="btn btn-gray" onclick="unpublishPost(${p.id})">Unpublish</button>` : ''}
       ${p.status === 'published' ? `<button class="btn btn-outline" onclick="addPostToKnowledge(${p.id})">📚 Save as Knowledge Base example</button>` : ''}
       <button class="btn btn-red" onclick="deletePost(${p.id})">Delete</button>
+      <span class="autosave-status" id="autosave-status-${p.id}"></span>
     </div>
     <div class="edit-form" id="edit-${p.id}">
-      <div class="edit-toolbar">
-        <button class="btn btn-green" onclick="saveEdit(${p.id})">💾 Save Changes</button>
-        <span class="autosave-status" id="autosave-status-${p.id}">No changes yet</span>
-      </div>
       <div class="two-col">
         <div><label>Title (EN)</label><input id="f-title_en-${p.id}" value="${escapeAttr(p.title_en)}" oninput="markDirty(${p.id})"></div>
         <div><label>Title (ES)</label><input id="f-title_es-${p.id}" value="${escapeAttr(p.title_es)}" oninput="markDirty(${p.id})"></div>

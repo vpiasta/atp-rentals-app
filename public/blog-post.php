@@ -24,21 +24,24 @@ function is_valid_preview_token($token) {
 }
 $isPreview = is_valid_preview_token($_GET['preview'] ?? null);
 
+// ── TEMPORARY DEBUG — remove after diagnosing ────────────────────────────────
+if (($_GET['debug'] ?? '') === '1') {
+    $secretPresent = getenv('ADMIN_SECRET') ? 'YES' : 'NO';
+    $tokenGiven = $_GET['preview'] ?? '(none)';
+    $decodedToken = $tokenGiven !== '(none)' ? base64_decode($tokenGiven, true) : '(n/a)';
+    die("getenv('ADMIN_SECRET') resolved: $secretPresent\ntoken received: $tokenGiven\ndecoded: $decodedToken\nisPreview result: " . ($isPreview ? 'true' : 'false'));
+}
 
 function ssr_blog_post($slug, $allowUnpublished) {
     if ($slug === '') return null;
     $statusFilter = $allowUnpublished ? '' : '&status=eq.published';
-    // Preview requests need to see pending_review rows, which RLS hides from
-    // the anon key entirely (no query filter can override that) — so previews
-    // use the service-role key instead, same as supabaseAdmin does in server.js.
-    $key = $allowUnpublished ? (getenv('SUPABASE_SERVICE_KEY') ?: SUPABASE_KEY) : SUPABASE_KEY;
     $url = SUPABASE_URL . '/rest/v1/blog_posts?select=*&slug=eq.' . urlencode($slug) . $statusFilter . '&limit=1';
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => [
-            'apikey: ' . $key,
-            'Authorization: Bearer ' . $key,
+            'apikey: ' . SUPABASE_KEY,
+            'Authorization: Bearer ' . SUPABASE_KEY,
             'Accept: application/json',
         ],
         CURLOPT_TIMEOUT => 5,
@@ -49,7 +52,6 @@ function ssr_blog_post($slug, $allowUnpublished) {
     $data = json_decode($body, true);
     return (is_array($data) && count($data)) ? $data[0] : null;
 }
-
 $post = ssr_blog_post($slug, $isPreview);
 if (!$post) http_response_code(404);
 
@@ -131,7 +133,12 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
 
     <?php if ($post && $isPreview): ?>
         <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:0.8rem 1rem;margin-bottom:1rem;font-size:0.9rem;color:#856404;">
-            👁️ <strong><?= $is_en ? 'PREVIEW' : 'VISTA PREVIA' ?></strong> — <?= $is_en ? 'status:' : 'estado:' ?> <?= htmlspecialchars($post['status'], ENT_QUOTES, 'UTF-8') ?>. <?= $is_en ? 'Not visible to the public yet.' : 'Aún no es visible al público.' ?>
+            👁️ <strong><?= $is_en ? 'PREVIEW MODE' : 'MODO VISTA PREVIA' ?></strong> — <?= $is_en ? 'status:' : 'estado:' ?> <?= htmlspecialchars($post['status'], ENT_QUOTES, 'UTF-8') ?>.
+            <?php if ($post['status'] === 'published'): ?>
+                <?= $is_en ? 'This post is already live and public at the normal URL — you\'re just viewing it via a preview link right now.' : 'Esta publicación ya está en vivo y es pública en la URL normal — solo la está viendo mediante un enlace de vista previa.' ?>
+            <?php else: ?>
+                <?= $is_en ? 'Not visible to the public yet.' : 'Aún no es visible al público.' ?>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 
