@@ -1539,21 +1539,29 @@ async function getAdminIP() {
 }
 
 // ── Admin login (IP + password) ───────────────────────────────────────────────
+const adminLoginRateLimit = new Map(); // ip -> { count, reset }
+
 app.post('/api/admin-login', async (req, res) => {
     const { password } = req.body;
     const visitorIP = req.headers['x-forwarded-for']?.split(',')[0].trim()
                     || req.socket.remoteAddress;
-    const adminIP = await getAdminIP();
 
-    if (visitorIP !== adminIP) {
-        console.log(`❌ Admin login blocked: IP ${visitorIP} !== ${adminIP}`);
-        return res.status(403).json({ error: 'Access denied: wrong IP address' });
+    // Password is now the sole login gate — IP allowlisting was removed
+    // (unreliable across the CDN/proxy chain; see Aug 2026 debugging).
+    // Basic brute-force protection instead: max 8 attempts per IP / 15 min.
+    const now = Date.now();
+    const rl = adminLoginRateLimit.get(visitorIP) || { count: 0, reset: now + 15 * 60 * 1000 };
+    if (now > rl.reset) { rl.count = 0; rl.reset = now + 15 * 60 * 1000; }
+    rl.count++;
+    adminLoginRateLimit.set(visitorIP, rl);
+    if (rl.count > 8) {
+        return res.status(429).json({ error: 'Too many attempts. Try again later.' });
     }
+
     if (password !== process.env.ADMIN_PASSWORD) {
         return res.status(401).json({ error: 'Wrong password' });
     }
 
-    // Generate admin session token
     const token = Buffer.from(`admin:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
     console.log(`✅ Admin login from ${visitorIP}`);
     res.json({ token });
@@ -1564,22 +1572,16 @@ async function requireAdmin(req, res, next) {
     const token = req.headers['authorization']?.replace('Bearer ', '');
     if (!token) return res.status(401).json({ error: 'No token' });
 
-    // Verify token structure
     try {
         const decoded = Buffer.from(token, 'base64').toString();
-        const [role, timestamp] = decoded.split(':');
+        const [role, timestamp, secret] = decoded.split(':');
         if (role !== 'admin') return res.status(403).json({ error: 'Not admin' });
+        if (secret !== process.env.ADMIN_SECRET) return res.status(403).json({ error: 'Invalid token' });
 
         // Token expires after 4 hours
         if (Date.now() - parseInt(timestamp) > 4 * 60 * 60 * 1000) {
             return res.status(401).json({ error: 'Session expired' });
         }
-
-        // Also verify current IP
-        const visitorIP = req.headers['x-forwarded-for']?.split(',')[0].trim()
-                        || req.socket.remoteAddress;
-        const adminIP = await getAdminIP();
-        if (visitorIP !== adminIP) return res.status(403).json({ error: 'IP changed' });
 
         next();
     } catch {
