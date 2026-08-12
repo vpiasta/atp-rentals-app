@@ -2073,6 +2073,17 @@ app.get('/api/env-check', (req, res) => {
     });
 });
 
+// ── TEMPORARY DEBUG — diagnosing IP-detection mismatch, remove once resolved ──
+app.get('/api/debug-ip', (req, res) => {
+    res.json({
+        x_forwarded_for_raw: req.headers['x-forwarded-for'] || null,
+        computed_visitor_ip: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress,
+        socket_remote_address: req.socket.remoteAddress,
+        x_real_ip: req.headers['x-real-ip'] || null,
+        cf_connecting_ip: req.headers['cf-connecting-ip'] || null
+    });
+});
+
 app.get('/api/secret-debug', (req, res) => {
     const { secret } = req.query;
     const stored = process.env.ADMIN_SECRET;
