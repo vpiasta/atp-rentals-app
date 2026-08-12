@@ -12,8 +12,15 @@
   body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8f9fa; color: #111; line-height: 1.5; }
   .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
   .quill-editor { background: white; border-radius: 0 0 6px 6px; }
-  .quill-editor .ql-editor { min-height: 180px; font-size: 13px; }
+  .quill-editor .ql-editor { min-height: 180px; max-height: 320px; overflow-y: auto; font-size: 13px; }
   .quill-editor .ql-toolbar { border-radius: 6px 6px 0 0; background: #f8f9fa; }
+  .quill-editor .ql-editor h2 { color: #005ca9; font-size: 1.25rem; margin: 1.1rem 0 0.5rem; }
+  .quill-editor .ql-editor h3 { color: #005ca9; font-size: 1.05rem; margin: 0.9rem 0 0.4rem; }
+  .quill-editor .ql-editor p { margin-bottom: 0.7rem; }
+  .quill-editor .ql-editor a { color: #005ca9; }
+  .edit-form { max-height: 75vh; overflow-y: auto; }
+  .edit-toolbar { position: sticky; top: 0; background: white; z-index: 10; padding: 8px 0; border-bottom: 1px solid #e1e5e9; margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
+  .autosave-status { font-size: 0.75rem; color: #888; }
   header { background: linear-gradient(135deg, #005ca9, #00a859); color: white; padding: 1rem 1.4rem; border-radius: 10px; margin-bottom: 1rem; }
   header h1 { font-size: 1.3rem; }
   .login-box { max-width: 360px; margin: 4rem auto; background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
@@ -180,21 +187,25 @@ function postCard(p) {
       <button class="btn btn-red" onclick="deletePost(${p.id})">Delete</button>
     </div>
     <div class="edit-form" id="edit-${p.id}">
-      <div class="two-col">
-        <div><label>Title (EN)</label><input id="f-title_en-${p.id}" value="${escapeAttr(p.title_en)}"></div>
-        <div><label>Title (ES)</label><input id="f-title_es-${p.id}" value="${escapeAttr(p.title_es)}"></div>
+      <div class="edit-toolbar">
+        <button class="btn btn-green" onclick="saveEdit(${p.id})">💾 Save Changes</button>
+        <span class="autosave-status" id="autosave-status-${p.id}">No changes yet</span>
       </div>
       <div class="two-col">
-        <div><label>Excerpt (EN)</label><input id="f-excerpt_en-${p.id}" value="${escapeAttr(p.excerpt_en)}"></div>
-        <div><label>Excerpt (ES)</label><input id="f-excerpt_es-${p.id}" value="${escapeAttr(p.excerpt_es)}"></div>
+        <div><label>Title (EN)</label><input id="f-title_en-${p.id}" value="${escapeAttr(p.title_en)}" oninput="markDirty(${p.id})"></div>
+        <div><label>Title (ES)</label><input id="f-title_es-${p.id}" value="${escapeAttr(p.title_es)}" oninput="markDirty(${p.id})"></div>
       </div>
       <div class="two-col">
-        <div><label>Meta description (EN)</label><input id="f-meta_description_en-${p.id}" value="${escapeAttr(p.meta_description_en)}"></div>
-        <div><label>Meta description (ES)</label><input id="f-meta_description_es-${p.id}" value="${escapeAttr(p.meta_description_es)}"></div>
+        <div><label>Excerpt (EN)</label><input id="f-excerpt_en-${p.id}" value="${escapeAttr(p.excerpt_en)}" oninput="markDirty(${p.id})"></div>
+        <div><label>Excerpt (ES)</label><input id="f-excerpt_es-${p.id}" value="${escapeAttr(p.excerpt_es)}" oninput="markDirty(${p.id})"></div>
       </div>
-      <label>Category</label><input id="f-category-${p.id}" value="${escapeAttr(p.category)}">
-      <label>Slug</label><input id="f-slug-${p.id}" value="${escapeAttr(p.slug)}">
-      <label>Featured image URL</label><input id="f-featured_image_url-${p.id}" value="${escapeAttr(p.featured_image_url)}">
+      <div class="two-col">
+        <div><label>Meta description (EN)</label><input id="f-meta_description_en-${p.id}" value="${escapeAttr(p.meta_description_en)}" oninput="markDirty(${p.id})"></div>
+        <div><label>Meta description (ES)</label><input id="f-meta_description_es-${p.id}" value="${escapeAttr(p.meta_description_es)}" oninput="markDirty(${p.id})"></div>
+      </div>
+      <label>Category</label><input id="f-category-${p.id}" value="${escapeAttr(p.category)}" oninput="markDirty(${p.id})">
+      <label>Slug</label><input id="f-slug-${p.id}" value="${escapeAttr(p.slug)}" oninput="markDirty(${p.id})">
+      <label>Featured image URL</label><input id="f-featured_image_url-${p.id}" value="${escapeAttr(p.featured_image_url)}" oninput="markDirty(${p.id})">
       <div class="two-col">
         <div><label>Body (EN)</label><div class="quill-editor" id="quill-body_en-${p.id}">${p.body_en||''}</div></div>
         <div><label>Body (ES)</label><div class="quill-editor" id="quill-body_es-${p.id}">${p.body_es||''}</div></div>
@@ -217,15 +228,97 @@ function togglePostEdit(id) {
 
 let quillInstances = {};
 let postsById = {};
+let dirtyPosts = new Set();
+let autosaveTimers = {};
+const AUTOSAVE_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
+function collectFormPayload(id) {
+  const fields = ['title_en','title_es','excerpt_en','excerpt_es','meta_description_en','meta_description_es','category','slug','featured_image_url'];
+  const payload = {};
+  fields.forEach(f => {
+    const el = document.getElementById(`f-${f}-${id}`);
+    if (el) payload[f] = el.value;
+  });
+  const qEn = quillInstances[`body_en-${id}`];
+  const qEs = quillInstances[`body_es-${id}`];
+  if (qEn) payload.body_en = qEn.root.innerHTML;
+  if (qEs) payload.body_es = qEs.root.innerHTML;
+  return payload;
+}
+
+function saveLocalDraft(id) {
+  try {
+    localStorage.setItem(`tps_blog_draft_${id}`, JSON.stringify({ payload: collectFormPayload(id), savedAt: Date.now() }));
+  } catch (e) { /* localStorage unavailable — server autosave is still the real safety net */ }
+}
+
+function markDirty(id) {
+  dirtyPosts.add(id);
+  saveLocalDraft(id);
+  updateAutosaveStatus(id, '● Unsaved changes — backed up locally');
+  if (!autosaveTimers[id]) {
+    autosaveTimers[id] = setInterval(() => autosaveToServer(id), AUTOSAVE_INTERVAL_MS);
+  }
+}
+
+async function autosaveToServer(id) {
+  if (!dirtyPosts.has(id)) return;
+  try {
+    await api(`/api/admin/blog/${id}/edit`, { method: 'POST', body: JSON.stringify(collectFormPayload(id)) });
+    dirtyPosts.delete(id);
+    localStorage.removeItem(`tps_blog_draft_${id}`);
+    updateAutosaveStatus(id, '✓ Autosaved ' + new Date().toLocaleTimeString());
+  } catch (e) {
+    updateAutosaveStatus(id, '⚠ Autosave failed — still backed up locally');
+  }
+}
+
+function updateAutosaveStatus(id, text) {
+  const el = document.getElementById('autosave-status-' + id);
+  if (el) el.textContent = text;
+}
+
+function clearAllAutosaveTimers() {
+  Object.values(autosaveTimers).forEach(t => clearInterval(t));
+  autosaveTimers = {};
+  dirtyPosts.clear();
+}
+
+// Reloading the lists destroys and rebuilds every card's DOM, so any Quill
+// instance or autosave timer tied to the old DOM would go stale. Persist
+// anything unsaved FIRST, then reload.
+async function refreshLists() {
+  for (const id of Array.from(dirtyPosts)) {
+    try { await autosaveToServer(id); } catch (e) { /* local draft remains as fallback */ }
+  }
+  await loadPending();
+  await loadPublished();
+}
 
 function ensureQuillEditors(p) {
   if (!p) return;
+  let useLocal = false;
+  let localPayload = null;
+  const localDraftRaw = localStorage.getItem(`tps_blog_draft_${p.id}`);
+  if (localDraftRaw) {
+    try {
+      const parsed = JSON.parse(localDraftRaw);
+      const ageMin = Math.max(1, Math.round((Date.now() - parsed.savedAt) / 60000));
+      useLocal = confirm(`Found an unsaved local draft for "${p.title_en}" from ~${ageMin} minute(s) ago. Load it instead of the last saved version?`);
+      if (useLocal) localPayload = parsed.payload;
+      else localStorage.removeItem(`tps_blog_draft_${p.id}`);
+    } catch (e) {}
+  }
+
   ['body_en', 'body_es'].forEach(field => {
     const key = `${field}-${p.id}`;
-    if (quillInstances[key]) return; // already initialized this render cycle
+    if (quillInstances[key]) return;
     const container = document.getElementById(`quill-${key}`);
     if (!container) return;
-    quillInstances[key] = new Quill(container, {
+    if (useLocal && localPayload && localPayload[field] !== undefined) {
+      container.innerHTML = localPayload[field];
+    }
+    const q = new Quill(container, {
       theme: 'snow',
       modules: {
         toolbar: [
@@ -237,46 +330,56 @@ function ensureQuillEditors(p) {
         ]
       }
     });
+    q.on('text-change', () => markDirty(p.id));
+    quillInstances[key] = q;
   });
+
+  if (useLocal && localPayload) {
+    ['title_en','title_es','excerpt_en','excerpt_es','meta_description_en','meta_description_es','category','slug','featured_image_url'].forEach(f => {
+      if (localPayload[f] === undefined) return;
+      const el = document.getElementById(`f-${f}-${p.id}`);
+      if (el) el.value = localPayload[f];
+    });
+    markDirty(p.id); // keep it flagged as unsaved since we just loaded a draft, not the server version
+  }
 }
 
 async function saveEdit(id) {
-  const fields = ['title_en','title_es','excerpt_en','excerpt_es','meta_description_en','meta_description_es','category','slug','featured_image_url'];
-  const payload = {};
-  fields.forEach(f => { payload[f] = document.getElementById(`f-${f}-${id}`).value; });
-  const qEn = quillInstances[`body_en-${id}`];
-  const qEs = quillInstances[`body_es-${id}`];
-  if (qEn) payload.body_en = qEn.root.innerHTML;
-  if (qEs) payload.body_es = qEs.root.innerHTML;
   try {
-    await api(`/api/admin/blog/${id}/edit`, { method: 'POST', body: JSON.stringify(payload) });
+    await api(`/api/admin/blog/${id}/edit`, { method: 'POST', body: JSON.stringify(collectFormPayload(id)) });
+    dirtyPosts.delete(id);
+    localStorage.removeItem(`tps_blog_draft_${id}`);
     showToast('Saved');
-    loadPending(); loadPublished();
+    refreshLists();
   } catch (e) { showToast('Error: ' + e.message); }
 }
 
 async function approvePost(id) {
   if (!confirm('Publish this post live?')) return;
-  try { await api(`/api/admin/blog/${id}/approve`, { method: 'POST' }); showToast('Published'); loadPending(); loadPublished(); }
+  try { await api(`/api/admin/blog/${id}/approve`, { method: 'POST' }); showToast('Published'); refreshLists(); }
   catch (e) { showToast('Error: ' + e.message); }
 }
 async function rejectPost(id) {
   if (!confirm('Reject this draft?')) return;
-  try { await api(`/api/admin/blog/${id}/reject`, { method: 'POST' }); showToast('Rejected'); loadPending(); }
+  try { await api(`/api/admin/blog/${id}/reject`, { method: 'POST' }); showToast('Rejected'); refreshLists(); }
   catch (e) { showToast('Error: ' + e.message); }
 }
 async function unpublishPost(id) {
   if (!confirm('Take this post offline and back to draft?')) return;
-  try { await api(`/api/admin/blog/${id}/unpublish`, { method: 'POST' }); showToast('Unpublished'); loadPending(); loadPublished(); }
+  try { await api(`/api/admin/blog/${id}/unpublish`, { method: 'POST' }); showToast('Unpublished'); refreshLists(); }
   catch (e) { showToast('Error: ' + e.message); }
 }
 async function deletePost(id) {
   if (!confirm('Permanently delete this post? This cannot be undone.')) return;
-  try { await api(`/api/admin/blog/${id}/delete`, { method: 'POST' }); showToast('Deleted'); loadPending(); loadPublished(); }
+  try { await api(`/api/admin/blog/${id}/delete`, { method: 'POST' }); showToast('Deleted'); refreshLists(); }
   catch (e) { showToast('Error: ' + e.message); }
 }
 async function getPreviewLink(id) {
   try {
+    if (dirtyPosts.has(id)) {
+      showToast('Saving before preview…');
+      await autosaveToServer(id);
+    }
     const data = await api(`/api/admin/blog/${id}/preview-link`);
     window.open(data.url_en, '_blank');
   } catch (e) { showToast('Error: ' + e.message); }
@@ -287,6 +390,7 @@ async function loadPending() {
   try {
     const posts = await api('/api/admin/blog/pending');
     quillInstances = {};
+    clearAllAutosaveTimers();
     posts.forEach(p => postsById[p.id] = p);
     panel.innerHTML = '';
     if (!posts.length) { panel.innerHTML = '<div class="empty">No drafts waiting for review.</div>'; return; }
@@ -300,6 +404,7 @@ async function loadPublished() {
     const all = await api('/api/admin/blog/all');
     const posts = all.filter(p => p.status === 'published');
     quillInstances = {};
+    clearAllAutosaveTimers();
     posts.forEach(p => postsById[p.id] = p);
     panel.innerHTML = '';
     if (!posts.length) { panel.innerHTML = '<div class="empty">No published posts yet.</div>'; return; }
@@ -489,6 +594,13 @@ function escapeAttr(str) { return escapeHtml(str); }
 if (TOKEN) showApp();
 
 document.getElementById('loginPassword').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
+
+window.addEventListener('beforeunload', (e) => {
+  if (dirtyPosts.size > 0) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 </script>
 </body>
 </html>
