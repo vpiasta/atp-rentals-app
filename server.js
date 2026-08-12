@@ -5535,6 +5535,39 @@ app.get('/api/admin/blog/:id/preview-link', requireAdmin, async (req, res) => {
     });
 });
 
+// ── POST /api/admin/blog/material — save a raw idea (FB post, legal analysis, ──
+// note) for later use, not tied to any specific post yet.
+app.post('/api/admin/blog/material', requireAdmin, async (req, res) => {
+    const { title, content, source_type } = req.body;
+    if (!content || !content.trim()) return res.status(400).json({ error: 'Missing content' });
+    const { data, error } = await supabaseAdmin.from('blog_source_material').insert({
+        title: title || null,
+        content: content.trim(),
+        source_type: source_type || 'note'
+    }).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('blog_material_added', { id: data.id, source_type: data.source_type });
+    res.json({ success: true, material: data });
+});
+
+// ── GET /api/admin/blog/material — list everything, unused first ─────────────
+app.get('/api/admin/blog/material', requireAdmin, async (req, res) => {
+    const { data, error } = await supabaseAdmin
+        .from('blog_source_material')
+        .select('*')
+        .order('used', { ascending: true })
+        .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+// ── POST /api/admin/blog/material/:id/delete ──────────────────────────────────
+app.post('/api/admin/blog/material/:id/delete', requireAdmin, async (req, res) => {
+    const { error } = await supabaseAdmin.from('blog_source_material').delete().eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
+});
+
 // ── POST /api/admin/blog/knowledge — add PERMANENT reference material (law ──
 // texts, your write-ups, corrected post examples). Unlike Material Bank, these
 // are never marked "used" — every future draft is grounded in ALL of them.
