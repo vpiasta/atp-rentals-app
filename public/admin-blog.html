@@ -18,6 +18,7 @@
   .quill-editor .ql-editor h3 { color: #005ca9; font-size: 1.05rem; margin: 0.9rem 0 0.4rem; }
   .quill-editor .ql-editor p { margin-bottom: 0.7rem; }
   .quill-editor .ql-editor a { color: #005ca9; }
+  .quill-editor .ql-picker.ql-color .ql-picker-label, .quill-editor .ql-picker.ql-background .ql-picker-label { padding: 2px; }
   .edit-form { max-height: 75vh; overflow-y: auto; }
   .edit-toolbar { position: sticky; top: 0; background: white; z-index: 10; padding: 8px 0; border-bottom: 1px solid #e1e5e9; margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
   .autosave-status { font-size: 0.75rem; color: #888; }
@@ -324,6 +325,7 @@ function ensureQuillEditors(p) {
         toolbar: [
           [{ header: [2, 3, false] }],   // h2/h3 only — h1 is reserved for the post title
           ['bold', 'italic', 'underline'],
+          [{ color: ['#005ca9', '#cc3333', '#111111', false] }, { background: ['#fff3cd', false] }],
           [{ list: 'ordered' }, { list: 'bullet' }],
           ['link'],
           ['clean']
