@@ -5581,6 +5581,20 @@ app.post('/api/admin/blog/material/:id/delete', requireAdmin, async (req, res) =
     res.json({ success: true });
 });
 
+// ── POST /api/admin/blog/material/:id/edit — update a saved material item ────
+app.post('/api/admin/blog/material/:id/edit', requireAdmin, async (req, res) => {
+    const { title, content, source_type } = req.body;
+    if (!content || !content.trim()) return res.status(400).json({ error: 'Missing content' });
+    const { data, error } = await supabaseAdmin.from('blog_source_material').update({
+        title: title || null,
+        content: content.trim(),
+        source_type: source_type || 'note'
+    }).eq('id', req.params.id).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('blog_material_edited', { id: data.id, source_type: data.source_type });
+    res.json({ success: true, material: data });
+});
+
 // ── POST /api/admin/blog/knowledge — add PERMANENT reference material (law ──
 // texts, your write-ups, corrected post examples). Unlike Material Bank, these
 // are never marked "used" — every future draft is grounded in ALL of them.
@@ -5612,6 +5626,20 @@ app.post('/api/admin/blog/knowledge/:id/delete', requireAdmin, async (req, res) 
     const { error } = await supabaseAdmin.from('blog_knowledge_base').delete().eq('id', req.params.id);
     if (error) return res.status(500).json({ error: error.message });
     res.json({ success: true });
+});
+
+// ── POST /api/admin/blog/knowledge/:id/edit — update a saved knowledge item ──
+app.post('/api/admin/blog/knowledge/:id/edit', requireAdmin, async (req, res) => {
+    const { title, content, category } = req.body;
+    if (!content || !content.trim()) return res.status(400).json({ error: 'Missing content' });
+    const { data, error } = await supabaseAdmin.from('blog_knowledge_base').update({
+        title: title || null,
+        content: content.trim(),
+        category: category || 'reference'
+    }).eq('id', req.params.id).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('blog_knowledge_edited', { id: data.id, category: data.category });
+    res.json({ success: true, knowledge: data });
 });
 
 // ── Rotating topic list for AI-proposed posts. Editable here — no DB needed ────

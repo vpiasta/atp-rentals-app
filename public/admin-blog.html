@@ -49,7 +49,7 @@
   .edit-form { display: none; margin-top: 12px; border-top: 1px solid #e1e5e9; padding-top: 12px; }
   .edit-form.open { display: block; }
   .edit-form label { display: block; font-size: 0.78rem; font-weight: 600; color: #555; margin: 8px 0 3px; }
-  .edit-form input, .edit-form textarea { width: 100%; padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 13px; font-family: inherit; }
+  .edit-form input, .edit-form textarea, .edit-form select { width: 100%; padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 13px; font-family: inherit; margin-bottom: 8px; }
   .edit-form textarea { min-height: 100px; font-family: monospace; font-size: 12px; }
   .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
@@ -467,11 +467,46 @@ async function loadMaterial() {
         <h3>${escapeHtml(m.title || '(untitled)')}</h3>
         <div class="meta">${escapeHtml(m.source_type)} · added ${new Date(m.created_at).toLocaleDateString()}${m.used_in_post_id ? ' · used in post #' + m.used_in_post_id : ''}</div>
         <div class="excerpt">${escapeHtml((m.content||'').slice(0,220))}${m.content && m.content.length > 220 ? '…' : ''}</div>
-        <div class="row"><button class="btn btn-red" onclick="deleteMaterial(${m.id})">Delete</button></div>
+        <div class="row">
+          <button class="btn btn-outline" onclick="toggleMaterialEdit(${m.id})">Edit</button>
+          <button class="btn btn-red" onclick="deleteMaterial(${m.id})">Delete</button>
+        </div>
+        <div class="edit-form" id="edit-material-${m.id}">
+          <label>Title / short label</label>
+          <input id="matedit-title-${m.id}" value="${escapeAttr(m.title)}">
+          <label>Type</label>
+          <select id="matedit-type-${m.id}">
+            <option value="facebook_post" ${m.source_type === 'facebook_post' ? 'selected' : ''}>Facebook post</option>
+            <option value="legal_analysis" ${m.source_type === 'legal_analysis' ? 'selected' : ''}>Legal analysis</option>
+            <option value="note" ${m.source_type === 'note' ? 'selected' : ''}>Note / other</option>
+          </select>
+          <label>Content</label>
+          <textarea id="matedit-content-${m.id}">${escapeHtml(m.content || '')}</textarea>
+          <div class="row">
+            <button class="btn btn-green" onclick="saveMaterialEdit(${m.id})">💾 Save</button>
+            <button class="btn btn-gray" onclick="toggleMaterialEdit(${m.id})">Cancel</button>
+          </div>
+        </div>
       `;
       listEl.appendChild(div);
     });
   } catch (e) { listEl.innerHTML = `<div class="empty">Error: ${escapeHtml(e.message)}</div>`; }
+}
+
+function toggleMaterialEdit(id) {
+  document.getElementById('edit-material-' + id).classList.toggle('open');
+}
+
+async function saveMaterialEdit(id) {
+  const title = document.getElementById(`matedit-title-${id}`).value;
+  const source_type = document.getElementById(`matedit-type-${id}`).value;
+  const content = document.getElementById(`matedit-content-${id}`).value;
+  if (!content.trim()) { showToast('Content is required'); return; }
+  try {
+    await api(`/api/admin/blog/material/${id}/edit`, { method: 'POST', body: JSON.stringify({ title, source_type, content }) });
+    showToast('Saved');
+    loadMaterial();
+  } catch (e) { showToast('Error: ' + e.message); }
 }
 
 async function deleteMaterial(id) {
@@ -530,11 +565,47 @@ async function loadKnowledge() {
         <h3>${escapeHtml(k.title || '(untitled)')}</h3>
         <div class="meta">added ${new Date(k.created_at).toLocaleDateString()}</div>
         <div class="excerpt">${escapeHtml((k.content||'').slice(0,220))}${k.content && k.content.length > 220 ? '…' : ''}</div>
-        <div class="row"><button class="btn btn-red" onclick="deleteKnowledge(${k.id})">Delete</button></div>
+        <div class="row">
+          <button class="btn btn-outline" onclick="toggleKnowledgeEdit(${k.id})">Edit</button>
+          <button class="btn btn-red" onclick="deleteKnowledge(${k.id})">Delete</button>
+        </div>
+        <div class="edit-form" id="edit-knowledge-${k.id}">
+          <label>Title / short label</label>
+          <input id="knowedit-title-${k.id}" value="${escapeAttr(k.title)}">
+          <label>Category</label>
+          <select id="knowedit-category-${k.id}">
+            <option value="law_text" ${k.category === 'law_text' ? 'selected' : ''}>Law text</option>
+            <option value="write_up" ${k.category === 'write_up' ? 'selected' : ''}>My write-up / analysis</option>
+            <option value="corrected_example" ${k.category === 'corrected_example' ? 'selected' : ''}>Corrected post example</option>
+            <option value="reference" ${k.category === 'reference' ? 'selected' : ''}>Other reference</option>
+          </select>
+          <label>Content</label>
+          <textarea id="knowedit-content-${k.id}">${escapeHtml(k.content || '')}</textarea>
+          <div class="row">
+            <button class="btn btn-green" onclick="saveKnowledgeEdit(${k.id})">💾 Save</button>
+            <button class="btn btn-gray" onclick="toggleKnowledgeEdit(${k.id})">Cancel</button>
+          </div>
+        </div>
       `;
       listEl.appendChild(div);
     });
   } catch (e) { listEl.innerHTML = `<div class="empty">Error: ${escapeHtml(e.message)}</div>`; }
+}
+
+function toggleKnowledgeEdit(id) {
+  document.getElementById('edit-knowledge-' + id).classList.toggle('open');
+}
+
+async function saveKnowledgeEdit(id) {
+  const title = document.getElementById(`knowedit-title-${id}`).value;
+  const category = document.getElementById(`knowedit-category-${id}`).value;
+  const content = document.getElementById(`knowedit-content-${id}`).value;
+  if (!content.trim()) { showToast('Content is required'); return; }
+  try {
+    await api(`/api/admin/blog/knowledge/${id}/edit`, { method: 'POST', body: JSON.stringify({ title, category, content }) });
+    showToast('Saved');
+    loadKnowledge();
+  } catch (e) { showToast('Error: ' + e.message); }
 }
 
 async function deleteKnowledge(id) {
