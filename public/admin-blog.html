@@ -667,9 +667,11 @@ function renderGeneratePanel() {
       <p style="font-size:0.85rem;color:#666;margin:6px 0 10px;">Skips the material bank — turns whatever you paste below into a draft immediately. Your notes are saved on this device as you type, so a failed attempt never loses them.</p>
       <textarea id="gen-seed" placeholder="Paste rough notes, a concept explanation, or anything you want turned into a post." oninput="localStorage.setItem('tps_blog_seed_draft', this.value)">${escapeHtml(savedSeed)}</textarea>
       <div class="row">
-        <button class="btn btn-green" id="gen-seed-btn" onclick="generateFromSeed()">Generate from These Notes</button>
+        <button class="btn btn-green" id="gen-seed-btn" onclick="generateFromSeed()">Generate One Post from These Notes</button>
+        <button class="btn btn-outline" id="gen-series-btn" onclick="generateSeriesFromSeed()">📚 Generate Full Series from These Notes</button>
         <button class="btn btn-outline" onclick="saveSeedToMaterial()">💾 Save these notes to Material Bank (without generating)</button>
       </div>
+      <p style="font-size:0.78rem;color:#888;margin-top:6px;">"Full Series" writes every chapter in one pass so the story stays continuous, then drops all of them into Pending Review as separate posts (titled "Part 1 of N", "Part 2 of N", etc.) for you to review and publish one at a time, whenever you're ready. This can take 1–3 minutes for a multi-chapter brief — don't close the tab.</p>
       <div class="gen-error" id="gen-seed-error"></div>
     </div>
   `;
@@ -696,6 +698,26 @@ function generateFromSeed() {
   const seed = document.getElementById('gen-seed').value;
   if (!seed.trim()) { document.getElementById('gen-seed-error').textContent = 'Paste some notes first'; return; }
   generateDraft(seed, 'gen-seed-btn');
+}
+
+async function generateSeriesFromSeed() {
+  const seed = document.getElementById('gen-seed').value;
+  const errEl = document.getElementById('gen-seed-error');
+  errEl.textContent = '';
+  if (!seed.trim()) { errEl.textContent = 'Paste your series brief first'; return; }
+  const btn = document.getElementById('gen-series-btn');
+  btn.disabled = true; btn.textContent = 'Generating full series… (1–3 min)';
+  try {
+    const data = await api('/api/admin/blog/generate-series', { method: 'POST', body: JSON.stringify({ seed_text: seed }) });
+    showToast(`Series created: ${data.chapters.length} chapters`);
+    localStorage.removeItem('tps_blog_seed_draft');
+    document.getElementById('gen-seed').value = '';
+    switchTab('pending');
+    loadPending();
+  } catch (e) {
+    errEl.textContent = 'Error: ' + e.message + ' — your notes are still saved above, safe to retry.';
+  }
+  btn.disabled = false; btn.textContent = '📚 Generate Full Series from These Notes';
 }
 
 async function saveSeedToMaterial() {

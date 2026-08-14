@@ -5642,6 +5642,24 @@ app.post('/api/admin/blog/knowledge/:id/edit', requireAdmin, async (req, res) =>
     res.json({ success: true, knowledge: data });
 });
 
+// ── POST /api/admin/blog/generate-series — writes an entire multi-chapter ────
+// blog series in ONE Anthropic call (so chapters share full context and read
+// as a continuing story, not N independent posts with no memory of each
+// other), then inserts each chapter as its own pending_review blog_posts row
+// — reuses the existing review/edit/approve/publish pipeline as-is, so
+// publishing stays a manual one-per-week click, no new scheduling needed.
+app.post('/api/admin/blog/generate-series', requireAdmin, async (req, res) => {
+    const seedText = req.body?.seed_text;
+    if (!seedText || !seedText.trim()) return res.status(400).json({ error: 'Missing seed_text' });
+    try {
+        const chapters = await generateBlogSeries(seedText);
+        res.json({ success: true, chapters });
+    } catch (err) {
+        console.error('Blog series generation error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── Rotating topic list for AI-proposed posts. Editable here — no DB needed ────
 // for something this simple; expand freely as ideas come up.
 const BLOG_TOPIC_IDEAS = [
@@ -5807,6 +5825,122 @@ app.post('/api/admin/blog/generate-draft', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+// ── Writes an entire bilingual multi-chapter blog series in a single ─────────
+// Anthropic call, grounded in the Knowledge Base same as generateBlogDraft().
+// One call (not N independent ones) so chapters actually reference each other
+// and read as a continuing story instead of repeating the same ground.
+async function generateBlogSeries(seedText) {
+    const { data: knowledgeRows } = await supabaseAdmin
+        .from('blog_knowledge_base')
+        .select('title, content, category')
+        .order('created_at', { ascending: true });
+    const knowledgeBlock = (knowledgeRows && knowledgeRows.length)
+        ? knowledgeRows.map(k => `[${k.category || 'reference'}] ${k.title || '(untitled)'}\n${k.content}`).join('\n\n---\n\n')
+        : null;
+
+    const prompt = `You are writing a multi-part blog SERIES for Trusted Panama Stays, a directory of legally ATP/MiCI-registered short-term rentals in Panama (trustedpanamastays.com). The audience is international tourists researching where to stay in Panama, plus Panama property owners considering registering their rental legally.
+${knowledgeBlock ? `REFERENCE MATERIAL — verified, owner-provided knowledge about Panama's actual laws and regulations. Ground every legal or factual claim in this material. Do NOT state specific legal requirements, law numbers, deadlines, fees, or procedures unless explicitly supported below — if something legal isn't covered here, omit it or phrase it generally (e.g. "consult a lawyer for current requirements") rather than inventing specifics:\n\n"""${knowledgeBlock}"""\n\n` : ''}Here is the author's brief for the series — follow its intended scope, structure, and chapter count exactly as described (if it suggests a range like "5 or 6", pick whichever fits the material better):
+
+"""${seedText}"""
+
+Requirements:
+- Write the ENTIRE series in this one pass so it reads as a genuinely continuing story — later chapters should build on earlier ones (references back, escalating stakes, no repeated re-explanation of things already covered), not read like independent unrelated posts on a similar topic
+- Each chapter needs its own full bilingual post: English AND Spanish (Panama Spanish, natural for a Panamanian reader) — full separate versions, not translation-in-parentheses
+- Prefix EVERY chapter's title_en and title_es with "Part X of N: " (matching its position in the series) so chapters are clearly ordered wherever they're listed
+- Structure per chapter: <h2>/<h3> for section headings (NEVER <h1>), <p> paragraphs, <ul>/<ol> only where genuinely clearer than prose
+- Where natural, include ONE internal link back to the directory in each language version of each chapter: <a href="/index.php">our directory</a> in body_en, <a href="/index.php?lang=es">nuestro directorio</a> in body_es — don't force it if it doesn't fit
+- No inline styling — plain semantic HTML only
+- Tone: helpful, credible, narrative and engaging — this should intrigue readers into coming back for the next part, without ever inventing facts
+- Be conservative with legal specifics not covered by the reference material above — general guidance and "consult a professional" framing is safer than a confident but unverified legal claim
+- Length: 500-900 words per language version, per chapter
+When finished, call the save_blog_series tool with every chapter, in order — do not include any other prose.`;
+
+    const BLOG_SERIES_TOOL = {
+        name: 'save_blog_series',
+        description: 'Save the completed multi-chapter bilingual blog series, in reading order.',
+        input_schema: {
+            type: 'object',
+            properties: {
+                chapters: {
+                    type: 'array',
+                    description: 'One entry per chapter, in the order they should be published',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            slug: { type: 'string', description: 'URL-friendly slug in English, unique per chapter' },
+                            title_en: { type: 'string', description: 'Must start with "Part X of N: "' },
+                            title_es: { type: 'string', description: 'Must start with "Parte X de N: "' },
+                            excerpt_en: { type: 'string', description: 'One sentence, under 25 words' },
+                            excerpt_es: { type: 'string' },
+                            meta_description_en: { type: 'string', description: 'Under 155 characters' },
+                            meta_description_es: { type: 'string' },
+                            body_en: { type: 'string', description: 'HTML: h2/h3/p/ul/ol only, never h1' },
+                            body_es: { type: 'string', description: 'HTML: h2/h3/p/ul/ol only, never h1' },
+                            category: { type: 'string', description: 'Same category label for every chapter in this series' }
+                        },
+                        required: ['slug', 'title_en', 'title_es', 'excerpt_en', 'excerpt_es', 'meta_description_en', 'meta_description_es', 'body_en', 'body_es']
+                    }
+                }
+            },
+            required: ['chapters']
+        }
+    };
+
+    let response;
+    try {
+        response = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-5',
+            max_tokens: 32000,
+            thinking: { type: 'disabled' },
+            tools: [BLOG_SERIES_TOOL],
+            tool_choice: { type: 'tool', name: 'save_blog_series' },
+            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+        }, {
+            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+            timeout: 180000
+        });
+    } catch (axiosErr) {
+        const apiMsg = axiosErr.response?.data?.error?.message || axiosErr.message;
+        throw new Error('Anthropic API call failed: ' + apiMsg);
+    }
+
+    if (response.data.stop_reason === 'max_tokens') {
+        throw new Error('The AI response was cut off before finishing the full series (hit the token limit) — try a shorter brief or fewer chapters, and generate again.');
+    }
+    const toolBlock = (response.data.content || []).find(b => b.type === 'tool_use' && b.name === 'save_blog_series');
+    if (!toolBlock || !toolBlock.input || !Array.isArray(toolBlock.input.chapters) || !toolBlock.input.chapters.length) {
+        throw new Error('Claude did not return the expected series. stop_reason=' + response.data.stop_reason + ' — ' + JSON.stringify(response.data.content).slice(0, 400));
+    }
+
+    const inserted = [];
+    for (const draft of toolBlock.input.chapters) {
+        const baseSlug = (draft.slug || draft.title_en).toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        const { data: conflict } = await supabaseAdmin.from('blog_posts').select('id').eq('slug', baseSlug).maybeSingle();
+        const finalSlug = conflict ? `${baseSlug}-${Date.now()}-${inserted.length}` : baseSlug;
+        const { data: row, error } = await supabaseAdmin.from('blog_posts').insert({
+            slug: finalSlug,
+            title_en: draft.title_en, title_es: draft.title_es,
+            excerpt_en: draft.excerpt_en, excerpt_es: draft.excerpt_es,
+            meta_description_en: draft.meta_description_en, meta_description_es: draft.meta_description_es,
+            body_en: draft.body_en, body_es: draft.body_es,
+            category: draft.category || null,
+            status: 'pending_review',
+            ai_generated: true
+        }).select().single();
+        if (error) throw new Error(`Chapter "${draft.title_en}" failed to save: ${error.message} (${inserted.length} chapter(s) saved before this one)`);
+        inserted.push(row);
+    }
+
+    await logEvent('blog_series_generated', {
+        ids: inserted.map(r => r.id),
+        count: inserted.length,
+        knowledge_entries_used: knowledgeRows?.length || 0
+    });
+    return inserted;
+}
 
 // ── GET /api/verify-preview-token — lets blog-post.php (PHP) verify a signed ──
 // preview token without PHP needing its own copy of ADMIN_SECRET. Shared
