@@ -215,11 +215,36 @@ function postCard(p) {
         <div><label>Body (EN)</label><div class="quill-editor" id="quill-body_en-${p.id}">${p.body_en||''}</div></div>
         <div><label>Body (ES)</label><div class="quill-editor" id="quill-body_es-${p.id}">${p.body_es||''}</div></div>
       </div>
-      <div class="row"><button class="btn btn-green" onclick="saveEdit(${p.id})">Save Changes</button></div>
-    </div>
-  `;
-  return div;
-}
+      <div class="row">
+              <button class="btn btn-green" onclick="saveEdit(${p.id})">Save Changes</button>
+              <button class="btn btn-outline" onclick="translatePost(${p.id})">🌐 Translate to Spanish</button>
+            </div>
+          </div>
+        `;
+        return div;
+      }
+
+      async function translatePost(id) {
+        const p = postsById[id];
+        if (p && p.body_es && p.body_es.trim() && !confirm('This will overwrite the existing Spanish version with a fresh translation. Continue?')) return;
+        if (dirtyPosts.has(id)) {
+          showToast('Saving your English edits first…');
+          await autosaveToServer(id);
+        }
+        showToast('Translating…');
+        try {
+          const data = await api(`/api/admin/blog/${id}/translate`, { method: 'POST' });
+          const t = data.post;
+          postsById[id] = { ...postsById[id], title_es: t.title_es, excerpt_es: t.excerpt_es, meta_description_es: t.meta_description_es, body_es: t.body_es };
+          const setIf = (fieldId, val) => { const el = document.getElementById(fieldId); if (el) el.value = val || ''; };
+          setIf(`f-title_es-${id}`, t.title_es);
+          setIf(`f-excerpt_es-${id}`, t.excerpt_es);
+          setIf(`f-meta_description_es-${id}`, t.meta_description_es);
+          const qEs = quillInstances[`body_es-${id}`];
+          if (qEs) qEs.root.innerHTML = t.body_es || '';
+          showToast('Translated to Spanish');
+        } catch (e) { showToast('Error: ' + e.message); }
+      }
 
 function togglePostEdit(id) {
   const form = document.getElementById('edit-' + id);
@@ -361,10 +386,14 @@ async function saveEdit(id) {
 }
 
 async function approvePost(id) {
-  if (!confirm('Publish this post live?')) return;
+  const p = postsById[id];
+  const hasSpanish = p && p.body_es && p.body_es.trim();
+  const msg = hasSpanish ? 'Publish this post live?' : 'This post has no Spanish version yet — Spanish visitors will see a blank page. Publish in English only anyway?';
+  if (!confirm(msg)) return;
   try { await api(`/api/admin/blog/${id}/approve`, { method: 'POST' }); showToast('Published'); refreshLists(); }
   catch (e) { showToast('Error: ' + e.message); }
 }
+
 async function rejectPost(id) {
   if (!confirm('Reject this draft?')) return;
   try { await api(`/api/admin/blog/${id}/reject`, { method: 'POST' }); showToast('Rejected'); refreshLists(); }
