@@ -213,16 +213,19 @@ function postCard(p) {
       <label>Featured image URL</label><input id="f-featured_image_url-${p.id}" value="${escapeAttr(p.featured_image_url)}" oninput="markDirty(${p.id})">
       <div class="two-col">
         <div><label>Body (EN)</label><div class="quill-editor" id="quill-body_en-${p.id}">${p.body_en||''}</div></div>
-        <div><label>Body (ES)</label><div class="quill-editor" id="quill-body_es-${p.id}">${p.body_es||''}</div></div>
+        <div>
+          <label style="display:flex;align-items:center;justify-content:space-between;">
+            <span>Body (ES)</span>
+            <button class="btn btn-outline" style="padding:3px 10px;font-size:11px;" onclick="translatePost(${p.id})">🌐 Translate from English</button>
+          </label>
+          <div class="quill-editor" id="quill-body_es-${p.id}">${p.body_es||''}</div>
+        </div>
       </div>
-      <div class="row">
-              <button class="btn btn-green" onclick="saveEdit(${p.id})">Save Changes</button>
-              <button class="btn btn-outline" onclick="translatePost(${p.id})">🌐 Translate to Spanish</button>
-            </div>
-          </div>
-        `;
-        return div;
-      }
+      <div class="row"><button class="btn btn-green" onclick="saveEdit(${p.id})">Save Changes</button></div>
+    </div>
+  `;
+  return div;
+}
 
       async function translatePost(id) {
         const p = postsById[id];
