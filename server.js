@@ -5659,10 +5659,16 @@ const BLOG_TOPIC_IDEAS = [
 // provided, the post is built from the user's own notes/concept explanation
 // instead of an AI-chosen topic. Always lands as 'pending_review' — never
 // auto-publishes, per the current human-approval workflow.
+// 2026-08-15: switched from "ask for JSON in prose, regex-strip fences, then
+// JSON.parse" (fragile — a stray unescaped quote or a mid-generation cutoff
+// in ~1500 words of bilingual HTML silently broke JSON.parse with an
+// unreadable error) to a forced tool call, which guarantees a structurally
+// valid object back from the API. Also now flags a token-limit cutoff
+// explicitly and surfaces the real Anthropic API error body instead of
+// axios's generic status-code message.
 async function generateBlogDraft(seedText) {
     let mode = seedText ? 'seed' : 'topic';
     let materialUsed = null;
-
     if (!seedText) {
         const { data: material } = await supabaseAdmin
             .from('blog_source_material')
@@ -5677,9 +5683,7 @@ async function generateBlogDraft(seedText) {
             mode = 'material';
         }
     }
-
     const topic = seedText || BLOG_TOPIC_IDEAS[Math.floor(Math.random() * BLOG_TOPIC_IDEAS.length)];
-
     // ── Permanent knowledge base (law texts, your write-ups, corrected post ──
     // examples) — never consumed, unlike the material bank above. Every draft
     // gets grounded in everything saved here.
@@ -5690,13 +5694,10 @@ async function generateBlogDraft(seedText) {
     const knowledgeBlock = (knowledgeRows && knowledgeRows.length)
         ? knowledgeRows.map(k => `[${k.category || 'reference'}] ${k.title || '(untitled)'}\n${k.content}`).join('\n\n---\n\n')
         : null;
-
     const prompt = `You are writing a blog post for Trusted Panama Stays, a directory of legally ATP/MiCI-registered short-term rentals in Panama (trustedpanamastays.com). The audience is international tourists researching where to stay in Panama, plus Panama property owners considering registering their rental legally.
-
 ${knowledgeBlock ? `REFERENCE MATERIAL — verified, owner-provided knowledge about Panama's actual laws and regulations. Ground every legal or factual claim in this material. Do NOT state specific legal requirements, law numbers, deadlines, fees, or procedures unless explicitly supported below — if something legal isn't covered here, omit it or phrase it generally (e.g. "consult a lawyer for current requirements") rather than inventing specifics:\n\n"""${knowledgeBlock}"""\n\n` : ''}${seedText
     ? `Turn the following rough notes/concept explanation into a polished, well-structured blog post. Preserve the author's intent and any factual specifics — do not invent facts they didn't provide:\n\n"""${seedText}"""`
     : `Write an original blog post on this topic: "${topic}"`}
-
 Requirements:
 - Write in BOTH English and Spanish (Panama Spanish, natural for a Panamanian reader) — full separate versions, not a translation-in-parentheses style
 - Structure: use <h2>/<h3> for section headings (NEVER <h1>, that's reserved for the title), <p> paragraphs, <ul>/<ol> only where a list is genuinely clearer than prose
@@ -5705,40 +5706,61 @@ Requirements:
 - Tone: helpful, credible, not salesy
 - Be conservative with legal specifics not covered by the reference material above — general guidance and "consult a professional" framing is safer than a confident but unverified legal claim
 - Length: 500-900 words per language version
+When finished, call the save_blog_post tool with the completed draft — do not include any other prose.`;
 
-Return ONLY a JSON object, no other text, no markdown fences:
-{
-  "slug": "url-friendly-slug-in-english",
-  "title_en": "...", "title_es": "...",
-  "excerpt_en": "one sentence, under 25 words", "excerpt_es": "...",
-  "meta_description_en": "under 155 chars", "meta_description_es": "...",
-  "body_en": "<h2>...</h2><p>...</p>...", "body_es": "...",
-  "category": "one or two words, e.g. Legal Compliance, Travel Guide, Area Guide"
-}`;
+    const BLOG_POST_TOOL = {
+        name: 'save_blog_post',
+        description: 'Save the completed bilingual blog post draft.',
+        input_schema: {
+            type: 'object',
+            properties: {
+                slug: { type: 'string', description: 'URL-friendly slug in English' },
+                title_en: { type: 'string' },
+                title_es: { type: 'string' },
+                excerpt_en: { type: 'string', description: 'One sentence, under 25 words' },
+                excerpt_es: { type: 'string' },
+                meta_description_en: { type: 'string', description: 'Under 155 characters' },
+                meta_description_es: { type: 'string' },
+                body_en: { type: 'string', description: 'HTML: h2/h3/p/ul/ol only, never h1' },
+                body_es: { type: 'string', description: 'HTML: h2/h3/p/ul/ol only, never h1' },
+                category: { type: 'string', description: 'One or two words, e.g. Legal Compliance, Travel Guide, Area Guide' }
+            },
+            required: ['slug', 'title_en', 'title_es', 'excerpt_en', 'excerpt_es', 'meta_description_en', 'meta_description_es', 'body_en', 'body_es']
+        }
+    };
 
-    const response = await axios.post('https://api.anthropic.com/v1/messages', {
-        model: 'claude-sonnet-5',
-        max_tokens: 8000,
-        thinking: { type: 'disabled' },
-        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
-    }, {
-        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-        timeout: 60000
-    });
-
-    const textBlock = (response.data.content || []).find(b => b.type === 'text');
-    if (!textBlock || !textBlock.text) {
-        throw new Error('No text content in Claude response: ' + JSON.stringify(response.data.content));
+    let response;
+    try {
+        response = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-5',
+            max_tokens: 12000,
+            thinking: { type: 'disabled' },
+            tools: [BLOG_POST_TOOL],
+            tool_choice: { type: 'tool', name: 'save_blog_post' },
+            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+        }, {
+            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+            timeout: 90000
+        });
+    } catch (axiosErr) {
+        const apiMsg = axiosErr.response?.data?.error?.message || axiosErr.message;
+        throw new Error('Anthropic API call failed: ' + apiMsg);
     }
-    const raw = textBlock.text.replace(/```json\n?|\n?```/g, '').trim();
-    const draft = JSON.parse(raw);
+
+    if (response.data.stop_reason === 'max_tokens') {
+        throw new Error('The AI response was cut off before finishing (hit the token limit) — try shorter/more focused notes and generate again.');
+    }
+    const toolBlock = (response.data.content || []).find(b => b.type === 'tool_use' && b.name === 'save_blog_post');
+    if (!toolBlock || !toolBlock.input) {
+        throw new Error('Claude did not return the expected draft. stop_reason=' + response.data.stop_reason + ' — ' + JSON.stringify(response.data.content).slice(0, 400));
+    }
+    const draft = toolBlock.input;
 
     const baseSlug = (draft.slug || draft.title_en).toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const { data: conflict } = await supabaseAdmin.from('blog_posts').select('id').eq('slug', baseSlug).maybeSingle();
     const finalSlug = conflict ? `${baseSlug}-${Date.now()}` : baseSlug;
-
     const { data: inserted, error } = await supabaseAdmin.from('blog_posts').insert({
         slug: finalSlug,
         title_en: draft.title_en, title_es: draft.title_es,
@@ -5750,13 +5772,11 @@ Return ONLY a JSON object, no other text, no markdown fences:
         ai_generated: true
     }).select().single();
     if (error) throw new Error(error.message);
-
     if (materialUsed) {
         await supabaseAdmin.from('blog_source_material')
             .update({ used: true, used_in_post_id: inserted.id })
             .eq('id', materialUsed.id);
     }
-
     await logEvent('blog_draft_generated', {
         id: inserted.id, mode,
         topic: mode === 'topic' ? topic : null,
@@ -5765,6 +5785,7 @@ Return ONLY a JSON object, no other text, no markdown fences:
     });
     return inserted;
 }
+
 
 // ── POST /api/admin/blog/generate-draft ────────────────────────────────────────
 // Called from the admin panel ("Generate topic idea" or "Generate from my notes")
