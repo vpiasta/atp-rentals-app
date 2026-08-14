@@ -6047,13 +6047,14 @@ app.post('/api/admin/blog/:id/translate', requireAdmin, async (req, res) => {
     };
     const prompt = `Translate the following blog post from English into natural Panama Spanish (the way a Panamanian reader would expect, not generic textbook Spanish) for Trusted Panama Stays (trustedpanamastays.com).
 Preserve the HTML structure exactly — same tags, same paragraph breaks — only translate the text content, and change the internal directory link's href to "/index.php?lang=es" with natural Spanish link text ("nuestro directorio").
-
+Do not include any quotation marks, delimiters, or labels in your translated output — the body_es field must start directly with the first HTML tag of the translated content, with nothing before it.
 TITLE: ${post.title_en}
 EXCERPT: ${post.excerpt_en}
 META DESCRIPTION: ${post.meta_description_en}
-BODY:
-"""${post.body_en}"""
-
+BODY (translate only the content between the markers — do not include the markers themselves in your output):
+===BODY_START===
+${post.body_en}
+===BODY_END===
 Call the save_translation tool with the translated fields.`;
 
     let response;
