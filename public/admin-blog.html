@@ -117,10 +117,8 @@ async function api(path, opts = {}) {
   let data;
   try { data = await res.json(); } catch (e) { data = {}; }
   if (res.status === 401 || res.status === 403) {
-    if (data.error === 'Session expired' || data.error === 'No token' || data.error === 'IP changed') {
-      logout('Your session expired (this happens after 4 hours). Nothing was lost — any unsaved edits were backed up on this device. Log in again, then reopen the post to recover them.');
-      throw new Error('Session expired — please log in again');
-    }
+    logout('Your session expired (this happens after 4 hours). Nothing was lost — any unsaved edits were backed up on this device. Log in again to recover them.');
+    throw new Error(data.error || 'Session expired — please log in again');
   }
   if (!res.ok) throw new Error(data.error || 'Request failed');
   return data;
@@ -423,35 +421,48 @@ async function loadPublished() {
 // ── Material bank ──────────────────────────────────────────────────────────
 function renderMaterialPanel() {
   const panel = document.getElementById('panel-material');
+  const saved = JSON.parse(localStorage.getItem('tps_blog_material_draft') || '{}');
   panel.innerHTML = `
     <div class="material-form">
       <h3 style="color:#005ca9;margin-bottom:10px;">Add material for a future post</h3>
-      <input id="mat-title" placeholder="Title / short label (optional)">
-      <select id="mat-type">
-        <option value="facebook_post">Facebook post</option>
-        <option value="legal_analysis">Legal analysis</option>
-        <option value="note">Note / other</option>
+      <input id="mat-title" placeholder="Title / short label (optional)" value="${escapeAttr(saved.title||'')}" oninput="saveMaterialFormDraft()">
+      <select id="mat-type" onchange="saveMaterialFormDraft()">
+        <option value="facebook_post" ${saved.source_type==='facebook_post'?'selected':''}>Facebook post</option>
+        <option value="legal_analysis" ${saved.source_type==='legal_analysis'?'selected':''}>Legal analysis</option>
+        <option value="note" ${!saved.source_type || saved.source_type==='note'?'selected':''}>Note / other</option>
       </select>
-      <textarea id="mat-content" placeholder="Paste the content here — a Facebook post, a write-up on a law or regulation, or any raw notes."></textarea>
+      <textarea id="mat-content" placeholder="Paste the content here — a Facebook post, a write-up on a law or regulation, or any raw notes." oninput="saveMaterialFormDraft()">${escapeHtml(saved.content||'')}</textarea>
       <button class="btn btn-green" onclick="addMaterial()">Save to Material Bank</button>
+      <div class="gen-error" id="mat-form-error"></div>
     </div>
     <div id="material-list"><div class="loading">Loading…</div></div>
   `;
   loadMaterial();
 }
 
+function saveMaterialFormDraft() {
+  localStorage.setItem('tps_blog_material_draft', JSON.stringify({
+    title: document.getElementById('mat-title').value,
+    source_type: document.getElementById('mat-type').value,
+    content: document.getElementById('mat-content').value
+  }));
+}
+
 async function addMaterial() {
   const title = document.getElementById('mat-title').value;
   const source_type = document.getElementById('mat-type').value;
   const content = document.getElementById('mat-content').value;
-  if (!content.trim()) { showToast('Content is required'); return; }
+  const errEl = document.getElementById('mat-form-error');
+  errEl.textContent = '';
+  if (!content.trim()) { errEl.textContent = 'Content is required'; return; }
   try {
     await api('/api/admin/blog/material', { method: 'POST', body: JSON.stringify({ title, source_type, content }) });
+    localStorage.removeItem('tps_blog_material_draft');
     document.getElementById('mat-title').value = '';
     document.getElementById('mat-content').value = '';
     showToast('Saved to material bank');
     loadMaterial();
-  } catch (e) { showToast('Error: ' + e.message); }
+  } catch (e) { errEl.textContent = 'Error: ' + e.message + ' — your text is still saved above, safe to retry.'; }
 }
 
 async function loadMaterial() {
@@ -519,37 +530,50 @@ async function deleteMaterial(id) {
 // ── Knowledge base (permanent — never consumed, grounds every draft) ────────
 function renderKnowledgePanel() {
   const panel = document.getElementById('panel-knowledge');
+  const saved = JSON.parse(localStorage.getItem('tps_blog_knowledge_draft') || '{}');
   panel.innerHTML = `
     <div class="material-form">
       <h3 style="color:#005ca9;margin-bottom:10px;">Add permanent reference material</h3>
       <p style="font-size:0.85rem;color:#666;margin-bottom:10px;">Unlike the Material Bank, nothing here gets used up — every future draft (weekly cron or manual) is grounded in everything saved here, every time.</p>
-      <input id="know-title" placeholder="Title / short label">
-      <select id="know-category">
-        <option value="law_text">Law text</option>
-        <option value="write_up">My write-up / analysis</option>
-        <option value="corrected_example">Corrected post example</option>
-        <option value="reference">Other reference</option>
+      <input id="know-title" placeholder="Title / short label" value="${escapeAttr(saved.title||'')}" oninput="saveKnowledgeFormDraft()">
+      <select id="know-category" onchange="saveKnowledgeFormDraft()">
+        <option value="law_text" ${saved.category==='law_text'?'selected':''}>Law text</option>
+        <option value="write_up" ${saved.category==='write_up'?'selected':''}>My write-up / analysis</option>
+        <option value="corrected_example" ${saved.category==='corrected_example'?'selected':''}>Corrected post example</option>
+        <option value="reference" ${!saved.category || saved.category==='reference'?'selected':''}>Other reference</option>
       </select>
-      <textarea id="know-content" placeholder="Paste the law text, your analysis, or corrected content here."></textarea>
+      <textarea id="know-content" placeholder="Paste the law text, your analysis, or corrected content here." oninput="saveKnowledgeFormDraft()">${escapeHtml(saved.content||'')}</textarea>
       <button class="btn btn-green" onclick="addKnowledge()">Save to Knowledge Base</button>
+      <div class="gen-error" id="know-form-error"></div>
     </div>
     <div id="knowledge-list"><div class="loading">Loading…</div></div>
   `;
   loadKnowledge();
 }
 
+function saveKnowledgeFormDraft() {
+  localStorage.setItem('tps_blog_knowledge_draft', JSON.stringify({
+    title: document.getElementById('know-title').value,
+    category: document.getElementById('know-category').value,
+    content: document.getElementById('know-content').value
+  }));
+}
+
 async function addKnowledge() {
   const title = document.getElementById('know-title').value;
   const category = document.getElementById('know-category').value;
   const content = document.getElementById('know-content').value;
-  if (!content.trim()) { showToast('Content is required'); return; }
+  const errEl = document.getElementById('know-form-error');
+  errEl.textContent = '';
+  if (!content.trim()) { errEl.textContent = 'Content is required'; return; }
   try {
     await api('/api/admin/blog/knowledge', { method: 'POST', body: JSON.stringify({ title, category, content }) });
+    localStorage.removeItem('tps_blog_knowledge_draft');
     document.getElementById('know-title').value = '';
     document.getElementById('know-content').value = '';
     showToast('Saved to knowledge base');
     loadKnowledge();
-  } catch (e) { showToast('Error: ' + e.message); }
+  } catch (e) { errEl.textContent = 'Error: ' + e.message + ' — your text is still saved above, safe to retry.'; }
 }
 
 async function loadKnowledge() {
