@@ -11,17 +11,22 @@ define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
 // base64(id:timestamp:ADMIN_SECRET), minted by /api/admin/blog/:id/preview-link.
 function is_valid_preview_token($token) {
     if (!$token) return false;
-    $adminSecret = getenv('ADMIN_SECRET');
-    if (!$adminSecret) return false; // can't validate without the secret available to PHP
-    $decoded = base64_decode($token, true);
-    if ($decoded === false) return false;
-    $parts = explode(':', $decoded);
-    if (count($parts) !== 3) return false;
-    [$tokenId, $tokenTime, $tokenSecret] = $parts;
-    if ($tokenSecret !== $adminSecret) return false;
-    if ((microtime(true) * 1000) - (float)$tokenTime > 24 * 60 * 60 * 1000) return false; // 24h expiry
-    return true;
+    // Verified via the Node app instead of reading ADMIN_SECRET locally —
+    // shared hosting doesn't reliably share env vars between the Node app
+    // and PHP, so PHP no longer needs its own copy of the secret at all.
+    $ch = curl_init('https://trustedpanamastays.com/api/verify-preview-token?token=' . urlencode($token));
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 5,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    $body = curl_exec($ch);
+    curl_close($ch);
+    $data = json_decode($body, true);
+    return is_array($data) && !empty($data['valid']);
 }
+
+
 $isPreview = is_valid_preview_token($_GET['preview'] ?? null);
 
 
