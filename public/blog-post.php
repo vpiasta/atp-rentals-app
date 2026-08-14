@@ -6,24 +6,29 @@ $slug  = isset($_GET['slug']) ? trim($_GET['slug']) : '';
 define('SUPABASE_URL', 'https://caqdkxukezpckqphogwl.supabase.co');
 define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcWRreHVrZXpwY2txcGhvZ3dsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDc2MDIsImV4cCI6MjA5NjAyMzYwMn0.xqNuCWm_ALivBRpl3pSTDDJeoBN1WfX4-G_OJq2Sd8g');
 
-// ── Preview mode: a signed, time-limited admin token lets an unpublished ──
-// draft be viewed before approval. Same token shape as the rest of the app:
-// base64(id:timestamp:ADMIN_SECRET), minted by /api/admin/blog/:id/preview-link.
+// ── Preview mode: a random one-time token, minted by ──
+// /api/admin/blog/:id/preview-link and stored in the blog_preview_tokens
+// table. Checked here by querying Supabase directly (same pattern this
+// file already uses to fetch the post itself) — no call back into the
+// Node app.
 function is_valid_preview_token($token) {
     if (!$token) return false;
-    // Verified via the Node app instead of reading ADMIN_SECRET locally —
-    // shared hosting doesn't reliably share env vars between the Node app
-    // and PHP, so PHP no longer needs its own copy of the secret at all.
-    $ch = curl_init('https://trustedpanamastays.com/api/verify-preview-token?token=' . urlencode($token));
+    $url = SUPABASE_URL . '/rest/v1/blog_preview_tokens?select=id&token=eq.' . urlencode($token) . '&expires_at=gt.' . urlencode(date('c')) . '&limit=1';
+    $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . SUPABASE_KEY,
+            'Authorization: Bearer ' . SUPABASE_KEY,
+            'Accept: application/json',
+        ],
         CURLOPT_TIMEOUT => 5,
         CURLOPT_SSL_VERIFYPEER => false,
     ]);
     $body = curl_exec($ch);
     curl_close($ch);
     $data = json_decode($body, true);
-    return is_array($data) && !empty($data['valid']);
+    return is_array($data) && count($data) > 0;
 }
 
 

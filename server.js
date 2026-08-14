@@ -5537,11 +5537,19 @@ app.post('/api/admin/blog/:id/delete', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
-// ── GET /api/admin/blog/:id/preview-link — signed link to view any status ────
+// ── GET /api/admin/blog/:id/preview-link — mints a random one-time token, ────
+// stored in blog_preview_tokens (valid 24h). blog-post.php checks it by
+// querying Supabase directly — no self-referencing HTTPS call back into
+// this same Node app, which was unreliable on shared hosting.
 app.get('/api/admin/blog/:id/preview-link', requireAdmin, async (req, res) => {
     const { data, error } = await supabaseAdmin.from('blog_posts').select('id, slug').eq('id', req.params.id).single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
-    const token = Buffer.from(`${data.id}:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
+    const token = require('crypto').randomBytes(24).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const { error: insertErr } = await supabaseAdmin.from('blog_preview_tokens').insert({
+        post_id: data.id, token, expires_at: expiresAt
+    });
+    if (insertErr) return res.status(500).json({ error: 'Could not create preview link: ' + insertErr.message });
     res.json({
         url_en: `https://trustedpanamastays.com/blog-post.php?slug=${encodeURIComponent(data.slug)}&preview=${encodeURIComponent(token)}`,
         url_es: `https://trustedpanamastays.com/blog-post.php?slug=${encodeURIComponent(data.slug)}&lang=es&preview=${encodeURIComponent(token)}`
