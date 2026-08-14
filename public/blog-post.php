@@ -34,6 +34,34 @@ function is_valid_preview_token($token) {
 
 $isPreview = is_valid_preview_token($_GET['preview'] ?? null);
 
+if (isset($_GET['debug_preview'])) {
+    $dbgToken = $_GET['preview'] ?? '';
+    $dbgUrl = SUPABASE_URL . '/rest/v1/blog_preview_tokens?select=*&token=eq.' . urlencode($dbgToken) . '&expires_at=gt.' . urlencode(date('c')) . '&limit=1';
+    $ch = curl_init($dbgUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . SUPABASE_KEY,
+            'Authorization: Bearer ' . SUPABASE_KEY,
+            'Accept: application/json',
+        ],
+        CURLOPT_TIMEOUT => 5,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    $dbgBody = curl_exec($ch);
+    $dbgErr = curl_error($ch);
+    $dbgInfo = curl_getinfo($ch);
+    curl_close($ch);
+    echo '<pre>';
+    echo "token param: " . htmlspecialchars($dbgToken) . "\n";
+    echo "query url: " . htmlspecialchars($dbgUrl) . "\n";
+    echo "http code: " . ($dbgInfo['http_code'] ?? '?') . "\n";
+    echo "curl error: " . htmlspecialchars($dbgErr) . "\n";
+    echo "response body: " . htmlspecialchars($dbgBody) . "\n";
+    echo "isPreview computed: " . var_export($isPreview, true) . "\n";
+    echo '</pre>';
+    exit;
+}
 
 function ssr_blog_post($slug, $allowUnpublished) {
     if ($slug === '') return null;
