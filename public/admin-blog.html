@@ -62,6 +62,7 @@
   .toast.show { opacity: 1; }
   .gen-box { background: white; border-radius: 10px; padding: 1.2rem; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 1rem; }
   .gen-box textarea { width: 100%; min-height: 100px; padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 13px; margin: 8px 0; font-family: inherit; }
+  .gen-error { color: #cc3333; font-size: 0.85rem; margin-top: 8px; white-space: pre-wrap; }
 </style>
 </head>
 <body>
@@ -629,37 +630,57 @@ async function addPostToKnowledge(id) {
 // ── Generate new draft ───────────────────────────────────────────────────────
 function renderGeneratePanel() {
   const panel = document.getElementById('panel-generate');
+  const savedSeed = localStorage.getItem('tps_blog_seed_draft') || '';
   panel.innerHTML = `
     <div class="gen-box">
       <h3 style="color:#005ca9;">Generate a topic-based draft</h3>
       <p style="font-size:0.85rem;color:#666;margin:6px 0 10px;">Pulls the oldest unused item from the Material Bank first, if there is one — otherwise picks a random topic idea.</p>
       <button class="btn btn-green" id="gen-topic-btn" onclick="generateDraft(null, 'gen-topic-btn')">Generate Draft</button>
+      <div class="gen-error" id="gen-topic-error"></div>
     </div>
     <div class="gen-box">
       <h3 style="color:#005ca9;">Generate from notes right now</h3>
-      <p style="font-size:0.85rem;color:#666;margin:6px 0 10px;">Skips the material bank — turns whatever you paste below into a draft immediately.</p>
-      <textarea id="gen-seed" placeholder="Paste rough notes, a concept explanation, or anything you want turned into a post."></textarea>
-      <button class="btn btn-green" id="gen-seed-btn" onclick="generateFromSeed()">Generate from These Notes</button>
+      <p style="font-size:0.85rem;color:#666;margin:6px 0 10px;">Skips the material bank — turns whatever you paste below into a draft immediately. Your notes are saved on this device as you type, so a failed attempt never loses them.</p>
+      <textarea id="gen-seed" placeholder="Paste rough notes, a concept explanation, or anything you want turned into a post." oninput="localStorage.setItem('tps_blog_seed_draft', this.value)">${escapeHtml(savedSeed)}</textarea>
+      <div class="row">
+        <button class="btn btn-green" id="gen-seed-btn" onclick="generateFromSeed()">Generate from These Notes</button>
+        <button class="btn btn-outline" onclick="saveSeedToMaterial()">💾 Save these notes to Material Bank (without generating)</button>
+      </div>
+      <div class="gen-error" id="gen-seed-error"></div>
     </div>
   `;
 }
 
 async function generateDraft(seedText, btnId) {
   const btn = document.getElementById(btnId);
+  const errEl = document.getElementById(btnId === 'gen-topic-btn' ? 'gen-topic-error' : 'gen-seed-error');
+  errEl.textContent = '';
   btn.disabled = true; btn.textContent = 'Generating… (15–30s)';
   try {
     const data = await api('/api/admin/blog/generate-draft', { method: 'POST', body: JSON.stringify(seedText ? { seed_text: seedText } : {}) });
     showToast('Draft created: ' + data.draft.title_en);
+    if (seedText) { localStorage.removeItem('tps_blog_seed_draft'); document.getElementById('gen-seed').value = ''; }
     switchTab('pending');
     loadPending();
-  } catch (e) { showToast('Error: ' + e.message); }
+  } catch (e) {
+    errEl.textContent = 'Error: ' + e.message + ' — your notes are still saved above, safe to retry.';
+  }
   btn.disabled = false; btn.textContent = btnId === 'gen-topic-btn' ? 'Generate Draft' : 'Generate from These Notes';
 }
 
 function generateFromSeed() {
   const seed = document.getElementById('gen-seed').value;
-  if (!seed.trim()) { showToast('Paste some notes first'); return; }
+  if (!seed.trim()) { document.getElementById('gen-seed-error').textContent = 'Paste some notes first'; return; }
   generateDraft(seed, 'gen-seed-btn');
+}
+
+async function saveSeedToMaterial() {
+  const seed = document.getElementById('gen-seed').value;
+  if (!seed.trim()) { showToast('Nothing to save'); return; }
+  try {
+    await api('/api/admin/blog/material', { method: 'POST', body: JSON.stringify({ title: null, source_type: 'note', content: seed }) });
+    showToast('Saved to Material Bank');
+  } catch (e) { document.getElementById('gen-seed-error').textContent = 'Error saving: ' + e.message; }
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────
