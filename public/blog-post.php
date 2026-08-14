@@ -182,7 +182,8 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
     <?php
       $heading          = 'Trusted Panama Stays';
       $subheading       = $is_en ? 'Registered and verified hotels, apartments and vacation rentals in Panama' : 'Hoteles, apartamentos y alquileres vacacionales registrados y verificados en Panamá';
-      $lang_toggle_href = 'blog-post.php?slug=' . urlencode($slug) . ($is_en ? '&lang=es' : '&lang=en');
+      $previewParam     = $isPreview ? '&preview=' . urlencode($_GET['preview']) : '';
+      $lang_toggle_href = 'blog-post.php?slug=' . urlencode($slug) . ($is_en ? '&lang=es' : '&lang=en') . $previewParam;
       $show_atp_badge   = false;
       include __DIR__ . '/includes/header.php';
     ?>
