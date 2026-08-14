@@ -5642,22 +5642,42 @@ app.post('/api/admin/blog/knowledge/:id/edit', requireAdmin, async (req, res) =>
     res.json({ success: true, knowledge: data });
 });
 
-// ── POST /api/admin/blog/generate-series — writes an entire multi-chapter ────
-// blog series in ONE Anthropic call (so chapters share full context and read
-// as a continuing story, not N independent posts with no memory of each
-// other), then inserts each chapter as its own pending_review blog_posts row
-// — reuses the existing review/edit/approve/publish pipeline as-is, so
-// publishing stays a manual one-per-week click, no new scheduling needed.
+// ── POST /api/admin/blog/generate-series — kicks off series generation and ───
+// returns immediately with a job id; the actual 1-3 minute AI call runs in
+// the background. A synchronous version reliably got killed by Hostinger's
+// reverse-proxy timeout on long requests, leaving the browser with a
+// meaningless "Request failed" even when generation succeeded server-side.
 app.post('/api/admin/blog/generate-series', requireAdmin, async (req, res) => {
     const seedText = req.body?.seed_text;
     if (!seedText || !seedText.trim()) return res.status(400).json({ error: 'Missing seed_text' });
-    try {
-        const chapters = await generateBlogSeries(seedText);
-        res.json({ success: true, chapters });
-    } catch (err) {
+    const { data: job, error: jobErr } = await supabaseAdmin.from('blog_series_jobs').insert({ status: 'running' }).select().single();
+    if (jobErr) return res.status(500).json({ error: jobErr.message });
+    res.json({ success: true, job_id: job.id });
+
+    generateBlogSeries(seedText).then(async (chapters) => {
+        await supabaseAdmin.from('blog_series_jobs').update({
+            status: 'done',
+            chapter_ids: chapters.map(c => c.id),
+            chapter_count: chapters.length,
+            finished_at: new Date().toISOString()
+        }).eq('id', job.id);
+    }).catch(async (err) => {
         console.error('Blog series generation error:', err.message);
-        res.status(500).json({ error: err.message });
-    }
+        await supabaseAdmin.from('blog_series_jobs').update({
+            status: 'error',
+            error_message: err.message,
+            finished_at: new Date().toISOString()
+        }).eq('id', job.id);
+    });
+});
+
+// ── GET /api/admin/blog/generate-series/:jobId/status — polled by the admin ──
+// panel every few seconds while a series job runs in the background.
+app.get('/api/admin/blog/generate-series/:jobId/status', requireAdmin, async (req, res) => {
+    const { data: job, error } = await supabaseAdmin.from('blog_series_jobs').select('*').eq('id', req.params.jobId).maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    res.json({ success: true, job });
 });
 
 // ── Rotating topic list for AI-proposed posts. Editable here — no DB needed ────
