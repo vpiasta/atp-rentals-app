@@ -5901,7 +5901,7 @@ Call the plan_blog_series tool with the full plan.`;
     }
     const planBlock = (planResponse.data.content || []).find(b => b.type === 'tool_use' && b.name === 'plan_blog_series');
     if (!planBlock || !planBlock.input || !Array.isArray(planBlock.input.chapters) || !planBlock.input.chapters.length) {
-        throw new Error('Claude did not return a series plan. stop_reason=' + planResponse.data.stop_reason);
+        throw new Error('Claude did not return a series plan. stop_reason=' + planResponse.data.stop_reason + ' — raw content: ' + JSON.stringify(planResponse.data.content).slice(0, 800));
     }
     const plan = planBlock.input.chapters;
     const total = plan.length;
