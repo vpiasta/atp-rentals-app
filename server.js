@@ -5900,10 +5900,22 @@ Call the plan_blog_series tool with the full plan.`;
         throw new Error('Anthropic API call (planning) failed: ' + apiMsg);
     }
     const planBlock = (planResponse.data.content || []).find(b => b.type === 'tool_use' && b.name === 'plan_blog_series');
-    if (!planBlock || !planBlock.input || !Array.isArray(planBlock.input.chapters) || !planBlock.input.chapters.length) {
+    let planChapters = planBlock?.input?.chapters;
+    if (typeof planChapters === 'string') {
+        // Occasionally comes back as a JSON-encoded string instead of a
+        // native array (sometimes double-wrapped as {"chapters":[...]}
+        // inside that string) — unwrap defensively instead of failing.
+        try {
+            const parsed = JSON.parse(planChapters);
+            planChapters = Array.isArray(parsed) ? parsed : parsed.chapters;
+        } catch (e) {
+            planChapters = null;
+        }
+    }
+    if (!planBlock || !Array.isArray(planChapters) || !planChapters.length) {
         throw new Error('Claude did not return a series plan. stop_reason=' + planResponse.data.stop_reason + ' — raw content: ' + JSON.stringify(planResponse.data.content).slice(0, 800));
     }
-    const plan = planBlock.input.chapters;
+    const plan = planChapters;
     const total = plan.length;
 
     const CHAPTER_TOOL = {
