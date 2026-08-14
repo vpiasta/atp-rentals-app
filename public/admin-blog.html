@@ -216,7 +216,7 @@ function postCard(p) {
         <div>
           <label style="display:flex;align-items:center;justify-content:space-between;">
             <span>Body (ES)</span>
-            <button class="btn btn-outline" style="padding:3px 10px;font-size:11px;" onclick="translatePost(${p.id})">🌐 Translate from English</button>
+            <button class="btn" id="translate-btn-${p.id}" style="padding:4px 12px;font-size:12px;background:#3366cc;color:#fff;border:2px solid #244c99;border-radius:4px;font-weight:600;cursor:pointer;" onclick="translatePost(${p.id})">🌐 Translate from English</button>
           </label>
           <div class="quill-editor" id="quill-body_es-${p.id}">${p.body_es||''}</div>
         </div>
@@ -227,27 +227,30 @@ function postCard(p) {
   return div;
 }
 
-      async function translatePost(id) {
-        const p = postsById[id];
-        if (p && p.body_es && p.body_es.trim() && !confirm('This will overwrite the existing Spanish version with a fresh translation. Continue?')) return;
-        if (dirtyPosts.has(id)) {
-          showToast('Saving your English edits first…');
-          await autosaveToServer(id);
-        }
-        showToast('Translating…');
-        try {
-          const data = await api(`/api/admin/blog/${id}/translate`, { method: 'POST' });
-          const t = data.post;
-          postsById[id] = { ...postsById[id], title_es: t.title_es, excerpt_es: t.excerpt_es, meta_description_es: t.meta_description_es, body_es: t.body_es };
-          const setIf = (fieldId, val) => { const el = document.getElementById(fieldId); if (el) el.value = val || ''; };
-          setIf(`f-title_es-${id}`, t.title_es);
-          setIf(`f-excerpt_es-${id}`, t.excerpt_es);
-          setIf(`f-meta_description_es-${id}`, t.meta_description_es);
-          const qEs = quillInstances[`body_es-${id}`];
-          if (qEs) qEs.root.innerHTML = t.body_es || '';
-          showToast('Translated to Spanish');
-        } catch (e) { showToast('Error: ' + e.message); }
-      }
+async function translatePost(id) {
+  const p = postsById[id];
+  if (p && p.body_es && p.body_es.trim() && !confirm('This will overwrite the existing Spanish version with a fresh translation. Continue?')) return;
+  const btn = document.getElementById(`translate-btn-${id}`);
+  const originalHTML = btn ? btn.innerHTML : '';
+  if (dirtyPosts.has(id)) {
+  showToast('Saving your English edits first…');
+  await autosaveToServer(id);
+  }
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; btn.style.cursor = 'default'; btn.innerHTML = '🌐 Traduciendo…'; }
+  try {
+  const data = await api(`/api/admin/blog/${id}/translate`, { method: 'POST' });
+  const t = data.post;
+  postsById[id] = { ...postsById[id], title_es: t.title_es, excerpt_es: t.excerpt_es, meta_description_es: t.meta_description_es, body_es: t.body_es };
+  const setIf = (fieldId, val) => { const el = document.getElementById(fieldId); if (el) el.value = val || ''; };
+  setIf(`f-title_es-${id}`, t.title_es);
+  setIf(`f-excerpt_es-${id}`, t.excerpt_es);
+  setIf(`f-meta_description_es-${id}`, t.meta_description_es);
+  const qEs = quillInstances[`body_es-${id}`];
+  if (qEs) qEs.root.innerHTML = t.body_es || '';
+  showToast('Translated to Spanish');
+  } catch (e) { showToast('Error: ' + e.message); }
+  finally { if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = 'pointer'; btn.innerHTML = originalHTML; } }
+}
 
 function togglePostEdit(id) {
   const form = document.getElementById('edit-' + id);
