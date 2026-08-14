@@ -5722,9 +5722,6 @@ async function generateBlogDraft(seedText) {
         }
     }
     const topic = seedText || BLOG_TOPIC_IDEAS[Math.floor(Math.random() * BLOG_TOPIC_IDEAS.length)];
-    // ── Permanent knowledge base (law texts, your write-ups, corrected post ──
-    // examples) — never consumed, unlike the material bank above. Every draft
-    // gets grounded in everything saved here.
     const { data: knowledgeRows } = await supabaseAdmin
         .from('blog_knowledge_base')
         .select('title, content, category')
@@ -5737,33 +5734,29 @@ ${knowledgeBlock ? `REFERENCE MATERIAL — verified, owner-provided knowledge ab
     ? `Turn the following rough notes/concept explanation into a polished, well-structured blog post. Preserve the author's intent and any factual specifics — do not invent facts they didn't provide:\n\n"""${seedText}"""`
     : `Write an original blog post on this topic: "${topic}"`}
 Requirements:
-- Write in BOTH English and Spanish (Panama Spanish, natural for a Panamanian reader) — full separate versions, not a translation-in-parentheses style
+- Write in ENGLISH ONLY for now — a Spanish version is translated separately later, after this English version has been reviewed/edited
 - Structure: use <h2>/<h3> for section headings (NEVER <h1>, that's reserved for the title), <p> paragraphs, <ul>/<ol> only where a list is genuinely clearer than prose
-- Where natural, include ONE internal link back to the directory in each language version, pointing to the CORRECT language homepage for that version: use <a href="/index.php">our directory</a> in body_en (English homepage, no lang param) and <a href="/index.php?lang=es">nuestro directorio</a> in body_es (Spanish homepage) — don't force it if it doesn't fit
+- Where natural, include ONE internal link back to the directory: <a href="/index.php">our directory</a> — don't force it if it doesn't fit
 - No inline styling — plain semantic HTML only
 - Tone: helpful, credible, not salesy
 - Be conservative with legal specifics not covered by the reference material above — general guidance and "consult a professional" framing is safer than a confident but unverified legal claim
-- Length: 500-900 words per language version
+- Length: 500-900 words
 When finished, call the save_blog_post tool with the completed draft — do not include any other prose.`;
 
     const BLOG_POST_TOOL = {
         name: 'save_blog_post',
-        description: 'Save the completed bilingual blog post draft.',
+        description: 'Save the completed English blog post draft.',
         input_schema: {
             type: 'object',
             properties: {
                 slug: { type: 'string', description: 'URL-friendly slug in English' },
                 title_en: { type: 'string' },
-                title_es: { type: 'string' },
                 excerpt_en: { type: 'string', description: 'One sentence, under 25 words' },
-                excerpt_es: { type: 'string' },
                 meta_description_en: { type: 'string', description: 'Under 155 characters' },
-                meta_description_es: { type: 'string' },
                 body_en: { type: 'string', description: 'HTML: h2/h3/p/ul/ol only, never h1' },
-                body_es: { type: 'string', description: 'HTML: h2/h3/p/ul/ol only, never h1' },
                 category: { type: 'string', description: 'One or two words, e.g. Legal Compliance, Travel Guide, Area Guide' }
             },
-            required: ['slug', 'title_en', 'title_es', 'excerpt_en', 'excerpt_es', 'meta_description_en', 'meta_description_es', 'body_en', 'body_es']
+            required: ['slug', 'title_en', 'excerpt_en', 'meta_description_en', 'body_en']
         }
     };
 
@@ -5771,14 +5764,14 @@ When finished, call the save_blog_post tool with the completed draft — do not 
     try {
         response = await axios.post('https://api.anthropic.com/v1/messages', {
             model: 'claude-sonnet-5',
-            max_tokens: 12000,
+            max_tokens: 8000,
             thinking: { type: 'disabled' },
             tools: [BLOG_POST_TOOL],
             tool_choice: { type: 'tool', name: 'save_blog_post' },
             messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
         }, {
             headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-            timeout: 90000
+            timeout: 60000
         });
     } catch (axiosErr) {
         const apiMsg = axiosErr.response?.data?.error?.message || axiosErr.message;
@@ -5801,10 +5794,10 @@ When finished, call the save_blog_post tool with the completed draft — do not 
     const finalSlug = conflict ? `${baseSlug}-${Date.now()}` : baseSlug;
     const { data: inserted, error } = await supabaseAdmin.from('blog_posts').insert({
         slug: finalSlug,
-        title_en: draft.title_en, title_es: draft.title_es,
-        excerpt_en: draft.excerpt_en, excerpt_es: draft.excerpt_es,
-        meta_description_en: draft.meta_description_en, meta_description_es: draft.meta_description_es,
-        body_en: draft.body_en, body_es: draft.body_es,
+        title_en: draft.title_en,
+        excerpt_en: draft.excerpt_en,
+        meta_description_en: draft.meta_description_en,
+        body_en: draft.body_en,
         category: draft.category || null,
         status: 'pending_review',
         ai_generated: true
@@ -5850,7 +5843,7 @@ app.post('/api/admin/blog/generate-draft', async (req, res) => {
 // Anthropic call, grounded in the Knowledge Base same as generateBlogDraft().
 // One call (not N independent ones) so chapters actually reference each other
 // and read as a continuing story instead of repeating the same ground.
-async function generateBlogSeries(seedText) {
+async function generateBlogSeries(seedText, jobId) {
     const { data: knowledgeRows } = await supabaseAdmin
         .from('blog_knowledge_base')
         .select('title, content, category')
@@ -5859,47 +5852,29 @@ async function generateBlogSeries(seedText) {
         ? knowledgeRows.map(k => `[${k.category || 'reference'}] ${k.title || '(untitled)'}\n${k.content}`).join('\n\n---\n\n')
         : null;
 
-    const prompt = `You are writing a multi-part blog SERIES for Trusted Panama Stays, a directory of legally ATP/MiCI-registered short-term rentals in Panama (trustedpanamastays.com). The audience is international tourists researching where to stay in Panama, plus Panama property owners considering registering their rental legally.
-${knowledgeBlock ? `REFERENCE MATERIAL — verified, owner-provided knowledge about Panama's actual laws and regulations. Ground every legal or factual claim in this material. Do NOT state specific legal requirements, law numbers, deadlines, fees, or procedures unless explicitly supported below — if something legal isn't covered here, omit it or phrase it generally (e.g. "consult a lawyer for current requirements") rather than inventing specifics:\n\n"""${knowledgeBlock}"""\n\n` : ''}Here is the author's brief for the series — follow its intended scope, structure, and chapter count exactly as described (if it suggests a range like "5 or 6", pick whichever fits the material better):
+    const planPrompt = `You are planning a multi-part blog SERIES for Trusted Panama Stays (trustedpanamastays.com), a directory of legally ATP/MiCI-registered short-term rentals in Panama.
+${knowledgeBlock ? `REFERENCE MATERIAL — ground the plan in this, don't invent facts it doesn't support:\n\n"""${knowledgeBlock}"""\n\n` : ''}Here is the author's brief:
 
 """${seedText}"""
 
-Requirements:
-- Write the ENTIRE series in this one pass so it reads as a genuinely continuing story — later chapters should build on earlier ones (references back, escalating stakes, no repeated re-explanation of things already covered), not read like independent unrelated posts on a similar topic
-- Each chapter needs its own full bilingual post: English AND Spanish (Panama Spanish, natural for a Panamanian reader) — full separate versions, not translation-in-parentheses
-- Prefix EVERY chapter's title_en and title_es with "Part X of N: " (matching its position in the series) so chapters are clearly ordered wherever they're listed
-- Structure per chapter: <h2>/<h3> for section headings (NEVER <h1>), <p> paragraphs, <ul>/<ol> only where genuinely clearer than prose
-- Where natural, include ONE internal link back to the directory in each language version of each chapter: <a href="/index.php">our directory</a> in body_en, <a href="/index.php?lang=es">nuestro directorio</a> in body_es — don't force it if it doesn't fit
-- No inline styling — plain semantic HTML only
-- Tone: helpful, credible, narrative and engaging — this should intrigue readers into coming back for the next part, without ever inventing facts
-- Be conservative with legal specifics not covered by the reference material above — general guidance and "consult a professional" framing is safer than a confident but unverified legal claim
-- Length: 500-900 words per language version, per chapter
-When finished, call the save_blog_series tool with every chapter, in order — do not include any other prose.`;
+Break this into a sequence of chapters that will each become a separate blog post, telling one continuing story (if the brief suggests a range like "5 or 6", pick whichever fits the material better). For each chapter, give an English title (prefixed "Part X of N: ") and a 2-3 sentence internal angle/summary describing exactly what that chapter should cover and how it connects to the chapter before it — this angle is a writing plan, it will not be published. Spanish translation happens separately later, after each English chapter has been reviewed — don't produce Spanish here.
+Call the plan_blog_series tool with the full plan.`;
 
-    const BLOG_SERIES_TOOL = {
-        name: 'save_blog_series',
-        description: 'Save the completed multi-chapter bilingual blog series, in reading order.',
+    const PLAN_TOOL = {
+        name: 'plan_blog_series',
+        description: 'Save the chapter-by-chapter plan for a blog series (English title + internal angle, no body text yet).',
         input_schema: {
             type: 'object',
             properties: {
                 chapters: {
                     type: 'array',
-                    description: 'One entry per chapter, in the order they should be published',
                     items: {
                         type: 'object',
                         properties: {
-                            slug: { type: 'string', description: 'URL-friendly slug in English, unique per chapter' },
-                            title_en: { type: 'string', description: 'Must start with "Part X of N: "' },
-                            title_es: { type: 'string', description: 'Must start with "Parte X de N: "' },
-                            excerpt_en: { type: 'string', description: 'One sentence, under 25 words' },
-                            excerpt_es: { type: 'string' },
-                            meta_description_en: { type: 'string', description: 'Under 155 characters' },
-                            meta_description_es: { type: 'string' },
-                            body_en: { type: 'string', description: 'HTML: h2/h3/p/ul/ol only, never h1' },
-                            body_es: { type: 'string', description: 'HTML: h2/h3/p/ul/ol only, never h1' },
-                            category: { type: 'string', description: 'Same category label for every chapter in this series' }
+                            title_en: { type: 'string' },
+                            angle: { type: 'string', description: 'Internal writing brief for this chapter — not published' }
                         },
-                        required: ['slug', 'title_en', 'title_es', 'excerpt_en', 'excerpt_es', 'meta_description_en', 'meta_description_es', 'body_en', 'body_es']
+                        required: ['title_en', 'angle']
                     }
                 }
             },
@@ -5907,51 +5882,120 @@ When finished, call the save_blog_series tool with every chapter, in order — d
         }
     };
 
-    let response;
+    let planResponse;
     try {
-        response = await axios.post('https://api.anthropic.com/v1/messages', {
+        planResponse = await axios.post('https://api.anthropic.com/v1/messages', {
             model: 'claude-sonnet-5',
-            max_tokens: 32000,
+            max_tokens: 3000,
             thinking: { type: 'disabled' },
-            tools: [BLOG_SERIES_TOOL],
-            tool_choice: { type: 'tool', name: 'save_blog_series' },
-            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+            tools: [PLAN_TOOL],
+            tool_choice: { type: 'tool', name: 'plan_blog_series' },
+            messages: [{ role: 'user', content: [{ type: 'text', text: planPrompt }] }]
         }, {
             headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-            timeout: 180000
+            timeout: 60000
         });
     } catch (axiosErr) {
         const apiMsg = axiosErr.response?.data?.error?.message || axiosErr.message;
-        throw new Error('Anthropic API call failed: ' + apiMsg);
+        throw new Error('Anthropic API call (planning) failed: ' + apiMsg);
     }
+    const planBlock = (planResponse.data.content || []).find(b => b.type === 'tool_use' && b.name === 'plan_blog_series');
+    if (!planBlock || !planBlock.input || !Array.isArray(planBlock.input.chapters) || !planBlock.input.chapters.length) {
+        throw new Error('Claude did not return a series plan. stop_reason=' + planResponse.data.stop_reason);
+    }
+    const plan = planBlock.input.chapters;
+    const total = plan.length;
 
-    if (response.data.stop_reason === 'max_tokens') {
-        throw new Error('The AI response was cut off before finishing the full series (hit the token limit) — try a shorter brief or fewer chapters, and generate again.');
-    }
-    const toolBlock = (response.data.content || []).find(b => b.type === 'tool_use' && b.name === 'save_blog_series');
-    if (!toolBlock || !toolBlock.input || !Array.isArray(toolBlock.input.chapters) || !toolBlock.input.chapters.length) {
-        throw new Error('Claude did not return the expected series. stop_reason=' + response.data.stop_reason + ' — ' + JSON.stringify(response.data.content).slice(0, 400));
-    }
+    const CHAPTER_TOOL = {
+        name: 'save_blog_chapter',
+        description: 'Save this one chapter of the series as a complete English post.',
+        input_schema: {
+            type: 'object',
+            properties: {
+                slug: { type: 'string', description: 'URL-friendly slug in English' },
+                excerpt_en: { type: 'string', description: 'One sentence, under 25 words' },
+                meta_description_en: { type: 'string', description: 'Under 155 characters' },
+                body_en: { type: 'string', description: 'HTML: h2/h3/p/ul/ol only, never h1' },
+                category: { type: 'string', description: 'Same category label for every chapter in this series' }
+            },
+            required: ['slug', 'excerpt_en', 'meta_description_en', 'body_en']
+        }
+    };
 
     const inserted = [];
-    for (const draft of toolBlock.input.chapters) {
-        const baseSlug = (draft.slug || draft.title_en).toLowerCase()
+    const priorChaptersText = [];
+    for (let i = 0; i < plan.length; i++) {
+        const ch = plan[i];
+        const priorBlock = priorChaptersText.length
+            ? `PREVIOUSLY PUBLISHED CHAPTERS IN THIS SERIES (for continuity — reference them where natural, don't repeat what they already covered):\n\n${priorChaptersText.join('\n\n===\n\n')}\n\n`
+            : '';
+        const outlineBlock = plan.map((c, idx) => `${idx + 1}. ${c.title_en} — ${c.angle}`).join('\n');
+        const chapterPrompt = `You are writing chapter ${i + 1} of ${total} in a blog series for Trusted Panama Stays (trustedpanamastays.com), a directory of legally ATP/MiCI-registered short-term rentals in Panama. Audience: international tourists researching where to stay in Panama, plus Panama property owners considering registering their rental legally.
+${knowledgeBlock ? `REFERENCE MATERIAL — ground every legal/factual claim in this, don't invent specifics it doesn't support:\n\n"""${knowledgeBlock}"""\n\n` : ''}FULL SERIES OUTLINE (for context — you are only writing chapter ${i + 1} now):
+${outlineBlock}
+
+${priorBlock}THIS CHAPTER'S TITLE AND ANGLE:
+Title: ${ch.title_en}
+Angle: ${ch.angle}
+
+Requirements:
+- Write ONLY this chapter, in ENGLISH ONLY — Spanish is translated separately later, after review
+- Use the title given above EXACTLY as title_en
+- Structure: <h2>/<h3> for section headings (NEVER <h1>), <p> paragraphs, <ul>/<ol> only where genuinely clearer than prose
+- Where natural, include ONE internal link back to the directory: <a href="/index.php">our directory</a> — don't force it if it doesn't fit
+- No inline styling — plain semantic HTML only
+- Tone: helpful, credible, narrative and engaging — intrigue readers into the next part, never invent facts
+- Be conservative with legal specifics not covered by the reference material — general guidance and "consult a professional" framing is safer than an unverified legal claim
+- Length: 500-900 words
+- If earlier chapters were shown above, connect to them naturally — don't re-explain what they already covered
+Call the save_blog_chapter tool with this chapter.`;
+
+        let response;
+        try {
+            response = await axios.post('https://api.anthropic.com/v1/messages', {
+                model: 'claude-sonnet-5',
+                max_tokens: 8000,
+                thinking: { type: 'disabled' },
+                tools: [CHAPTER_TOOL],
+                tool_choice: { type: 'tool', name: 'save_blog_chapter' },
+                messages: [{ role: 'user', content: [{ type: 'text', text: chapterPrompt }] }]
+            }, {
+                headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+                timeout: 60000
+            });
+        } catch (axiosErr) {
+            const apiMsg = axiosErr.response?.data?.error?.message || axiosErr.message;
+            throw new Error(`Anthropic API call for chapter ${i + 1} failed: ${apiMsg} (${inserted.length} chapter(s) already saved)`);
+        }
+        if (response.data.stop_reason === 'max_tokens') {
+            throw new Error(`Chapter ${i + 1} was cut off before finishing (hit the token limit) (${inserted.length} chapter(s) already saved)`);
+        }
+        const toolBlock = (response.data.content || []).find(b => b.type === 'tool_use' && b.name === 'save_blog_chapter');
+        if (!toolBlock || !toolBlock.input) {
+            throw new Error(`Chapter ${i + 1}: Claude did not return the expected content (${inserted.length} chapter(s) already saved)`);
+        }
+        const draft = toolBlock.input;
+
+        const baseSlug = (draft.slug || ch.title_en).toLowerCase()
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
             .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
         const { data: conflict } = await supabaseAdmin.from('blog_posts').select('id').eq('slug', baseSlug).maybeSingle();
-        const finalSlug = conflict ? `${baseSlug}-${Date.now()}-${inserted.length}` : baseSlug;
+        const finalSlug = conflict ? `${baseSlug}-${Date.now()}-${i}` : baseSlug;
         const { data: row, error } = await supabaseAdmin.from('blog_posts').insert({
             slug: finalSlug,
-            title_en: draft.title_en, title_es: draft.title_es,
-            excerpt_en: draft.excerpt_en, excerpt_es: draft.excerpt_es,
-            meta_description_en: draft.meta_description_en, meta_description_es: draft.meta_description_es,
-            body_en: draft.body_en, body_es: draft.body_es,
+            title_en: ch.title_en,
+            excerpt_en: draft.excerpt_en,
+            meta_description_en: draft.meta_description_en,
+            body_en: draft.body_en,
             category: draft.category || null,
             status: 'pending_review',
             ai_generated: true
         }).select().single();
-        if (error) throw new Error(`Chapter "${draft.title_en}" failed to save: ${error.message} (${inserted.length} chapter(s) saved before this one)`);
+        if (error) throw new Error(`Chapter ${i + 1} ("${ch.title_en}") failed to save: ${error.message} (${inserted.length} chapter(s) saved before this one)`);
         inserted.push(row);
+        priorChaptersText.push(`[${ch.title_en}]\n${draft.body_en}`);
+
+        if (jobId) await supabaseAdmin.from('blog_series_jobs').update({ chapter_count: inserted.length }).eq('id', jobId);
     }
 
     await logEvent('blog_series_generated', {
@@ -5961,6 +6005,77 @@ When finished, call the save_blog_series tool with every chapter, in order — d
     });
     return inserted;
 }
+
+// ── POST /api/admin/blog/:id/translate — translates the CURRENT English ──────
+// fields into Spanish and saves them. Fetches fresh from the DB (not the
+// request body) so it always reflects the latest saved English edits, not
+// whatever was originally generated. Overwrites any existing Spanish fields
+// — the admin panel confirms before calling this if Spanish already exists.
+app.post('/api/admin/blog/:id/translate', requireAdmin, async (req, res) => {
+    const { data: post, error: fetchErr } = await supabaseAdmin.from('blog_posts')
+        .select('title_en, excerpt_en, meta_description_en, body_en')
+        .eq('id', req.params.id).maybeSingle();
+    if (fetchErr) return res.status(500).json({ error: fetchErr.message });
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    if (!post.title_en || !post.body_en) return res.status(400).json({ error: 'English version is incomplete — nothing to translate' });
+
+    const TRANSLATE_TOOL = {
+        name: 'save_translation',
+        description: 'Save the Panama Spanish translation of this blog post.',
+        input_schema: {
+            type: 'object',
+            properties: {
+                title_es: { type: 'string' },
+                excerpt_es: { type: 'string' },
+                meta_description_es: { type: 'string' },
+                body_es: { type: 'string', description: 'Same HTML structure/tags as the English body, translated' }
+            },
+            required: ['title_es', 'excerpt_es', 'meta_description_es', 'body_es']
+        }
+    };
+    const prompt = `Translate the following blog post from English into natural Panama Spanish (the way a Panamanian reader would expect, not generic textbook Spanish) for Trusted Panama Stays (trustedpanamastays.com).
+Preserve the HTML structure exactly — same tags, same paragraph breaks — only translate the text content, and change the internal directory link's href to "/index.php?lang=es" with natural Spanish link text ("nuestro directorio").
+
+TITLE: ${post.title_en}
+EXCERPT: ${post.excerpt_en}
+META DESCRIPTION: ${post.meta_description_en}
+BODY:
+"""${post.body_en}"""
+
+Call the save_translation tool with the translated fields.`;
+
+    let response;
+    try {
+        response = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-5',
+            max_tokens: 8000,
+            thinking: { type: 'disabled' },
+            tools: [TRANSLATE_TOOL],
+            tool_choice: { type: 'tool', name: 'save_translation' },
+            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+        }, {
+            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+            timeout: 60000
+        });
+    } catch (axiosErr) {
+        const apiMsg = axiosErr.response?.data?.error?.message || axiosErr.message;
+        return res.status(500).json({ error: 'Anthropic API call failed: ' + apiMsg });
+    }
+    if (response.data.stop_reason === 'max_tokens') {
+        return res.status(500).json({ error: 'Translation was cut off before finishing (hit the token limit).' });
+    }
+    const toolBlock = (response.data.content || []).find(b => b.type === 'tool_use' && b.name === 'save_translation');
+    if (!toolBlock || !toolBlock.input) {
+        return res.status(500).json({ error: 'Claude did not return the expected translation.' });
+    }
+    const t = toolBlock.input;
+    const { data: updated, error: updateErr } = await supabaseAdmin.from('blog_posts').update({
+        title_es: t.title_es, excerpt_es: t.excerpt_es, meta_description_es: t.meta_description_es, body_es: t.body_es
+    }).eq('id', req.params.id).select().single();
+    if (updateErr) return res.status(500).json({ error: updateErr.message });
+    await logEvent('blog_post_translated', { id: updated.id });
+    res.json({ success: true, post: updated });
+});
 
 // ── GET /api/verify-preview-token — lets blog-post.php (PHP) verify a signed ──
 // preview token without PHP needing its own copy of ADMIN_SECRET. Shared
@@ -5982,18 +6097,6 @@ app.get('/api/verify-preview-token', (req, res) => {
     res.json({ valid: true, id: tokenId });
 });
 
-app.get('/api/verify-preview-token', (req, res) => {
-    const token = req.query.token;
-    if (!token) return res.json({ valid: false });
-    let decoded;
-    try { decoded = Buffer.from(token, 'base64').toString(); } catch { return res.json({ valid: false }); }
-    const parts = decoded.split(':');
-    if (parts.length !== 3) return res.json({ valid: false });
-    const [tokenId, tokenTime, tokenSecret] = parts;
-    if (tokenSecret !== process.env.ADMIN_SECRET) return res.json({ valid: false });
-    if (Date.now() - Number(tokenTime) > 24 * 60 * 60 * 1000) return res.json({ valid: false });
-    res.json({ valid: true, id: tokenId });
-});
 
 
 //========== temporary endpoints ============================
