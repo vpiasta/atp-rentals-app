@@ -5,6 +5,10 @@ $slug  = isset($_GET['slug']) ? trim($_GET['slug']) : '';
 
 define('SUPABASE_URL', 'https://caqdkxukezpckqphogwl.supabase.co');
 define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcWRreHVrZXpwY2txcGhvZ3dsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDc2MDIsImV4cCI6MjA5NjAyMzYwMn0.xqNuCWm_ALivBRpl3pSTDDJeoBN1WfX4-G_OJq2Sd8g');
+// Server-side only — never sent to any browser. Bypasses RLS entirely, so
+// it's used only for the one preview lookup after a valid preview token
+// has already been confirmed, never for normal public page loads.
+define('SUPABASE_SERVICE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcWRreHVrZXpwY2txcGhvZ3dsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDQ0NzYwMiwiZXhwIjoyMDk2MDIzNjAyfQ.8xv--2xlBWzIiKQergU69t-lOKLiFrfesd6LF9ZMkm0');
 
 // ── Preview mode: a random one-time token, minted by ──
 // /api/admin/blog/:id/preview-link and stored in the blog_preview_tokens
@@ -87,13 +91,14 @@ if (isset($_GET['debug_preview'])) {
 function ssr_blog_post($slug, $allowUnpublished) {
     if ($slug === '') return null;
     $statusFilter = $allowUnpublished ? '' : '&status=eq.published';
+    $key = $allowUnpublished ? SUPABASE_SERVICE_KEY : SUPABASE_KEY;
     $url = SUPABASE_URL . '/rest/v1/blog_posts?select=*&slug=eq.' . urlencode($slug) . $statusFilter . '&limit=1';
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => [
-            'apikey: ' . SUPABASE_KEY,
-            'Authorization: Bearer ' . SUPABASE_KEY,
+            'apikey: ' . $key,
+            'Authorization: Bearer ' . $key,
             'Accept: application/json',
         ],
         CURLOPT_TIMEOUT => 5,
@@ -104,6 +109,7 @@ function ssr_blog_post($slug, $allowUnpublished) {
     $data = json_decode($body, true);
     return (is_array($data) && count($data)) ? $data[0] : null;
 }
+
 $post = ssr_blog_post($slug, $isPreview);
 if (!$post) http_response_code(404);
 
