@@ -38,56 +38,6 @@ function is_valid_preview_token($token) {
 
 $isPreview = is_valid_preview_token($_GET['preview'] ?? null);
 
-if (isset($_GET['debug_preview'])) {
-    $dbgToken = $_GET['preview'] ?? '';
-    $dbgUrl = SUPABASE_URL . '/rest/v1/blog_preview_tokens?select=*&token=eq.' . urlencode($dbgToken) . '&expires_at=gt.' . urlencode(date('c')) . '&limit=1';
-    $ch = curl_init($dbgUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'apikey: ' . SUPABASE_KEY,
-            'Authorization: Bearer ' . SUPABASE_KEY,
-            'Accept: application/json',
-        ],
-        CURLOPT_TIMEOUT => 5,
-        CURLOPT_SSL_VERIFYPEER => false,
-    ]);
-    $dbgBody = curl_exec($ch);
-    $dbgErr = curl_error($ch);
-    $dbgInfo = curl_getinfo($ch);
-    curl_close($ch);
-
-    $dbgPostUrl = SUPABASE_URL . '/rest/v1/blog_posts?select=id,slug,status&slug=eq.' . urlencode($slug) . '&limit=1';
-    $ch2 = curl_init($dbgPostUrl);
-    curl_setopt_array($ch2, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'apikey: ' . SUPABASE_KEY,
-            'Authorization: Bearer ' . SUPABASE_KEY,
-            'Accept: application/json',
-        ],
-        CURLOPT_TIMEOUT => 5,
-        CURLOPT_SSL_VERIFYPEER => false,
-    ]);
-    $dbgPostBody = curl_exec($ch2);
-    $dbgPostInfo = curl_getinfo($ch2);
-    curl_close($ch2);
-
-    echo '<pre>';
-    echo "token param: " . htmlspecialchars($dbgToken) . "\n";
-    echo "query url: " . htmlspecialchars($dbgUrl) . "\n";
-    echo "http code: " . ($dbgInfo['http_code'] ?? '?') . "\n";
-    echo "curl error: " . htmlspecialchars($dbgErr) . "\n";
-    echo "response body: " . htmlspecialchars($dbgBody) . "\n";
-    echo "isPreview computed: " . var_export($isPreview, true) . "\n";
-    echo "----\n";
-    echo "post query url: " . htmlspecialchars($dbgPostUrl) . "\n";
-    echo "post http code: " . ($dbgPostInfo['http_code'] ?? '?') . "\n";
-    echo "post response body: " . htmlspecialchars($dbgPostBody) . "\n";
-    echo '</pre>';
-    exit;
-}
-
 function ssr_blog_post($slug, $allowUnpublished) {
     if ($slug === '') return null;
     $statusFilter = $allowUnpublished ? '' : '&status=eq.published';
