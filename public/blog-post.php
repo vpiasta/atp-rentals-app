@@ -117,7 +117,8 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="/css/site-header-footer.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #111; background: #f8f9fa; }
         .container { max-width: 800px; margin: 0 auto; padding: 20px; }
         .post-header { background: white; padding: 1.4rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 1rem; }
@@ -135,10 +136,10 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
         .not-found { background: white; padding: 2rem; border-radius: 10px; text-align: center; }
         .comments-section { background: white; padding: 1.4rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 1rem; }
         .comments-section h2 { color: #005ca9; font-size: 1.2rem; margin-bottom: 1rem; }
-        .comment { border-top: 1px solid #eee; padding: 1rem 0; }
-        .comment:first-child { border-top: none; }
+        .comment { border: 1px solid #ddd; border-radius: 10px; padding: 1rem; margin-bottom: 12px; }
+        .comment .c-meta { margin-bottom: 0.4rem; }
         .comment .c-name { font-weight: 600; }
-        .comment .c-date { font-size: 0.78rem; color: #999; margin-bottom: 0.4rem; }
+        .comment .c-date { font-size: 0.78rem; color: #999; }
         .comment .c-body { margin-bottom: 0.5rem; white-space: pre-wrap; }
         .comment-reply { margin-left: 1.5rem; padding: 0.8rem; background: #f0f6fb; border-radius: 8px; margin-top: 0.6rem; }
         .comment-reply .c-name { color: #005ca9; }
@@ -177,7 +178,12 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
       include __DIR__ . '/includes/header.php';
     ?>
 
-    <a class="back-link" href="blog.php?lang=<?= $lang ?>">&larr; <?= $is_en ? 'Back to Blog' : 'Volver al Blog' ?></a>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <a class="back-link" style="margin-bottom:0;" href="blog.php?lang=<?= $lang ?>">&larr; <?= $is_en ? 'Back to Blog' : 'Volver al Blog' ?></a>
+        <?php if ($post): ?>
+            <a class="back-link" style="margin-bottom:0;" href="#comments-section"><?= $is_en ? 'Comments below' : 'Comentarios abajo' ?> &darr;</a>
+        <?php endif; ?>
+    </div>
 
     <?php if ($post && $isPreview): ?>
         <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:0.8rem 1rem;margin-bottom:1rem;font-size:0.9rem;color:#856404;">
@@ -199,21 +205,18 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
         <?php if ($image): ?><img class="post-image" src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>"><?php endif; ?>
         <div class="post-body"><?= $bodyHtml ?></div>
 
-        <div class="comments-section">
+        <div class="comments-section" id="comments-section">
             <h2><?= $is_en ? 'Comments' : 'Comentarios' ?></h2>
             <?php if (!count($topLevelComments)): ?>
                 <p style="color:#888;font-size:0.9rem;"><?= $is_en ? 'No comments yet. Be the first to comment.' : 'Aún no hay comentarios. Sé el primero en comentar.' ?></p>
             <?php endif; ?>
             <?php foreach ($topLevelComments as $c): ?>
                 <div class="comment" id="comment-<?= htmlspecialchars($c['id'], ENT_QUOTES, 'UTF-8') ?>">
-                    <div class="c-name"><?= htmlspecialchars($c['author_name'], ENT_QUOTES, 'UTF-8') ?></div>
-                    <div class="c-date"><?= date('j M Y', strtotime($c['created_at'])) ?></div>
-                    <div class="c-body"><?= htmlspecialchars($c['body'], ENT_QUOTES, 'UTF-8') ?></div>
+                    <div class="c-name"><?= htmlspecial
                     <?php foreach (($repliesByParent[$c['id']] ?? []) as $r): ?>
                         <div class="comment-reply">
-                            <div class="c-name"><?= htmlspecialchars($r['author_name'], ENT_QUOTES, 'UTF-8') ?></div>
-                            <div class="c-date"><?= date('j M Y', strtotime($r['created_at'])) ?></div>
-                            <div class="c-body"><?= htmlspecialchars($r['body'], ENT_QUOTES, 'UTF-8') ?></div>
+                          <div class="c-meta"><span class="c-name"><?= htmlspecialchars($r['author_name'], ENT_QUOTES, 'UTF-8') ?></span> <span class="c-date">— <?= date('j M Y', strtotime($r['created_at'])) ?></span></div>
+                          <div class="c-body"><?= htmlspecialchars($r['body'], ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                     <?php endforeach; ?>
                     <button type="button" class="reply-toggle" onclick="toggleReplyForm('<?= htmlspecialchars($c['id'], ENT_QUOTES, 'UTF-8') ?>')"><?= $is_en ? 'Reply' : 'Responder' ?></button>
