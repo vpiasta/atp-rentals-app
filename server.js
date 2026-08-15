@@ -6098,26 +6098,36 @@ Call the save_translation tool with the translated fields.`;
     res.json({ success: true, post: updated });
 });
 
-// ── GET /api/verify-preview-token — lets blog-post.php (PHP) verify a signed ──
-// preview token without PHP needing its own copy of ADMIN_SECRET. Shared
-// hosting runs Node and PHP as separate processes that don't reliably share
-// environment variables, which silently broke preview links (PHP's
-// getenv('ADMIN_SECRET') came back empty, so every preview fell back to
-// "published only" and 404'd on pending drafts). Same token shape/expiry
-// used elsewhere: base64(id:timestamp:ADMIN_SECRET), 24h validity.
-app.get('/api/verify-preview-token', (req, res) => {
-    const token = req.query.token;
-    if (!token) return res.json({ valid: false });
-    let decoded;
-    try { decoded = Buffer.from(token, 'base64').toString(); } catch { return res.json({ valid: false }); }
-    const parts = decoded.split(':');
-    if (parts.length !== 3) return res.json({ valid: false });
-    const [tokenId, tokenTime, tokenSecret] = parts;
-    if (tokenSecret !== process.env.ADMIN_SECRET) return res.json({ valid: false });
-    if (Date.now() - Number(tokenTime) > 24 * 60 * 60 * 1000) return res.json({ valid: false });
-    res.json({ valid: true, id: tokenId });
+// ── GET /api/admin/blog/comments — list all comments, with post context ─────
+app.get('/api/admin/blog/comments', requireAdmin, async (req, res) => {
+    const { data: comments, error } = await supabaseAdmin.from('blog_comments')
+        .select('*').order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    const postIds = [...new Set((comments || []).map(c => c.post_id))];
+    let postsById = {};
+    if (postIds.length) {
+        const { data: posts } = await supabaseAdmin.from('blog_posts').select('id, title_en, slug').in('id', postIds);
+        (posts || []).forEach(p => { postsById[p.id] = p; });
+    }
+    const enriched = (comments || []).map(c => ({ ...c, post: postsById[c.post_id] || null }));
+    res.json({ comments: enriched });
 });
 
+// ── POST /api/admin/blog/comments/:id/approve ─────────────────────────────────
+app.post('/api/admin/blog/comments/:id/approve', requireAdmin, async (req, res) => {
+    const { error } = await supabaseAdmin.from('blog_comments').update({
+        status: 'approved', approved_at: new Date().toISOString()
+    }).eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
+});
+
+// ── DELETE /api/admin/blog/comments/:id ────────────────────────────────────────
+app.delete('/api/admin/blog/comments/:id', requireAdmin, async (req, res) => {
+    const { error } = await supabaseAdmin.from('blog_comments').delete().eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
+});
 
 
 //========== temporary endpoints ============================

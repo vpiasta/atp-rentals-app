@@ -87,6 +87,7 @@
     <div class="tab" data-tab="material" onclick="switchTab('material')">Material Bank</div>
     <div class="tab" data-tab="knowledge" onclick="switchTab('knowledge')">Knowledge Base</div>
     <div class="tab" data-tab="generate" onclick="switchTab('generate')">Generate New</div>
+    <div class="tab" data-tab="comments" onclick="switchTab('comments')">Comments</div>
     <div style="margin-left:auto;"><button class="btn btn-gray" onclick="logout()">Log out</button></div>
   </div>
 
@@ -95,6 +96,7 @@
   <div id="panel-material" class="panel"></div>
   <div id="panel-knowledge" class="panel"></div>
   <div id="panel-generate" class="panel"></div>
+  <div id="panel-comments" class="panel"></div>
 </div>
 
 <div id="toast" class="toast"></div>
@@ -167,11 +169,50 @@ function showApp() {
   renderMaterialPanel();
   renderKnowledgePanel();
   renderGeneratePanel();
+  renderCommentsPanel();
 }
 
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+}
+async function renderCommentsPanel() {
+  const panel = document.getElementById('panel-comments');
+  panel.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const data = await api('/api/admin/blog/comments');
+    if (!data.comments.length) { panel.innerHTML = '<p>No comments yet.</p>'; return; }
+    panel.innerHTML = '';
+    data.comments.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'card';
+      const badgeClass = c.status === 'approved' ? 'badge-published' : 'badge-pending';
+      div.innerHTML = `
+        <span class="badge ${badgeClass}">${c.status}</span>
+        ${c.is_admin_reply ? '<span class="badge">admin reply</span>' : ''}
+        <div class="meta">on: ${escapeHtml(c.post ? c.post.title_en : ('post #' + c.post_id))} · ${new Date(c.created_at).toLocaleString()}</div>
+        <h3>${escapeHtml(c.author_name)}${c.author_email ? ' — ' + escapeHtml(c.author_email) : ''}</h3>
+        <div class="excerpt">${escapeHtml(c.body)}</div>
+        <div class="row">
+          ${c.post ? `<a class="btn btn-outline" href="/blog-post.php?slug=${encodeURIComponent(c.post.slug)}#comment-${c.parent_comment_id || c.id}" target="_blank">View on site</a>` : ''}
+          ${c.status !== 'approved' ? `<button class="btn btn-green" onclick="approveComment('${c.id}')">Approve</button>` : ''}
+          <button class="btn btn-red" onclick="deleteComment('${c.id}')">Delete</button>
+        </div>
+      `;
+      panel.appendChild(div);
+    });
+  } catch (e) {
+    panel.innerHTML = '<p style="color:#cc3333;">' + e.message + '</p>';
+  }
+}
+async function approveComment(id) {
+  try { await api(`/api/admin/blog/comments/${id}/approve`, { method: 'POST' }); showToast('Approved'); renderCommentsPanel(); }
+  catch (e) { showToast('Error: ' + e.message); }
+}
+async function deleteComment(id) {
+  if (!confirm('Delete this comment? This cannot be undone, and any replies to it will also be deleted.')) return;
+  try { await api(`/api/admin/blog/comments/${id}`, { method: 'DELETE' }); showToast('Deleted'); renderCommentsPanel(); }
+  catch (e) { showToast('Error: ' + e.message); }
 }
 
 // ── Shared post card renderer (used for both pending + published) ───────────
