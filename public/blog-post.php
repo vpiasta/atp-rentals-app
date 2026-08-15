@@ -1,6 +1,6 @@
 <?php
-ini_set('display_errors', '1');
-error_reporting(E_ALL);
+//ini_set('display_errors', '1');
+//error_reporting(E_ALL);
 $lang  = isset($_GET['lang']) && $_GET['lang'] === 'es' ? 'es' : 'en';
 $is_en = $lang === 'en';
 $slug  = isset($_GET['slug']) ? trim($_GET['slug']) : '';
