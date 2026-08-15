@@ -17,11 +17,11 @@ function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpana
 
     $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
 
-    try {function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpanamastays.com', $fromName = 'Trusted Panama Stays', $cc = null) {
+    try {
         $mail->CharSet  = 'UTF-8';
         $mail->Encoding = 'base64';
         $mail->isSMTP();
-        $mail->Host       = efunction send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpanamastays.com', $fromName = 'Trusted Panama Stays', $cc = null) {nv('SMTP_TPS_HOST');
+        $mail->Host       = env('SMTP_TPS_HOST');
         $mail->SMTPAuth   = true;
         $mail->Username   = env('SMTP_TPS_USERNAME');
         $mail->Password   = env('SMTP_TPS_PASSWORD');
