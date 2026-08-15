@@ -6101,15 +6101,10 @@ Call the save_translation tool with the translated fields.`;
 // ── GET /api/admin/blog/comments — list all comments, with post context ─────
 app.get('/api/admin/blog/comments', requireAdmin, async (req, res) => {
     const { data: comments, error } = await supabaseAdmin.from('blog_comments')
-        .select('*').order('created_at', { ascending: false });
+        .select('*, blog_posts(title_en, slug)')
+        .order('created_at', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });
-    const postIds = [...new Set((comments || []).map(c => c.post_id))];
-    let postsById = {};
-    if (postIds.length) {
-        const { data: posts } = await supabaseAdmin.from('blog_posts').select('id, title_en, slug').in('id', postIds);
-        (posts || []).forEach(p => { postsById[p.id] = p; });
-    }
-    const enriched = (comments || []).map(c => ({ ...c, post: postsById[c.post_id] || null }));
+    const enriched = (comments || []).map(c => ({ ...c, post: c.blog_posts || null }));
     res.json({ comments: enriched });
 });
 
