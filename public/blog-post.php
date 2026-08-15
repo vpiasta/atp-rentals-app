@@ -1,13 +1,10 @@
 <?php
 ini_set('display_errors', '1');
 error_reporting(E_ALL);
-
 $lang  = isset($_GET['lang']) && $_GET['lang'] === 'es' ? 'es' : 'en';
 $is_en = $lang === 'en';
 $slug  = isset($_GET['slug']) ? trim($_GET['slug']) : '';
-
 require_once __DIR__ . '/includes/supabase-config.php';
-
 // ── Preview mode: a random one-time token, minted by ──
 // /api/admin/blog/:id/preview-link and stored in the blog_preview_tokens
 // table. Checked here by querying Supabase directly (same pattern this
@@ -32,10 +29,7 @@ function is_valid_preview_token($token) {
     $data = json_decode($body, true);
     return is_array($data) && count($data) > 0;
 }
-
-
 $isPreview = is_valid_preview_token($_GET['preview'] ?? null);
-
 function ssr_blog_post($slug, $allowUnpublished) {
     if ($slug === '') return null;
     $statusFilter = $allowUnpublished ? '' : '&status=eq.published';
@@ -57,7 +51,6 @@ function ssr_blog_post($slug, $allowUnpublished) {
     $data = json_decode($body, true);
     return (is_array($data) && count($data)) ? $data[0] : null;
 }
-
 function ssr_blog_comments($postId) {
     $url = SUPABASE_URL . '/rest/v1/blog_comments?select=*&post_id=eq.' . urlencode($postId) . '&status=eq.approved&order=created_at.asc';
     $ch = curl_init($url);
@@ -88,7 +81,6 @@ foreach ($comments as $c) {
 }
 $replyTo    = $_GET['reply_to']    ?? '';
 $replyToken = $_GET['reply_token'] ?? '';
-
 $title     = $post ? ($post["title_$lang"] ?? '')            : ($is_en ? 'Post not found' : 'Publicación no encontrada');
 $excerpt   = $post ? ($post["excerpt_$lang"] ?? '')           : '';
 $metaDesc  = $post ? ($post["meta_description_$lang"] ?? $excerpt) : ($is_en ? 'This blog post could not be found.' : 'No se encontró esta publicación.');
@@ -96,7 +88,6 @@ $bodyHtml  = $post ? ($post["body_$lang"] ?? '')               : '';
 $category  = $post['category']            ?? null;
 $published = $post['published_at']        ?? null;
 $image     = $post['featured_image_url']  ?? null;
-
 // Self-canonical, synchronous — computed purely from URL params, before the
 // curl call above even resolves, so crawlers never race a JS-timed tag.
 $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($slug) . ($is_en ? '' : '&lang=es');
@@ -120,8 +111,8 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="/css/site-header-footer.css">
     <style>
-    html { scroll-behavior: smooth; }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #111; background: #f8f9fa; }
         .container { max-width: 800px; margin: 0 auto; padding: 20px; }
         .post-header { background: white; padding: 1.4rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 1rem; }
@@ -180,14 +171,12 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
       $show_atp_badge   = false;
       include __DIR__ . '/includes/header.php';
     ?>
-
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
         <a class="back-link" style="margin-bottom:0;" href="blog.php?lang=<?= $lang ?>">&larr; <?= $is_en ? 'Back to Blog' : 'Volver al Blog' ?></a>
         <?php if ($post): ?>
             <a class="back-link" style="margin-bottom:0;" href="#comments-section"><?= $is_en ? 'Comments below' : 'Comentarios abajo' ?> &darr;</a>
         <?php endif; ?>
     </div>
-
     <?php if ($post && $isPreview): ?>
         <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:0.8rem 1rem;margin-bottom:1rem;font-size:0.9rem;color:#856404;">
             👁️ <strong><?= $is_en ? 'PREVIEW MODE' : 'MODO VISTA PREVIA' ?></strong> — <?= $is_en ? 'status:' : 'estado:' ?> <?= htmlspecialchars($post['status'], ENT_QUOTES, 'UTF-8') ?>.
@@ -198,7 +187,6 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
             <?php endif; ?>
         </div>
     <?php endif; ?>
-
     <?php if ($post): ?>
         <div class="post-header">
             <?php if ($category): ?><span class="cat"><?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
@@ -215,11 +203,12 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
             <?php endif; ?>
             <?php foreach ($topLevelComments as $c): ?>
                 <div class="comment" id="comment-<?= htmlspecialchars($c['id'], ENT_QUOTES, 'UTF-8') ?>">
-                    <div class="c-name"><?= htmlspecial
+                    <div class="c-meta"><span class="c-name"><?= htmlspecialchars($c['author_name'], ENT_QUOTES, 'UTF-8') ?></span> <span class="c-date">— <?= date('j M Y', strtotime($c['created_at'])) ?></span></div>
+                    <div class="c-body"><?= htmlspecialchars($c['body'], ENT_QUOTES, 'UTF-8') ?></div>
                     <?php foreach (($repliesByParent[$c['id']] ?? []) as $r): ?>
                         <div class="comment-reply">
-                          <div class="c-meta"><span class="c-name"><?= htmlspecialchars($r['author_name'], ENT_QUOTES, 'UTF-8') ?></span> <span class="c-date">— <?= date('j M Y', strtotime($r['created_at'])) ?></span></div>
-                          <div class="c-body"><?= htmlspecialchars($r['body'], ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="c-meta"><span class="c-name"><?= htmlspecialchars($r['author_name'], ENT_QUOTES, 'UTF-8') ?></span> <span class="c-date">— <?= date('j M Y', strtotime($r['created_at'])) ?></span></div>
+                            <div class="c-body"><?= htmlspecialchars($r['body'], ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                     <?php endforeach; ?>
                     <button type="button" class="reply-toggle" onclick="toggleReplyForm('<?= htmlspecialchars($c['id'], ENT_QUOTES, 'UTF-8') ?>')"><?= $is_en ? 'Reply' : 'Responder' ?></button>
@@ -253,7 +242,6 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
             <p><?= $is_en ? 'This post could not be found.' : 'No se encontró esta publicación.' ?></p>
         </div>
     <?php endif; ?>
-
     <?php include __DIR__ . '/includes/footer.php'; ?>
 </div>
 <script>
