@@ -7,7 +7,7 @@
  *
  * Returns true on success, or an error message string on failure.
  */
-function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpanamastays.com', $fromName = 'Trusted Panama Stays') {
+function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpanamastays.com', $fromName = 'Trusted Panama Stays', $cc = null) {
     require_once '/home/u945180857/secure_beds24_tokens/env_loader.php';
     loadEnv('/home/u945180857/secure_beds24_tokens/.env');
 
@@ -17,11 +17,11 @@ function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpana
 
     $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
 
-    try {
+    try {function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpanamastays.com', $fromName = 'Trusted Panama Stays', $cc = null) {
         $mail->CharSet  = 'UTF-8';
         $mail->Encoding = 'base64';
         $mail->isSMTP();
-        $mail->Host       = env('SMTP_TPS_HOST');
+        $mail->Host       = efunction send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpanamastays.com', $fromName = 'Trusted Panama Stays', $cc = null) {nv('SMTP_TPS_HOST');
         $mail->SMTPAuth   = true;
         $mail->Username   = env('SMTP_TPS_USERNAME');
         $mail->Password   = env('SMTP_TPS_PASSWORD');
@@ -31,6 +31,7 @@ function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpana
 
         $mail->setFrom($fromEmail, $fromName);
         $mail->addAddress($to);
+        if ($cc) { $mail->addCC($cc); }
         $mail->Subject = $subject;
         $mail->Body    = $htmlBody;
         $mail->isHTML(true);

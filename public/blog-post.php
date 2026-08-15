@@ -3,12 +3,7 @@ $lang  = isset($_GET['lang']) && $_GET['lang'] === 'es' ? 'es' : 'en';
 $is_en = $lang === 'en';
 $slug  = isset($_GET['slug']) ? trim($_GET['slug']) : '';
 
-define('SUPABASE_URL', 'https://caqdkxukezpckqphogwl.supabase.co');
-define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcWRreHVrZXpwY2txcGhvZ3dsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDc2MDIsImV4cCI6MjA5NjAyMzYwMn0.xqNuCWm_ALivBRpl3pSTDDJeoBN1WfX4-G_OJq2Sd8g');
-// Server-side only — never sent to any browser. Bypasses RLS entirely, so
-// it's used only for the one preview lookup after a valid preview token
-// has already been confirmed, never for normal public page loads.
-define('SUPABASE_SERVICE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcWRreHVrZXpwY2txcGhvZ3dsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDQ0NzYwMiwiZXhwIjoyMDk2MDIzNjAyfQ.8xv--2xlBWzIiKQergU69t-lOKLiFrfesd6LF9ZMkm0');
+require_once __DIR__ . '/includes/supabase-config.php';
 
 // ── Preview mode: a random one-time token, minted by ──
 // /api/admin/blog/:id/preview-link and stored in the blog_preview_tokens
