@@ -154,7 +154,8 @@ if ($method === 'POST') {
           . nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8'))
           . '</blockquote>'
           . '<p>'
-          . '<a href="' . htmlspecialchars($approveUrl, ENT_QUOTES, 'UTF-8') . '" style="background:#005ca9;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;margin-right:10px;">ACEPTAR</a>'
+          . '<a href="' . htmlspecialchars($approveUrl, ENT_QUOTES, 'UTF-8') . '" style="background:#005ca9;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;">ACEPTAR</a>'
+          . '&nbsp;&nbsp;&nbsp;&nbsp;'
           . '<a href="' . htmlspecialchars($replyUrl, ENT_QUOTES, 'UTF-8') . '" style="background:#1a5c1a;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;">CONTESTAR</a>'
           . '</p></div>';
 
