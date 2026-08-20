@@ -3581,12 +3581,10 @@ app.post('/api/admin/send-followup-all', requireAdmin, async (req, res) => {
     const APATEL_ROSTER = require('./apatel_emails.json');
     const notifyPath    = path.join(__dirname, 'public', 'notify.php');
     let sent = 0, errors = 0;
-
-    let sent = 0, errors = 0;
-let sampleCopy = null; // first successfully-sent email, included in the report below
-// Send in background, return immediately
-res.json({ success: true, message: 'Campaign started', total: APATEL_ROSTER.length });
-for (const member of APATEL_ROSTER) {
+    let sampleCopy = null; // first successfully-sent email, included in the report below
+    // Send in background, return immediately
+    res.json({ success: true, message: 'Campaign started', total: APATEL_ROSTER.length });
+    for (const member of APATEL_ROSTER) {
     if (!member.email || !member.email.includes('@')) continue;
     try {
         const html = buildFollowupHtml(member.hotel, member.manager, body);
