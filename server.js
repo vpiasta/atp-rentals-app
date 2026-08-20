@@ -3650,6 +3650,23 @@ ${bodyContent}
 
 const TEMPLATES_DIR = path.join(__dirname, 'public', 'templates');
 
+// ── Load a template file's raw content — used by both the campaign composer's
+// /api/admin/templates routes and the automated trial-lifecycle emails below ──
+function loadTemplateFile(name) {
+    const filePath = path.join(TEMPLATES_DIR, name);
+    if (!fs.existsSync(filePath)) throw new Error(`Template not found: ${name} — check public/templates/`);
+    return fs.readFileSync(filePath, 'utf8');
+}
+
+// ── Fill {placeholder} tokens in a template with values from an object ──
+function fillTemplate(template, vars) {
+    let result = template;
+    for (const [key, value] of Object.entries(vars)) {
+        result = result.split(`{${key}}`).join(value != null ? String(value) : '');
+    }
+    return result;
+}
+
 // Ensure templates directory exists
 if (!fs.existsSync(TEMPLATES_DIR)) {
     fs.mkdirSync(TEMPLATES_DIR, { recursive: true });
@@ -4603,25 +4620,12 @@ app.get('/api/send-trial-reminders', async (req, res) => {
 <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:1rem;margin:1rem 0;">
     <p style="margin:0;color:#856404;"><strong>💡 Notamos que su listado aún no tiene fotos.</strong> Con solo una foto, su hospedaje aparecerá destacado en la página principal de Trusted Panama Stays.</p>
 </div>` : '';
-                const body = `
-<p style="margin-top:0;">Estimado/a <strong>${name}</strong>, propietario/a de <strong>${listing.name}</strong>,</p>
-<p>Su período de prueba gratuita vence el <strong>${listing.membership_paid_until}</strong> — en 5 días.</p>
-<p>Para continuar con acceso completo a su listado (fotos, descripción, enlaces de reserva), renueve su membresía ahora:</p>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e1e5e9;border-radius:8px;background-color:#f8f9fa;width:100%;margin:1rem 0;">
-    <tr><td style="padding:8px;font-weight:bold;">1 año:</td><td style="padding:8px;"><strong>$24</strong> + ITBMS ($25.68 inclusive)</td></tr>
-    <tr><td style="padding:8px;font-weight:bold;">2 años:</td><td style="padding:8px;"><strong>$45</strong> + ITBMS ($48.15 inclusive) · Ahorre $3</td></tr>
-    <tr><td style="padding:8px;font-weight:bold;">N° membresía:</td><td style="padding:8px;font-family:monospace;"><strong>${listing.id}</strong></td></tr>
-</table>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:1.5rem auto;">
-    <tr><td style="background-color:#005ca9;border-radius:8px;padding:11px 28px;" align="center">
-        <a href="${renewUrl}" style="color:white;text-decoration:none;font-weight:700;font-size:1rem;display:inline-block;">${renewLabel}</a>
-    </td></tr>
-</table>
-<p style="font-size:0.85rem;color:#666;">También puede renovar iniciando sesión en su listado:<br>
-<a href="${listingUrl}" style="color:#005ca9;">${listingUrl}</a></p>
-${noPhotosBlock}`;
-                await execFileAsync('php', [notifyPath, `Su prueba gratuita vence en 5 días — ${listing.name}`, wrapTrialEmailHtml(body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
-                await supabaseAdmin.from('listings').update({ trial_reminder_sent_at: new Date().toISOString() }).eq('id', listing.id);
+                const body = fillTemplate(loadTemplateFile('trial_reminder_5day.html'), {
+                name, listing_name: listing.name, expiry_date: listing.membership_paid_until,
+                listing_id: listing.id, renew_url: renewUrl, renew_label: renewLabel,
+                listing_url: listingUrl, no_photos_block: noPhotosBlock
+                });
+                await execFileAsync('php', [notifyPath, `Su prueba gratuita vence en 5 días — ${listing.name}`, wrapTrialEmailHtml(body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });await supabaseAdmin.from('listings').update({ trial_reminder_sent_at: new Date().toISOString() }).eq('id', listing.id);
                 await logEvent('trial_reminder_sent', { listing_id: listing.id, email: toEmail });
                 results.reminder5day++;
             } catch (err) { results.errors++; console.error(`5-day reminder failed for listing ${listing.id}:`, err.message); }
@@ -4642,18 +4646,10 @@ ${noPhotosBlock}`;
                 const token = Buffer.from(`${listing.id}:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
                 const extendUrl = `https://trustedpanamastays.com/api/extend-trial?id=${listing.id}&token=${encodeURIComponent(token)}`;
                 const name = listing.contact_name || 'propietario/a';
-                const body = `
-<p style="margin-top:0;">Estimado/a <strong>${name}</strong>, propietario/a de <strong>${listing.name}</strong>,</p>
-<p>Su período de prueba gratuita vence en <strong>48 horas</strong>, el ${listing.membership_paid_until}.</p>
-<p>Si necesita un poco más de tiempo para terminar de configurar su página, con gusto le damos <strong>7 días adicionales gratis</strong> — solo haga clic abajo antes de que venza su prueba:</p>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:1.5rem auto;">
-    <tr><td style="background-color:#00a859;border-radius:8px;padding:11px 28px;" align="center">
-        <a href="${extendUrl}" style="color:white;text-decoration:none;font-weight:700;font-size:1rem;display:inline-block;">Sí, deme 7 días más →</a>
-    </td></tr>
-</table>
-<p style="font-size:0.85rem;color:#666;">Este enlace solo puede usarse una vez. Si prefiere continuar como miembro de forma permanente, también puede renovar directamente en <a href="https://trustedpanamastays.com/pay.html" style="color:#005ca9;">trustedpanamastays.com/pay.html</a>.</p>`;
-                await execFileAsync('php', [notifyPath, `¿Necesita más tiempo? 7 días gratis — ${listing.name}`, wrapTrialEmailHtml(body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
-                await supabaseAdmin.from('listings').update({ trial_extension_offer_sent_at: new Date().toISOString() }).eq('id', listing.id);
+                const body = fillTemplate(loadTemplateFile('trial_extension_offer.html'), {
+                    name, listing_name: listing.name, expiry_date: listing.membership_paid_until, extend_url: extendUrl
+                });
+                await execFileAsync('php', [notifyPath, `¿Necesita más tiempo? 7 días gratis — ${listing.name}`, wrapTrialEmailHtml(body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });await supabaseAdmin.from('listings').update({ trial_extension_offer_sent_at: new Date().toISOString() }).eq('id', listing.id);
                 await logEvent('trial_extension_offer_sent', { listing_id: listing.id, email: toEmail });
                 results.extensionOffer++;
             } catch (err) { results.errors++; console.error(`Extension offer failed for listing ${listing.id}:`, err.message); }
@@ -4677,17 +4673,12 @@ ${noPhotosBlock}`;
                   const renewUrl = documented
                       ? `https://trustedpanamastays.com/pay.html?id=${listing.id}`
                       : `https://trustedpanamastays.com/join.html?id=${listing.id}`;
-                  const body = `
-<p style="margin-top:0;">Estimado/a <strong>${name}</strong>, propietario/a de <strong>${listing.name}</strong>,</p>
-<p>Su período de prueba gratuita${wasExtended ? ' (incluyendo los 7 días adicionales)' : ''} ha llegado a su fin.</p>
-<p>Su página quedará desactivada por ahora, pero puede convertirse en miembro de apoyo (supporting member) en cualquier momento — su información se conserva.</p>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:1.5rem auto;">
-  <tr><td style="background-color:#005ca9;border-radius:8px;padding:11px 28px;" align="center">
-      <a href="${renewUrl}" style="color:white;text-decoration:none;font-weight:700;font-size:1rem;display:inline-block;">Unirme como miembro de apoyo →</a>
-  </td></tr>
-</table>`;
-                  await execFileAsync('php', [notifyPath, `Su prueba gratuita ha finalizado — ${listing.name}`, wrapTrialEmailHtml(body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
-              }
+                const body = fillTemplate(loadTemplateFile('trial_final_notice.html'), {
+                    name, listing_name: listing.name,
+                    extended_note: wasExtended ? ' (incluyendo los 7 días adicionales)' : '',
+                    renew_url: renewUrl
+                });
+                await execFileAsync('php', [notifyPath, `Su prueba gratuita ha finalizado — ${listing.name}`, wrapTrialEmailHtml(body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });}
                 await supabaseAdmin.from('listings').update({
                     trial_final_notice_sent_at: new Date().toISOString(),
                     is_member: false, is_trial: false, membership_paid_until: null
