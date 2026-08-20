@@ -475,7 +475,7 @@
         <div class="tab-content active" id="content-members">
             <div class="toolbar">
                 <input type="text" id="member-search" placeholder="Search name, province, email, contact..." oninput="filterMembers()">
-                <select id="member-filter" onchange="filterMembers()">
+                <select id="member-filter" onchange="filterMembers(true)">
                     <option value="all">All listings</option>
                     <option value="apatel">APATEL members</option>
                     <option value="members">Active members</option>
@@ -912,7 +912,7 @@ function showTab(name) {
     if (name === 'atpsync')      loadAtpDiff();
     if (name === 'applications') loadApplications().then(() => filterApps('all'));
     if (name === 'invoices')     loadInvoiceLog();
-    if (name === 'campaign')     { loadTemplateList(); updateFilterBuilder(); loadWaQueue(); }
+    if (name === 'campaign')     { loadTemplateList(); updateFilterBuilder(); loadWaQueue(); renderFbConfirmedBanner(); }
     if (name === 'analytics')    loadAnalytics(7);
     if (name === 'suggestions') renderSuggestions();
     if (name === 'keywords-edit') loadKeywordsEdit();
@@ -1034,7 +1034,13 @@ function setActiveStatCard(filter) {
     });
 }
 
-function filterMembers() {
+function filterMembers(clearSelection) {
+    if (clearSelection) {
+        selectedMemberIds.clear();
+        const selectAllCb = document.getElementById('select-all-cb');
+        if (selectAllCb) selectAllCb.checked = false;
+        updateSelectionCount();
+    }
     const search = document.getElementById('member-search').value.toLowerCase();
     const filter = document.getElementById('member-filter').value;
     const today  = new Date().toISOString().split('T')[0];
@@ -1126,12 +1132,39 @@ async function showMessageHistory() {
     }
 }
 
+function renderFbConfirmedBanner() {
+    let el = document.getElementById('fb-confirmed-banner');
+    if (!el) {
+        const desc = document.getElementById('fb-description');
+        if (!desc) return;
+        el = document.createElement('div');
+        el.id = 'fb-confirmed-banner';
+        el.style.margin = '0.6rem 0';
+        el.style.padding = '0.6rem 1rem';
+        el.style.borderRadius = '8px';
+        el.style.fontWeight = '700';
+        el.style.fontSize = '0.85rem';
+        desc.parentNode.insertBefore(el, desc.nextSibling);
+    }
+    if (fbConfirmedTargets.length) {
+        el.style.background = '#0f2818';
+        el.style.border = '1px solid #1a5c1a';
+        el.style.color = '#adf5ad';
+        el.innerHTML = `✅ ${fbConfirmedTargets.length} destinatario(s) YA confirmados, listos para enviar tal cual. Los filtros de arriba son para armar una selección NUEVA — no haga clic en "Confirmar selección" a menos que quiera reemplazar esta lista de ${fbConfirmedTargets.length}.`;
+    } else {
+        el.style.background = 'transparent';
+        el.style.border = 'none';
+        el.innerHTML = '';
+    }
+}
+
 function sendToSelectedMembers() {
     if (!selectedMemberIds.size) { alert('Primero seleccione uno o más hospedajes en la lista.'); return; }
     fbConfirmedTargets = allMembers
         .filter(m => selectedMemberIds.has(m.id))
         .map(m => ({ email: m.email_member || m.email, name: m.name, contact_name: m.contact_name || '', id: m.id, slug: m.slug || '', whatsapp: m.whatsapp || '' }));
     showTab('campaign');
+    renderFbConfirmedBanner();
     alert(`✅ ${fbConfirmedTargets.length} destinatario(s) listos. Escriba o cargue el mensaje y haga clic en "Enviar a selección confirmada" en la pestaña Campaña.`);
 }
 
@@ -3265,6 +3298,7 @@ function confirmFbSelection() {
         .filter(m => checkedIds.includes(m.id))
         .map(m => ({ email: m.email_member || m.email, name: m.name, contact_name: m.contact_name || '', id: m.id, slug: m.slug || '', whatsapp: m.whatsapp || '' }));
     document.getElementById('fb-review-panel').style.display = 'none';
+    renderFbConfirmedBanner();
     alert(`✅ ${fbConfirmedTargets.length} destinatario(s) confirmados. Puede enviar por correo, o agregarlos a la cola de WhatsApp abajo.`);
 }
 
