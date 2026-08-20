@@ -20,12 +20,13 @@ if (!$isCLI && !in_array($callerIP, $allowedIPs)) {
 
 require_once __DIR__ . '/includes/mailer.php';
 
-// php notify.php "subject" "html_message" "recipient_email" "from_email" "from_name"
+// php notify.php "subject" "html_message" "recipient_email" "from_email" "from_name" "cc_email"
 $subject   = $argv[1] ?? 'Notificación - Trusted Panama Stays';
 $message   = $argv[2] ?? '(sin mensaje)';
 $to        = $argv[3] ?? 'info@trustedpanamastays.com';
 $fromEmail = $argv[4] ?? 'info@trustedpanamastays.com';
 $fromName  = $argv[5] ?? 'Trusted Panama Stays';
+$cc        = $argv[6] ?? null;
 
-$result = send_tps_email($subject, $message, $to, $fromEmail, $fromName);
+$result = send_tps_email($subject, $message, $to, $fromEmail, $fromName, $cc);
 echo json_encode($result === true ? ['success' => true] : ['error' => $result]);

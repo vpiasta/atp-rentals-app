@@ -3582,27 +3582,32 @@ app.post('/api/admin/send-followup-all', requireAdmin, async (req, res) => {
     const notifyPath    = path.join(__dirname, 'public', 'notify.php');
     let sent = 0, errors = 0;
 
-    // Send in background, return immediately
-    res.json({ success: true, message: 'Campaign started', total: APATEL_ROSTER.length });
-
-    for (const member of APATEL_ROSTER) {
-        if (!member.email || !member.email.includes('@')) continue;
-        try {
-            const html = buildFollowupHtml(member.hotel, member.manager, body);
-            await execFileAsync('php', [notifyPath, subject, html, member.email], { timeout: 15000 });
-            await logEvent('followup_sent', { hotel: member.hotel, email: member.email });
-            sent++;
-            await new Promise(r => setTimeout(r, 600));
-        } catch (err) {
-            errors++;
-            console.error(`Follow-up failed for ${member.hotel}:`, err.message);
-        }
+    let sent = 0, errors = 0;
+let sampleCopy = null; // first successfully-sent email, included in the report below
+// Send in background, return immediately
+res.json({ success: true, message: 'Campaign started', total: APATEL_ROSTER.length });
+for (const member of APATEL_ROSTER) {
+    if (!member.email || !member.email.includes('@')) continue;
+    try {
+        const html = buildFollowupHtml(member.hotel, member.manager, body);
+        await execFileAsync('php', [notifyPath, subject, html, member.email], { timeout: 15000 });
+        if (!sampleCopy) sampleCopy = { subject, html, to: member.email };
+        await logEvent('followup_sent', { hotel: member.hotel, email: member.email });
+        sent++;
+        await new Promise(r => setTimeout(r, 600));
+    } catch (err) {
+        errors++;
+        console.error(`Follow-up failed for ${member.hotel}:`, err.message);
     }
-
-    // Send completion report to admin
-    const report = `<p>Follow-up campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${APATEL_ROSTER.length} total.</p>`;
-    execFileAsync('php', [notifyPath, 'Follow-up campaign complete — Trusted Panama Stays', report, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(console.error);
-    console.log(`Follow-up done: ${sent} sent, ${errors} errors`);
+}
+// Send completion report to admin — includes a real copy of the first
+// successfully-sent email.
+const sampleHtml = sampleCopy
+    ? `<hr style="margin:1.5rem 0;"><p style="color:#666;font-size:0.85rem;">Copia real enviada a ${sampleCopy.to} (asunto: "${sampleCopy.subject}"):</p><div style="border:1px solid #ddd;border-radius:8px;padding:1rem;">${sampleCopy.html}</div>`
+    : '<p style="color:#888;">(Ningún correo se envió con éxito — no hay copia disponible.)</p>';
+const report = `<p>Follow-up campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${APATEL_ROSTER.length} total.</p>${sampleHtml}`;
+execFileAsync('php', [notifyPath, 'Follow-up campaign complete — Trusted Panama Stays', report, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(console.error);
+console.log(`Follow-up done: ${sent} sent, ${errors} errors`);
 });
 
 
@@ -3940,6 +3945,7 @@ async function sendToRosterList(targets, subject, body, from) {
     const notifyPath = path.join(__dirname, 'public', 'notify.php');
     const sender = resolveSender(from);
     let sent = 0, errors = 0;
+    let sampleCopy = null; // the first successfully-sent email, included below so the report always shows the real content — even for a 1-recipient campaign
     for (const member of targets) {
         if (!member.email || !member.email.includes('@')) continue;
         try {
@@ -3954,6 +3960,7 @@ async function sendToRosterList(targets, subject, body, from) {
                 : subject;
             const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', personalizedBody);
             await execFileAsync('php', [notifyPath, personalizedSubject, html, member.email, sender.email, sender.name], { timeout: 15000 });
+            if (!sampleCopy) sampleCopy = { subject: personalizedSubject, html, to: member.email };
             // Mark as contacted in DB
             await supabase.from('listings')
                 .update({ apatel_contacted_at: new Date().toISOString() })
@@ -3967,8 +3974,12 @@ async function sendToRosterList(targets, subject, body, from) {
             console.error(`Failed for ${member.hotel||member.email}:`, err.message);
         }
     }
-    // Completion report to admin
-    const report = `<p>Campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${targets.length} total.</p>`;
+    // Completion report to admin — always includes a real copy of the first
+    // successfully-sent email, so you can see exactly what went out.
+    const sampleHtml = sampleCopy
+        ? `<hr style="margin:1.5rem 0;"><p style="color:#666;font-size:0.85rem;">Copia real enviada a ${sampleCopy.to} (asunto: "${sampleCopy.subject}"):</p><div style="border:1px solid #ddd;border-radius:8px;padding:1rem;">${sampleCopy.html}</div>`
+        : '<p style="color:#888;">(Ningún correo se envió con éxito — no hay copia disponible.)</p>';
+    const report = `<p>Campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${targets.length} total.</p>${sampleHtml}`;
     execFileAsync('php', [path.join(__dirname, 'public', 'notify.php'),
         'Campaign complete — Trusted Panama Stays', report, 'info@trustedpanamastays.com'],
         { timeout: 15000 }).catch(console.error);
@@ -4610,7 +4621,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
 <p style="font-size:0.85rem;color:#666;">También puede renovar iniciando sesión en su listado:<br>
 <a href="${listingUrl}" style="color:#005ca9;">${listingUrl}</a></p>
 ${noPhotosBlock}`;
-                await execFileAsync('php', [notifyPath, `Su prueba gratuita vence en 5 días — ${listing.name}`, wrapTrialEmailHtml(body), toEmail], { timeout: 15000 });
+                await execFileAsync('php', [notifyPath, `Su prueba gratuita vence en 5 días — ${listing.name}`, wrapTrialEmailHtml(body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
                 await supabaseAdmin.from('listings').update({ trial_reminder_sent_at: new Date().toISOString() }).eq('id', listing.id);
                 await logEvent('trial_reminder_sent', { listing_id: listing.id, email: toEmail });
                 results.reminder5day++;
@@ -4642,7 +4653,7 @@ ${noPhotosBlock}`;
     </td></tr>
 </table>
 <p style="font-size:0.85rem;color:#666;">Este enlace solo puede usarse una vez. Si prefiere continuar como miembro de forma permanente, también puede renovar directamente en <a href="https://trustedpanamastays.com/pay.html" style="color:#005ca9;">trustedpanamastays.com/pay.html</a>.</p>`;
-                await execFileAsync('php', [notifyPath, `¿Necesita más tiempo? 7 días gratis — ${listing.name}`, wrapTrialEmailHtml(body), toEmail], { timeout: 15000 });
+                await execFileAsync('php', [notifyPath, `¿Necesita más tiempo? 7 días gratis — ${listing.name}`, wrapTrialEmailHtml(body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
                 await supabaseAdmin.from('listings').update({ trial_extension_offer_sent_at: new Date().toISOString() }).eq('id', listing.id);
                 await logEvent('trial_extension_offer_sent', { listing_id: listing.id, email: toEmail });
                 results.extensionOffer++;
@@ -4676,7 +4687,7 @@ ${noPhotosBlock}`;
       <a href="${renewUrl}" style="color:white;text-decoration:none;font-weight:700;font-size:1rem;display:inline-block;">Unirme como miembro de apoyo →</a>
   </td></tr>
 </table>`;
-                  await execFileAsync('php', [notifyPath, `Su prueba gratuita ha finalizado — ${listing.name}`, wrapTrialEmailHtml(body), toEmail], { timeout: 15000 });
+                  await execFileAsync('php', [notifyPath, `Su prueba gratuita ha finalizado — ${listing.name}`, wrapTrialEmailHtml(body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
               }
                 await supabaseAdmin.from('listings').update({
                     trial_final_notice_sent_at: new Date().toISOString(),
