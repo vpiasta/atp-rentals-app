@@ -492,6 +492,17 @@
                 <button class="tbtn" style="background:#8e44ad;color:white;" onclick="refreshPublicCache()">🌐 Refresh Public Site Cache</button>
                 <button class="tbtn" style="background:#00a859;color:white;" onclick="scanWhatsappCandidates()">📱 Scan WhatsApp Candidates</button>
                 <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('listings')">💾 Backup Listings</button>
+<button class="tbtn" style="background:#005ca9;color:white;" onclick="showMessageHistory()">📜 Historial de mensajes</button>
+<button class="tbtn" style="background:#1a5c1a;color:white;" onclick="sendToSelectedMembers()">📧 Enviar mensaje</button>
+</div>
+<div id="message-history-panel" style="display:none;background:#0f1c2b;border:1px solid #2a4a6a;border-radius:8px;padding:1rem;margin-bottom:1rem;">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;">
+    <strong style="color:#7ec8e3;">📜 Historial de mensajes</strong>
+    <button class="tbtn" style="background:#444;color:white;" onclick="document.getElementById('message-history-panel').style.display='none';">✕ Cerrar</button>
+</div>
+<div id="message-history-content" style="font-size:0.82rem;"></div>
+</div>
+<div class="table-wrap">
             </div>
             <div class="table-wrap">
                 <table>
@@ -591,6 +602,7 @@
                                 <option value="none">No miembro</option>
                                 <option value="trial">Prueba</option>
                                 <option value="support">Apoyo</option>
+                                <option value="expired">Vencida</option>
                             </select>
                         </div>
                         <div>
@@ -1077,6 +1089,50 @@ function toggleSelectAll(checked) {
         if (checked) selectedMemberIds.add(id); else selectedMemberIds.delete(id);
     });
     updateSelectionCount();
+}
+
+const MESSAGE_EVENT_LABELS = {
+    followup_sent:               '📨 Correo de campaña',
+    trial_reminder_sent:         '⏰ Recordatorio de prueba (5 días)',
+    trial_extension_offer_sent:  '🎁 Oferta de extensión (48h)',
+    trial_expired_demoted:       '⌛ Aviso final de prueba'
+};
+
+async function showMessageHistory() {
+    const panel = document.getElementById('message-history-panel');
+    const content = document.getElementById('message-history-content');
+    if (!selectedMemberIds.size) { alert('Primero seleccione uno o más hospedajes en la lista.'); return; }
+    panel.style.display = 'block';
+    content.innerHTML = 'Cargando...';
+    const selected = allMembers.filter(m => selectedMemberIds.has(m.id));
+    const ids    = selected.map(m => m.id).join(',');
+    const emails = selected.map(m => (m.email_member || m.email || '').toLowerCase()).filter(Boolean).join(',');
+    try {
+        const res = await adminFetch(`/api/admin/message-history?ids=${ids}&emails=${encodeURIComponent(emails)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        if (!data.length) { content.innerHTML = '<p style="color:#888;">Sin mensajes registrados para esta selección.</p>'; return; }
+        content.innerHTML = data.map(l => {
+            const d = l.event_data || {};
+            const recipient = d.email || (d.listing_id ? `Listado ID ${d.listing_id}` : '(sin destinatario)');
+            const label = MESSAGE_EVENT_LABELS[l.event_type] || l.event_type;
+            return `<div style="padding:6px 0;border-bottom:1px solid #223;">
+                <span style="color:#7ec8e3;">${new Date(l.created_at).toLocaleString()}</span>
+                &nbsp;·&nbsp;<strong>${label}</strong>&nbsp;·&nbsp;${recipient}${d.hotel ? ' — ' + d.hotel : ''}
+            </div>`;
+        }).join('');
+    } catch (err) {
+        content.innerHTML = `<p style="color:#ff7070;">Error: ${err.message}</p>`;
+    }
+}
+
+function sendToSelectedMembers() {
+    if (!selectedMemberIds.size) { alert('Primero seleccione uno o más hospedajes en la lista.'); return; }
+    fbConfirmedTargets = allMembers
+        .filter(m => selectedMemberIds.has(m.id))
+        .map(m => ({ email: m.email_member || m.email, name: m.name, contact_name: m.contact_name || '', id: m.id, slug: m.slug || '', whatsapp: m.whatsapp || '' }));
+    showTab('campaign');
+    alert(`✅ ${fbConfirmedTargets.length} destinatario(s) listos. Escriba o cargue el mensaje y haga clic en "Enviar a selección confirmada" en la pestaña Campaña.`);
 }
 
 function refreshSelectionRecipientsList() {
@@ -3131,13 +3187,12 @@ function computeFilterMatches() {
     return allMembers.filter(m => {
         if (registro === 'atp'  && m.registry_source === 'mici') return false;
         if (registro === 'mici' && m.registry_source !== 'mici') return false;
-
+        const s = getInvitationStatus(m); // same status used by the dashboard's "Vencidos" card
         const isActive = m.is_member && m.membership_paid_until && m.membership_paid_until >= new Date().toISOString().split('T')[0];
         if (membresia === 'none'    && isActive) return false;
         if (membresia === 'trial'   && !(isActive && m.is_trial)) return false;
         if (membresia === 'support' && !(isActive && !m.is_trial)) return false;
-
-        const s = getInvitationStatus(m);
+        if (membresia === 'expired' && s.key !== 'expired') return false;
         if (invitacion === 'any' && s.key === 'refused') return false;
         if (invitacion !== 'any' && s.key !== invitacion) return false;
         if (invitacion === 'refused' && s.key !== 'refused') return false;

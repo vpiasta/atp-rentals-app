@@ -3964,7 +3964,7 @@ async function sendToRosterList(targets, subject, body, from) {
                 .update({ apatel_contacted_at: new Date().toISOString() })
                 .or(`email.ilike.%${member.email}%,email_member.ilike.%${member.email}%`)
                 .eq('apatel_member', true);
-            await logEvent('followup_sent', { hotel: member.hotel, email: member.email });
+            await logEvent('followup_sent', { hotel: member.hotel, email: member.email, listing_id: member.id || null });
             sent++;
             await new Promise(r => setTimeout(r, 600));
         } catch (err) {
@@ -5259,6 +5259,38 @@ const msUntil10am = (() => {
 app.post('/api/admin/send-general-campaign-now', requireAdmin, async (req, res) => {
     res.json({ success: true, message: 'Batch started' });
     sendGeneralCampaignBatch(); // Run in background
+});
+
+// ── Message history for one or more members — no 200-entry cap, matches by
+// listing_id when available, falls back to email match for older entries
+// logged before listing_id was captured ──
+app.get('/api/admin/message-history', requireAdmin, async (req, res) => {
+    const EMAIL_EVENT_TYPES = ['followup_sent', 'trial_reminder_sent', 'trial_extension_offer_sent', 'trial_expired_demoted'];
+    const ids    = (req.query.ids || '').split(',').map(s => parseInt(s)).filter(Boolean);
+    const emails = (req.query.emails || '').split(',').map(s => s.toLowerCase().trim()).filter(Boolean);
+    if (!ids.length && !emails.length) return res.status(400).json({ error: 'ids or emails required' });
+    try {
+        let query = supabaseAdmin
+            .from('event_log')
+            .select('event_type, event_data, created_at')
+            .in('event_type', EMAIL_EVENT_TYPES)
+            .order('created_at', { ascending: false })
+            .limit(1000);
+        if (req.query.from) query = query.gte('created_at', req.query.from);
+        if (req.query.to)   query = query.lte('created_at', req.query.to + 'T23:59:59');
+        const { data, error } = await query;
+        if (error) throw new Error(error.message);
+
+        const matched = (data || []).filter(row => {
+            const d = row.event_data || {};
+            if (d.listing_id != null && ids.includes(Number(d.listing_id))) return true;
+            if (d.email && emails.includes(String(d.email).toLowerCase())) return true;
+            return false;
+        });
+        res.json(matched);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ── Inbound application email webhook (Hostinger) ─────────────────────────────
