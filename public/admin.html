@@ -743,6 +743,7 @@
                 <button class="tbtn primary" onclick="loadLog()">🔄 Refresh</button>
                 <select id="log-filter" onchange="filterLog()">
                     <option value="all">All events</option>
+                    <option value="emails">📨 Correos enviados</option>
                     <option value="admin">Admin actions</option>
                     <option value="invitation">Invitations</option>
                     <option value="application">Applications</option>
@@ -1884,20 +1885,42 @@ async function loadLog() {
     }
 }
 
+const EMAIL_EVENT_TYPES = ['followup_sent', 'trial_reminder_sent', 'trial_extension_offer_sent', 'trial_expired_demoted'];
+const EMAIL_EVENT_LABELS = {
+    followup_sent:               '📨 Correo de campaña',
+    trial_reminder_sent:         '⏰ Recordatorio de prueba (5 días)',
+    trial_extension_offer_sent:  '🎁 Oferta de extensión (48h)',
+    trial_expired_demoted:       '⌛ Aviso final de prueba'
+};
+
 function renderLog(logs) {
     const container = document.getElementById('log-container');
     if (!logs.length) { container.innerHTML='<div class="no-results">No log entries yet</div>'; return; }
-    container.innerHTML = logs.map(l=>`
+    container.innerHTML = logs.map(l => {
+        if (EMAIL_EVENT_TYPES.includes(l.event_type)) {
+            const d = l.event_data || {};
+            const recipient = d.email || (d.listing_id ? `Listado ID ${d.listing_id} (sin correo)` : '(sin destinatario)');
+            const extra = d.hotel ? ` — ${d.hotel}` : (d.extended ? ' — prueba fue extendida' : '');
+            return `
+        <div class="log-entry">
+            <span class="log-time">${new Date(l.created_at).toLocaleString()}</span>
+            <span class="log-type">${EMAIL_EVENT_LABELS[l.event_type]}</span>
+            <span class="log-data">${recipient}${extra}</span>
+        </div>`;
+        }
+        return `
         <div class="log-entry">
             <span class="log-time">${new Date(l.created_at).toLocaleString()}</span>
             <span class="log-type">${l.event_type}</span>
             <span class="log-data">${JSON.stringify(l.event_data)}</span>
-        </div>`).join('');
+        </div>`;
+    }).join('');
 }
 
 function filterLog() {
     const f = document.getElementById('log-filter').value;
     const filtered = f==='all' ? allLogs : allLogs.filter(l=>{
+        if (f==='emails')      return EMAIL_EVENT_TYPES.includes(l.event_type);
         if (f==='admin')       return l.event_type.startsWith('admin');
         if (f==='invitation')  return l.event_type.includes('invitation');
         if (f==='application') return l.event_type.includes('application');

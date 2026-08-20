@@ -4691,7 +4691,7 @@ ${noPhotosBlock}`;
                     trial_final_notice_sent_at: new Date().toISOString(),
                     is_member: false, is_trial: false, membership_paid_until: null
                 }).eq('id', listing.id);
-                await logEvent('trial_expired_demoted', { listing_id: listing.id, extended: wasExtended });
+                await logEvent('trial_expired_demoted', { listing_id: listing.id, extended: wasExtended, email: toEmail || null });
                 results.finalNotice++;
             } catch (err) { results.errors++; console.error(`Final notice/demotion failed for listing ${listing.id}:`, err.message); }
         }
