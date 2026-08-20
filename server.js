@@ -1962,11 +1962,12 @@ app.post('/api/admin/set-invitation-status', requireAdmin, async (req, res) => {
 // ── Event logger ──────────────────────────────────────────────────────────────
 async function logEvent(type, data) {
     try {
-        await supabase.from('event_log').insert({
+        const { error } = await supabaseAdmin.from('event_log').insert({
             event_type: type,
             event_data: data,
             created_at: new Date().toISOString()
         });
+        if (error) console.error('Log error (RLS/insert):', error.message);
     } catch (err) {
         console.error('Log error:', err.message);
     }
@@ -2497,11 +2498,11 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
                 if (!isTrial) {
                     const amount = app.duration_months === 24 ? 45 : 24;
                     const itbms  = parseFloat((amount * 0.07).toFixed(2));
-                    await supabase.from('event_log').insert({
-                        event_type: 'invoice_pending',
-                        event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: app.duration_months+' months', payment_method: app.payment_method, date: new Date().toISOString() },
-                        created_at: new Date().toISOString()
-                    });
+                    await supabaseAdmin.from('event_log').insert({
+                      event_type: 'invoice_pending',
+                      event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: app.duration_months+' months', payment_method: app.payment_method, date: new Date().toISOString() },
+                      created_at: new Date().toISOString()
+                  });
                 }
 
                 // Send welcome email
@@ -2617,7 +2618,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         if (!isTrial) {
             const amount = app.duration_months === 24 ? 45 : 24;
             const itbms  = parseFloat((amount * 0.07).toFixed(2));
-            await supabase.from('event_log').insert({
+            await supabaseAdmin.from('event_log').insert({
                 event_type: 'invoice_pending',
                 event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: app.duration_months+' months', payment_method: app.payment_method, date: new Date().toISOString() },
                 created_at: new Date().toISOString()
