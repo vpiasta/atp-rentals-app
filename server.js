@@ -4557,7 +4557,15 @@ async function hasDocumentedApplication(listingId) {
 }
 
 // ── Shared email wrapper (header table + footer, matches site style) ────────
-function wrapTrialEmailHtml(bodyHtml) {
+// Greeting logic intentionally mirrors buildFollowupHtml() exactly — templates
+// used by either wrapper must NOT include their own greeting line, so a
+// template behaves identically whether sent by the automated cron or manually
+// from the Campaña tab.
+function wrapTrialEmailHtml(hotel, manager, bodyHtml) {
+    const firstName = (manager || '').split(' ')[0];
+    const greeting = firstName && firstName.length > 2
+        ? (hotel ? `${firstName}, propietario/a de <strong>${hotel}</strong>` : firstName)
+        : (hotel ? `propietario/a de <strong>${hotel}</strong>` : 'propietario/a');
     return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;margin:0;padding:0;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto 1.5rem;">
     <tr><td bgcolor="#005ca9" style="background-color:#005ca9;" width="600">
@@ -4567,6 +4575,7 @@ function wrapTrialEmailHtml(bodyHtml) {
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto;">
     <tr><td height="20" style="font-size:1px;line-height:1px;">&nbsp;</td></tr>
     <tr><td style="padding:0 20px;">
+<p style="margin-top:0;">Estimado/a ${greeting},</p>
 ${bodyHtml}
 <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
 <p style="color:#888;font-size:0.78rem;">
@@ -4625,7 +4634,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
                 listing_id: listing.id, renew_url: renewUrl, renew_label: renewLabel,
                 listing_url: listingUrl, no_photos_block: noPhotosBlock
                 });
-                await execFileAsync('php', [notifyPath, `Su prueba gratuita vence en 5 días — ${listing.name}`, wrapTrialEmailHtml(body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });await supabaseAdmin.from('listings').update({ trial_reminder_sent_at: new Date().toISOString() }).eq('id', listing.id);
+                await execFileAsync('php', [notifyPath, `Su prueba gratuita vence en 5 días — ${listing.name}`, wrapTrialEmailHtml(listing.name, listing.contact_name, body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });await supabaseAdmin.from('listings').update({ trial_reminder_sent_at: new Date().toISOString() }).eq('id', listing.id);
                 await logEvent('trial_reminder_sent', { listing_id: listing.id, email: toEmail });
                 results.reminder5day++;
             } catch (err) { results.errors++; console.error(`5-day reminder failed for listing ${listing.id}:`, err.message); }
@@ -4649,7 +4658,8 @@ app.get('/api/send-trial-reminders', async (req, res) => {
                 const body = fillTemplate(loadTemplateFile('trial_extension_offer.html'), {
                     name, listing_name: listing.name, expiry_date: listing.membership_paid_until, extend_url: extendUrl
                 });
-                await execFileAsync('php', [notifyPath, `¿Necesita más tiempo? 7 días gratis — ${listing.name}`, wrapTrialEmailHtml(body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });await supabaseAdmin.from('listings').update({ trial_extension_offer_sent_at: new Date().toISOString() }).eq('id', listing.id);
+                await execFileAsync('php', [notifyPath, `¿Necesita más tiempo? 7 días gratis — ${listing.name}`, wrapTrialEmailHtml(listing.name, listing.contact_name, body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
+                await supabaseAdmin.from('listings').update({ trial_extension_offer_sent_at: new Date().toISOString() }).eq('id', listing.id);
                 await logEvent('trial_extension_offer_sent', { listing_id: listing.id, email: toEmail });
                 results.extensionOffer++;
             } catch (err) { results.errors++; console.error(`Extension offer failed for listing ${listing.id}:`, err.message); }
