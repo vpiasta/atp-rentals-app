@@ -1414,6 +1414,23 @@ async function openListingAsAdmin() {
     } catch(err) { alert('Error: ' + err.message); }
 }
 
+// eFacturaPty invoice numbers look like "200-0000000006" (puntoFacturacion-
+// correlativo). Strip the correlativo's leading zeros down to a 2-digit
+// minimum so short sequences stay short and readable (e.g. "0000000006" ->
+// "06") without ever losing digits once the sequence grows longer (e.g.
+// "0000000123" -> "123") — used to keep accounting-folder filenames short
+// while still letting the original invoice be found in efacturapty.com.
+function abbreviateInvoiceNumber(raw) {
+    if (!raw) return '';
+    const parts = String(raw).split('-');
+    if (parts.length < 2) return raw;
+    const prefix = parts[0];
+    const correlativo = parts.slice(1).join('-');
+    let stripped = correlativo.replace(/^0+/, '');
+    if (stripped.length < 2) stripped = stripped.padStart(2, '0');
+    return `${prefix}-${stripped}`;
+}
+
 async function loadApplicationInfoForEdit(listingId) {
     const box = document.getElementById('edit-application-info');
     box.innerHTML = '<div style="color:#aaa;font-size:0.82rem;">Loading applicant &amp; payment info...</div>';
@@ -1433,7 +1450,8 @@ async function downloadInvoicePdf(invoiceUuid, listingId, amountTotal) {
         const blob = await res.blob();
         const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
         const amountFixed = amountTotal ? parseFloat(amountTotal).toFixed(2) : '0.00';
-        const fileName = `${dateStr} factura TPS ${listingId} $${amountFixed}.pdf`;
+        const shortInvoiceNum = abbreviateInvoiceNumber(invoiceUuid);
+        const fileName = `${dateStr} factura TPS ${listingId}${shortInvoiceNum ? ' ' + shortInvoiceNum : ''} $${amountFixed}.pdf`;
         const drivePath = `C:\\Users\\vpias.NUC\\Google Drive\\Aparthotel Boquete\\Contabilidad Tuscany Real Estates SA\\2026\\07 julio\\facturas TPS`;
         navigator.clipboard.writeText(drivePath).catch(()=>{});
         const blobUrl = URL.createObjectURL(blob);
@@ -1454,7 +1472,7 @@ function renderApplicationInfo(app, payment) {
     const mailLink = app.contact_email ? `mailto:${app.contact_email}` : null;
 
     const docButtons = (app.documents||[]).map(doc =>
-        `<button class="doc-btn" onclick="viewDocument('${doc.path}','${doc.type}','${app.verification_result||''}')" style="margin-right:6px;">
+        `<button class="doc-btn" onclick="viewDocument('${doc.path}','${doc.type}','${app.verification_result||''}','${(app.property_name||'').replace(/'/g,"\\'")}','${app.listing_id||''}')" style="margin-right:6px;">
             ${doc.type==='aviso_operacion'?'📋':doc.type==='cedula'?'🪪':'💳'}
             ${doc.type.replace(/\b\w/g, l => l.toUpperCase())}
         </button>`).join('');
@@ -1647,7 +1665,7 @@ function renderApplications(apps) {
     if (!apps.length) { container.innerHTML='<div class="no-results">No applications found</div>'; return; }
     container.innerHTML = apps.map(app => {
         const docButtons = (app.documents||[]).map(doc =>
-            `<a href="#" class="doc-btn" onclick="viewDocument('${doc.path}','${doc.type}','${app.verification_result||''}');return false;">
+            `<a href="#" class="doc-btn" onclick="viewDocument('${doc.path}','${doc.type}','${app.verification_result||''}','${(app.property_name||'').replace(/'/g,"\\'")}','${app.listing_id||''}');return false;">
                 ${doc.type==='aviso_operacion'?'📋':doc.type==='cedula'?'🪪':'💳'}
                 ${doc.type.replace(/\b\w/g, l => l.toUpperCase())}
             </a>`).join('');
@@ -1713,7 +1731,7 @@ function renderApplications(apps) {
     }).join('');
 }
 
-async function viewDocument(docPath, docType, verificationResult) {
+async function viewDocument(docPath, docType, verificationResult, propertyName, listingId) {
     try {
         const res  = await adminFetch(`/api/admin/document-url?path=${encodeURIComponent(docPath)}`);
         const data = await res.json();
@@ -1722,21 +1740,17 @@ async function viewDocument(docPath, docType, verificationResult) {
         window.open(data.url, '_blank');
         // For payment proofs: also download with standard name + copy Drive path
         if (docType === 'comprobante_pago') {
-            const card = document.querySelector(`[id^="app-card-"]`);
             const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
-            const amountMatch = (card?.textContent||'').match(/\$[\d.]+/);
-            const amount = amountMatch ? amountMatch[0].replace('$','') : '0.00';
-            const idMatch = (card?.textContent||'').match(/ATP[:\s·]+(\d+)/);
-            const listingId = idMatch ? idMatch[1] : '';
+            // verification_result format: PAY:<overall>:<amount_found>:<date>:<description>:<bank>:<confirmation>
+            const vParts = (verificationResult||'').split(':');
+            const amount = vParts[2] || '0.00';
             const ext = docPath.split('.').pop();
-            // Try to extract payment date from verification_result (format: PAY:PASS:amount:yyyy-mm-dd:...)
             let payDate = dateStr;
-            if (verificationResult) {
-                const dateMatch = verificationResult.match(/(\d{4}-\d{2}-\d{2})/);
-                if (dateMatch) payDate = dateMatch[1].replace(/-/g,'');
-            }
+            if (vParts[3] && /^\d{4}-\d{2}-\d{2}$/.test(vParts[3])) payDate = vParts[3].replace(/-/g,'');
             const amountFixed = parseFloat(amount).toFixed(2);
-            const stdName = `${payDate} pago membresia TPS ${listingId} $${amountFixed}.${ext}`;
+            // Filesystem-safe rental name for QuickBooks/Excel to read straight off the filename.
+            const safeName = (propertyName||'').replace(/[\\/:*?"<>|]/g,'').trim();
+            const stdName = `${payDate} pago membresia ${safeName} TPS ${listingId||''} $${amountFixed}.${ext}`;
             const drivePath = `C:\\Users\\vpias.NUC\\Google Drive\\Aparthotel Boquete\\Contabilidad Tuscany Real Estates SA\\2026\\07 julio\\entradas\\transferencia`;
             navigator.clipboard.writeText(drivePath).catch(()=>{});
             try {
