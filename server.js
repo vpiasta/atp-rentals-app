@@ -4696,18 +4696,42 @@ app.get('/api/send-trial-reminders', async (req, res) => {
                 await logEvent('trial_expired_demoted', { listing_id: listing.id, extended: wasExtended, email: toEmail || null });
                 results.finalNotice++;
             } catch (err) { results.errors++; console.error(`Final notice/demotion failed for listing ${listing.id}:`, err.message); }
-        }
-
-        if (results.finalNotice > 0) await recalculateFeatureRanks();
-
-        res.json({ success: true, ...results });
-    } catch (err) {
-        console.error('Trial lifecycle check error:', err.message);
-        res.status(500).json({ error: err.message });
+        }                  await execFileAsync('php', [notifyPath, `Su prueba gratuita ha finalizado — ${listing.name}`, wrapTrialEmailHtml(listing.name, listing.contact_name, body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
     }
 });
 
-// ── GET /api/extend-trial — one-click 7-day extension from the offer email ──
+// ── Shared validation for the extend-trial token, used by both the GET
+// confirmation page and the POST that actually performs the extension. ──
+async function validateExtendTrialToken(id, token) {
+    const decoded = Buffer.from(token || '', 'base64').toString();
+    const [tokenId, tokenTime, tokenSecret] = decoded.split(':');
+    if (tokenId !== String(id) || tokenSecret !== process.env.ADMIN_SECRET) {
+        return { ok: false, title: 'Enlace inválido', message: 'Este enlace no es válido.' };
+    }
+    if (Date.now() - parseInt(tokenTime, 10) > 10 * 24 * 60 * 60 * 1000) {
+        return { ok: false, title: 'Enlace vencido', message: 'Este enlace ya no es válido.' };
+    }
+
+    const { data: listing, error } = await supabaseAdmin
+        .from('listings')
+        .select('id, is_member, is_trial, membership_paid_until, trial_extended_at')
+        .eq('id', id).single();
+    if (error || !listing) return { ok: false, title: 'No encontrado', message: 'No se encontró su hospedaje.' };
+    if (listing.trial_extended_at) {
+        return { ok: false, title: 'Ya utilizado', message: 'Este enlace de extensión ya fue utilizado anteriormente.' };
+    }
+    if (!listing.is_member || !listing.is_trial) {
+        return { ok: false, title: 'No disponible', message: 'Su prueba gratuita ya no está activa.' };
+    }
+    return { ok: true, listing };
+}
+
+// ── GET /api/extend-trial — shows a confirmation page only. Does NOT touch
+// the database, so an email security scanner or link-prefetcher (e.g.
+// Microsoft Defender Safe Links) that silently fetches this URL before a
+// human opens the email can no longer burn the one-time token. The actual
+// extension only happens when a visitor clicks the button below, which
+// fires the POST route beneath this one. ──
 app.get('/api/extend-trial', async (req, res) => {
     const { id, token } = req.query;
     const showPage = (title, message, ok) => res.send(`<html><body style="font-family:Arial,sans-serif;text-align:center;padding:60px 20px;color:#111;">
@@ -4716,27 +4740,47 @@ app.get('/api/extend-trial', async (req, res) => {
 </body></html>`);
 
     try {
-        const decoded = Buffer.from(token || '', 'base64').toString();
-        const [tokenId, tokenTime, tokenSecret] = decoded.split(':');
-        if (tokenId !== String(id) || tokenSecret !== process.env.ADMIN_SECRET) {
-            return showPage('Enlace inválido', 'Este enlace no es válido.', false);
-        }
-        if (Date.now() - parseInt(tokenTime, 10) > 10 * 24 * 60 * 60 * 1000) {
-            return showPage('Enlace vencido', 'Este enlace ya no es válido.', false);
-        }
+        const result = await validateExtendTrialToken(id, token);
+        if (!result.ok) return showPage(result.title, result.message, false);
 
-        const { data: listing, error } = await supabaseAdmin
-            .from('listings')
-            .select('id, is_member, is_trial, membership_paid_until, trial_extended_at')
-            .eq('id', id).single();
-        if (error || !listing) return showPage('No encontrado', 'No se encontró su hospedaje.', false);
-        if (listing.trial_extended_at) {
-            return showPage('Ya utilizado', 'Este enlace de extensión ya fue utilizado anteriormente.', false);
-        }
-        if (!listing.is_member || !listing.is_trial) {
-            return showPage('No disponible', 'Su prueba gratuita ya no está activa.', false);
-        }
+        return res.send(`<html><body style="font-family:Arial,sans-serif;text-align:center;padding:60px 20px;color:#111;">
+<h2 style="color:#00a859;">¿Confirmar 7 días adicionales?</h2>
+<p>Haga clic en el botón para activar la extensión de su prueba gratuita.</p>
+<button id="confirmBtn" style="background-color:#00a859;color:white;border:none;border-radius:8px;padding:12px 32px;font-weight:700;font-size:1rem;cursor:pointer;">Sí, deme 7 días más →</button>
+<p id="resultMsg" style="margin-top:20px;"></p>
+<script>
+document.getElementById('confirmBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('confirmBtn');
+    btn.disabled = true; btn.textContent = 'Procesando…';
+    try {
+        const resp = await fetch('/api/extend-trial/confirm?id=${encodeURIComponent(id || '')}&token=${encodeURIComponent(token || '')}', { method: 'POST' });
+        const data = await resp.json();
+        document.getElementById('resultMsg').innerHTML = data.success
+            ? '<strong style="color:#00a859;">¡Listo! Su prueba ahora vence el ' + data.newExpiry + '.</strong>'
+            : '<strong style="color:#c0392b;">' + (data.message || 'Ocurrió un error.') + '</strong>';
+        if (data.success) { btn.style.display = 'none'; } else { btn.disabled = false; btn.textContent = 'Sí, deme 7 días más →'; }
+    } catch (e) {
+        document.getElementById('resultMsg').innerHTML = '<strong style="color:#c0392b;">Ocurrió un error. Por favor contáctenos.</strong>';
+        btn.disabled = false; btn.textContent = 'Sí, deme 7 días más →';
+    }
+});
+</script>
+</body></html>`);
+    } catch (err) {
+        console.error('extend-trial error:', err.message);
+        return showPage('Error', 'Ocurrió un error. Por favor contáctenos.', false);
+    }
+});
 
+// ── POST /api/extend-trial/confirm — performs the actual extension. Only
+// reachable via an explicit click on the confirmation page above. ──
+app.post('/api/extend-trial/confirm', async (req, res) => {
+    const { id, token } = req.query;
+    try {
+        const result = await validateExtendTrialToken(id, token);
+        if (!result.ok) return res.json({ success: false, message: result.message });
+
+        const listing = result.listing;
         const base = listing.membership_paid_until ? new Date(listing.membership_paid_until) : new Date();
         base.setDate(base.getDate() + 7);
         const newExpiry = base.toISOString().split('T')[0];
@@ -4747,10 +4791,10 @@ app.get('/api/extend-trial', async (req, res) => {
         }).eq('id', id);
         await logEvent('trial_extended', { listing_id: id, new_expiry: newExpiry });
 
-        return showPage('¡Listo!', `Su prueba gratuita ahora vence el <strong>${newExpiry}</strong>. Gracias por continuar con nosotros.`, true);
+        return res.json({ success: true, newExpiry });
     } catch (err) {
-        console.error('extend-trial error:', err.message);
-        return showPage('Error', 'Ocurrió un error. Por favor contáctenos.', false);
+        console.error('extend-trial confirm error:', err.message);
+        return res.json({ success: false, message: 'Ocurrió un error. Por favor contáctenos.' });
     }
 });
 
