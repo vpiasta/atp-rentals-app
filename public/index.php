@@ -493,7 +493,7 @@ async function loadStats() {
         statsPanel.innerHTML = `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:12px;font-size:0.85rem;padding:0.3rem 0;">
             <span>🏨 <strong>${total}</strong> ${LANG === 'en' ? 'verified accommodations' : 'hospedajes verificados'}${featuredText}</span>
             <span id="selectedCount"></span></div>`;
-    } catch { statsPanel.innerHTML = '<div style="color:#cc0000;">Error al cargar estadísticas</div>'; }
+    } catch { statsPanel.innerHTML = `<div style="color:#666;">${LANG === 'en' ? "We're updating the system. The page will be available again in a few minutes." : 'Estamos actualizando el sistema. La página estará disponible dentro de pocos minutos.'}</div>`; }
 }
 
 async function loadFilters() {
