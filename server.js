@@ -2428,6 +2428,39 @@ app.post('/api/admin/application-status', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── Cross-check the application's stored duration against the actual
+// recorded payment amount before crediting membership time. duration_months
+// is set at submission time from either the customer's form selection or an
+// AI plan guess, and both can end up wrong even after the 2026-08-22 fix to
+// /api/submit-payment (e.g. an application entered/edited another way) — the
+// verified payment amount is the most reliable signal available, so it wins
+// over a disagreeing duration_months rather than being silently trusted.
+// (Root cause of the 2026-08-22 Casitas Vista Verde case: a $48.15/2-year
+// payment got credited as only 1 year because this endpoint trusted a stale
+// duration_months=12 without ever looking at the recorded payment amount.)
+async function resolveApprovedDurationMonths(app) {
+    if (app.membership_type === 'trial') return 0;
+    let months = app.duration_months || 12;
+    try {
+        const { data: payment } = await supabaseAdmin.from('payments')
+            .select('amount_total').eq('application_id', app.id)
+            .order('created_at', { ascending: false }).limit(1).maybeSingle();
+        const total = parseFloat(payment?.amount_total);
+        const TOL = 0.5; // rounding tolerance in dollars
+        if (!isNaN(total)) {
+            if (Math.abs(total - 48.15) < TOL) months = 24;
+            else if (Math.abs(total - 25.68) < TOL) months = 12;
+            if (months !== (app.duration_months || 12)) {
+                console.warn(`Approve-application: correcting duration for application ${app.id} — stored ${app.duration_months} months, payment amount $${total} implies ${months} months.`);
+                await logEvent('duration_corrected_at_approval', { application_id: app.id, stored_months: app.duration_months, corrected_months: months, payment_amount: total });
+            }
+        }
+    } catch (err) {
+        console.error('resolveApprovedDurationMonths check failed:', err.message);
+    }
+    return months;
+}
+
 // ── Approve application ───────────────────────────────────────────────────────
 app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
     const bcrypt = require('bcrypt');
@@ -2458,9 +2491,10 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
                 const password = Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
                 const hash     = await bcrypt.hash(password, 10);
 
+                const correctedMonths = await resolveApprovedDurationMonths(app);
                 const paidUntil = new Date();
                 if (isTrial) paidUntil.setDate(paidUntil.getDate() + 30);
-                else paidUntil.setFullYear(paidUntil.getFullYear() + (app.duration_months === 24 ? 2 : 1));
+                else paidUntil.setFullYear(paidUntil.getFullYear() + (correctedMonths === 24 ? 2 : 1));
                 const paidUntilStr = paidUntil.toISOString().split('T')[0];
                 const slug = await generateUniqueSlug(app.property_name, 'new');
 
@@ -2500,11 +2534,11 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 
                 // Log invoice for paid plans
                 if (!isTrial) {
-                    const amount = app.duration_months === 24 ? 45 : 24;
+                    const amount = correctedMonths === 24 ? 45 : 24;
                     const itbms  = parseFloat((amount * 0.07).toFixed(2));
                     await supabaseAdmin.from('event_log').insert({
                       event_type: 'invoice_pending',
-                      event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: app.duration_months+' months', payment_method: app.payment_method, date: new Date().toISOString() },
+                      event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: correctedMonths+' months', payment_method: app.payment_method, date: new Date().toISOString() },
                       created_at: new Date().toISOString()
                   });
                 }
@@ -2598,9 +2632,10 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         const hash     = await bcrypt.hash(password, 10);
 
         // ── Calculate dates ───────────────────────────────────────────────
+        const correctedMonths = await resolveApprovedDurationMonths(app);
         const paidUntil = new Date();
         if (isTrial) paidUntil.setDate(paidUntil.getDate() + 30);
-        else paidUntil.setFullYear(paidUntil.getFullYear() + (app.duration_months === 24 ? 2 : 1));
+        else paidUntil.setFullYear(paidUntil.getFullYear() + (correctedMonths === 24 ? 2 : 1));
         const paidUntilStr = paidUntil.toISOString().split('T')[0];
         const slug = await generateUniqueSlug(app.property_name, listingId);
 
@@ -2620,11 +2655,11 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 
         // ── Log invoice for paid plans ────────────────────────────────────
         if (!isTrial) {
-            const amount = app.duration_months === 24 ? 45 : 24;
+            const amount = correctedMonths === 24 ? 45 : 24;
             const itbms  = parseFloat((amount * 0.07).toFixed(2));
             await supabaseAdmin.from('event_log').insert({
                 event_type: 'invoice_pending',
-                event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: app.duration_months+' months', payment_method: app.payment_method, date: new Date().toISOString() },
+                event_data: { application_id, listing_id: listingId, property_name: app.property_name, contact_name: app.contact_name, contact_email: app.contact_email, ruc: null, amount, itbms, total: parseFloat((amount+itbms).toFixed(2)), plan: correctedMonths+' months', payment_method: app.payment_method, date: new Date().toISOString() },
                 created_at: new Date().toISOString()
             });
         }
@@ -2833,9 +2868,15 @@ Expected amounts WITH 7% ITBMS included: $${expected1yr} (1 year = $24 + ITBMS) 
 IMPORTANT: $24.00 or $45.00 WITHOUT ITBMS is INCORRECT. Only $${expected1yr} or $${expected2yr} are correct amounts.
 If amount is $45.00 (without ITBMS), set amount_matches to false and note underpayment of $3.15.
 The transfer description/mensaje should contain "TPS ${listing_id}".
-Return ONLY a JSON object:
+CRITICAL: "amount_found" must be the exact number printed on the receipt — read it
+digit by digit, do not round or guess toward either expected amount above. Set
+"plan" strictly from which expected amount "amount_found" actually matches
+(2year if it matches $${expected2yr}, 1year if it matches $${expected1yr}) — if it
+matches neither, set "plan" to "unclear" rather than guessing.
+Return ONLY a JSON object (the example values below are placeholders only —
+do not copy them, they are intentionally NOT one of the expected amounts):
 {
-  "amount_found": 25.68,
+  "amount_found": 33.30,
   "amount_matches": true,
   "date": "2026-07-18",
   "date_recent": true,
@@ -2845,8 +2886,8 @@ Return ONLY a JSON object:
   "confirmation": "#1545221148",
   "destination_account": "104313259",
   "status_text": "REALIZADA",
-  "plan": "1year",
-  "overall": "PASS",
+  "plan": "unclear",
+  "overall": "REVIEW",
   "notes": "brief summary"
 }
 overall: PASS (amount correct, recent, REALIZADA), REVIEW (minor issues), FAIL (wrong amount or fake).`;
@@ -2857,7 +2898,22 @@ overall: PASS (amount correct, recent, REALIZADA), REVIEW (minor issues), FAIL (
                     }, { headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, timeout: 30000 });
 
                     aiData = JSON.parse(aiResp.data.content[0].text.replace(/\`\`\`json\n?|\n?\`\`\`/g, '').trim());
-                    detectedPlan = aiData.plan || detectedPlan;
+                    // Derive the plan from the amount actually read off the receipt
+                    // rather than trusting a separately-generated "plan" field (or
+                    // the raw form default) that can disagree with it — amount_found
+                    // is the most reliable signal available here, and trusting a
+                    // mismatched plan field silently under-credits a paying customer
+                    // (2026-08-22: a $48.15/2-year receipt got stored as 12 months
+                    // because aiData.plan didn't match what the receipt actually said).
+                    const foundAmount = parseFloat(aiData.amount_found);
+                    const PLAN_TOL = 0.5; // rounding tolerance in dollars
+                    if (!isNaN(foundAmount) && Math.abs(foundAmount - parseFloat(expected2yr)) < PLAN_TOL) {
+                        detectedPlan = '2year';
+                    } else if (!isNaN(foundAmount) && Math.abs(foundAmount - parseFloat(expected1yr)) < PLAN_TOL) {
+                        detectedPlan = '1year';
+                    } else {
+                        detectedPlan = aiData.plan || detectedPlan; // amount doesn't clearly match either price
+                    }
                     verificationResult = aiData.overall || 'REVIEW';
                     verificationSummary = `PAY:${verificationResult}:${aiData.amount_found}:${aiData.date}:${aiData.description_text||''}:${aiData.bank||''}:${aiData.confirmation||''}`;
 
