@@ -4688,7 +4688,8 @@ app.get('/api/send-trial-reminders', async (req, res) => {
                     extended_note: wasExtended ? ' (incluyendo los 7 días adicionales)' : '',
                     renew_url: renewUrl
                 });
-                await execFileAsync('php', [notifyPath, `Su prueba gratuita ha finalizado — ${listing.name}`, wrapTrialEmailHtml(body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });}
+                await execFileAsync('php', [notifyPath, `Su prueba gratuita ha finalizado — ${listing.name}`, wrapTrialEmailHtml(listing.name, listing.contact_name, body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
+              }
                 await supabaseAdmin.from('listings').update({
                     trial_final_notice_sent_at: new Date().toISOString(),
                     is_member: false, is_trial: false, membership_paid_until: null
@@ -4696,7 +4697,14 @@ app.get('/api/send-trial-reminders', async (req, res) => {
                 await logEvent('trial_expired_demoted', { listing_id: listing.id, extended: wasExtended, email: toEmail || null });
                 results.finalNotice++;
             } catch (err) { results.errors++; console.error(`Final notice/demotion failed for listing ${listing.id}:`, err.message); }
-        }                  await execFileAsync('php', [notifyPath, `Su prueba gratuita ha finalizado — ${listing.name}`, wrapTrialEmailHtml(listing.name, listing.contact_name, body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
+        }
+
+        if (results.finalNotice > 0) await recalculateFeatureRanks();
+
+        res.json({ success: true, ...results });
+    } catch (err) {
+        console.error('Trial lifecycle check error:', err.message);
+        res.status(500).json({ error: err.message });
     }
 });
 
