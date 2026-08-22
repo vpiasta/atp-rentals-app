@@ -36,7 +36,11 @@ const APATEL_ROSTER = require('./apatel_emails.json');
 const fs = require('fs');
 
 app.use(cors());
-app.use(express.json());
+// Default express.json() body-size limit is 100kb — too small for admin
+// campaign sends with large recipient lists (e.g. ~1,150 rentals' worth of
+// name/email/id/slug pushes the JSON body past 100kb). Raised to 5mb, which
+// comfortably covers campaign payloads for years of growth.
+app.use(express.json({ limit: '5mb' }));
 app.use(express.static('public'));
 
 // Suppress PDF.js font warnings
@@ -6223,6 +6227,19 @@ app.delete('/api/admin/blog/comments/:id', requireAdmin, async (req, res) => {
 //========== temporary endpoints ============================
 
 //==========================================================
+
+// ── Global JSON error handler — safety net so a request-level error (e.g.
+// body too large, malformed JSON) always comes back as JSON instead of
+// Express's default HTML error page. Frontend code across admin.html calls
+// res.json() unconditionally without checking res.ok first, so an HTML
+// error page there fails as "Unexpected token '<'", which is confusing and
+// hides the real error. Must stay registered after every route/middleware.
+app.use((err, req, res, next) => {
+    if (res.headersSent) return next(err);
+    console.error('Unhandled request error:', err.message);
+    const status = err.status || err.statusCode || 500;
+    res.status(status).json({ error: err.message || 'Server error' });
+});
 
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
