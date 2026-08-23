@@ -2788,13 +2788,34 @@ app.get('/api/admin/invoice-log', requireAdmin, async (req, res) => {
 app.get('/api/admin/listing-application-info/:listingId', requireAdmin, async (req, res) => {
     const listingId = parseInt(req.params.listingId);
     try {
-        const { data: application } = await supabaseAdmin
+        const { data: applications } = await supabaseAdmin
             .from('membership_applications')
             .select('*')
             .eq('listing_id', listingId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
+            .order('created_at', { ascending: false });
+
+        const application = applications?.[0] || null;
+
+        // Verification documents (Aviso de Operación, Cédula) are only
+        // collected on the ORIGINAL join.html signup — a later renewal via
+        // pay.html only carries a payment-proof document. Since this route
+        // only ever surfaces the single most recent application, those
+        // original documents would otherwise disappear from the admin's
+        // member-detail view the moment a renewal application exists for
+        // the same listing (2026-08-23: found via the Daniel Gerber/Casitas
+        // Vista Verde invoice — his Aviso/Cédula, needed to confirm his RUC,
+        // were on his original application but no longer reachable here).
+        // Merge documents across every application on file so nothing that
+        // was ever uploaded becomes unreachable — newest copy of each type wins.
+        if (application && applications.length > 1) {
+            const seenTypes = new Map();
+            for (const app of applications) { // already newest-first
+                for (const doc of (app.documents || [])) {
+                    if (!seenTypes.has(doc.type)) seenTypes.set(doc.type, doc);
+                }
+            }
+            application.documents = Array.from(seenTypes.values());
+        }
 
         const { data: payment } = await supabaseAdmin
             .from('payments')
