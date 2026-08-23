@@ -255,15 +255,15 @@
                 <polyline points="5,128 130,16 255,128" fill="none" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M54,138 L98,246 L218,26" fill="none" stroke="#FFD700" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <div><h1>Admin Panel</h1><p>Trusted Panama Stays</p></div>
+            <div><h1>Panel de Administración</h1><p>Trusted Panama Stays</p></div>
         </div>
         <div class="login-error" id="login-error"></div>
         <form onsubmit="doLogin(); return false;">
             <input type="password" class="login-input" id="admin-password"
-                   placeholder="Admin password" autocomplete="current-password">
-            <button type="submit" class="login-btn">🔐 Login</button>
+                   placeholder="Contraseña de administrador" autocomplete="current-password">
+            <button type="submit" class="login-btn">🔐 Iniciar Sesión</button>
         </form>
-        <p style="font-size:0.75rem;color:#555;margin-top:1rem;text-align:center;">IP + password required</p>
+        <p style="font-size:0.75rem;color:#555;margin-top:1rem;text-align:center;">Se requiere IP + contraseña</p>
     </div>
 </div>
 
@@ -283,7 +283,7 @@
                 <polyline points="5,128 130,16 255,128" fill="none" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M54,138 L98,246 L218,26" fill="none" stroke="#FFD700" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <div><h1>Admin Panel</h1><p id="session-info">Session active</p></div>
+            <div><h1>Panel de Administración</h1><p id="session-info">Sesión activa</p></div>
         </div>
         <button id="hbtn-ayuda" onclick="toggleHelpPanel()" style="position:absolute;top:50%;transform:translateY(-50%);right:10px;height:56px;width:56px;background:#cc0000;color:white;border:2px solid white;border-radius:6px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;font-weight:700;cursor:pointer;z-index:10;">
             AYUDA<span style="font-size:0.7rem;">▸</span>
@@ -346,34 +346,34 @@
 
         <!-- Edit panel -->
         <div class="panel edit-panel" id="edit-panel">
-            <h3 id="edit-panel-title">Edit Member</h3>
+            <h3 id="edit-panel-title">Editar Miembro</h3>
             <button onclick="openListingAsAdmin()" class="tbtn" style="background:#005ca9;color:white;margin-bottom:0.8rem;">🔓 Editar la página individual de este hospedaje sin contraseña</button>
             <input type="hidden" id="edit-id">
             <div class="edit-grid">
                 <div class="field-group">
-                    <label>Membership ID</label>
+                    <label>ID de Membresía</label>
                     <input type="text" id="edit-id-display" readonly style="color:#FFD700;font-family:monospace;font-size:1rem;font-weight:700;">
                 </div>
                 <div class="field-group">
-                    <label>Name (read only)</label>
+                    <label>Nombre (solo lectura)</label>
                     <input type="text" id="edit-name" readonly>
                 </div>
                 <div class="field-group">
-                    <label>Contact Name</label>
-                    <input type="text" id="edit-contact-name" placeholder="Owner or manager name">
+                    <label>Nombre de Contacto</label>
+                    <input type="text" id="edit-contact-name" placeholder="Nombre del propietario o gerente">
                 </div>
                 <div class="field-group">
-                    <label>Phone (public)</label>
-                    <input type="text" id="edit-phone" placeholder="e.g. 6891-6669">
+                    <label>Teléfono (público)</label>
+                    <input type="text" id="edit-phone" placeholder="ej. 6891-6669">
                 </div>
                 <div class="field-group">
-                    <label>Email (public)</label>
-                    <input type="email" id="edit-email" placeholder="e.g. info@myhostal.com">
+                    <label>Correo (público)</label>
+                    <input type="email" id="edit-email" placeholder="ej. info@myhostal.com">
                 </div>
                 <div class="field-group">
-                    <label>Rental Type</label>
+                    <label>Tipo de Alquiler</label>
                     <select id="edit-rental-type">
-                        <option value="">— select —</option>
+                        <option value="">— seleccionar —</option>
                         <option>Aparta-Hotel</option>
                         <option>Apartamentos</option>
                         <option>Hostal</option>
@@ -386,71 +386,71 @@
                     </select>
                 </div>
                 <div class="field-group">
-                    <label>Member Status</label>
+                    <label>Estado de Membresía</label>
                     <select id="edit-is-member">
-                        <option value="false">Not a member</option>
-                        <option value="true">Active member</option>
+                        <option value="false">No es miembro</option>
+                        <option value="true">Miembro activo</option>
                     </select>
                 </div>
                 <div class="field-group">
-                    <label>Membership Paid Until</label>
+                    <label>Membresía Pagada Hasta</label>
                     <input type="date" id="edit-paid-until">
                 </div>
                 <div class="field-group">
-                    <label>Invitation Status</label>
+                    <label>Estado de Invitación</label>
                     <select id="edit-inv-status">
-                        <option value="not_invited">Not invited</option>
-                        <option value="invited">Invited</option>
-                        <option value="no_response">No response</option>
-                        <option value="refused">Refused</option>
+                        <option value="not_invited">No invitado</option>
+                        <option value="invited">Invitado</option>
+                        <option value="no_response">Sin respuesta</option>
+                        <option value="refused">Rechazado</option>
                     </select>
                 </div>
                 <div class="field-group">
-                    <label>Slug (URL identifier)</label>
-                    <input type="text" id="edit-slug" placeholder="e.g. aparthotel-boquete">
+                    <label>Slug (identificador de URL)</label>
+                    <input type="text" id="edit-slug" placeholder="ej. aparthotel-boquete">
                 </div>
                 <div class="field-group">
-                    <label>APATEL Member</label>
-                    <label style="display:flex;align-items:center;gap:8px;padding:8px 0;"><input type="checkbox" id="edit-apatel" style="width:18px;height:18px;"><span style="font-size:0.85rem;">Mark as APATEL member</span></label>
+                    <label>Miembro APATEL</label>
+                    <label style="display:flex;align-items:center;gap:8px;padding:8px 0;"><input type="checkbox" id="edit-apatel" style="width:18px;height:18px;"><span style="font-size:0.85rem;">Marcar como miembro APATEL</span></label>
                 </div>
                 <div class="field-group">
-                    <label>Featured Listing</label>
-                    <label style="display:flex;align-items:center;gap:8px;padding:8px 0;"><input type="checkbox" id="edit-featured" style="width:18px;height:18px;"><span style="font-size:0.85rem;">Show in featured listings</span></label>
+                    <label>Listado Destacado</label>
+                    <label style="display:flex;align-items:center;gap:8px;padding:8px 0;"><input type="checkbox" id="edit-featured" style="width:18px;height:18px;"><span style="font-size:0.85rem;">Mostrar en listados destacados</span></label>
                 </div>
                 <div class="field-group" style="grid-column:1/-1;">
-                    <label>Notes (internal)</label>
-                    <textarea id="edit-notes" placeholder="Internal notes..."></textarea>
+                    <label>Notas (internas)</label>
+                    <textarea id="edit-notes" placeholder="Notas internas..."></textarea>
                 </div>
             </div>
             <div id="edit-application-info" style="margin-bottom:1rem;"></div>
             <div class="panel-actions">
-                <button class="panel-btn save" onclick="saveMember()">💾 Save</button>
-                <button class="panel-btn cancel" onclick="closePanel('edit-panel')">Cancel</button>
+                <button class="panel-btn save" onclick="saveMember()">💾 Guardar</button>
+                <button class="panel-btn cancel" onclick="closePanel('edit-panel')">Cancelar</button>
                 <span class="panel-msg" id="edit-msg"></span>
             </div>
         </div>
 
         <!-- Password panel -->
         <div class="panel pwd-panel" id="pwd-panel">
-            <h3 id="pwd-panel-title">Set Password</h3>
+            <h3 id="pwd-panel-title">Establecer Contraseña</h3>
             <input type="hidden" id="pwd-id">
             <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
                 <div class="field-group" style="flex:1;min-width:200px;">
-                    <label>New Password for Member</label>
-                    <input type="text" id="new-password" placeholder="Enter new password">
+                    <label>Nueva Contraseña para el Miembro</label>
+                    <input type="text" id="new-password" placeholder="Ingrese nueva contraseña">
                 </div>
-                <button class="panel-btn save" onclick="setPassword()">🔑 Set Password</button>
-                <button class="panel-btn cancel" onclick="closePanel('pwd-panel')">Cancel</button>
+                <button class="panel-btn save" onclick="setPassword()">🔑 Establecer Contraseña</button>
+                <button class="panel-btn cancel" onclick="closePanel('pwd-panel')">Cancelar</button>
                 <span class="panel-msg" id="pwd-msg"></span>
             </div>
             <p style="font-size:0.75rem;color:#aaa;margin-top:0.8rem;">
-                ⚠️ Copy and send this password to the member — it cannot be retrieved after saving.
+                ⚠️ Copie y envíe esta contraseña al miembro — no se puede recuperar después de guardarla.
             </p>
         </div>
 
         <!-- WhatsApp panel -->
         <div class="panel wa-panel" id="wa-panel">
-            <h3 id="wa-panel-title">💬 Send WhatsApp Invitation</h3>
+            <h3 id="wa-panel-title">💬 Enviar Invitación por WhatsApp</h3>
             <input type="hidden" id="wa-id">
             <input type="hidden" id="wa-phone">
             <div class="wa-lang-toggle">
@@ -460,10 +460,10 @@
             </div>
             <textarea class="wa-message" id="wa-message" rows="8"></textarea>
             <div class="panel-actions" style="margin-top:1rem;flex-wrap:wrap;">
-                <a id="wa-send-link" href="#" target="_blank" class="panel-btn wa" onclick="markInvitedFromWa()">💬 Open WhatsApp</a>
-                <button class="panel-btn" style="background:#7a1a1a;color:#ffaaaa;" onclick="markWhatsappInvalid()">❌ This number is not WhatsApp</button>
-                <button class="panel-btn cancel" onclick="closePanel('wa-panel')">Cancel</button>
-                <span style="font-size:0.75rem;color:#aaa;">Opens WhatsApp with pre-written message. Clicking marks as Invited.</span>
+                <a id="wa-send-link" href="#" target="_blank" class="panel-btn wa" onclick="markInvitedFromWa()">💬 Abrir WhatsApp</a>
+                <button class="panel-btn" style="background:#7a1a1a;color:#ffaaaa;" onclick="markWhatsappInvalid()">❌ Este número no es WhatsApp</button>
+                <button class="panel-btn cancel" onclick="closePanel('wa-panel')">Cancelar</button>
+                <span style="font-size:0.75rem;color:#aaa;">Abre WhatsApp con un mensaje predefinido. Al hacer clic se marca como Invitado.</span>
                 <span id="wa-send-counter" style="font-size:0.8rem;font-weight:700;margin-left:auto;"></span>
             </div>
         </div>
@@ -474,24 +474,24 @@
         <!-- Members tab -->
         <div class="tab-content active" id="content-members">
             <div class="toolbar">
-                <input type="text" id="member-search" placeholder="Search name, province, email, contact..." oninput="filterMembers()">
+                <input type="text" id="member-search" placeholder="Buscar nombre, provincia, correo, contacto..." oninput="filterMembers()">
                 <select id="member-filter" onchange="filterMembers(true)">
-                    <option value="all">All listings</option>
-                    <option value="apatel">APATEL members</option>
-                    <option value="members">Active members</option>
-                    <option value="expired">Expired membership</option>
-                    <option value="not-invited">Not yet invited</option>
-                    <option value="invited">Invited</option>
-                    <option value="no-response">No response (30+ days)</option>
-                    <option value="refused">Refused</option>
-                    <option value="no-email">No email</option>
-                    <option value="no-atp">Not in ATP list</option>
+                    <option value="all">Todos los listados</option>
+                    <option value="apatel">Miembros APATEL</option>
+                    <option value="members">Miembros activos</option>
+                    <option value="expired">Membresía vencida</option>
+                    <option value="not-invited">Aún no invitado</option>
+                    <option value="invited">Invitado</option>
+                    <option value="no-response">Sin respuesta (30+ días)</option>
+                    <option value="refused">Rechazado</option>
+                    <option value="no-email">Sin correo</option>
+                    <option value="no-atp">No en lista ATP</option>
                 </select>
-                <button class="tbtn primary" onclick="loadMembers()">🔄 Refresh</button>
-                <button class="tbtn success" onclick="recalcRanks()">🏆 Recalculate Ranks</button>
-                <button class="tbtn" style="background:#8e44ad;color:white;" onclick="refreshPublicCache()">🌐 Refresh Public Site Cache</button>
-                <button class="tbtn" style="background:#00a859;color:white;" onclick="scanWhatsappCandidates()">📱 Scan WhatsApp Candidates</button>
-                <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('listings')">💾 Backup Listings</button>
+                <button class="tbtn primary" onclick="loadMembers()">🔄 Actualizar</button>
+                <button class="tbtn success" onclick="recalcRanks()">🏆 Recalcular Rangos</button>
+                <button class="tbtn" style="background:#8e44ad;color:white;" onclick="refreshPublicCache()">🌐 Actualizar Caché del Sitio Público</button>
+                <button class="tbtn" style="background:#00a859;color:white;" onclick="scanWhatsappCandidates()">📱 Buscar Candidatos de WhatsApp</button>
+                <button class="tbtn" style="background:#6b46c1;color:white;" onclick="exportTable('listings')">💾 Respaldar Listados</button>
 <button class="tbtn" style="background:#005ca9;color:white;" onclick="showMessageHistory()">📜 Historial de mensajes</button>
 <button class="tbtn" style="background:#1a5c1a;color:white;" onclick="sendToSelectedMembers()">📧 Enviar mensaje</button>
 </div>
@@ -509,54 +509,54 @@
                   <thead>
                       <tr>
                           <th><input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)"></th>
-                          <th>ID</th><th>Name / Contact</th><th>Province</th><th>Type</th>
-                          <th>Email / Phone</th><th>Status</th><th>Paid Until</th><th>Actions</th>
+                          <th>ID</th><th>Nombre / Contacto</th><th>Provincia</th><th>Tipo</th>
+                          <th>Correo / Teléfono</th><th>Estado</th><th>Pagado Hasta</th><th>Acciones</th>
                       </tr>
                   </thead>
                   <tbody id="members-tbody">
-                      <tr class="loading-row"><td colspan="9">Loading...</td></tr>
+                      <tr class="loading-row"><td colspan="9">Cargando...</td></tr>
                   </tbody>
                 </table>
             </div>
-            <div class="row-count">Showing <span id="showing-count">0</span> of <span id="total-count">0</span> listings</div>
+            <div class="row-count">Mostrando <span id="showing-count">0</span> de <span id="total-count">0</span> listados</div>
         </div>
 
         <!-- Applications tab -->
         <div class="tab-content" id="content-applications">
             <div class="filter-tabs">
-                <button class="filter-tab active" onclick="filterApps('all')"      id="ftab-all">All</button>
-                <button class="filter-tab"        onclick="filterApps('pending')"  id="ftab-pending">⏳ Pending</button>
-                <button class="filter-tab"        onclick="filterApps('approved')" id="ftab-approved">✅ Approved</button>
-                <button class="filter-tab"        onclick="filterApps('rejected')"    id="ftab-rejected">❌ Rejected</button>
-                <button class="filter-tab"        onclick="filterApps('pending_atp')" id="ftab-pending_atp">⏳ Pending ATP</button>
+                <button class="filter-tab active" onclick="filterApps('all')"      id="ftab-all">Todos</button>
+                <button class="filter-tab"        onclick="filterApps('pending')"  id="ftab-pending">⏳ Pendiente</button>
+                <button class="filter-tab"        onclick="filterApps('approved')" id="ftab-approved">✅ Aprobado</button>
+                <button class="filter-tab"        onclick="filterApps('rejected')"    id="ftab-rejected">❌ Rechazado</button>
+                <button class="filter-tab"        onclick="filterApps('pending_atp')" id="ftab-pending_atp">⏳ Pendiente ATP</button>
             </div>
             <div class="toolbar">
-                <button class="tbtn primary" onclick="loadApplications()">🔄 Refresh</button>
+                <button class="tbtn primary" onclick="loadApplications()">🔄 Actualizar</button>
                 <span id="app-count" style="font-size:0.82rem;color:#aaa;align-self:center;"></span>
             </div>
             <div id="applications-container">
-                <div class="no-results">Click Refresh to load applications</div>
+                <div class="no-results">Haga clic en Actualizar para cargar solicitudes</div>
             </div>
         </div>
 
         <!-- Invoices tab -->
         <div class="tab-content" id="content-invoices">
             <div class="toolbar">
-                <button class="tbtn primary" onclick="loadInvoiceLog()">🔄 Refresh</button>
-                <button class="tbtn success" onclick="exportInvoiceCSV()">📥 Export CSV</button>
-                <button class="tbtn" onclick="reconcileInvoices()">🔎 Update invoices</button>
+                <button class="tbtn primary" onclick="loadInvoiceLog()">🔄 Actualizar</button>
+                <button class="tbtn success" onclick="exportInvoiceCSV()">📥 Exportar CSV</button>
+                <button class="tbtn" onclick="reconcileInvoices()">🔎 Actualizar facturas</button>
             </div>
             <div id="reconcile-panel"></div>
             <div class="table-wrap" style="margin-top:1rem;">
                 <table class="invoice-table">
                     <thead>
                         <tr>
-                            <th>Date</th><th>Property</th><th>Contact</th><th>Email</th>
-                            <th>RUC</th><th>Plan</th><th>Amount</th><th>ITBMS</th><th>Total</th><th>Payment</th>
+                            <th>Fecha</th><th>Propiedad</th><th>Contacto</th><th>Correo</th>
+                            <th>RUC</th><th>Plan</th><th>Monto</th><th>ITBMS</th><th>Total</th><th>Pago</th>
                         </tr>
                     </thead>
                     <tbody id="invoice-tbody">
-                        <tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem;">Click Refresh to load</td></tr>
+                        <tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem;">Haga clic en Actualizar para cargar</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -565,15 +565,15 @@
         <!-- Analytics tab -->
         <div id="content-analytics" class="tab-content" style="display:none;">
             <div style="background:#1a2a3a;border-radius:10px;padding:1.5rem;margin-bottom:1rem;">
-                <h3 style="color:#FFD700;margin-bottom:1rem;">📊 Analytics</h3>
+                <h3 style="color:#FFD700;margin-bottom:1rem;">📊 Analítica</h3>
                 <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;">
-                    <button onclick="loadAnalytics(7)"  class="action-btn edit">Last 7 days</button>
-                    <button onclick="loadAnalytics(30)" class="action-btn edit">Last 30 days</button>
-                    <button onclick="loadAnalytics(90)" class="action-btn edit">Last 90 days</button>
-                    <button onclick="sendWeeklyReport()" class="action-btn" style="background:#005ca9;ma<button onclick="sendWeeklyReport()" class="action-btn" style="background:#005ca9;margin-left:auto;color:white;">📧 Send report now</button>rgin-left:auto;">📧 Send report now</button>
+                    <button onclick="loadAnalytics(7)"  class="action-btn edit">Últimos 7 días</button>
+                    <button onclick="loadAnalytics(30)" class="action-btn edit">Últimos 30 días</button>
+                    <button onclick="loadAnalytics(90)" class="action-btn edit">Últimos 90 días</button>
+                    <button onclick="sendWeeklyReport()" class="action-btn" style="background:#005ca9;ma<button onclick="sendWeeklyReport()" class="action-btn" style="background:#005ca9;margin-left:auto;color:white;">📧 Enviar reporte ahora</button>rgin-left:auto;">📧 Enviar reporte ahora</button>
                 </div>
                 <div id="analytics-content" style="color:#ccc;font-size:0.85rem;">
-                    Click a period above to load analytics.
+                    Haga clic en un período arriba para cargar la analítica.
                 </div>
             </div>
         </div>
@@ -661,22 +661,22 @@
 
                         <!-- Subject -->
                         <div style="margin-bottom:0.8rem;">
-                            <label style="display:block;font-size:0.75rem;color:#aaa;margin-bottom:4px;">SUBJECT</label>
+                            <label style="display:block;font-size:0.75rem;color:#aaa;margin-bottom:4px;">ASUNTO</label>
                             <input id="followup-subject" type="text" value="Información adicional — Trusted Panama Stays"
                                 style="width:100%;padding:8px;background:#2c3e50;border:1px solid #555;border-radius:6px;color:white;font-size:0.88rem;box-sizing:border-box;">
                         </div>
 
                         <!-- Toolbar -->
                         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px;">
-                            <button onclick="fmt('bold')"          title="Bold"          style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;font-weight:700;">B</button>
-                            <button onclick="fmt('italic')"        title="Italic"        style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;font-style:italic;">I</button>
-                            <button onclick="fmt('underline')"     title="Underline"     style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;text-decoration:underline;">U</button>
-                            <button onclick="fmtLink()"            title="Insert link"   style="padding:4px 8px;background:#2c3e50;color:#7ec8e3;border:1px solid #555;border-radius:4px;cursor:pointer;">🔗</button>
-                            <button onclick="fmt('insertUnorderedList')" title="Bullet list" style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">• List</button>
-                            <button onclick="fmtBlock('h3')"       title="Heading"       style="padding:4px 8px;background:#2c3e50;color:#FFD700;border:1px solid #555;border-radius:4px;cursor:pointer;">H3</button>
-                            <button onclick="fmtBlock('p')"        title="Paragraph"     style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">¶</button>
-                            <button onclick="insertHighlight()"    title="Yellow box"    style="padding:4px 8px;background:#7a5c00;color:#FFD700;border:1px solid #555;border-radius:4px;cursor:pointer;">⚠ Box</button>
-                            <button onclick="insertCTA()"          title="Call to action button" style="padding:4px 8px;background:#005ca9;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">→ CTA</button>
+                            <button onclick="fmt('bold')"          title="Negrita"          style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;font-weight:700;">B</button>
+                            <button onclick="fmt('italic')"        title="Cursiva"        style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;font-style:italic;">I</button>
+                            <button onclick="fmt('underline')"     title="Subrayado"     style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;text-decoration:underline;">U</button>
+                            <button onclick="fmtLink()"            title="Insertar enlace"   style="padding:4px 8px;background:#2c3e50;color:#7ec8e3;border:1px solid #555;border-radius:4px;cursor:pointer;">🔗</button>
+                            <button onclick="fmt('insertUnorderedList')" title="Lista con viñetas" style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">• List</button>
+                            <button onclick="fmtBlock('h3')"       title="Encabezado"       style="padding:4px 8px;background:#2c3e50;color:#FFD700;border:1px solid #555;border-radius:4px;cursor:pointer;">H3</button>
+                            <button onclick="fmtBlock('p')"        title="Párrafo"     style="padding:4px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">¶</button>
+                            <button onclick="insertHighlight()"    title="Recuadro amarillo"    style="padding:4px 8px;background:#7a5c00;color:#FFD700;border:1px solid #555;border-radius:4px;cursor:pointer;">⚠ Box</button>
+                            <button onclick="insertCTA()"          title="Botón de llamada a la acción" style="padding:4px 8px;background:#005ca9;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">→ CTA</button>
                         </div>
 
                         <!-- Rich text editor -->
@@ -692,25 +692,25 @@
                         <!-- Tabs: Edit / Preview / HTML -->
                         <!-- Template manager -->
                         <div style="background:#111;border-radius:6px;padding:0.7rem;margin-bottom:0.5rem;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                            <label style="font-size:0.75rem;color:#aaa;flex-shrink:0;">Template:</label>
+                            <label style="font-size:0.75rem;color:#aaa;flex-shrink:0;">Plantilla:</label>
                             <select id="template-selector" onchange="loadTemplate()" style="flex:1;min-width:150px;padding:5px 8px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;font-size:0.82rem;">
-                                <option value="">— select —</option>
+                                <option value="">— seleccionar —</option>
                             </select>
-                            <button onclick="loadTemplate()" style="padding:5px 10px;background:#2c3e50;color:#adf5ad;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">📂 Load</button>
-                            <button onclick="saveTemplate()" style="padding:5px 10px;background:#1a5c1a;color:white;border:none;border-radius:5px;cursor:pointer;font-size:0.82rem;">💾 Save</button>
-                            <button onclick="newTemplate()"  style="padding:5px 10px;background:#2c3e50;color:#FFD700;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">+ New</button>
+                            <button onclick="loadTemplate()" style="padding:5px 10px;background:#2c3e50;color:#adf5ad;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">📂 Cargar</button>
+                            <button onclick="saveTemplate()" style="padding:5px 10px;background:#1a5c1a;color:white;border:none;border-radius:5px;cursor:pointer;font-size:0.82rem;">💾 Guardar</button>
+                            <button onclick="newTemplate()"  style="padding:5px 10px;background:#2c3e50;color:#FFD700;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">+ Nuevo</button>
                             <span id="template-status" style="font-size:0.75rem;color:#aaa;"></span>
                         </div>
 
                         <div style="display:flex;gap:6px;margin-bottom:0.5rem;flex-wrap:wrap;">
-                            <button onclick="showEditorTab('preview')" style="padding:5px 12px;background:#005ca9;color:white;border:none;border-radius:5px;cursor:pointer;font-size:0.82rem;">👁 Preview email</button>
+                            <button onclick="showEditorTab('preview')" style="padding:5px 12px;background:#005ca9;color:white;border:none;border-radius:5px;cursor:pointer;font-size:0.82rem;">👁 Vista previa del correo</button>
                             <button onclick="showEditorTab('html')"    style="padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">‹/› HTML</button>
-                            <button onclick="showEditorTab('edit')"    style="padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">✏️ Edit</button>
+                            <button onclick="showEditorTab('edit')"    style="padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.82rem;">✏️ Editar</button>
                         </div>
 
                         <!-- Preview panel -->
                         <div id="followup-preview" style="display:none;border:2px solid #005ca9;border-radius:8px;overflow:hidden;">
-                            <div style="background:#005ca9;color:white;padding:6px 12px;font-size:0.78rem;">📧 Email preview — as recipients will see it</div>
+                            <div style="background:#005ca9;color:white;padding:6px 12px;font-size:0.78rem;">📧 Vista previa del correo — como lo verán los destinatarios</div>
                             <iframe id="followup-iframe" style="width:100%;height:400px;border:none;background:white;"></iframe>
                         </div>
 
@@ -731,7 +731,7 @@
                                                     </select>
                                                 </div>
                                                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.8rem;">
-                                                    <button onclick="sendTestFollowup()" class="action-btn edit">📨 Send test to info@</button>
+                                                    <button onclick="sendTestFollowup()" class="action-btn edit">📨 Enviar prueba a info@</button>
                                                     <button onclick="sendToFbTargets()" class="action-btn" style="background:#1a5c1a;color:white;">📨 Enviar a selección confirmada</button>
                                                 </div>
                                               </div>
@@ -754,17 +754,17 @@
         <!-- Log tab -->
         <div class="tab-content" id="content-log">
             <div class="toolbar">
-                <button class="tbtn primary" onclick="loadLog()">🔄 Refresh</button>
+                <button class="tbtn primary" onclick="loadLog()">🔄 Actualizar</button>
                 <select id="log-filter" onchange="filterLog()">
-                    <option value="all">All events</option>
+                    <option value="all">Todos los eventos</option>
                     <option value="emails">📨 Correos enviados</option>
-                    <option value="admin">Admin actions</option>
-                    <option value="invitation">Invitations</option>
-                    <option value="application">Applications</option>
-                    <option value="error">Errors</option>
+                    <option value="admin">Acciones de administrador</option>
+                    <option value="invitation">Invitaciones</option>
+                    <option value="application">Solicitudes</option>
+                    <option value="error">Errores</option>
                 </select>
             </div>
-            <div id="log-container"><div class="no-results">Click Refresh to load logs</div></div>
+            <div id="log-container"><div class="no-results">Haga clic en Actualizar para cargar el registro</div></div>
         </div>
 
         <!-- ATP Sync tab -->
@@ -774,20 +774,20 @@
                 <button class="tbtn" style="background:#00a859;color:white;" onclick="forceReloadPdf()">📥 Verificar ahora (descarga completa)</button>
             </div>
           <div id="atpsync-content" style="background:#2c3e50;border-radius:10px;padding:1.5rem;">
-              Loading...
+              Cargando...
           </div>
         </div>
 
         <!-- IP tab -->
         <div class="tab-content" id="content-ip">
             <div class="ip-card">
-                <h3>🌐 IP Address Management</h3>
-                <p style="font-size:0.82rem;color:#aaa;margin-bottom:1rem;">Registered admin IP — must match your current IP.</p>
-                <div class="ip-display" id="current-admin-ip">Loading...</div>
-                <p style="font-size:0.8rem;color:#aaa;margin-bottom:1rem;">Your current IP: <strong id="your-current-ip" style="color:#7ec8e3;">Loading...</strong></p>
-                <button class="tbtn success" onclick="updateAdminIP()" style="margin-bottom:1rem;">📍 Update to My Current IP</button>
+                <h3>🌐 Gestión de Dirección IP</h3>
+                <p style="font-size:0.82rem;color:#aaa;margin-bottom:1rem;">IP de administrador registrada — debe coincidir con su IP actual.</p>
+                <div class="ip-display" id="current-admin-ip">Cargando...</div>
+                <p style="font-size:0.8rem;color:#aaa;margin-bottom:1rem;">Su IP actual: <strong id="your-current-ip" style="color:#7ec8e3;">Cargando...</strong></p>
+                <button class="tbtn success" onclick="updateAdminIP()" style="margin-bottom:1rem;">📍 Actualizar a Mi IP Actual</button>
                 <p style="font-size:0.75rem;color:#555;margin-top:0.5rem;">
-                    From phone:<br>
+                    Desde el teléfono:<br>
                     <code style="color:#7ec8e3;font-size:0.72rem;">https://trustedpanamastays.com/api/update-admin-ip?secret=ADMIN_SECRET</code>
                 </p>
             </div>
@@ -795,25 +795,25 @@
 
         <!-- Suggestions tab -->
         <div id="content-suggestions" class="tab-content" style="display:none;">
-            <h3 style="color:#FFD700;margin-bottom:1rem;">💡 Feature Suggestions from Members</h3>
+            <h3 style="color:#FFD700;margin-bottom:1rem;">💡 Sugerencias de Funciones de los Miembros</h3>
             <div id="suggestions-list" style="display:flex;flex-direction:column;gap:0.8rem;"></div>
         </div>
 
         <!-- Keywords edit tab -->
         <div id="content-keywords-edit" class="tab-content" style="display:none;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-                <h3 style="color:#FFD700;">🏷️ Manage Keywords</h3>
-                <button onclick="showAddKeywordForm()" class="action-btn edit">+ Add New</button>
+                <h3 style="color:#FFD700;">🏷️ Gestionar Palabras Clave</h3>
+                <button onclick="showAddKeywordForm()" class="action-btn edit">+ Agregar Nueva</button>
             </div>
             <div id="add-keyword-form" style="display:none;background:#1a2a1a;border:1px solid #2a4a2a;border-radius:8px;padding:1rem;margin-bottom:1rem;">
-                <h4 style="color:#adf5ad;margin-bottom:0.8rem;">New Keyword</h4>
+                <h4 style="color:#adf5ad;margin-bottom:0.8rem;">Nueva Palabra Clave</h4>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
                     <div><div style="font-size:0.7rem;color:#aaa;">Slug</div><input type="text" id="new-slug" placeholder="e.g. hot-tub" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:130px;"></div>
                     <div><div style="font-size:0.7rem;color:#aaa;">Español</div><input type="text" id="new-label-es" placeholder="Jacuzzi" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;"></div>
-                    <div><div style="font-size:0.7rem;color:#aaa;">English</div><input type="text" id="new-label-en" placeholder="Hot tub" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;"></div>
-                    <div><div style="font-size:0.7rem;color:#aaa;">Category</div><select id="new-cat" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;" id="new-cat-sel"></select></div>
-                    <button onclick="saveNewKeyword()" class="action-btn edit">Save</button>
-                    <button onclick="document.getElementById('add-keyword-form').style.display='none'" class="action-btn" style="background:#555;">Cancel</button>
+                    <div><div style="font-size:0.7rem;color:#aaa;">Inglés</div><input type="text" id="new-label-en" placeholder="Hot tub" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;"></div>
+                    <div><div style="font-size:0.7rem;color:#aaa;">Categoría</div><select id="new-cat" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;" id="new-cat-sel"></select></div>
+                    <button onclick="saveNewKeyword()" class="action-btn edit">Guardar</button>
+                    <button onclick="document.getElementById('add-keyword-form').style.display='none'" class="action-btn" style="background:#555;">Cancelar</button>
                 </div>
             </div>
             <div id="keywords-edit-list" style="display:flex;flex-direction:column;gap:4px;"></div>
@@ -848,11 +848,11 @@ async function doLogin() {
             sessionStorage.setItem('admin_token', adminToken);
             showAdminScreen();
         } else {
-            errorEl.textContent = data.error || 'Login failed';
+            errorEl.textContent = data.error || 'Error al iniciar sesión';
             errorEl.style.display = 'block';
         }
     } catch (err) {
-        errorEl.textContent = 'Connection error: ' + err.message;
+        errorEl.textContent = 'Error de conexión: ' + err.message;
         errorEl.style.display = 'block';
     }
 }
@@ -873,7 +873,7 @@ async function adminFetch(url, options={}) {
     });
     if (res.status === 401 || res.status === 403) {
         doLogout();
-        throw new Error('Session expired — please log in again');
+        throw new Error('Sesión expirada — por favor inicie sesión de nuevo');
     }
     return res;
 }
@@ -881,7 +881,7 @@ async function adminFetch(url, options={}) {
 function showAdminScreen() {
     document.getElementById('login-screen').style.display  = 'none';
     document.getElementById('admin-screen').style.display  = 'block';
-    document.getElementById('session-info').textContent    = 'Session active · ' + new Date().toLocaleTimeString();
+    document.getElementById('session-info').textContent    = 'Sesión activa · ' + new Date().toLocaleTimeString();
     loadMembers();
     loadSuggestions();
     loadIPInfo();
@@ -944,7 +944,7 @@ function getInvitationStatus(m) {
 
 // ── Load members ──────────────────────────────────────────────────────────────
 async function loadMembers() {
-    document.getElementById('members-tbody').innerHTML = '<tr class="loading-row"><td colspan="8">Loading...</td></tr>';
+    document.getElementById('members-tbody').innerHTML = '<tr class="loading-row"><td colspan="8">Cargando...</td></tr>';
     try {
         const res = await adminFetch('/api/admin/members');
         allMembers = await res.json();
@@ -959,7 +959,7 @@ async function loadMembers() {
 async function exportTable(table) {
     try {
         const res = await adminFetch('/api/admin/export-table?table=' + table);
-        if (!res.ok) { alert('Export failed'); return; }
+        if (!res.ok) { alert('Error al exportar'); return; }
         const blob = await res.blob();
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
@@ -967,7 +967,7 @@ async function exportTable(table) {
         a.download = `${table}_backup_${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         URL.revokeObjectURL(url);
-    } catch(err) { alert('Export error: ' + err.message); }
+    } catch(err) { alert('Error de exportación: ' + err.message); }
 }
 
 // Downloads all three backup files in one click. A small delay between each
@@ -982,22 +982,22 @@ async function exportAllBackups() {
 }
 
 async function refreshPublicCache() {
-    if (!confirm('Refresh the public homepage\'s listing cache from the database now?')) return;
+    if (!confirm('¿Actualizar ahora la caché de listados de la página principal desde la base de datos?')) return;
     try {
         const res  = await adminFetch('/api/admin/refresh-cache', { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Refresh failed');
-        alert(`✅ Public site cache refreshed: ${data.count} listings now live.`);
+        alert(`✅ Caché del sitio público actualizada: ${data.count} listados activos ahora.`);
     } catch(err) { alert('Error: ' + err.message); }
 }
 
 async function recalcRanks() {
-    if (!confirm('Recalculate feature ranks for all members now?')) return;
+    if (!confirm('¿Recalcular los rangos destacados de todos los miembros ahora?')) return;
     try {
         const res  = await adminFetch('/api/admin/recalculate-ranks');
         const data = await res.json();
-        if (data.success) { alert('✅ Feature ranks recalculated.'); loadMembers(); }
-        else alert('❌ Error: ' + (data.error||'unknown'));
+        if (data.success) { alert('✅ Rangos destacados recalculados.'); loadMembers(); }
+        else alert('❌ Error: ' + (data.error||'desconocido'));
     } catch(err) { alert('Error: ' + err.message); }
 }
 
@@ -1186,7 +1186,7 @@ function renderMembers(members) {
     document.getElementById('showing-count').textContent = members.length;
     document.getElementById('total-count').textContent   = allMembers.length;
     const tbody = document.getElementById('members-tbody');
-    if (!members.length) { tbody.innerHTML = '<tr class="loading-row"><td colspan="9">No results</td></tr>'; return; }
+    if (!members.length) { tbody.innerHTML = '<tr class="loading-row"><td colspan="9">Sin resultados</td></tr>'; return; }
     const today = new Date().toISOString().split('T')[0];
     members = [...members].sort((a,b) => {
         const ra = a.feature_rank || 0;
@@ -1209,7 +1209,7 @@ function renderMembers(members) {
             const statusBadge = noContact
                 ? `<span class="status-badge s-unregistered" title="Sin correo ni WhatsApp confirmado">SIN CONTACTO</span>`
                 : `<span class="status-badge ${s.cls}" onclick="cycleStatus(${m.id})"
-                    title="${s.date?'Invited: '+s.date:''}">${s.label}</span>`;
+                    title="${s.date?'Invitado: '+s.date:''}">${s.label}</span>`;
         const paidUntil = m.membership_paid_until
             ? `<span style="color:${m.membership_paid_until<today?'#ff7070':'#adf5ad'};font-size:0.78rem;">${m.membership_paid_until}</span>`
             : '<span style="color:#555;">—</span>';
@@ -1223,7 +1223,7 @@ function renderMembers(members) {
             <td style="font-size:0.78rem;">${m.province||'—'}</td>
             <td style="font-size:0.75rem;">${m.rental_type||'—'}</td>
             <td style="font-size:0.78rem;">
-                ${m.email?`<a href="mailto:${m.email}" style="color:#7ec8e3;">${m.email}</a>`:'<span style="color:#ff7070;font-size:0.72rem;">no email</span>'}
+                ${m.email?`<a href="mailto:${m.email}" style="color:#7ec8e3;">${m.email}</a>`:'<span style="color:#ff7070;font-size:0.72rem;">sin correo</span>'}
                 ${m.phone?`<br><span style="color:#aaa;">${m.phone.replace(/^\/+|\/+$/g,'').trim()}</span>`:''}
             </td>
             <td>${statusBadge}<br>${atpBadge} ${apatelBadge}</td>
@@ -1248,21 +1248,21 @@ async function cycleStatus(id) {
     if (nextStatus === 'invited') {
         if (!m.email) {
             if (m.whatsapp) { openWaPanel(id); return; }
-            alert('This listing has no email and no confirmed WhatsApp number — nothing to invite them with.');
+            alert('Este hospedaje no tiene correo ni un número de WhatsApp confirmado — no hay forma de invitarlo.');
             return;
         }
-        if (!confirm(`Send an invitation email to ${m.email}?`)) return;
+        if (!confirm(`¿Enviar un correo de invitación a ${m.email}?`)) return;
         try {
             const res = await adminFetch('/api/admin/invite-single', { method:'POST', body: JSON.stringify({ id }) });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Send failed');
+            if (!res.ok) throw new Error(data.error || 'Error al enviar');
             m.invitation_status = 'invited';
             m.invitation_sent_at = new Date().toISOString();
             updateStats(allMembers); filterMembers();
         } catch (err) { alert('Error: '+err.message); }
         return;
     }
-    if (!confirm(`Change status to: ${nextStatus.replace('_',' ').toUpperCase()}?`)) return;
+    if (!confirm(`¿Cambiar el estado a: ${nextStatus.replace('_',' ').toUpperCase()}?`)) return;
     try {
         const res = await adminFetch('/api/admin/set-invitation-status', { method:'POST', body: JSON.stringify({ id, status: nextStatus }) });
         if (res.ok) {
@@ -1280,7 +1280,7 @@ function openWaPanel(id) {
     currentWaMember = m;
     document.getElementById('wa-id').value    = m.id;
     document.getElementById('wa-phone').value = m.whatsapp || '';
-    document.getElementById('wa-panel-title').textContent = `💬 Invite: ${m.name}`;
+    document.getElementById('wa-panel-title').textContent = `💬 Invitar: ${m.name}`;
     closePanel('edit-panel'); closePanel('pwd-panel');
     setWaLang(waLang);
     updateWaSendCounter();
@@ -1365,12 +1365,12 @@ async function markWhatsappInvalid() {
 }
 
 async function scanWhatsappCandidates() {
-    if (!confirm('Scan the entire directory for WhatsApp-capable numbers?\n\nPor favor espere la confirmación — esto puede tardar unos segundos.')) return;
+    if (!confirm('¿Escanear todo el directorio en busca de números con WhatsApp?\n\nPor favor espere la confirmación — esto puede tardar unos segundos.')) return;
     try {
         const res = await adminFetch('/api/admin/scan-whatsapp-candidates', { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Scan failed');
-        alert(`✅ Scan complete: ${data.updated} found, ${data.cleared} cleared, ${data.unchanged} unchanged (of ${data.total} listings).`);
+        alert(`✅ Escaneo completo: ${data.updated} encontrados, ${data.cleared} eliminados, ${data.unchanged} sin cambios (de ${data.total} listados).`);
         loadMembers();
     } catch(err) { alert('Error: ' + err.message); }
 }
@@ -1393,7 +1393,7 @@ function openEditPanel(id) {
     document.getElementById('edit-rental-type').value  = m.rental_type||'';
     document.getElementById('edit-apatel').checked     = !!m.apatel_member;
     document.getElementById('edit-featured').checked = (m.feature_rank > 0);
-    document.getElementById('edit-panel-title').textContent = `Edit: ${m.name} (ID: ${m.id})`;
+    document.getElementById('edit-panel-title').textContent = `Editar: ${m.name} (ID: ${m.id})`;
     document.getElementById('edit-msg').style.display  = 'none';
     closePanel('pwd-panel'); closePanel('wa-panel');
     document.getElementById('edit-panel').classList.add('active');
@@ -1418,13 +1418,13 @@ async function openListingAsAdmin() {
 
 async function loadApplicationInfoForEdit(listingId) {
     const box = document.getElementById('edit-application-info');
-    box.innerHTML = '<div style="color:#aaa;font-size:0.82rem;">Loading applicant &amp; payment info...</div>';
+    box.innerHTML = '<div style="color:#aaa;font-size:0.82rem;">Cargando información del solicitante y del pago...</div>';
     try {
         const res  = await adminFetch('/api/admin/listing-application-info/' + listingId);
         const data = await res.json();
         renderApplicationInfo(data.application, data.payment);
     } catch(err) {
-        box.innerHTML = `<div style="color:#ff7070;font-size:0.82rem;">Error loading applicant info: ${err.message}</div>`;
+        box.innerHTML = `<div style="color:#ff7070;font-size:0.82rem;">Error al cargar información del solicitante: ${err.message}</div>`;
     }
 }
 
@@ -1443,7 +1443,7 @@ async function loadApplicationInfoForEdit(listingId) {
 async function downloadInvoicePdf(invoiceUuid, listingId, amountTotal, invoiceNumber, alsoShow) {
     try {
         const res = await adminFetch('/api/admin/invoice-pdf/' + invoiceUuid);
-        if (!res.ok) { const d = await res.json(); alert('Error: ' + (d.error||'download failed')); return; }
+        if (!res.ok) { const d = await res.json(); alert('Error: ' + (d.error||'error de descarga')); return; }
         const blob = await res.blob();
         const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
         const amountFixed = amountTotal ? parseFloat(amountTotal).toFixed(2) : '0.00';
@@ -1460,12 +1460,12 @@ async function downloadInvoicePdf(invoiceUuid, listingId, amountTotal, invoiceNu
         // the blob before its URL is invalidated (immediate revocation can
         // race the new tab's own fetch of it).
         setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
-    } catch(err) { alert('Error downloading invoice: ' + err.message); }
+    } catch(err) { alert('Error al descargar la factura: ' + err.message); }
 }
 
 function renderApplicationInfo(app, payment) {
     const box = document.getElementById('edit-application-info');
-    if (!app) { box.innerHTML = '<div style="color:#888;font-size:0.82rem;">No application record found for this listing.</div>'; return; }
+    if (!app) { box.innerHTML = '<div style="color:#888;font-size:0.82rem;">No se encontró un registro de solicitud para este hospedaje.</div>'; return; }
 
     const phoneDigits = (app.contact_phone||'').replace(/[^\d]/g,'').substring(0,8);
     const waLink   = phoneDigits ? `https://wa.me/507${phoneDigits}` : null;
@@ -1504,7 +1504,7 @@ function renderApplicationInfo(app, payment) {
                 <strong style="color:#7ec8e3;">🧾 Invoice:</strong>
                 CUFE <code style="font-size:0.75rem;">${payment.cufe||'—'}</code>
                 ${payment.invoice_url ? ` — <a href="${payment.invoice_url}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}
-                ${payment.invoice_uuid ? ` — <button class="doc-btn" onclick="downloadInvoicePdf('${payment.invoice_uuid}','${payment.listing_id}','${payment.amount_total||''}','${payment.invoice_number||''}',true)">⬇️ Download PDF</button>` : ''}
+                ${payment.invoice_uuid ? ` — <button class="doc-btn" onclick="downloadInvoicePdf('${payment.invoice_uuid}','${payment.listing_id}','${payment.amount_total||''}','${payment.invoice_number||''}',true)">⬇️ Descargar PDF</button>` : ''}
                 <br><span style="color:#aaa;font-size:0.78rem;">Total: $${payment.amount_total||'—'} · ${payment.payment_method||''} · ${payment.invoice_date||''}</span>
             </div>` : (app.membership_type === 'paid' ? `
             <div style="margin-top:0.6rem;">
@@ -1512,18 +1512,18 @@ function renderApplicationInfo(app, payment) {
                 <span style="color:#f5c542;">Pendiente</span>
                  — <button class="doc-btn" onclick="showInvoiceFormInPanel(${app.id})">🧾 Crear Factura</button>
                 <div id="panel-invoice-form-${app.id}"></div>
-            </div>` : `<div style="margin-top:0.6rem;color:#888;font-size:0.82rem;">No invoice on file yet.</div>`);
+            </div>` : `<div style="margin-top:0.6rem;color:#888;font-size:0.82rem;">Aún no hay factura registrada.</div>`);
 
     box.innerHTML = `
         <div style="background:#1a2a3a;border-radius:8px;padding:1rem;">
-            <h4 style="color:#FFD700;margin-bottom:0.6rem;">Applicant &amp; Documents</h4>
+            <h4 style="color:#FFD700;margin-bottom:0.6rem;">Solicitante y Documentos</h4>
             <div style="font-size:0.85rem;color:#ccc;">
                 <strong>${app.contact_name||'—'}</strong><br>
                 ${mailLink ? `<a href="${mailLink}" style="color:#7ec8e3;">✉️ ${app.contact_email}</a>` : (app.contact_email||'—')}
                 &nbsp;·&nbsp;
                 ${waLink ? `<a href="${waLink}" target="_blank" style="color:#25D366;">💬 ${app.contact_phone}</a>` : (app.contact_phone||'—')}
             </div>
-            <div style="margin-top:0.6rem;">${docButtons || '<span style="color:#888;font-size:0.8rem;">No documents on file.</span>'}</div>
+            <div style="margin-top:0.6rem;">${docButtons || '<span style="color:#888;font-size:0.8rem;">No hay documentos registrados.</span>'}</div>
             ${rucSection}
             ${invoiceSection}
         </div>`;
@@ -1542,7 +1542,7 @@ async function saveApplicationRuc(appId) {
             body: JSON.stringify({ application_id: appId, ruc, ruc_dv: dv, personal_id: persId })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Save failed');
+        if (!res.ok) throw new Error(data.error || 'Error al guardar');
         msgEl.style.color = '#adf5ad';
         msgEl.textContent = '✅ Guardado';
     } catch(err) {
@@ -1579,7 +1579,7 @@ async function saveMember() {
             m.invitation_status = invStatus;
             if (invStatus==='invited') m.invitation_sent_at = new Date().toISOString();
         }
-        msg.textContent='✅ Saved'; msg.className='panel-msg ok'; msg.style.display='inline-block';
+        msg.textContent='✅ Guardado'; msg.className='panel-msg ok'; msg.style.display='inline-block';
         Object.assign(m||{}, payload);
         updateStats(allMembers); filterMembers();
         setTimeout(()=>closePanel('edit-panel'),1500);
@@ -1592,7 +1592,7 @@ async function saveMember() {
 function openPwdPanel(id, name) {
     document.getElementById('pwd-id').value = id;
     document.getElementById('new-password').value = '';
-    document.getElementById('pwd-panel-title').textContent = `Set Password: ${name}`;
+    document.getElementById('pwd-panel-title').textContent = `Establecer Contraseña: ${name}`;
     document.getElementById('pwd-msg').style.display = 'none';
     closePanel('edit-panel'); closePanel('wa-panel');
     document.getElementById('pwd-panel').classList.add('active');
@@ -1603,12 +1603,12 @@ async function setPassword() {
     const id  = document.getElementById('pwd-id').value;
     const pwd = document.getElementById('new-password').value;
     const msg = document.getElementById('pwd-msg');
-    if (!pwd) { msg.textContent='❌ Enter a password'; msg.className='panel-msg err'; msg.style.display='inline-block'; return; }
+    if (!pwd) { msg.textContent='❌ Ingrese una contraseña'; msg.className='panel-msg err'; msg.style.display='inline-block'; return; }
     try {
         const res  = await adminFetch('/api/admin/set-password', { method:'POST', body: JSON.stringify({ id: parseInt(id), password: pwd }) });
         const data = await res.json();
-        if (res.ok && data.success) { msg.textContent='✅ Password set — copy it now!'; msg.className='panel-msg ok'; msg.style.display='inline-block'; }
-        else throw new Error(data.error||'Failed');
+        if (res.ok && data.success) { msg.textContent='✅ Contraseña establecida — ¡cópiela ahora!'; msg.className='panel-msg ok'; msg.style.display='inline-block'; }
+        else throw new Error(data.error||'Error');
     } catch(err) { msg.textContent='❌ '+err.message; msg.className='panel-msg err'; msg.style.display='inline-block'; }
 }
 
@@ -1687,7 +1687,7 @@ async function loadApplicationCount() {
 }
 
 async function loadApplications() {
-    document.getElementById('applications-container').innerHTML = '<div class="no-results">Loading...</div>';
+    document.getElementById('applications-container').innerHTML = '<div class="no-results">Cargando...</div>';
     try {
         const res = await adminFetch('/api/admin/applications');
         allApplications = await res.json();
@@ -1707,13 +1707,13 @@ function filterApps(status) {
     const filtered = status==='all'
     ? allApplications.filter(a=>!['archived','approved','rejected'].includes(a.status))
     : allApplications.filter(a=>a.status===status);
-    document.getElementById('app-count').textContent = `${filtered.length} application${filtered.length!==1?'s':''}`;
+    document.getElementById('app-count').textContent = `${filtered.length} solicitud${filtered.length!==1?'es':''}`;
     renderApplications(filtered);
 }
 
 function renderApplications(apps) {
     const container = document.getElementById('applications-container');
-    if (!apps.length) { container.innerHTML='<div class="no-results">No applications found</div>'; return; }
+    if (!apps.length) { container.innerHTML='<div class="no-results">No se encontraron solicitudes</div>'; return; }
     container.innerHTML = apps.map(app => {
         const docButtons = (app.documents||[]).map(doc =>
             `<a href="#" class="doc-btn" onclick="viewDocument('${doc.path}','${doc.type}','${app.verification_result||''}','${(app.property_name||'').replace(/'/g,"\\'")}','${app.listing_id||''}');return false;">
@@ -1735,11 +1735,11 @@ function renderApplications(apps) {
                         ${app.registration_type === 'mici' ? `<span class="reg-badge mici">MiCI</span>` : app.listing_id ? `<span class="reg-badge atp">ATP · ${app.listing_id}</span>` : `<span class="reg-badge" style="background:#7a3a00;color:#ffd;">ATP · No match</span>`}
                     </div>
                 </div>
-                <span class="app-status ${app.status}">${app.status.toUpperCase()}</span>
+                <span class="app-status ${app.status}">${({pending:'PENDIENTE',approved:'APROBADA',rejected:'RECHAZADA',pending_atp:'PENDIENTE ATP'}[app.status]||app.status).toUpperCase()}</span>
             </div>
             <div class="app-details">
                 <div class="app-detail-item"><strong>Contacto:</strong> ${app.contact_name}</div>
-                <div class="app-detail-item"><strong>Email:</strong> ${app.contact_email}</div>
+                <div class="app-detail-item"><strong>Correo:</strong> ${app.contact_email}</div>
                 <div class="app-detail-item"><strong>Teléfono:</strong> ${app.contact_phone}</div>
                 <div class="app-detail-item"><strong>Plan:</strong> ${planText}</div>
                 <div class="app-detail-item"><strong>Pago:</strong> ${app.payment_method||'N/A'}</div>
@@ -1748,14 +1748,14 @@ function renderApplications(apps) {
             ${docButtons ? `<div class="app-docs">${docButtons}</div>` : ''}
             ${isPending ? `
             <div class="app-actions">
-                ${app.status === 'pending' ? `<button class="app-btn ai" onclick="verifyDocuments(${app.id})">🤖 AI Verify</button>` : ''}
-                ${app.membership_type === 'paid' && app.status === 'pending' ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve</button>` : ''}
-                ${app.membership_type === 'paid' && (app.status === 'pre_approved' || app.status === 'approved') ? `<span class="app-btn" style="background:#00a859;cursor:default;">✅ Is Active</span>` : ''}
-                ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<button class="app-btn" style="background:#005ca9;color:white;" onclick="sendInvoiceOnly(${app.id})">🧾 Send Invoice</button>` : ''}
-                ${app.membership_type === 'paid' && app.status === 'approved' ? `<button class="app-btn" style="background:#005ca9;color:white;" onclick="sendInvoiceOnly(${app.id})">🧾 Issue Invoice</button>` : ''}
-                ${app.membership_type !== 'paid' && app.status === 'pending' ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve</button>` : ''}
-                ${app.status === 'pending_atp' && app.listing_id ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve (ATP linked)</button>` : ''}
-                <button class="app-btn reject" onclick="${(app.status === 'pre_approved' || app.status === 'approved') ? 'deactivateMembership' : 'showRejectForm'}(${app.id})">🔴 ${(app.status === 'pre_approved' || app.status === 'approved') ? 'Deactivate' : 'Reject'}</button>
+                ${app.status === 'pending' ? `<button class="app-btn ai" onclick="verifyDocuments(${app.id})">🤖 Verificar con IA</button>` : ''}
+                ${app.membership_type === 'paid' && app.status === 'pending' ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Aprobar</button>` : ''}
+                ${app.membership_type === 'paid' && (app.status === 'pre_approved' || app.status === 'approved') ? `<span class="app-btn" style="background:#00a859;cursor:default;">✅ Está Activo</span>` : ''}
+                ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<button class="app-btn" style="background:#005ca9;color:white;" onclick="sendInvoiceOnly(${app.id})">🧾 Enviar Factura</button>` : ''}
+                ${app.membership_type === 'paid' && app.status === 'approved' ? `<button class="app-btn" style="background:#005ca9;color:white;" onclick="sendInvoiceOnly(${app.id})">🧾 Emitir Factura</button>` : ''}
+                ${app.membership_type !== 'paid' && app.status === 'pending' ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Aprobar</button>` : ''}
+                ${app.status === 'pending_atp' && app.listing_id ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Aprobar (vinculado a ATP)</button>` : ''}
+                <button class="app-btn reject" onclick="${(app.status === 'pre_approved' || app.status === 'approved') ? 'deactivateMembership' : 'showRejectForm'}(${app.id})">🔴 ${(app.status === 'pre_approved' || app.status === 'approved') ? 'Desactivar' : 'Rechazar'}</button>
             </div>
             <div class="verify-result"  id="verify-${app.id}"></div>
             <div class="approve-result" id="approve-${app.id}"></div>
@@ -1777,8 +1777,8 @@ function renderApplications(apps) {
                 </div>
             </div>` : `
             <div style="font-size:0.78rem;color:#aaa;">
-                Reviewed: ${app.reviewed_at?new Date(app.reviewed_at).toLocaleString():'—'}
-                ${app.notes?`<br>Notes: ${app.notes}`:''}
+                Revisado: ${app.reviewed_at?new Date(app.reviewed_at).toLocaleString():'—'}
+                ${app.notes?`<br>Notas: ${app.notes}`:''}
             </div>`}
         </div>`;
     }).join('');
@@ -1788,7 +1788,7 @@ async function viewDocument(docPath, docType, verificationResult, propertyName, 
     try {
         const res  = await adminFetch(`/api/admin/document-url?path=${encodeURIComponent(docPath)}`);
         const data = await res.json();
-        if (!data.url) { alert('Could not get document URL'); return; }
+        if (!data.url) { alert('No se pudo obtener la URL del documento'); return; }
         // Always open in new tab for viewing
         window.open(data.url, '_blank');
         // For payment proofs: also download with standard name + copy Drive path
@@ -1822,7 +1822,7 @@ async function viewDocument(docPath, docType, verificationResult, propertyName, 
 
 async function verifyDocuments(appId) {
     const resultEl = document.getElementById('verify-'+appId);
-    resultEl.innerHTML = '🤖 AI is reading documents...';
+    resultEl.innerHTML = '🤖 La IA está leyendo los documentos...';
     resultEl.classList.add('visible');
     try {
         const res  = await adminFetch('/api/admin/verify-documents', { method:'POST', body: JSON.stringify({ application_id: appId }) });
@@ -1832,7 +1832,7 @@ async function verifyDocuments(appId) {
         const ov = v.verification;
         const resultColor = ov.overall_result==='PASS'?'verify-pass':ov.overall_result==='FAIL'?'verify-fail':'verify-warn';
         resultEl.innerHTML = `
-            <div style="font-weight:700;color:#7ec8e3;margin-bottom:0.8rem;">🤖 AI Verification Report</div>
+            <div style="font-weight:700;color:#7ec8e3;margin-bottom:0.8rem;">🤖 Reporte de Verificación de IA</div>
             ${v.aviso_operacion?`
             <div class="verify-row">
                 <span class="verify-icon">📋</span>
@@ -1872,17 +1872,17 @@ async function verifyDocuments(appId) {
 }
 
 async function deactivateMembership(appId) {
-    if (!confirm('Deactivate this membership? This reverts the listing to its prior trial/inactive state.')) return;
+    if (!confirm('¿Desactivar esta membresía? Esto revertirá el hospedaje a su estado previo de prueba/inactivo.')) return;
     const resultEl = document.getElementById('approve-'+appId);
-    resultEl.innerHTML = '⏳ Processing...';
+    resultEl.innerHTML = '⏳ Procesando...';
     resultEl.classList.add('visible');
     try {
         const res = await adminFetch('/api/admin/deactivate-membership', {
             method: 'POST', body: JSON.stringify({ application_id: appId })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Deactivation failed');
-        resultEl.innerHTML = '<span style="color:#adf5ad;">✅ Deactivated</span>';
+        if (!res.ok) throw new Error(data.error || 'Error al desactivar');
+        resultEl.innerHTML = '<span style="color:#adf5ad;">✅ Desactivado</span>';
         await loadApplications();
     } catch(err) {
         resultEl.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`;
@@ -1890,9 +1890,9 @@ async function deactivateMembership(appId) {
 }
 
 async function approveApplication(appId) {
-    if (!confirm('Approve this application and send welcome email with auto-generated password?')) return;
+    if (!confirm('¿Aprobar esta solicitud y enviar el correo de bienvenida con una contraseña generada automáticamente?')) return;
     const resultEl = document.getElementById('approve-'+appId);
-    resultEl.innerHTML = '⏳ Processing...';
+    resultEl.innerHTML = '⏳ Procesando...';
     resultEl.classList.add('visible');
     try {
         const res  = await adminFetch('/api/admin/approve-application', {
@@ -1925,7 +1925,7 @@ async function approveApplication(appId) {
             }
             const card = document.getElementById('app-card-'+appId);
             if (card) {
-                card.querySelector('.app-status').textContent = 'PENDING ATP';
+                card.querySelector('.app-status').textContent = 'PENDIENTE ATP';
                 card.querySelector('.app-status').className   = 'app-status pending_atp';
                 card.querySelector('.app-actions')?.remove();
                 card.querySelector('.reject-form')?.remove();
@@ -1936,12 +1936,12 @@ async function approveApplication(appId) {
         if (!res.ok) throw new Error(data.error);
 
         resultEl.innerHTML = `
-            <div style="color:#adf5ad;font-weight:700;margin-bottom:0.5rem;">✅ Application approved!</div>
+            <div style="color:#adf5ad;font-weight:700;margin-bottom:0.5rem;">✅ ¡Solicitud aprobada!</div>
             <div style="font-size:0.82rem;color:#ccc;">
-                Password: <code style="background:#2c3e50;padding:2px 6px;border-radius:4px;">${data.password}</code><br>
-                Membership until: <strong>${data.paid_until}</strong><br>
-                Membership ID: <strong>${data.listing_id||'—'}</strong><br>
-                ${data.email_sent ? '📧 Welcome email sent' : '📱 No email — WhatsApp text downloaded'}
+                Contraseña: <code style="background:#2c3e50;padding:2px 6px;border-radius:4px;">${data.password}</code><br>
+                Membresía hasta: <strong>${data.paid_until}</strong><br>
+                ID de Membresía: <strong>${data.listing_id||'—'}</strong><br>
+                ${data.email_sent ? '📧 Correo de bienvenida enviado' : '📱 Sin correo — texto de WhatsApp descargado'}
             </div>`;
 
         if (data.whatsapp_text) {
@@ -1956,7 +1956,7 @@ async function approveApplication(appId) {
         const card = document.getElementById('app-card-'+appId);
         if (card) {
             card.classList.replace('pending','approved');
-            card.querySelector('.app-status').textContent = 'APPROVED';
+            card.querySelector('.app-status').textContent = 'APROBADA';
             card.querySelector('.app-status').className   = 'app-status approved';
             card.querySelector('.app-actions')?.remove();
             card.querySelector('.reject-form')?.remove();
@@ -1975,10 +1975,10 @@ function showRejectForm(appId) {
 async function confirmReject(appId) {
     const reason = document.getElementById('reject-reason-'+appId).value;
     const note   = document.getElementById('reject-note-'+appId).value;
-    if (!reason) { alert('Please select a rejection reason'); return; }
+    if (!reason) { alert('Por favor seleccione una razón de rechazo'); return; }
     const isDuplicate = reason === '__duplicate__';
-    if (!isDuplicate && !confirm('Send rejection email to applicant?')) return;
-    if (isDuplicate && !confirm('Archive as duplicate without notification?')) return;
+    if (!isDuplicate && !confirm('¿Enviar correo de rechazo al solicitante?')) return;
+    if (isDuplicate && !confirm('¿Archivar como duplicado sin notificación?')) return;
     try {
         const res = await adminFetch('/api/admin/reject-application', {
             method:'POST', body: JSON.stringify({
@@ -1991,7 +1991,7 @@ async function confirmReject(appId) {
         if (!res.ok) throw new Error(data.error);
         const card = document.getElementById('app-card-'+appId);
         if (card) card.remove();
-        alert(isDuplicate ? 'Archivado como duplicado.' : 'Rejection email sent.');
+        alert(isDuplicate ? 'Archivado como duplicado.' : 'Correo de rechazo enviado.');
     } catch(err) { alert('Error: '+err.message); }
 }
 
@@ -2010,7 +2010,7 @@ async function loadInvoiceLog() {
 
 function renderInvoiceLog(invoices) {
     const tbody = document.getElementById('invoice-tbody');
-    if (!invoices.length) { tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem;">No invoices yet</td></tr>'; return; }
+    if (!invoices.length) { tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem;">Aún no hay facturas</td></tr>'; return; }
     tbody.innerHTML = invoices.map(inv => {
         const d = inv.event_data;
         return `<tr>
@@ -2029,8 +2029,8 @@ function renderInvoiceLog(invoices) {
 }
 
 function exportInvoiceCSV() {
-    if (!allInvoices.length) { alert('No invoices to export'); return; }
-    const headers = ['Date','Property','Contact','Email','RUC','Plan','Amount','ITBMS','Total','Payment'];
+    if (!allInvoices.length) { alert('No hay facturas para exportar'); return; }
+    const headers = ['Fecha','Propiedad','Contacto','Correo','RUC','Plan','Monto','ITBMS','Total','Pago'];
     const rows = allInvoices.map(inv => {
         const d = inv.event_data;
         return [new Date(inv.created_at).toLocaleDateString(),
@@ -2095,7 +2095,7 @@ function renderReconcilePanel(invoices) {
                             <option value="24" ${inv.guessed_months===24?'selected':''}>2 años</option>
                         </select></div>
                     ${inv.suggested_name ? `<div style="color:#adf5ad;font-size:0.75rem;align-self:center;">Sugerido: ${inv.suggested_name}</div>` : '<div style="color:#888;font-size:0.75rem;align-self:center;">Sin sugerencia — ingrese el Listing ID</div>'}
-                    <button class="doc-btn" onclick="linkReconciledInvoice('${inv.cufe}')">🔗 Link &amp; Activate</button>
+                    <button class="doc-btn" onclick="linkReconciledInvoice('${inv.cufe}')">🔗 Vincular y Activar</button>
                 </div>`; }).join('')}
         </div>`;
 }
@@ -2106,8 +2106,8 @@ async function linkReconciledInvoice(cufe) {
     const safeId = cufe.replace(/[^a-zA-Z0-9]/g,'');
     const listingId = document.getElementById('recon-listing-'+safeId).value.trim();
     const months = document.getElementById('recon-months-'+safeId).value;
-    if (!listingId) { alert('Enter the TPS Listing ID to link this invoice to.'); return; }
-    if (!confirm(`Link invoice ${inv.invoice_number||inv.cufe} to listing ${listingId} and activate membership for ${months==24?'2 years':'1 year'}?`)) return;
+    if (!listingId) { alert('Ingrese el ID de Listado de TPS para vincular esta factura.'); return; }
+    if (!confirm(`¿Vincular la factura ${inv.invoice_number||inv.cufe} al listado ${listingId} y activar la membresía por ${months==24?'2 años':'1 año'}?`)) return;
     try {
         const res = await adminFetch('/api/admin/efactura-link-invoice', {
             method: 'POST',
@@ -2133,7 +2133,7 @@ async function linkReconciledInvoice(cufe) {
 
 // ── Log ───────────────────────────────────────────────────────────────────────
 async function loadLog() {
-    document.getElementById('log-container').innerHTML = '<div class="no-results">Loading...</div>';
+    document.getElementById('log-container').innerHTML = '<div class="no-results">Cargando...</div>';
     try {
         const res = await adminFetch('/api/admin/log?limit=200');
         allLogs = await res.json();
@@ -2154,7 +2154,7 @@ const EMAIL_EVENT_LABELS = {
 
 function renderLog(logs) {
     const container = document.getElementById('log-container');
-    if (!logs.length) { container.innerHTML='<div class="no-results">No log entries yet</div>'; return; }
+    if (!logs.length) { container.innerHTML='<div class="no-results">Aún no hay entradas en el registro</div>'; return; }
     container.innerHTML = logs.map(l => {
         if (EMAIL_EVENT_TYPES.includes(l.event_type)) {
             const d = l.event_data || {};
@@ -2192,11 +2192,11 @@ function filterLog() {
 
 async function forceReloadPdf() {
     const box = document.getElementById('atpsync-content');
-    box.innerHTML = '⏳ Checking ATP for updates — this can take up to a minute (downloading and parsing a 57-page PDF)...';
+    box.innerHTML = '⏳ Verificando actualizaciones de la ATP — esto puede tardar hasta un minuto (descargando y analizando un PDF de 57 páginas)...';
     try {
         const res  = await adminFetch('/api/reload-pdf', { method: 'POST' });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Reload failed');
+        if (!res.ok) throw new Error(data.error || 'Error al recargar');
         await loadAtpDiff();
     } catch(err) {
         box.innerHTML = `<p style="color:#ff7070;">Error: ${err.message}</p>`;
@@ -2211,7 +2211,7 @@ let ATP_SELECTED_DROPPED = null;
 
 async function loadAtpDiff() {
     const box = document.getElementById('atpsync-content');
-    box.innerHTML = 'Loading...';
+    box.innerHTML = 'Cargando...';
     ATP_SELECTED_NEW = null;
     ATP_SELECTED_DROPPED = null;
     try {
@@ -2545,57 +2545,57 @@ if (adminToken) {
 async function loadAnalytics(days) {
     const el = document.getElementById('analytics-content');
     if (!el) return;
-    el.innerHTML = '<span style="color:#aaa;">⏳ Loading...</span>';
+    el.innerHTML = '<span style="color:#aaa;">⏳ Cargando...</span>';
     try {
         const res  = await adminFetch('/api/admin/analytics?days=' + days);
         const data = await res.json();
         const c    = data.counts || {};
-        el.innerHTML = `<h4 style="color:#FFD700;margin-bottom:0.8rem;">Last ${days} days</h4>
+        el.innerHTML = `<h4 style="color:#FFD700;margin-bottom:0.8rem;">Últimos ${days} días</h4>
             <table style="width:100%;border-collapse:collapse;margin-bottom:1.5rem;">
-                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Site visits</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.site_visit||0}</strong></td></tr>
-                <tr><td style="padding:6px 10px;">Listing views</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.listing_view||0}</strong></td></tr>
-                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">WhatsApp clicks</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.whatsapp_click||0}</strong></td></tr>
-                <tr><td style="padding:6px 10px;">Email clicks</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.email_click||0}</strong></td></tr>
-                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Website clicks</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.website_click||0}</strong></td></tr>
-                <tr><td style="padding:6px 10px;">Photo browses</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.photo_browse||0}</strong></td></tr>
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Visitas al sitio</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.site_visit||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Vistas de listados</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.listing_view||0}</strong></td></tr>
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Clics en WhatsApp</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.whatsapp_click||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Clics en correo</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.email_click||0}</strong></td></tr>
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Clics en sitio web</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.website_click||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Vistas de fotos</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.photo_browse||0}</strong></td></tr>
             </table>
             ${data.top_listings?.length ? `
-            <h4 style="color:#FFD700;margin-bottom:0.8rem;">Top Listings</h4>
+            <h4 style="color:#FFD700;margin-bottom:0.8rem;">Listados Principales</h4>
             <table style="width:100%;border-collapse:collapse;">
                 <tr style="background:#005ca9;color:white;font-size:0.78rem;">
-                    <th style="padding:5px 8px;text-align:left;">Listing</th>
-                    <th style="padding:5px 8px;">Views</th>
-                    <th style="padding:5px 8px;">Detail</th>
+                    <th style="padding:5px 8px;text-align:left;">Listado</th>
+                    <th style="padding:5px 8px;">Vistas</th>
+                    <th style="padding:5px 8px;">Detalle</th>
                 </tr>
                 ${data.top_listings.map(l => `
                 <tr style="border-bottom:1px solid #2c3e50;">
                     <td style="padding:5px 8px;">${l.name} <span style="color:#888;font-size:0.72rem;">${l.province}</span></td>
                     <td style="padding:5px 8px;text-align:center;color:white;"><strong>${l.views}</strong></td>
                     <td style="padding:5px 8px;text-align:center;">
-                        <button onclick="loadListingAnalytics(${l.listing_id},'${(l.name||'').replace(/'/g,'')}')" class="action-btn edit" style="padding:2px 8px;font-size:0.72rem;">Detail</button>
+                        <button onclick="loadListingAnalytics(${l.listing_id},'${(l.name||'').replace(/'/g,'')}')" class="action-btn edit" style="padding:2px 8px;font-size:0.72rem;">Detalle</button>
                     </td>
                 </tr>`).join('')}
-            </table>` : '<p style="color:#888;">No activity yet.</p>'}`;
+            </table>` : '<p style="color:#888;">Aún no hay actividad.</p>'}`;
     } catch(err) { el.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`; }
 }
 
 async function loadListingAnalytics(id, name) {
     const el = document.getElementById('analytics-content');
-    el.innerHTML = `<span style="color:#aaa;">⏳ Loading ${name}...</span>`;
+    el.innerHTML = `<span style="color:#aaa;">⏳ Cargando ${name}...</span>`;
     try {
         const res  = await adminFetch(`/api/admin/analytics/listing/${id}?days=30`);
         const data = await res.json();
         const c    = data.counts || {};
         el.innerHTML = `
-            <button onclick="loadAnalytics(30)" style="background:none;border:none;color:#7ec8e3;cursor:pointer;margin-bottom:1rem;">← Back</button>
-            <h4 style="color:#FFD700;margin-bottom:0.8rem;">${name} — Last 30 days</h4>
+            <button onclick="loadAnalytics(30)" style="background:none;border:none;color:#7ec8e3;cursor:pointer;margin-bottom:1rem;">← Volver</button>
+            <h4 style="color:#FFD700;margin-bottom:0.8rem;">${name} — Últimos 30 días</h4>
             <table style="width:100%;border-collapse:collapse;">
-                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Views</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.listing_view||0}</strong></td></tr>
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Vistas</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.listing_view||0}</strong></td></tr>
                 <tr><td style="padding:6px 10px;">WhatsApp</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.whatsapp_click||0}</strong></td></tr>
-                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Email</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.email_click||0}</strong></td></tr>
-                <tr><td style="padding:6px 10px;">Website</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.website_click||0}</strong></td></tr>
-                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Booking</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.booking_click||0}</strong></td></tr>
-                <tr><td style="padding:6px 10px;">Photos</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.photo_browse||0}</strong></td></tr>
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Correo</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.email_click||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Sitio web</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.website_click||0}</strong></td></tr>
+                <tr style="background:#2c3e50;"><td style="padding:6px 10px;">Reserva</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.booking_click||0}</strong></td></tr>
+                <tr><td style="padding:6px 10px;">Fotos</td><td style="padding:6px 10px;text-align:right;color:white;"><strong>${c.photo_browse||0}</strong></td></tr>
             </table>`;
     } catch(err) { el.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`; }
 }
@@ -2606,8 +2606,8 @@ async function downloadNoEmailList() {
     const res2 = await adminFetch('/api/admin/members');
     const all  = await res2.json();
     const noEmail = all.filter(m => !m.is_member && (!m.email || !m.email.includes('@')));
-    const csv = 'ID,Name,Province,Phone,APATEL\n' +
-        noEmail.map(m => `${m.id},"${m.name}","${m.province||''}","${m.phone||''}",${m.apatel_member?'Yes':'No'}`).join('\n');
+    const csv = 'ID,Nombre,Provincia,Teléfono,APATEL\n' +
+        noEmail.map(m => `${m.id},"${m.name}","${m.province||''}","${m.phone||''}",${m.apatel_member?'Sí':'No'}`).join('\n');
     const blob = new Blob([csv],{type:'text/csv'});
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -2649,7 +2649,7 @@ function insertCTA() {
 function updatePreview() {
     const charCount = (document.getElementById('followup-editor')||{}).innerText?.length || 0;
     const el = document.getElementById('followup-charcount');
-    if (el) el.textContent = charCount + ' characters';
+    if (el) el.textContent = charCount + ' caracteres';
 }
 function showEditorTab(tab) {
     const editor  = document.getElementById('followup-editor');
@@ -2741,7 +2741,7 @@ async function loadTemplateList() {
         const data = await res.json();
         const sel = document.getElementById('template-selector');
         if (!sel) return;
-        sel.innerHTML = '<option value="">— select —</option>';
+        sel.innerHTML = '<option value="">— seleccionar —</option>';
         (data.templates || []).forEach(t => {
             const opt = document.createElement('option');
             opt.value = t;
@@ -2754,27 +2754,27 @@ async function loadTemplateList() {
 async function loadTemplate() {
     const sel = document.getElementById('template-selector');
     const name = sel ? sel.value : '';
-    if (!name) { alert('Select a template first'); return; }
+    if (!name) { alert('Seleccione primero una plantilla'); return; }
     const status = document.getElementById('template-status');
     try {
         const res = await adminFetch('/api/admin/templates/' + encodeURIComponent(name));
         const data = await res.json();
         const ed = document.getElementById('followup-editor');
         if (ed) ed.innerHTML = data.content || '';
-        if (status) status.textContent = 'Loaded: ' + name;
+        if (status) status.textContent = 'Cargado: ' + name;
         updatePreview();
     } catch(e) {
-        if (status) status.textContent = 'Error loading template';
+        if (status) status.textContent = 'Error al cargar la plantilla';
     }
 }
 
 async function saveTemplate() {
     const sel = document.getElementById('template-selector');
     const name = sel ? sel.value : '';
-    if (!name) { alert('Select a template first, or create a new one'); return; }
+    if (!name) { alert('Seleccione primero una plantilla, o cree una nueva'); return; }
     const ed = document.getElementById('followup-editor');
     const content = ed ? ed.innerHTML : '';
-    if (!content || content.trim().length < 20) { alert('Editor is empty'); return; }
+    if (!content || content.trim().length < 20) { alert('El editor está vacío'); return; }
     const status = document.getElementById('template-status');
     try {
         const res = await adminFetch('/api/admin/templates/' + encodeURIComponent(name), {
@@ -2782,14 +2782,14 @@ async function saveTemplate() {
             body: JSON.stringify({ content })
         });
         const data = await res.json();
-        if (status) status.textContent = data.success ? 'Saved: ' + name : 'Error: ' + (data.error||'');
+        if (status) status.textContent = data.success ? 'Guardado: ' + name : 'Error: ' + (data.error||'');
     } catch(e) {
-        if (status) status.textContent = 'Error saving';
+        if (status) status.textContent = 'Error al guardar';
     }
 }
 
 async function newTemplate() {
-    const name = prompt('Template filename (without .html):', 'apatel_followup_2');
+    const name = prompt('Nombre del archivo de la plantilla (sin .html):', 'apatel_followup_2');
     if (!name) return;
     const filename = name.replace(/[^a-z0-9_-]/gi,'_') + '.html';
     const sel = document.getElementById('template-selector');
@@ -2802,10 +2802,10 @@ async function newTemplate() {
         sel.value = filename;
     }
     const status = document.getElementById('template-status');
-    if (status) status.textContent = 'New template — write content and click Save';
+    if (status) status.textContent = 'Nueva plantilla — escriba el contenido y haga clic en Guardar';
     // Clear editor for new template
     const ed = document.getElementById('followup-editor');
-    if (ed) ed.innerHTML = '<p>Write your email content here...</p>';
+    if (ed) ed.innerHTML = '<p>Escriba aquí el contenido de su correo...</p>';
 }
 
 async function sendTestFollowup() {
@@ -2813,12 +2813,12 @@ async function sendTestFollowup() {
     const body     = document.getElementById('followup-editor').innerHTML;
     const from     = document.getElementById('followup-from').value;
     const resultEl = document.getElementById('followup-result');
-    resultEl.innerHTML = '<span style="color:#aaa;">&#9203; Sending test...</span>';
+    resultEl.innerHTML = '<span style="color:#aaa;">&#9203; Enviando prueba...</span>';
     try {
         const res  = await adminFetch('/api/admin/send-followup-test', {method:'POST',body:JSON.stringify({subject,body,from})});
         const data = await res.json();
         resultEl.innerHTML = data.success
-            ? '<span style="color:#adf5ad;">&#10003; Test sent to info@trustedpanamastays.com</span>'
+            ? '<span style="color:#adf5ad;">&#10003; Prueba enviada a info@trustedpanamastays.com</span>'
             : `<span style="color:#ff7070;">&#10007; ${data.error||'Error'}</span>`;
     } catch(err) { resultEl.innerHTML = `<span style="color:#ff7070;">&#10007; ${err.message}</span>`; }
 }
@@ -2900,12 +2900,12 @@ async function renderSuggestions() {
                           style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;">
                   </div>
                   <div style="display:flex;flex-direction:column;gap:2px;">
-                      <span style="font-size:0.68rem;color:#aaa;">English</span>
-                      <input type="text" id="label-en-${i}" placeholder="English" value="${s.suggestion}"
+                      <span style="font-size:0.68rem;color:#aaa;">Inglés</span>
+                      <input type="text" id="label-en-${i}" placeholder="Inglés" value="${s.suggestion}"
                           style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:120px;">
                   </div>
                   <div style="display:flex;flex-direction:column;gap:2px;">
-                      <span style="font-size:0.68rem;color:#aaa;">Category</span>
+                      <span style="font-size:0.68rem;color:#aaa;">Categoría</span>
                       <select id="cat-${i}" style="padding:4px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;">
                           ${categories.map(c => `<option value="${c.en}|${c.es}">${c.en}</option>`).join('')}
                       </select>
@@ -2913,8 +2913,8 @@ async function renderSuggestions() {
                   <div style="display:flex;flex-direction:column;gap:2px;">
                       <span style="font-size:0.68rem;color:#aaa;">&nbsp;</span>
                       <div style="display:flex;gap:6px;">
-                          <button onclick="approveSuggestion(${i},'${s.id}')" class="action-btn edit" style="padding:4px 10px;">✅ Add</button>
-                          <button onclick="dismissSuggestion('${s.id}')" class="action-btn" style="padding:4px 10px;background:#7a1a1a;color:white">✕ Dismiss</button>
+                          <button onclick="approveSuggestion(${i},'${s.id}')" class="action-btn edit" style="padding:4px 10px;">✅ Agregar</button>
+                          <button onclick="dismissSuggestion('${s.id}')" class="action-btn" style="padding:4px 10px;background:#7a1a1a;color:white">✕ Descartar</button>
                       </div>
                   </div>
               </div>
@@ -2929,7 +2929,7 @@ async function approveSuggestion(i, eventId) {
     const labelEn = document.getElementById('label-en-'+i).value.trim();
     const catVal = document.getElementById('cat-'+i).value;
     const [catEn, catEs] = catVal.split('|');
-    if (!slug || !labelEs || !labelEn) { alert('Fill in all fields'); return; }
+    if (!slug || !labelEs || !labelEn) { alert('Complete todos los campos'); return; }
     const res = await adminFetch('/api/admin/keyword-approve', {
         method: 'POST',
         body: JSON.stringify({ slug, label_es: labelEs, label_en: labelEn, category_es: catEs, category_en: catEn, event_id: eventId })
@@ -2937,8 +2937,8 @@ async function approveSuggestion(i, eventId) {
     const data = await res.json();
     if (data.success) { renderSuggestions(); }
         else if (data.error && data.error.includes('duplicate')) {
-        alert('This slug already exists. Choose a different slug.');
-    } else if (data.error && data.error.includes('duplicate')) { alert('This slug already exists. Use a different slug or dismiss the suggestion.'); } else alert('Error: ' + (data.error||''));
+        alert('Este slug ya existe. Elija uno diferente.');
+    } else if (data.error && data.error.includes('duplicate')) { alert('Este slug ya existe. Use un slug diferente o descarte la sugerencia.'); } else alert('Error: ' + (data.error||''));
 }
 
 async function dismissSuggestion(eventId) {
@@ -2993,7 +2993,7 @@ async function saveNewKeyword() {
     const labelEn = document.getElementById('new-label-en').value.trim();
     const catVal = document.getElementById('new-cat').value;
     const [catEn, catEs] = catVal.split('|');
-    if (!slug || !labelEs || !labelEn) { alert('Fill in all fields'); return; }
+    if (!slug || !labelEs || !labelEn) { alert('Complete todos los campos'); return; }
     const res = await adminFetch('/api/admin/keyword-approve', {
         method: 'POST',
         body: JSON.stringify({ slug, label_es: labelEs, label_en: labelEn, category_es: catEs, category_en: catEn, event_id: null })
@@ -3004,7 +3004,7 @@ async function saveNewKeyword() {
 }
 
 async function deleteKeyword(slug) {
-    if (!confirm('Delete keyword "' + slug + '"? Members using it will lose this feature tag.')) return;
+    if (!confirm('¿Eliminar la palabra clave "' + slug + '"? Los miembros que la usan perderán esta etiqueta de función.')) return;
     const res = await adminFetch('/api/admin/keyword-delete', { method:'POST', body: JSON.stringify({ slug }) });
     const data = await res.json();
     if (data.success) loadKeywordsEdit();
@@ -3073,7 +3073,7 @@ function buildInvoiceFormHtml(app, appId, ns, heading, containerId) {
                 <div style="color:#aaa;font-size:0.7rem;">Pa&iacute;s (2 letras)</div>
                 <input id="${ns}inv-perscountry-${appId}" type="text" maxlength="2" placeholder="US" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:60px;text-transform:uppercase;">
             </div>
-            <div><div style="color:#aaa;font-size:0.7rem;">Email</div>
+            <div><div style="color:#aaa;font-size:0.7rem;">Correo</div>
                 <input id="${ns}inv-email-${appId}" type="text" value="${app.contact_email||''}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:180px;"></div>
             <div><div style="color:#aaa;font-size:0.7rem;">Plan</div>
                 <select id="${ns}inv-plan-${appId}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;">
@@ -3085,7 +3085,7 @@ function buildInvoiceFormHtml(app, appId, ns, heading, containerId) {
         </div>
         <div style="display:flex;gap:8px;">
             <button onclick="confirmInvoice(${appId},'${ns}')" style="padding:6px 16px;background:#00a859;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;">🧾 Enviar Factura</button>
-            <button onclick="document.getElementById('${containerId}').innerHTML=''" style="padding:6px 12px;background:#555;color:white;border:none;border-radius:5px;cursor:pointer;">Cancel</button>
+            <button onclick="document.getElementById('${containerId}').innerHTML=''" style="padding:6px 12px;background:#555;color:white;border:none;border-radius:5px;cursor:pointer;">Cancelar</button>
         </div>
         <div id="${ns}inv-result-${appId}" style="margin-top:0.5rem;font-size:0.82rem;"></div>
     </div>`;
@@ -3128,11 +3128,11 @@ async function confirmInvoice(appId, ns) {
     const plan  = document.getElementById(ns+'inv-plan-'  + appId).value;
     const totalPaid = parseFloat(document.getElementById(ns+'inv-total-' + appId).value) || 0;
     const msgEl = document.getElementById(ns+'inv-result-' + appId);
-    if (!name || !email) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill all fields</span>'; return; }
-    if (idType === 'ruc' && (!ruc || !dv)) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill RUC and DV</span>'; return; }
-    if (idType === 'cedula' && !personalId) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill the cédula number</span>'; return; }
-    if (idType === 'pasaporte' && (!personalId || !personalCountry)) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill passport number and country</span>'; return; }
-    msgEl.innerHTML = '⏳ Sending invoice via API...';
+    if (!name || !email) { msgEl.innerHTML = '<span style="color:#ff7070;">Complete todos los campos</span>'; return; }
+    if (idType === 'ruc' && (!ruc || !dv)) { msgEl.innerHTML = '<span style="color:#ff7070;">Complete el RUC y el DV</span>'; return; }
+    if (idType === 'cedula' && !personalId) { msgEl.innerHTML = '<span style="color:#ff7070;">Complete el número de cédula</span>'; return; }
+    if (idType === 'pasaporte' && (!personalId || !personalCountry)) { msgEl.innerHTML = '<span style="color:#ff7070;">Complete el número de pasaporte y el país</span>'; return; }
+    msgEl.innerHTML = '⏳ Enviando factura vía API...';
     try {
         const res = await adminFetch('/api/admin/application/' + appId);
         const app = await res.json();
@@ -3159,12 +3159,12 @@ async function confirmInvoice(appId, ns) {
                 ? `https://admin.efacturapty.com/external/invoices/${invoiceUuid}`
                 : null;
             msgEl.innerHTML = `
-                <div style="color:#adf5ad;">✅ Invoice sent! CUFE: ${data2.invoice?.cufe||'OK'}${invoiceUrl ? ` — <a href="${invoiceUrl}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}${invoiceUuid ? ` — <button class="doc-btn" onclick="downloadInvoicePdf('${invoiceUuid}','${app.listing_id}','${totalPaid}','${invoiceNumber}',true)">⬇️ Download PDF</button>` : ''}</div>
+                <div style="color:#adf5ad;">✅ ¡Factura enviada! CUFE: ${data2.invoice?.cufe||'OK'}${invoiceUrl ? ` — <a href="${invoiceUrl}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}${invoiceUuid ? ` — <button class="doc-btn" onclick="downloadInvoicePdf('${invoiceUuid}','${app.listing_id}','${totalPaid}','${invoiceNumber}',true)">⬇️ Download PDF</button>` : ''}</div>
                 <details style="margin-top:8px;">
                     <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa de eFacturaPty</summary>
                     <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#adf5ad;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.invoice, null, 2)}</textarea>
                 </details>
-                <button onclick="refreshAfterInvoice(${app.listing_id})" style="margin-top:8px;padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.8rem;">🔄 Refresh applications now</button>`;
+                <button onclick="refreshAfterInvoice(${app.listing_id})" style="margin-top:8px;padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.8rem;">🔄 Actualizar solicitudes ahora</button>`;
             // Automatic: show + download the PDF right away, same as
             // payment proofs already do (viewDocument()) — added
             // 2026-08-23 so this doesn't need a separate manual step.
@@ -3180,14 +3180,14 @@ async function confirmInvoice(appId, ns) {
         } else if (data2.errors) {
             const errList = data2.errors.map(e => `${e.codigo}: ${e.mensaje}`).join('<br>');
             msgEl.innerHTML = `
-                <div style="color:#ff7070;">❌ Invoice errors (not confirmed):<br>${errList}</div>
+                <div style="color:#ff7070;">❌ Errores en la factura (no confirmada):<br>${errList}</div>
                 <details style="margin-top:8px;">
                     <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa de eFacturaPty</summary>
                     <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#ff7070;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.raw_response || data2, null, 2)}</textarea>
                 </details>`;
         } else {
             msgEl.innerHTML = `
-                <div style="color:#ff7070;">❌ API Error</div>
+                <div style="color:#ff7070;">❌ Error de la API</div>
                 <details style="margin-top:8px;" open>
                     <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa</summary>
                     <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#ff7070;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.detail||data2.error, null, 2)}</textarea>
@@ -3202,7 +3202,7 @@ async function sendInvoiceOnly(appId) {
     const res = await adminFetch('/api/admin/application/' + appId);
     const app = await res.json();
     const resultEl = document.getElementById('approve-' + appId);
-    resultEl.innerHTML = buildInvoiceFormHtml(app, appId, '', '🧾 Send Invoice', 'approve-' + appId);
+    resultEl.innerHTML = buildInvoiceFormHtml(app, appId, '', '🧾 Enviar Factura', 'approve-' + appId);
     resultEl.classList.add('visible');
 }
 
