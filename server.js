@@ -5027,6 +5027,24 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
     if (!listing_id || !plan || !business_name || !ruc || !ruc_dv || !email)
         return res.status(400).json({ error: 'Missing required fields' });
 
+    // ── Guard against issuing a second real DGI fiscal invoice for the same
+    // payment — unlike the 'payments' insert further below (which only
+    // dedupes by an already-returned CUFE), nothing previously stopped this
+    // route from being called twice and creating two separate real invoices
+    // in eFacturaPty for the same transaction. Block it up front instead.
+    try {
+        let existingQuery = supabaseAdmin.from('payments').select('cufe, invoice_url, invoice_date').eq('status', 'invoiced');
+        existingQuery = application_id ? existingQuery.eq('application_id', application_id) : existingQuery.eq('listing_id', listing_id);
+        const { data: alreadyInvoiced } = await existingQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (alreadyInvoiced) {
+            return res.status(400).json({
+                error: `An invoice was already issued for this payment on ${alreadyInvoiced.invoice_date} (CUFE ${alreadyInvoiced.cufe || 'unknown'}). Issuing another would create a duplicate fiscal invoice — check the Facturas tab or ${alreadyInvoiced.invoice_url || 'efacturapty.com'} instead.`
+            });
+        }
+    } catch (guardErr) {
+        console.error('issue-invoice duplicate-check failed (continuing):', guardErr.message);
+    }
+
         const planCode    = plan === '2year' ? 'TPS02' : 'TPS01';
         const planDesc    = plan === '2year' ? 'Membresía Trusted Panama Stays — 2 años' : 'Membresía Trusted Panama Stays — 1 año';
         const totalPaid   = parseFloat(req.body.amount_total) || (plan === '2year' ? 48.15 : 25.68);

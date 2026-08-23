@@ -1672,7 +1672,8 @@ function renderApplications(apps) {
             const isExtension = app.membership_type === 'paid' && app.status === 'pre_approved';
             const planText = app.membership_type==='trial' ? '30 días gratis'
         : (isExtension ? 'Extensión · ' : '') + (app.duration_months===24?'2 años ($45)':'1 año ($24)');
-        const isPending = app.status==='pending' || app.status==='pre_approved' || app.status==='pending_atp';
+        const isPending = app.status==='pending' || app.status==='pre_approved' || app.status==='pending_atp'
+            || (app.membership_type==='paid' && app.status==='approved'); // approved-but-not-yet-invoiced paid apps still need the invoice action below
         return `
         <div class="app-card ${app.status}" id="app-card-${app.id}">
             <div class="app-header">
@@ -1698,11 +1699,12 @@ function renderApplications(apps) {
             <div class="app-actions">
                 ${app.status === 'pending' ? `<button class="app-btn ai" onclick="verifyDocuments(${app.id})">🤖 AI Verify</button>` : ''}
                 ${app.membership_type === 'paid' && app.status === 'pending' ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve</button>` : ''}
-                ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<span class="app-btn" style="background:#00a859;cursor:default;">✅ Is Active</span>` : ''}
+                ${app.membership_type === 'paid' && (app.status === 'pre_approved' || app.status === 'approved') ? `<span class="app-btn" style="background:#00a859;cursor:default;">✅ Is Active</span>` : ''}
                 ${app.membership_type === 'paid' && app.status === 'pre_approved' ? `<button class="app-btn" style="background:#005ca9;color:white;" onclick="sendInvoiceOnly(${app.id})">🧾 Send Invoice</button>` : ''}
+                ${app.membership_type === 'paid' && app.status === 'approved' ? `<button class="app-btn" style="background:#005ca9;color:white;" onclick="sendInvoiceOnly(${app.id})">🧾 Issue Invoice</button>` : ''}
                 ${app.membership_type !== 'paid' && app.status === 'pending' ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve</button>` : ''}
                 ${app.status === 'pending_atp' && app.listing_id ? `<button class="app-btn approve" onclick="approveApplication(${app.id})">✅ Approve (ATP linked)</button>` : ''}
-                <button class="app-btn reject" onclick="${app.status === 'pre_approved' ? 'deactivateMembership' : 'showRejectForm'}(${app.id})">🔴 ${app.status === 'pre_approved' ? 'Deactivate' : 'Reject'}</button>
+                <button class="app-btn reject" onclick="${(app.status === 'pre_approved' || app.status === 'approved') ? 'deactivateMembership' : 'showRejectForm'}(${app.id})">🔴 ${(app.status === 'pre_approved' || app.status === 'approved') ? 'Deactivate' : 'Reject'}</button>
             </div>
             <div class="verify-result"  id="verify-${app.id}"></div>
             <div class="approve-result" id="approve-${app.id}"></div>
@@ -1816,6 +1818,24 @@ async function verifyDocuments(appId) {
                 <span class="verify-value ${resultColor}" style="font-weight:700;">${ov.overall_result} — ${ov.overall_notes||''}</span>
             </div>`;
     } catch(err) { resultEl.innerHTML=`<span style="color:#ff7070;">Error: ${err.message}</span>`; }
+}
+
+async function deactivateMembership(appId) {
+    if (!confirm('Deactivate this membership? This reverts the listing to its prior trial/inactive state.')) return;
+    const resultEl = document.getElementById('approve-'+appId);
+    resultEl.innerHTML = '⏳ Processing...';
+    resultEl.classList.add('visible');
+    try {
+        const res = await adminFetch('/api/admin/deactivate-membership', {
+            method: 'POST', body: JSON.stringify({ application_id: appId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Deactivation failed');
+        resultEl.innerHTML = '<span style="color:#adf5ad;">✅ Deactivated</span>';
+        await loadApplications();
+    } catch(err) {
+        resultEl.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`;
+    }
 }
 
 async function approveApplication(appId) {
