@@ -1493,7 +1493,7 @@ function renderApplicationInfo(app, payment) {
                     <input id="app-rucdv-${app.id}" type="text" value="${app.ruc_dv||''}" maxlength="2" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:50px;"></div>
                 <div><div style="color:#aaa;font-size:0.7rem;">N&deg; ID (si no hay RUC)</div>
                     <input id="app-persid-${app.id}" type="text" value="${app.personal_id||''}" placeholder="C&eacute;dula o pasaporte" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:150px;"></div>
-                <button class="doc-btn" onclick="saveApplicationRuc(${app.id})">💾 Guardar RUC</button>
+                <button class="doc-btn" onclick="saveApplicationRuc(${app.id})">💾 Guardar RUC/ID</button>
                 <span id="app-ruc-msg-${app.id}" style="font-size:0.78rem;"></span>
             </div>`;
 

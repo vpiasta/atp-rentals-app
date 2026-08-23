@@ -5337,12 +5337,27 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
         }).eq('id', listing_id);
 
         if (application_id) {
-            await supabaseAdmin.from('membership_applications').update({
+            const appUpdates = {
                 status:      'approved',
                 reviewed_at: new Date().toISOString(),
                 reviewed_by: 'admin',
                 notes:       `Invoice issued: ${invoice.cufe || invoice.invoice || 'ok'}`
-            }).eq('id', application_id);
+            };
+            // Sync whichever ID the invoice actually used back onto the
+            // application record (2026-08-23) — previously only the
+            // separate "Guardar RUC" field in the member panel persisted
+            // ruc/ruc_dv/personal_id; an ID typed directly into the invoice
+            // form (e.g. Daniel Gerber's cédula) was used for that one
+            // invoice and then lost, leaving "N° ID (si no hay RUC)" blank
+            // next time the panel was opened even though the invoice had
+            // succeeded. Now every successful invoice writes its ID back.
+            if (receptorType === 'ruc') {
+                if (ruc)    appUpdates.ruc    = String(ruc).trim();
+                if (ruc_dv) appUpdates.ruc_dv = String(ruc_dv).trim();
+            } else if (personalId) {
+                appUpdates.personal_id = personalId;
+            }
+            await supabaseAdmin.from('membership_applications').update(appUpdates).eq('id', application_id);
         }
 
         await recalculateFeatureRanks();
