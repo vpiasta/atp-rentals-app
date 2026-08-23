@@ -1477,6 +1477,21 @@ function renderApplicationInfo(app, payment) {
             ${doc.type.replace(/\b\w/g, l => l.toUpperCase())}
         </button>`).join('');
 
+        // Editable RUC/DV — lets the admin correct the tax ID on file (e.g.
+        // when an old provisional foreigner ID was recorded instead of a
+        // real RUC) without having to go through the invoice form. Saving
+        // here also fixes the value the invoice form defaults to next time
+        // it's opened for this application.
+        const rucSection = `
+            <div style="margin-top:0.6rem;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+                <div><div style="color:#aaa;font-size:0.7rem;">RUC</div>
+                    <input id="app-ruc-${app.id}" type="text" value="${app.ruc||''}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:150px;"></div>
+                <div><div style="color:#aaa;font-size:0.7rem;">DV</div>
+                    <input id="app-rucdv-${app.id}" type="text" value="${app.ruc_dv||''}" maxlength="2" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:50px;"></div>
+                <button class="doc-btn" onclick="saveApplicationRuc(${app.id})">💾 Guardar RUC</button>
+                <span id="app-ruc-msg-${app.id}" style="font-size:0.78rem;"></span>
+            </div>`;
+
         const invoiceSection = (payment && payment.status === 'invoiced') ? `
             <div style="margin-top:0.6rem;">
                 <strong style="color:#7ec8e3;">🧾 Invoice:</strong>
@@ -1502,8 +1517,30 @@ function renderApplicationInfo(app, payment) {
                 ${waLink ? `<a href="${waLink}" target="_blank" style="color:#25D366;">💬 ${app.contact_phone}</a>` : (app.contact_phone||'—')}
             </div>
             <div style="margin-top:0.6rem;">${docButtons || '<span style="color:#888;font-size:0.8rem;">No documents on file.</span>'}</div>
+            ${rucSection}
             ${invoiceSection}
         </div>`;
+}
+
+async function saveApplicationRuc(appId) {
+    const ruc   = document.getElementById('app-ruc-'   + appId).value.trim();
+    const dv    = document.getElementById('app-rucdv-' + appId).value.trim();
+    const msgEl = document.getElementById('app-ruc-msg-' + appId);
+    msgEl.style.color = '#aaa';
+    msgEl.textContent = '⏳ Guardando...';
+    try {
+        const res = await adminFetch('/api/admin/update-application-ruc', {
+            method: 'POST',
+            body: JSON.stringify({ application_id: appId, ruc, ruc_dv: dv })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Save failed');
+        msgEl.style.color = '#adf5ad';
+        msgEl.textContent = '✅ Guardado';
+    } catch(err) {
+        msgEl.style.color = '#ff7070';
+        msgEl.textContent = '❌ ' + err.message;
+    }
 }
 
 async function saveMember() {

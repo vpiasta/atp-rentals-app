@@ -1644,6 +1644,32 @@ app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── Admin API: correct the RUC/DV on file for an application ─────────────────
+// RUC/DV live on membership_applications (keyed by application_id, not
+// listing_id) — this lets the admin fix a wrong or outdated tax ID (e.g. an
+// old provisional foreigner ID that was mistakenly recorded instead of a
+// real RUC) directly from the member-detail panel, independent of issuing
+// an invoice. The invoice form reads the application fresh each time it's
+// opened, so a correction saved here is picked up automatically next time.
+app.post('/api/admin/update-application-ruc', requireAdmin, async (req, res) => {
+    const { application_id, ruc, ruc_dv, business_name } = req.body;
+    if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
+    const updates = {
+        ruc:    ruc !== undefined ? (ruc ? String(ruc).trim() : null) : undefined,
+        ruc_dv: ruc_dv !== undefined ? (ruc_dv ? String(ruc_dv).trim() : null) : undefined,
+        business_name: business_name !== undefined ? (business_name ? String(business_name).trim() : null) : undefined
+    };
+    Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
+    if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Nothing to update' });
+    const { error } = await supabaseAdmin
+        .from('membership_applications')
+        .update(updates)
+        .eq('id', application_id);
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('admin_update_application_ruc', { application_id, ...updates });
+    res.json({ success: true });
+});
+
 // ── Admin API: set member password ────────────────────────────────────────────
 app.post('/api/admin/set-password', requireAdmin, async (req, res) => {
     const bcrypt = require('bcrypt');
