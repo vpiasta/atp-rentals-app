@@ -2948,10 +2948,26 @@ function buildInvoiceFormHtml(app, appId, ns, heading, containerId) {
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:0.8rem;font-size:0.82rem;">
             <div><div style="color:#aaa;font-size:0.7rem;">Nombre</div>
                 <input id="${ns}inv-name-${appId}" type="text" value="${app.business_name||app.contact_name||''}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:200px;"></div>
-            <div><div style="color:#aaa;font-size:0.7rem;">RUC</div>
-                <input id="${ns}inv-ruc-${appId}" type="text" value="${app.ruc||''}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:130px;"></div>
-            <div><div style="color:#aaa;font-size:0.7rem;">DV</div>
-                <input id="${ns}inv-dv-${appId}" type="text" value="${app.ruc_dv||''}" maxlength="2" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:50px;"></div>
+            <div><div style="color:#aaa;font-size:0.7rem;">Tipo ID</div>
+                <select id="${ns}inv-idtype-${appId}" onchange="toggleInvoiceIdFields('${ns}',${appId})" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;">
+                    <option value="ruc" ${app.ruc?'selected':''}>RUC (Contribuyente)</option>
+                    <option value="cedula" ${app.ruc?'':'selected'}>Cédula (Consumidor Final)</option>
+                    <option value="pasaporte">Pasaporte (Extranjero)</option>
+                </select></div>
+            <div id="${ns}inv-ruc-wrap-${appId}" style="display:${app.ruc?'flex':'none'};gap:10px;">
+                <div><div style="color:#aaa;font-size:0.7rem;">RUC</div>
+                    <input id="${ns}inv-ruc-${appId}" type="text" value="${app.ruc||''}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:130px;"></div>
+                <div><div style="color:#aaa;font-size:0.7rem;">DV</div>
+                    <input id="${ns}inv-dv-${appId}" type="text" value="${app.ruc_dv||''}" maxlength="2" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:50px;"></div>
+            </div>
+            <div id="${ns}inv-persid-wrap-${appId}" style="display:${app.ruc?'none':'block'};">
+                <div style="color:#aaa;font-size:0.7rem;">N&deg; identificaci&oacute;n</div>
+                <input id="${ns}inv-persid-${appId}" type="text" placeholder="C&eacute;dula o pasaporte" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:150px;">
+            </div>
+            <div id="${ns}inv-perscountry-wrap-${appId}" style="display:none;">
+                <div style="color:#aaa;font-size:0.7rem;">Pa&iacute;s (2 letras)</div>
+                <input id="${ns}inv-perscountry-${appId}" type="text" maxlength="2" placeholder="US" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:60px;text-transform:uppercase;">
+            </div>
             <div><div style="color:#aaa;font-size:0.7rem;">Email</div>
                 <input id="${ns}inv-email-${appId}" type="text" value="${app.contact_email||''}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:180px;"></div>
             <div><div style="color:#aaa;font-size:0.7rem;">Plan</div>
@@ -2978,16 +2994,34 @@ function refreshAfterInvoice(listingId) {
     if (listingId) loadApplicationInfoForEdit(listingId);
 }
 
+// Shows/hides the RUC vs. personal-ID vs. country fields based on the
+// "Tipo ID" selector — added 2026-08-23 so a member with no RUC (e.g. a
+// foreign host who only has a passport, or a Panamanian with just a
+// cédula) can still be invoiced, via eFacturaPty's Consumidor Final (02)
+// or Extranjero (04) receptor categories instead of Contribuyente (01).
+function toggleInvoiceIdFields(ns, appId) {
+    const type = document.getElementById(ns+'inv-idtype-'+appId).value;
+    document.getElementById(ns+'inv-ruc-wrap-'+appId).style.display        = (type === 'ruc') ? 'flex'  : 'none';
+    document.getElementById(ns+'inv-persid-wrap-'+appId).style.display     = (type === 'ruc') ? 'none'  : 'block';
+    document.getElementById(ns+'inv-perscountry-wrap-'+appId).style.display = (type === 'pasaporte') ? 'block' : 'none';
+}
+
 async function confirmInvoice(appId, mode, ns) {
     ns = ns || '';
     const name  = document.getElementById(ns+'inv-name-'  + appId).value.trim();
+    const idType = document.getElementById(ns+'inv-idtype-' + appId).value; // 'ruc' | 'cedula' | 'pasaporte'
     const ruc   = document.getElementById(ns+'inv-ruc-'   + appId).value.trim();
     const dv    = document.getElementById(ns+'inv-dv-'    + appId).value.trim();
+    const personalId      = document.getElementById(ns+'inv-persid-'      + appId).value.trim();
+    const personalCountry = document.getElementById(ns+'inv-perscountry-' + appId).value.trim().toUpperCase();
     const email = document.getElementById(ns+'inv-email-' + appId).value.trim();
     const plan  = document.getElementById(ns+'inv-plan-'  + appId).value;
     const totalPaid = parseFloat(document.getElementById(ns+'inv-total-' + appId).value) || 0;
     const msgEl = document.getElementById(ns+'inv-result-' + appId);
-    if (!name || !ruc || !dv || !email) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill all fields</span>'; return; }
+    if (!name || !email) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill all fields</span>'; return; }
+    if (idType === 'ruc' && (!ruc || !dv)) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill RUC and DV</span>'; return; }
+    if (idType === 'cedula' && !personalId) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill the cédula number</span>'; return; }
+    if (idType === 'pasaporte' && (!personalId || !personalCountry)) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill passport number and country</span>'; return; }
     msgEl.innerHTML = mode === 'api' ? '⏳ Sending invoice via API...' : '⏳ Confirming...';
     try {
         const res = await adminFetch('/api/admin/application/' + appId);
@@ -3002,6 +3036,9 @@ async function confirmInvoice(appId, mode, ns) {
                     plan,
                     business_name:  name,
                     ruc, ruc_dv: dv, email,
+                    receptor_type:        idType,
+                    personal_id:          personalId,
+                    personal_id_country:  personalCountry,
                     amount_total:   totalPaid
                 })
             });
@@ -3043,7 +3080,10 @@ async function confirmInvoice(appId, mode, ns) {
                 application_id: appId,
                 listing_id:     app.listing_id,
                 business_name:  name,
-                ruc, ruc_dv: dv, email
+                ruc, ruc_dv: dv, email,
+                receptor_type:       idType,
+                personal_id:         personalId,
+                personal_id_country: personalCountry
             })
         });
         const data = await res2.json();
@@ -3056,10 +3096,12 @@ async function confirmInvoice(appId, mode, ns) {
             const invoiceFile = `${today} factura TPS ${app.listing_id} $${totalPaid.toFixed(2)}`;
             const drivePath = `C:\\Users\\vpias.NUC\\Google Drive\\Aparthotel Boquete\\Contabilidad Tuscany Real Estates SA\\2026\\07 julio\\facturas TPS`;
             navigator.clipboard.writeText(invoiceFile).catch(()=>{});
+            const idLabel = idType === 'ruc' ? 'RUC' : (idType === 'cedula' ? 'Cédula (Consumidor Final)' : 'Pasaporte (Extranjero)');
+            const idValue = idType === 'ruc' ? `${ruc}-${dv}` : `${personalId}${idType==='pasaporte' ? ' ('+personalCountry+')' : ''}`;
             msgEl.innerHTML = `<div style="color:#adf5ad;font-weight:700;">✅ Payment confirmed — issue invoice manually:</div>
             <div style="background:#1a2a1a;padding:10px;margin-top:8px;border-radius:5px;font-size:0.85rem;line-height:1.8;">
             <b>Nombre:</b> ${name}<br>
-            <b>RUC:</b> ${ruc}-${dv}<br>
+            <b>${idLabel}:</b> ${idValue}<br>
             <b>Producto:</b> ${product}<br>
             <b>Neto:</b> $${net.toFixed(2)}<br>
             <b>ITBMS (7%):</b> $${itbms.toFixed(2)}<br>

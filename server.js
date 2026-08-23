@@ -5087,8 +5087,27 @@ function resolveFormaPago(paymentMethod) {
 // -------------------------------------------------------------------------------
 app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
     const { listing_id, application_id, plan, business_name, ruc, ruc_dv, email } = req.body;
-    if (!listing_id || !plan || !business_name || !ruc || !ruc_dv || !email)
+    // receptor_type: 'ruc' (Contribuyente, tipoReceptorFe 01 — default, keeps
+    // old callers working unchanged), 'cedula' (Consumidor Final, 02 — a
+    // Panamanian member who has no RUC), or 'pasaporte' (Extranjero, 04 — a
+    // foreign member who has no RUC). Added 2026-08-23: not every member has
+    // a valid RUC (see the Daniel Gerber/Casitas Vista Verde case — a foreign
+    // E-cédula holder without a registered RUC/NT), and eFacturaPty supports
+    // invoicing those cases directly instead of blocking on a missing RUC.
+    const receptorType = req.body.receptor_type || 'ruc';
+    const personalId = (req.body.personal_id || '').trim();
+    const personalIdCountry = (req.body.personal_id_country || '').trim().toUpperCase();
+
+    if (!listing_id || !plan || !business_name || !email)
         return res.status(400).json({ error: 'Missing required fields' });
+    if (!['ruc', 'cedula', 'pasaporte'].includes(receptorType))
+        return res.status(400).json({ error: 'Invalid receptor_type' });
+    if (receptorType === 'ruc' && (!ruc || !ruc_dv))
+        return res.status(400).json({ error: 'Missing RUC/DV' });
+    if (receptorType === 'cedula' && !personalId)
+        return res.status(400).json({ error: 'Missing cédula number' });
+    if (receptorType === 'pasaporte' && (!personalId || !personalIdCountry))
+        return res.status(400).json({ error: 'Missing passport number or country' });
 
     // ── Guard against issuing a second real DGI fiscal invoice for the same
     // payment — unlike the 'payments' insert further below (which only
@@ -5134,18 +5153,60 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
         // Multiple recipients: member + TPS copy
         const recipients = `${email};info@trustedpanamastays.com`;
 
-    const invoiceBody = {
-        datosGenerales: {
-            tipoDocumento:     '01',  // Factura de operación interna
-            puntoFacturacion:  '200',
-            fechaEmision:      new Date().toISOString(),
-            naturalezaOperacion: '01', // Venta
-            tipoOperacion:     1,      // Salida/venta
-            destinoOperacion:  1,      // Panamá
-            tipoTransaccionVenta: 4,   // Prestación de servicio
-            tipoSucursal:      1,
-            informacionReceptor: {
-                tipoReceptorFe:   '01',  // Contribuyente Panamá
+        // Receptor block varies by category — the operation itself is always
+        // a domestic (Panamá) sale of services regardless of the buyer's
+        // nationality or documentation, so destinoOperacion/paisReceptor
+        // never change; only tipoReceptorFe and its associated identification
+        // sub-object do. Built 2026-08-23 from the eFacturaPty schema the
+        // user pasted from
+        // https://efacturapty.stoplight.io/docs/efactura-api/branches/main/w217235zxgsai-obtiene-los-datos-de-una-factura
+        let informacionReceptor;
+        if (receptorType === 'cedula') {
+            // Consumidor Final (02). Per the pasted schema, none of
+            // datosRucReceptor/direccionReceptor/ubicacionReceptor/
+            // grupoIdentificacionExtranjera are required — or even offered —
+            // for this category, and there is no dedicated field for a
+            // buyer's cédula number. Folded into nombreRazonReceptor purely
+            // for our own paper trail; it does not reach a structured DGI
+            // field. nombreRazonReceptor itself isn't required for 02 either,
+            // but a real, successfully-authorized invoice in this same
+            // eFacturaPty account (Aparthotel Boquete → Shelia Miller, see
+            // the extranjero case below) populated it anyway, so we do too.
+            informacionReceptor = {
+                tipoReceptorFe:      '02',
+                nombreRazonReceptor: personalId ? `${business_name} (Cédula ${personalId})` : business_name,
+                correoReceptor:      recipients,
+                paisReceptor:        'PA'
+            };
+        } else if (receptorType === 'pasaporte') {
+            // Extranjero (04). grupoIdentificacionExtranjera's own field
+            // names were NOT visible in the schema pasted 2026-08-23 —
+            // Stoplight didn't expand that nested object. The shape below
+            // (numeroIdentificacion + paisIdentificacion) is a BEST GUESS at
+            // eFacturaPty's JSON mapping, inferred from a real,
+            // successfully-authorized DGI XML invoice on this same
+            // certificate/account (Aparthotel Boquete → Shelia Miller, US
+            // passport 578949663), whose raw <gIdExt> element carries
+            // <dIdExt> (id number) + <dPaisExt> (2-letter country) — NOT
+            // confirmed against eFacturaPty's actual JSON schema. If this
+            // fails validation, nothing is activated/saved (see the
+            // `!authorized` branch below) and the raw error response names
+            // exactly what's wrong — paste it back to correct the field
+            // names in one more pass.
+            informacionReceptor = {
+                tipoReceptorFe:      '04',
+                grupoIdentificacionExtranjera: {
+                    numeroIdentificacion: personalId,
+                    paisIdentificacion:   personalIdCountry
+                },
+                nombreRazonReceptor: business_name,
+                correoReceptor:      recipients,
+                paisReceptor:        'PA'
+            };
+        } else {
+            // RUC-holder (Contribuyente, 01) — unchanged existing path.
+            informacionReceptor = {
+                tipoReceptorFe:   '01',
                 datosRucReceptor: {
                     tipoContribuyente: 2,
                     rucReceptor:       ruc,
@@ -5154,7 +5215,20 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
                 nombreRazonReceptor: business_name,
                 correoReceptor:      recipients,
                 paisReceptor:        'PA'
-            }
+            };
+        }
+
+    const invoiceBody = {
+        datosGenerales: {
+            tipoDocumento:     '01',  // Factura de operación interna
+            puntoFacturacion:  '200',
+            fechaEmision:      new Date().toISOString(),
+            naturalezaOperacion: '01', // Venta
+            tipoOperacion:     1,      // Salida/venta
+            destinoOperacion:  1,      // Panamá (always — same-country service regardless of receptor category)
+            tipoTransaccionVenta: 4,   // Prestación de servicio
+            tipoSucursal:      1,
+            informacionReceptor
         },
         listaItems: [{
             numeroSecuenciaItem:              1,
@@ -5254,7 +5328,10 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
         await recalculateFeatureRanks();
         await logEvent('invoice_issued', {
             listing_id, plan, amount: planPrice,
-            cufe: invoice.cufe, invoice_id: invoice.invoice
+            cufe: invoice.cufe, invoice_id: invoice.invoice,
+            receptor_type: receptorType,
+            personal_id: receptorType !== 'ruc' ? personalId : undefined,
+            personal_id_country: receptorType === 'pasaporte' ? personalIdCountry : undefined
         });
 
         // Guard against duplicate inserts (e.g. accidental double-click)
