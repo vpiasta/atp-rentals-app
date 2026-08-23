@@ -1652,12 +1652,16 @@ app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
 // an invoice. The invoice form reads the application fresh each time it's
 // opened, so a correction saved here is picked up automatically next time.
 app.post('/api/admin/update-application-ruc', requireAdmin, async (req, res) => {
-    const { application_id, ruc, ruc_dv, business_name } = req.body;
+    const { application_id, ruc, ruc_dv, business_name, personal_id } = req.body;
     if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
     const updates = {
         ruc:    ruc !== undefined ? (ruc ? String(ruc).trim() : null) : undefined,
         ruc_dv: ruc_dv !== undefined ? (ruc_dv ? String(ruc_dv).trim() : null) : undefined,
-        business_name: business_name !== undefined ? (business_name ? String(business_name).trim() : null) : undefined
+        business_name: business_name !== undefined ? (business_name ? String(business_name).trim() : null) : undefined,
+        // Cédula or passport number, used to pre-fill the invoice form's
+        // Consumidor Final/Extranjero path when there's no RUC on file
+        // (added 2026-08-23 — see membership_applications.personal_id).
+        personal_id: personal_id !== undefined ? (personal_id ? String(personal_id).trim() : null) : undefined
     };
     Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
     if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Nothing to update' });
@@ -5279,6 +5283,22 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
         const isProduction = environment === 1;
         const authorized   = invoice.autorizada === true && isProduction;
 
+        // eFacturaPty's "invoice" field is an opaque UUID (used only for the
+        // CAFE PDF URL, /Invoices/{id}/cafe-file) — not a human-readable
+        // invoice number. The only field in the raw response that behaves
+        // like a running document sequence is "secuence" (eFacturaPty's own
+        // spelling); paired with our fixed puntoFacturacion ("200") it
+        // reproduces the "puntoFacturacion-correlativo" style number used in
+        // Volker's accounting filenames (e.g. "200-020"). Best-effort
+        // mapping, added 2026-08-23, not confirmed against an official
+        // eFacturaPty field-name doc — if a number on a downloaded CAFE PDF
+        // ever doesn't match this, the raw response saved to event_log
+        // (`efactura_raw_response`) has the real data to work out the right
+        // field.
+        const invoiceNumber = (invoice.secuence !== undefined && invoice.secuence !== null)
+            ? `${invoiceBody.datosGenerales.puntoFacturacion}-${String(invoice.secuence).padStart(3, '0')}`
+            : null;
+
         await logEvent('efactura_raw_response', {
             listing_id, application_id,
             status: response.status,
@@ -5352,6 +5372,7 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
                 cufe:           invoice.cufe || null,
                 invoice_uuid:   invoice.invoice || null,
                 invoice_url:    invoice.invoice ? `https://admin.efacturapty.com/external/invoices/${invoice.invoice}` : null,
+                invoice_number: invoiceNumber,
                 invoice_date:   new Date().toISOString().split('T')[0],
                 status:         'invoiced'
             });
@@ -5359,7 +5380,7 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
             console.log(`Skipped duplicate payment insert for CUFE ${invoice.cufe} — already recorded`);
         }
 
-        res.json({ success: true, paid_until: paidUntilStr, invoice });
+        res.json({ success: true, paid_until: paidUntilStr, invoice, invoice_number: invoiceNumber });
 
     } catch (err) {
         const errMsg = err.response?.data || err.message;

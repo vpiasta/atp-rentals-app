@@ -1414,23 +1414,6 @@ async function openListingAsAdmin() {
     } catch(err) { alert('Error: ' + err.message); }
 }
 
-// eFacturaPty invoice numbers look like "200-0000000006" (puntoFacturacion-
-// correlativo). Strip the correlativo's leading zeros down to a 2-digit
-// minimum so short sequences stay short and readable (e.g. "0000000006" ->
-// "06") without ever losing digits once the sequence grows longer (e.g.
-// "0000000123" -> "123") — used to keep accounting-folder filenames short
-// while still letting the original invoice be found in efacturapty.com.
-function abbreviateInvoiceNumber(raw) {
-    if (!raw) return '';
-    const parts = String(raw).split('-');
-    if (parts.length < 2) return raw;
-    const prefix = parts[0];
-    const correlativo = parts.slice(1).join('-');
-    let stripped = correlativo.replace(/^0+/, '');
-    if (stripped.length < 2) stripped = stripped.padStart(2, '0');
-    return `${prefix}-${stripped}`;
-}
-
 async function loadApplicationInfoForEdit(listingId) {
     const box = document.getElementById('edit-application-info');
     box.innerHTML = '<div style="color:#aaa;font-size:0.82rem;">Loading applicant &amp; payment info...</div>';
@@ -1443,23 +1426,38 @@ async function loadApplicationInfoForEdit(listingId) {
     }
 }
 
-async function downloadInvoicePdf(invoiceUuid, listingId, amountTotal) {
+// invoiceNumber (added 2026-08-23): the human-readable "puntoFacturacion-
+// secuencia" number (e.g. "200-020"), computed server-side in
+// /api/admin/issue-invoice and stored as payments.invoice_number — this is
+// what actually goes in the filename now, replacing an earlier attempt that
+// abbreviated the eFacturaPty invoice UUID (meaningless to a human/QB).
+// Falls back to omitting that segment for older invoices issued before this
+// field existed.
+// alsoShow (added 2026-08-23): when true, also opens the PDF in a new tab
+// at the same time as downloading it — the same "show + download at once"
+// behavior viewDocument() already does for payment proofs. Used to make
+// the invoice PDF appear automatically right when an invoice is issued via
+// API, instead of leaving that for a separate manual click later.
+async function downloadInvoicePdf(invoiceUuid, listingId, amountTotal, invoiceNumber, alsoShow) {
     try {
         const res = await adminFetch('/api/admin/invoice-pdf/' + invoiceUuid);
         if (!res.ok) { const d = await res.json(); alert('Error: ' + (d.error||'download failed')); return; }
         const blob = await res.blob();
         const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
         const amountFixed = amountTotal ? parseFloat(amountTotal).toFixed(2) : '0.00';
-        const shortInvoiceNum = abbreviateInvoiceNumber(invoiceUuid);
-        const fileName = `${dateStr} factura TPS ${listingId}${shortInvoiceNum ? ' ' + shortInvoiceNum : ''} $${amountFixed}.pdf`;
+        const fileName = `${dateStr} factura${invoiceNumber ? ' ' + invoiceNumber : ''} TPS${listingId} $${amountFixed}.pdf`;
         const drivePath = `C:\\Users\\vpias.NUC\\Google Drive\\Aparthotel Boquete\\Contabilidad Tuscany Real Estates SA\\2026\\07 julio\\facturas TPS`;
         navigator.clipboard.writeText(drivePath).catch(()=>{});
         const blobUrl = URL.createObjectURL(blob);
+        if (alsoShow) window.open(blobUrl, '_blank');
         const a = document.createElement('a');
         a.href = blobUrl;
         a.download = fileName;
         a.click();
-        URL.revokeObjectURL(blobUrl);
+        // Delay revocation so the newly-opened tab has time to actually load
+        // the blob before its URL is invalidated (immediate revocation can
+        // race the new tab's own fetch of it).
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
     } catch(err) { alert('Error downloading invoice: ' + err.message); }
 }
 
@@ -1482,12 +1480,19 @@ function renderApplicationInfo(app, payment) {
         // real RUC) without having to go through the invoice form. Saving
         // here also fixes the value the invoice form defaults to next time
         // it's opened for this application.
+        // Also includes an "N° identificación" field (added 2026-08-23) for
+        // members with no RUC — cédula or passport, used by the invoice
+        // form's Consumidor Final/Extranjero paths. Without this the admin
+        // had to retype the ID from an email every single time an invoice
+        // was created; saving it here pre-fills the invoice form instead.
         const rucSection = `
             <div style="margin-top:0.6rem;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
                 <div><div style="color:#aaa;font-size:0.7rem;">RUC</div>
                     <input id="app-ruc-${app.id}" type="text" value="${app.ruc||''}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:150px;"></div>
                 <div><div style="color:#aaa;font-size:0.7rem;">DV</div>
                     <input id="app-rucdv-${app.id}" type="text" value="${app.ruc_dv||''}" maxlength="2" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:50px;"></div>
+                <div><div style="color:#aaa;font-size:0.7rem;">N&deg; ID (si no hay RUC)</div>
+                    <input id="app-persid-${app.id}" type="text" value="${app.personal_id||''}" placeholder="C&eacute;dula o pasaporte" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:150px;"></div>
                 <button class="doc-btn" onclick="saveApplicationRuc(${app.id})">💾 Guardar RUC</button>
                 <span id="app-ruc-msg-${app.id}" style="font-size:0.78rem;"></span>
             </div>`;
@@ -1497,7 +1502,7 @@ function renderApplicationInfo(app, payment) {
                 <strong style="color:#7ec8e3;">🧾 Invoice:</strong>
                 CUFE <code style="font-size:0.75rem;">${payment.cufe||'—'}</code>
                 ${payment.invoice_url ? ` — <a href="${payment.invoice_url}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}
-                ${payment.invoice_uuid ? ` — <button class="doc-btn" onclick="downloadInvoicePdf('${payment.invoice_uuid}','${payment.listing_id}','${payment.amount_total||''}')">⬇️ Download PDF</button>` : ''}
+                ${payment.invoice_uuid ? ` — <button class="doc-btn" onclick="downloadInvoicePdf('${payment.invoice_uuid}','${payment.listing_id}','${payment.amount_total||''}','${payment.invoice_number||''}',true)">⬇️ Download PDF</button>` : ''}
                 <br><span style="color:#aaa;font-size:0.78rem;">Total: $${payment.amount_total||'—'} · ${payment.payment_method||''} · ${payment.invoice_date||''}</span>
             </div>` : (app.membership_type === 'paid' ? `
             <div style="margin-top:0.6rem;">
@@ -1523,15 +1528,16 @@ function renderApplicationInfo(app, payment) {
 }
 
 async function saveApplicationRuc(appId) {
-    const ruc   = document.getElementById('app-ruc-'   + appId).value.trim();
-    const dv    = document.getElementById('app-rucdv-' + appId).value.trim();
-    const msgEl = document.getElementById('app-ruc-msg-' + appId);
+    const ruc     = document.getElementById('app-ruc-'    + appId).value.trim();
+    const dv      = document.getElementById('app-rucdv-'  + appId).value.trim();
+    const persId  = document.getElementById('app-persid-' + appId).value.trim();
+    const msgEl   = document.getElementById('app-ruc-msg-' + appId);
     msgEl.style.color = '#aaa';
     msgEl.textContent = '⏳ Guardando...';
     try {
         const res = await adminFetch('/api/admin/update-application-ruc', {
             method: 'POST',
-            body: JSON.stringify({ application_id: appId, ruc, ruc_dv: dv })
+            body: JSON.stringify({ application_id: appId, ruc, ruc_dv: dv, personal_id: persId })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Save failed');
@@ -1795,7 +1801,7 @@ async function viewDocument(docPath, docType, verificationResult, propertyName, 
             const amountFixed = parseFloat(amount).toFixed(2);
             // Filesystem-safe rental name for QuickBooks/Excel to read straight off the filename.
             const safeName = (propertyName||'').replace(/[\\/:*?"<>|]/g,'').trim();
-            const stdName = `${payDate} pago membresia ${safeName} TPS ${listingId||''} $${amountFixed}.${ext}`;
+            const stdName = `${payDate} pago membresia ${safeName} TPS${listingId||''} $${amountFixed}.${ext}`;
             const drivePath = `C:\\Users\\vpias.NUC\\Google Drive\\Aparthotel Boquete\\Contabilidad Tuscany Real Estates SA\\2026\\07 julio\\entradas\\transferencia`;
             navigator.clipboard.writeText(drivePath).catch(()=>{});
             try {
@@ -2939,10 +2945,22 @@ document.addEventListener('click', function(e) {
 // from colliding on the rare occasion both happen to be open at once; the
 // server-side duplicate-invoice guard in /api/admin/issue-invoice is what
 // actually prevents a real double-invoice, regardless of which form was used.
+// Cédulas (Panamanian: N-NNN-NNNN, or foreign-resident E-cédulas: e.g.
+// E-8-147038) always contain hyphens; passports, per Volker (2026-08-23),
+// are always a contiguous run of letters/digits with no hyphens. Used to
+// default the invoice form's "Tipo ID" selector from a saved personal_id
+// so the admin doesn't have to remember to switch it manually.
+function detectPersonalIdType(idStr) {
+    const v = (idStr || '').trim();
+    if (!v) return 'cedula';
+    return v.includes('-') ? 'cedula' : 'pasaporte';
+}
+
 function buildInvoiceFormHtml(app, appId, ns, heading, containerId) {
     const vr = app.verification_result||'';
     const m = vr.match(/:([\d.]+):/);
     const defaultTotal = app.amount_paid ? parseFloat(app.amount_paid).toFixed(2) : (m ? parseFloat(m[1]).toFixed(2) : (app.duration_months===24?'48.15':'25.68'));
+    const idType = app.ruc ? 'ruc' : detectPersonalIdType(app.personal_id);
     return `<div style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:8px;padding:1rem;margin-top:0.8rem;">
         <div style="font-weight:700;color:#adf5ad;margin-bottom:0.8rem;">${heading}</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:0.8rem;font-size:0.82rem;">
@@ -2950,21 +2968,21 @@ function buildInvoiceFormHtml(app, appId, ns, heading, containerId) {
                 <input id="${ns}inv-name-${appId}" type="text" value="${app.business_name||app.contact_name||''}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:200px;"></div>
             <div><div style="color:#aaa;font-size:0.7rem;">Tipo ID</div>
                 <select id="${ns}inv-idtype-${appId}" onchange="toggleInvoiceIdFields('${ns}',${appId})" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;">
-                    <option value="ruc" ${app.ruc?'selected':''}>RUC (Contribuyente)</option>
-                    <option value="cedula" ${app.ruc?'':'selected'}>Cédula (Consumidor Final)</option>
-                    <option value="pasaporte">Pasaporte (Extranjero)</option>
+                    <option value="ruc" ${idType==='ruc'?'selected':''}>RUC (Contribuyente)</option>
+                    <option value="cedula" ${idType==='cedula'?'selected':''}>Cédula (Consumidor Final)</option>
+                    <option value="pasaporte" ${idType==='pasaporte'?'selected':''}>Pasaporte (Extranjero)</option>
                 </select></div>
-            <div id="${ns}inv-ruc-wrap-${appId}" style="display:${app.ruc?'flex':'none'};gap:10px;">
+            <div id="${ns}inv-ruc-wrap-${appId}" style="display:${idType==='ruc'?'flex':'none'};gap:10px;">
                 <div><div style="color:#aaa;font-size:0.7rem;">RUC</div>
                     <input id="${ns}inv-ruc-${appId}" type="text" value="${app.ruc||''}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:130px;"></div>
                 <div><div style="color:#aaa;font-size:0.7rem;">DV</div>
                     <input id="${ns}inv-dv-${appId}" type="text" value="${app.ruc_dv||''}" maxlength="2" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:50px;"></div>
             </div>
-            <div id="${ns}inv-persid-wrap-${appId}" style="display:${app.ruc?'none':'block'};">
+            <div id="${ns}inv-persid-wrap-${appId}" style="display:${idType==='ruc'?'none':'block'};">
                 <div style="color:#aaa;font-size:0.7rem;">N&deg; identificaci&oacute;n</div>
-                <input id="${ns}inv-persid-${appId}" type="text" placeholder="C&eacute;dula o pasaporte" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:150px;">
+                <input id="${ns}inv-persid-${appId}" type="text" value="${app.personal_id||''}" placeholder="C&eacute;dula o pasaporte" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:150px;">
             </div>
-            <div id="${ns}inv-perscountry-wrap-${appId}" style="display:none;">
+            <div id="${ns}inv-perscountry-wrap-${appId}" style="display:${idType==='pasaporte'?'block':'none'};">
                 <div style="color:#aaa;font-size:0.7rem;">Pa&iacute;s (2 letras)</div>
                 <input id="${ns}inv-perscountry-${appId}" type="text" maxlength="2" placeholder="US" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:60px;text-transform:uppercase;">
             </div>
@@ -3044,16 +3062,30 @@ async function confirmInvoice(appId, mode, ns) {
             });
             const data2 = await res2.json();
             if (data2.success) {
-                const invoiceUrl = data2.invoice?.invoice
-                    ? `https://admin.efacturapty.com/external/invoices/${data2.invoice.invoice}`
+                const invoiceUuid = data2.invoice?.invoice || null;
+                const invoiceNumber = data2.invoice_number || '';
+                const invoiceUrl = invoiceUuid
+                    ? `https://admin.efacturapty.com/external/invoices/${invoiceUuid}`
                     : null;
                 msgEl.innerHTML = `
-                    <div style="color:#adf5ad;">✅ Invoice sent! CUFE: ${data2.invoice?.cufe||'OK'}${invoiceUrl ? ` — <a href="${invoiceUrl}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}</div>
+                    <div style="color:#adf5ad;">✅ Invoice sent! CUFE: ${data2.invoice?.cufe||'OK'}${invoiceUrl ? ` — <a href="${invoiceUrl}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}${invoiceUuid ? ` — <button class="doc-btn" onclick="downloadInvoicePdf('${invoiceUuid}','${app.listing_id}','${totalPaid}','${invoiceNumber}',true)">⬇️ Download PDF</button>` : ''}</div>
                     <details style="margin-top:8px;">
                         <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa de eFacturaPty</summary>
                         <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#adf5ad;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.invoice, null, 2)}</textarea>
                     </details>
                     <button onclick="refreshAfterInvoice(${app.listing_id})" style="margin-top:8px;padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.8rem;">🔄 Refresh applications now</button>`;
+                // Automatic: show + download the PDF right away, same as
+                // payment proofs already do (viewDocument()) — added
+                // 2026-08-23 so this doesn't need a separate manual step.
+                // The buttons above remain as a fallback if this fails for
+                // any reason (e.g. a popup blocker) or needs to be redone.
+                // Also auto-refreshes the applications list/panel right after
+                // (2026-08-23) — the "invoiced" state (and its own Download
+                // PDF button) previously only appeared once the admin clicked
+                // "Refresh applications now" by hand; no reason to wait for
+                // that click.
+                if (invoiceUuid) await downloadInvoicePdf(invoiceUuid, app.listing_id, totalPaid, invoiceNumber, true);
+                refreshAfterInvoice(app.listing_id);
               } else if (data2.errors) {
                   const errList = data2.errors.map(e => `${e.codigo}: ${e.mensaje}`).join('<br>');
                   msgEl.innerHTML = `
@@ -3093,7 +3125,7 @@ async function confirmInvoice(appId, mode, ns) {
             const months = app.duration_months || 12;
             const product = months === 24 ? 'TPS02 — Membresía 2 años' : 'TPS01 — Membresía 1 año';
             const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-            const invoiceFile = `${today} factura TPS ${app.listing_id} $${totalPaid.toFixed(2)}`;
+            const invoiceFile = `${today} factura TPS${app.listing_id} $${totalPaid.toFixed(2)}`;
             const drivePath = `C:\\Users\\vpias.NUC\\Google Drive\\Aparthotel Boquete\\Contabilidad Tuscany Real Estates SA\\2026\\07 julio\\facturas TPS`;
             navigator.clipboard.writeText(invoiceFile).catch(()=>{});
             const idLabel = idType === 'ruc' ? 'RUC' : (idType === 'cedula' ? 'Cédula (Consumidor Final)' : 'Pasaporte (Extranjero)');
