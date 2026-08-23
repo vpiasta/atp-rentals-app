@@ -544,7 +544,9 @@
             <div class="toolbar">
                 <button class="tbtn primary" onclick="loadInvoiceLog()">🔄 Refresh</button>
                 <button class="tbtn success" onclick="exportInvoiceCSV()">📥 Export CSV</button>
+                <button class="tbtn" onclick="reconcileInvoices()">🔎 Update invoices</button>
             </div>
+            <div id="reconcile-panel"></div>
             <div class="table-wrap" style="margin-top:1rem;">
                 <table class="invoice-table">
                     <thead>
@@ -2044,6 +2046,91 @@ function exportInvoiceCSV() {
     a.click(); URL.revokeObjectURL(url);
 }
 
+// ── Invoice reconciliation ("🔎 Update invoices") — added 2026-08-23 ─────────
+// Replaces the old dead "📋 Manual" invoice button. Sometimes an invoice has
+// to be created by hand directly on admin.efacturapty.com (a receptor case
+// our form doesn't cover, a correction, etc.) — that invoice is real, but
+// TPS's own `payments` table never learns about it on its own. This pulls
+// eFacturaPty's own invoice list, finds the ones missing here, and lets the
+// admin link each one to the right TPS listing on purpose — never silently.
+let _reconcileMap = {};
+
+async function reconcileInvoices() {
+    const panel = document.getElementById('reconcile-panel');
+    panel.innerHTML = '<div style="color:#aaa;font-size:0.85rem;margin:0.6rem 0;">🔎 Checking efacturapty.com for invoices not yet in TPS…</div>';
+    try {
+        const res = await adminFetch('/api/admin/efactura-unlinked-invoices');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error');
+        _reconcileMap = {};
+        (data.invoices || []).forEach(inv => { _reconcileMap[inv.cufe] = inv; });
+        renderReconcilePanel(data.invoices || []);
+    } catch(err) {
+        panel.innerHTML = `<div style="color:#ff7070;font-size:0.85rem;margin:0.6rem 0;">Error: ${err.message}</div>`;
+    }
+}
+
+function renderReconcilePanel(invoices) {
+    const panel = document.getElementById('reconcile-panel');
+    if (!invoices.length) {
+        panel.innerHTML = '<div style="color:#adf5ad;font-size:0.85rem;margin:0.6rem 0;">✅ Nothing missing — every invoice on efacturapty.com (billing point 200) is already in TPS.</div>';
+        return;
+    }
+    panel.innerHTML = `
+        <div style="background:#1a2a3a;border:1px solid #2c3e50;border-radius:8px;padding:12px;margin:0.6rem 0;">
+            <div style="color:#f5c542;font-weight:700;margin-bottom:8px;">⚠️ ${invoices.length} invoice(s) found on efacturapty.com but not in TPS — review and link each one:</div>
+            ${invoices.map(inv => { const safeId = inv.cufe.replace(/[^a-zA-Z0-9]/g,''); return `
+                <div id="recon-row-${safeId}" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;background:#111;padding:8px;margin-bottom:8px;border-radius:6px;">
+                    <div style="min-width:200px;">
+                        <div style="color:#aaa;font-size:0.7rem;">Factura</div>
+                        <div style="font-size:0.82rem;">${inv.invoice_number||'—'} · ${inv.issue_date?new Date(inv.issue_date).toLocaleDateString():'—'}</div>
+                        <div style="color:#aaa;font-size:0.72rem;">${inv.receptor_name||'—'} ${inv.receptor_ruc?'('+inv.receptor_ruc+')':''}</div>
+                        <div style="color:#7ec8e3;font-size:0.78rem;">$${inv.amount_total!=null?parseFloat(inv.amount_total).toFixed(2):'—'}</div>
+                    </div>
+                    <div><div style="color:#aaa;font-size:0.7rem;">TPS Listing ID</div>
+                        <input id="recon-listing-${safeId}" type="text" value="${inv.suggested_listing_id||''}" placeholder="?" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:90px;"></div>
+                    <div><div style="color:#aaa;font-size:0.7rem;">Duración</div>
+                        <select id="recon-months-${safeId}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;">
+                            <option value="12" ${inv.guessed_months===12?'selected':''}>1 año</option>
+                            <option value="24" ${inv.guessed_months===24?'selected':''}>2 años</option>
+                        </select></div>
+                    ${inv.suggested_name ? `<div style="color:#adf5ad;font-size:0.75rem;align-self:center;">Sugerido: ${inv.suggested_name}</div>` : '<div style="color:#888;font-size:0.75rem;align-self:center;">Sin sugerencia — ingrese el Listing ID</div>'}
+                    <button class="doc-btn" onclick="linkReconciledInvoice('${inv.cufe}')">🔗 Link &amp; Activate</button>
+                </div>`; }).join('')}
+        </div>`;
+}
+
+async function linkReconciledInvoice(cufe) {
+    const inv = _reconcileMap[cufe];
+    if (!inv) return;
+    const safeId = cufe.replace(/[^a-zA-Z0-9]/g,'');
+    const listingId = document.getElementById('recon-listing-'+safeId).value.trim();
+    const months = document.getElementById('recon-months-'+safeId).value;
+    if (!listingId) { alert('Enter the TPS Listing ID to link this invoice to.'); return; }
+    if (!confirm(`Link invoice ${inv.invoice_number||inv.cufe} to listing ${listingId} and activate membership for ${months==24?'2 years':'1 year'}?`)) return;
+    try {
+        const res = await adminFetch('/api/admin/efactura-link-invoice', {
+            method: 'POST',
+            body: JSON.stringify({
+                cufe:          inv.cufe,
+                invoice_uuid:  inv.invoice_uuid,
+                invoice_number: inv.invoice_number,
+                issue_date:    inv.issue_date,
+                amount_total:  inv.amount_total,
+                amount_itbms:  inv.amount_itbms,
+                listing_id:    listingId,
+                application_id: inv.suggested_application_id || null,
+                duration_months: months
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error');
+        const row = document.getElementById('recon-row-'+safeId);
+        if (row) row.remove();
+        loadInvoiceLog();
+    } catch(err) { alert('Error: ' + err.message); }
+}
+
 // ── Log ───────────────────────────────────────────────────────────────────────
 async function loadLog() {
     document.getElementById('log-container').innerHTML = '<div class="no-results">Loading...</div>';
@@ -2997,8 +3084,7 @@ function buildInvoiceFormHtml(app, appId, ns, heading, containerId) {
                 <input id="${ns}inv-total-${appId}" type="number" step="0.01" value="${defaultTotal}" style="padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;width:80px;"></div>
         </div>
         <div style="display:flex;gap:8px;">
-            <button onclick="confirmInvoice(${appId},'manual','${ns}')" style="padding:6px 16px;background:#005ca9;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;">📋 Manual</button>
-            <button onclick="confirmInvoice(${appId},'api','${ns}')" style="padding:6px 16px;background:#00a859;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;">🧾 Via API</button>
+            <button onclick="confirmInvoice(${appId},'${ns}')" style="padding:6px 16px;background:#00a859;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;">🧾 Enviar Factura</button>
             <button onclick="document.getElementById('${containerId}').innerHTML=''" style="padding:6px 12px;background:#555;color:white;border:none;border-radius:5px;cursor:pointer;">Cancel</button>
         </div>
         <div id="${ns}inv-result-${appId}" style="margin-top:0.5rem;font-size:0.82rem;"></div>
@@ -3024,7 +3110,13 @@ function toggleInvoiceIdFields(ns, appId) {
     document.getElementById(ns+'inv-perscountry-wrap-'+appId).style.display = (type === 'pasaporte') ? 'block' : 'none';
 }
 
-async function confirmInvoice(appId, mode, ns) {
+// mode param removed 2026-08-23 — the only mode left is the real "Via API"
+// call; the old dead "Manual" mode (posted to a /api/admin/confirm-payment
+// route that never existed) is gone, replaced by the separate global
+// "🔄 Update invoices" reconciliation tool in the Facturas tab (see
+// reconcileInvoices()) for invoices that genuinely had to be created by
+// hand directly on admin.efacturapty.com.
+async function confirmInvoice(appId, ns) {
     ns = ns || '';
     const name  = document.getElementById(ns+'inv-name-'  + appId).value.trim();
     const idType = document.getElementById(ns+'inv-idtype-' + appId).value; // 'ruc' | 'cedula' | 'pasaporte'
@@ -3040,111 +3132,66 @@ async function confirmInvoice(appId, mode, ns) {
     if (idType === 'ruc' && (!ruc || !dv)) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill RUC and DV</span>'; return; }
     if (idType === 'cedula' && !personalId) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill the cédula number</span>'; return; }
     if (idType === 'pasaporte' && (!personalId || !personalCountry)) { msgEl.innerHTML = '<span style="color:#ff7070;">Please fill passport number and country</span>'; return; }
-    msgEl.innerHTML = mode === 'api' ? '⏳ Sending invoice via API...' : '⏳ Confirming...';
+    msgEl.innerHTML = '⏳ Sending invoice via API...';
     try {
         const res = await adminFetch('/api/admin/application/' + appId);
         const app = await res.json();
 
-        if (mode === 'api') {
-            const res2 = await adminFetch('/api/admin/issue-invoice', {
-                method: 'POST',
-                body: JSON.stringify({
-                    listing_id:     app.listing_id,
-                    application_id: appId,
-                    plan,
-                    business_name:  name,
-                    ruc, ruc_dv: dv, email,
-                    receptor_type:        idType,
-                    personal_id:          personalId,
-                    personal_id_country:  personalCountry,
-                    amount_total:   totalPaid
-                })
-            });
-            const data2 = await res2.json();
-            if (data2.success) {
-                const invoiceUuid = data2.invoice?.invoice || null;
-                const invoiceNumber = data2.invoice_number || '';
-                const invoiceUrl = invoiceUuid
-                    ? `https://admin.efacturapty.com/external/invoices/${invoiceUuid}`
-                    : null;
-                msgEl.innerHTML = `
-                    <div style="color:#adf5ad;">✅ Invoice sent! CUFE: ${data2.invoice?.cufe||'OK'}${invoiceUrl ? ` — <a href="${invoiceUrl}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}${invoiceUuid ? ` — <button class="doc-btn" onclick="downloadInvoicePdf('${invoiceUuid}','${app.listing_id}','${totalPaid}','${invoiceNumber}',true)">⬇️ Download PDF</button>` : ''}</div>
-                    <details style="margin-top:8px;">
-                        <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa de eFacturaPty</summary>
-                        <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#adf5ad;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.invoice, null, 2)}</textarea>
-                    </details>
-                    <button onclick="refreshAfterInvoice(${app.listing_id})" style="margin-top:8px;padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.8rem;">🔄 Refresh applications now</button>`;
-                // Automatic: show + download the PDF right away, same as
-                // payment proofs already do (viewDocument()) — added
-                // 2026-08-23 so this doesn't need a separate manual step.
-                // The buttons above remain as a fallback if this fails for
-                // any reason (e.g. a popup blocker) or needs to be redone.
-                // Also auto-refreshes the applications list/panel right after
-                // (2026-08-23) — the "invoiced" state (and its own Download
-                // PDF button) previously only appeared once the admin clicked
-                // "Refresh applications now" by hand; no reason to wait for
-                // that click.
-                if (invoiceUuid) await downloadInvoicePdf(invoiceUuid, app.listing_id, totalPaid, invoiceNumber, true);
-                refreshAfterInvoice(app.listing_id);
-              } else if (data2.errors) {
-                  const errList = data2.errors.map(e => `${e.codigo}: ${e.mensaje}`).join('<br>');
-                  msgEl.innerHTML = `
-                    <div style="color:#ff7070;">❌ Invoice errors (not confirmed):<br>${errList}</div>
-                    <details style="margin-top:8px;">
-                        <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa de eFacturaPty</summary>
-                        <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#ff7070;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.raw_response || data2, null, 2)}</textarea>
-                    </details>`;
-              } else {
-                  msgEl.innerHTML = `
-                    <div style="color:#ff7070;">❌ API Error</div>
-                    <details style="margin-top:8px;" open>
-                        <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa</summary>
-                        <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#ff7070;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.detail||data2.error, null, 2)}</textarea>
-                    </details>`;
-              }
-            return;
-        }
-
-        // Manual mode
-        const res2 = await adminFetch('/api/admin/confirm-payment', {
+        const res2 = await adminFetch('/api/admin/issue-invoice', {
             method: 'POST',
             body: JSON.stringify({
-                application_id: appId,
                 listing_id:     app.listing_id,
+                application_id: appId,
+                plan,
                 business_name:  name,
                 ruc, ruc_dv: dv, email,
-                receptor_type:       idType,
-                personal_id:         personalId,
-                personal_id_country: personalCountry
+                receptor_type:        idType,
+                personal_id:          personalId,
+                personal_id_country:  personalCountry,
+                amount_total:   totalPaid
             })
         });
-        const data = await res2.json();
-        if (data.success) {
-            const net = Math.round(totalPaid / 1.07 * 100) / 100;
-            const itbms = Math.round(totalPaid * (0.07/1.07) * 100) / 100;
-            const months = app.duration_months || 12;
-            const product = months === 24 ? 'TPS02 — Membresía 2 años' : 'TPS01 — Membresía 1 año';
-            const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-            const invoiceFile = `${today} factura TPS${app.listing_id} $${totalPaid.toFixed(2)}`;
-            const drivePath = `C:\\Users\\vpias.NUC\\Google Drive\\Aparthotel Boquete\\Contabilidad Tuscany Real Estates SA\\2026\\07 julio\\facturas TPS`;
-            navigator.clipboard.writeText(invoiceFile).catch(()=>{});
-            const idLabel = idType === 'ruc' ? 'RUC' : (idType === 'cedula' ? 'Cédula (Consumidor Final)' : 'Pasaporte (Extranjero)');
-            const idValue = idType === 'ruc' ? `${ruc}-${dv}` : `${personalId}${idType==='pasaporte' ? ' ('+personalCountry+')' : ''}`;
-            msgEl.innerHTML = `<div style="color:#adf5ad;font-weight:700;">✅ Payment confirmed — issue invoice manually:</div>
-            <div style="background:#1a2a1a;padding:10px;margin-top:8px;border-radius:5px;font-size:0.85rem;line-height:1.8;">
-            <b>Nombre:</b> ${name}<br>
-            <b>${idLabel}:</b> ${idValue}<br>
-            <b>Producto:</b> ${product}<br>
-            <b>Neto:</b> $${net.toFixed(2)}<br>
-            <b>ITBMS (7%):</b> $${itbms.toFixed(2)}<br>
-            <b>Total:</b> $${totalPaid.toFixed(2)}<br>
-            <b>Archivo factura:</b> <span style="color:#7ec8e3;">${invoiceFile}</span><br>
-            <b>Carpeta:</b> <span style="color:#aaa;font-size:0.78rem;">${drivePath}</span>
-            </div>
-            <div style="color:#aaa;font-size:0.78rem;margin-top:4px;">📋 Nombre del archivo copiado al portapapeles</div>
-            <button onclick="refreshAfterInvoice(${app.listing_id})" style="margin-top:8px;padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.8rem;">🔄 Refresh applications now</button>`;
+        const data2 = await res2.json();
+        if (data2.success) {
+            const invoiceUuid = data2.invoice?.invoice || null;
+            const invoiceNumber = data2.invoice_number || '';
+            const invoiceUrl = invoiceUuid
+                ? `https://admin.efacturapty.com/external/invoices/${invoiceUuid}`
+                : null;
+            msgEl.innerHTML = `
+                <div style="color:#adf5ad;">✅ Invoice sent! CUFE: ${data2.invoice?.cufe||'OK'}${invoiceUrl ? ` — <a href="${invoiceUrl}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}${invoiceUuid ? ` — <button class="doc-btn" onclick="downloadInvoicePdf('${invoiceUuid}','${app.listing_id}','${totalPaid}','${invoiceNumber}',true)">⬇️ Download PDF</button>` : ''}</div>
+                <details style="margin-top:8px;">
+                    <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa de eFacturaPty</summary>
+                    <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#adf5ad;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.invoice, null, 2)}</textarea>
+                </details>
+                <button onclick="refreshAfterInvoice(${app.listing_id})" style="margin-top:8px;padding:5px 12px;background:#2c3e50;color:white;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.8rem;">🔄 Refresh applications now</button>`;
+            // Automatic: show + download the PDF right away, same as
+            // payment proofs already do (viewDocument()) — added
+            // 2026-08-23 so this doesn't need a separate manual step.
+            // The buttons above remain as a fallback if this fails for
+            // any reason (e.g. a popup blocker) or needs to be redone.
+            // Also auto-refreshes the applications list/panel right after
+            // (2026-08-23) — the "invoiced" state (and its own Download
+            // PDF button) previously only appeared once the admin clicked
+            // "Refresh applications now" by hand; no reason to wait for
+            // that click.
+            if (invoiceUuid) await downloadInvoicePdf(invoiceUuid, app.listing_id, totalPaid, invoiceNumber, true);
+            refreshAfterInvoice(app.listing_id);
+        } else if (data2.errors) {
+            const errList = data2.errors.map(e => `${e.codigo}: ${e.mensaje}`).join('<br>');
+            msgEl.innerHTML = `
+                <div style="color:#ff7070;">❌ Invoice errors (not confirmed):<br>${errList}</div>
+                <details style="margin-top:8px;">
+                    <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa de eFacturaPty</summary>
+                    <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#ff7070;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.raw_response || data2, null, 2)}</textarea>
+                </details>`;
         } else {
-            msgEl.innerHTML = `<span style="color:#ff7070;">❌ Error: ${data.error||'Unknown error'}</span>`;
+            msgEl.innerHTML = `
+                <div style="color:#ff7070;">❌ API Error</div>
+                <details style="margin-top:8px;" open>
+                    <summary style="cursor:pointer;color:#7ec8e3;font-size:0.78rem;">Ver respuesta completa</summary>
+                    <textarea readonly style="width:100%;margin-top:6px;padding:8px;background:#111;color:#ff7070;border:1px solid #555;border-radius:6px;font-family:monospace;font-size:0.75rem;" rows="10">${JSON.stringify(data2.detail||data2.error, null, 2)}</textarea>
+                </details>`;
         }
     } catch(e) {
         msgEl.innerHTML = `<span style="color:#ff7070;">❌ Error: ${e.message}</span>`;

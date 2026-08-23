@@ -5404,6 +5404,191 @@ app.post('/api/admin/issue-invoice', requireAdmin, async (req, res) => {
     }
 });
 
+// -------------------------------------------------------------------------------
+// ── Invoice reconciliation ("Update invoices") — added 2026-08-23 ────────────
+// Replaces the old "📋 Manual" button/flow, which posted to a
+// /api/admin/confirm-payment route that never existed (see project notes).
+// Real need it replaces: sometimes an invoice has to be created by hand
+// directly on admin.efacturapty.com (e.g. a receptor category or correction
+// our form doesn't support yet) — that invoice is real and DGI-authorized,
+// but TPS's own `payments` table never learns about it. These two routes let
+// the admin pull the list of invoices eFacturaPty actually has on file, spot
+// the ones missing from `payments`, and link each one to the right TPS
+// listing on purpose (never silently/automatically).
+// -------------------------------------------------------------------------------
+
+// GET /api/admin/efactura-unlinked-invoices?days=400
+// Lists eFacturaPty invoices (filtered to TPS's own billing point, "200" —
+// the same eFacturaPty account/certificate is also used for Aparthotel
+// Boquete's unrelated invoices, which must never leak into this list) that
+// have no matching row in `payments` yet. For each one, suggests a TPS
+// listing/application match by RUC first, then by receptor name, but never
+// auto-links — the admin picks/confirms via /api/admin/efactura-link-invoice.
+app.get('/api/admin/efactura-unlinked-invoices', requireAdmin, async (req, res) => {
+    const days = parseInt(req.query.days) || 400;
+    const dateFrom = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    try {
+        // 1) Pull every invoice we already know about, so we only surface
+        // genuinely missing ones.
+        const { data: knownPayments } = await supabaseAdmin
+            .from('payments')
+            .select('cufe')
+            .not('cufe', 'is', null);
+        const knownCufes = new Set((knownPayments || []).map(p => p.cufe));
+
+        // 2) Page through eFacturaPty's own invoice list for our billing
+        // point only. Capped at 10 pages (≈1000 invoices) as a sanity
+        // backstop — TPS's real volume is nowhere near that.
+        const found = [];
+        for (let page = 1; page <= 10; page++) {
+            const response = await axios.get('https://api.efacturapty.com/api/v1/Invoices', {
+                headers: {
+                    'Accept':          'application/json',
+                    'Accept-Language': 'es-PA',
+                    'Authorization':   'Bearer ' + process.env.EFACTURA_API_KEY
+                },
+                params: {
+                    BillingPoint: '200',
+                    DateFrom:     dateFrom,
+                    PageSize:     100,
+                    Page:         page
+                },
+                timeout: 30000
+            });
+            const pageItems = response.data?.items || response.data?.data || response.data || [];
+            if (!Array.isArray(pageItems) || pageItems.length === 0) break;
+            found.push(...pageItems);
+            if (pageItems.length < 100) break;
+        }
+
+        const unlinked = found.filter(inv => inv.cufe && !knownCufes.has(inv.cufe));
+
+        // 3) Best-effort suggested match — RUC first (exact), then a loose
+        // name match. Never used to auto-link, only to pre-fill the review
+        // UI so the admin has less to type.
+        const { data: apps } = await supabaseAdmin
+            .from('membership_applications')
+            .select('id, listing_id, ruc, business_name')
+            .order('created_at', { ascending: false });
+
+        const suggestions = unlinked.map(inv => {
+            const ruc  = inv.rucReceiver || inv.ruc || null;
+            const name = (inv.nameReceiver || inv.name || '').trim();
+            let match = ruc ? (apps || []).find(a => a.ruc && a.ruc === ruc) : null;
+            if (!match && name) {
+                const nameLower = name.toLowerCase();
+                match = (apps || []).find(a =>
+                    a.business_name && (
+                        a.business_name.toLowerCase().includes(nameLower) ||
+                        nameLower.includes(a.business_name.toLowerCase())
+                    )
+                );
+            }
+            const totalAmount = inv.totalAmount ?? inv.totalAmounttITBMS ?? null;
+            // Same $48.15/2yr vs $25.68/1yr amount heuristic used elsewhere
+            // in this file (see approve-application's duration correction) —
+            // just a pre-filled guess, admin can override before linking.
+            let guessedMonths = 12;
+            if (totalAmount !== null) {
+                if (Math.abs(totalAmount - 48.15) < 0.5) guessedMonths = 24;
+                else if (Math.abs(totalAmount - 25.68) < 0.5) guessedMonths = 12;
+            }
+            return {
+                cufe:               inv.cufe,
+                invoice_uuid:       inv.id,
+                invoice_number:     inv.invoiceNumber || null,
+                issue_date:         inv.issueDate || null,
+                status:             inv.status || null,
+                receptor_name:      inv.nameReceiver || inv.name || null,
+                receptor_ruc:       ruc,
+                amount_total:       totalAmount,
+                amount_itbms:       inv.totalAmounttITBMS ?? null,
+                suggested_listing_id:     match ? match.listing_id : null,
+                suggested_application_id: match ? match.id : null,
+                suggested_name:           match ? match.business_name : null,
+                guessed_months:     guessedMonths
+            };
+        });
+
+        res.json({ invoices: suggestions });
+    } catch (err) {
+        const errMsg = err.response?.data || err.message;
+        console.error('efactura-unlinked-invoices error:', errMsg);
+        res.status(500).json({ error: 'Could not fetch invoice list', detail: errMsg });
+    }
+});
+
+// POST /api/admin/efactura-link-invoice
+// Admin-confirmed: record one eFacturaPty invoice found above into
+// `payments` and activate membership on the chosen listing, exactly
+// mirroring what /api/admin/issue-invoice does on success — this is meant
+// to reach the same end state as if the automated flow had worked.
+app.post('/api/admin/efactura-link-invoice', requireAdmin, async (req, res) => {
+    const {
+        cufe, invoice_uuid, invoice_number, issue_date,
+        amount_total, amount_itbms, listing_id, application_id, duration_months
+    } = req.body;
+    if (!cufe || !invoice_uuid || !listing_id || !duration_months)
+        return res.status(400).json({ error: 'Missing required fields' });
+
+    try {
+        const { data: existing } = await supabaseAdmin
+            .from('payments').select('id').eq('cufe', cufe).maybeSingle();
+        if (existing) return res.status(409).json({ error: 'This invoice is already linked' });
+
+        const total = parseFloat(amount_total) || 0;
+        const itbms = amount_itbms !== undefined && amount_itbms !== null
+            ? parseFloat(amount_itbms)
+            : Math.round(total * (0.07 / 1.07) * 100) / 100;
+        const net = Math.round((total - itbms) * 100) / 100;
+
+        const baseDate = issue_date ? new Date(issue_date) : new Date();
+        const paidUntil = new Date(baseDate);
+        parseInt(duration_months) === 24
+            ? paidUntil.setFullYear(paidUntil.getFullYear() + 2)
+            : paidUntil.setFullYear(paidUntil.getFullYear() + 1);
+        const paidUntilStr = paidUntil.toISOString().split('T')[0];
+
+        await supabaseAdmin.from('listings').update({
+            is_member:             true,
+            is_trial:              false,
+            membership_paid_until: paidUntilStr,
+            invitation_status:     'member'
+        }).eq('id', listing_id);
+
+        if (application_id) {
+            await supabaseAdmin.from('membership_applications').update({
+                status:      'approved',
+                reviewed_at: new Date().toISOString(),
+                reviewed_by: 'admin',
+                notes:       `Invoice linked from efacturapty.com reconciliation: ${cufe}`
+            }).eq('id', application_id);
+        }
+
+        await supabaseAdmin.from('payments').insert({
+            listing_id:     parseInt(listing_id),
+            application_id: application_id ? parseInt(application_id) : null,
+            amount_net:     net,
+            itbms:          itbms,
+            amount_total:   total,
+            payment_method: 'manual (efacturapty.com)',
+            cufe:           cufe,
+            invoice_uuid:   invoice_uuid,
+            invoice_url:    `https://admin.efacturapty.com/external/invoices/${invoice_uuid}`,
+            invoice_number: invoice_number || null,
+            invoice_date:   issue_date ? String(issue_date).split('T')[0] : new Date().toISOString().split('T')[0],
+            status:         'invoiced'
+        });
+
+        await recalculateFeatureRanks();
+        await logEvent('invoice_linked_manual', { listing_id, application_id, cufe, invoice_number });
+
+        res.json({ success: true, paid_until: paidUntilStr });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── POST /api/admin/deactivate-membership ────────────────────────────────────
 app.post('/api/admin/deactivate-membership', requireAdmin, async (req, res) => {
     const { application_id } = req.body;
