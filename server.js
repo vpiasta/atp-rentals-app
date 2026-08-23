@@ -2775,7 +2775,23 @@ app.get('/api/admin/invoice-log', requireAdmin, async (req, res) => {
             };
         });
 
-        const combined = [...issuedInvoices, ...(pendingEvents||[])]
+        // A single transaction can show up twice: once as a legacy 'invoice_pending'
+        // event_log row (written at approval time, before the payments-table flow
+        // existed for that application) and again as its real `payments` row
+        // (written once the payment is recorded, whether or not it has been
+        // invoiced yet). Once a payments row exists for an application_id, that
+        // row is the accurate one — drop the matching legacy event_log entry so
+        // the client doesn't appear twice in the Facturas list.
+        // (2026-08-23: found via Daniel Gerber/Casitas Vista Verde appearing
+        // twice — once from his approval-time event_log entry, once from his
+        // actual payments row.)
+        const paymentAppIds = new Set((payments||[]).map(p => p.application_id).filter(Boolean));
+        const dedupedPendingEvents = (pendingEvents||[]).filter(e => {
+            const appId = e.event_data && e.event_data.application_id;
+            return !(appId && paymentAppIds.has(appId));
+        });
+
+        const combined = [...issuedInvoices, ...dedupedPendingEvents]
             .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
         res.json(combined);
