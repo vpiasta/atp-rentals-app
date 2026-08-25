@@ -4737,7 +4737,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
             .select('id, name, contact_name, email_member, email, membership_paid_until, slug, photos')
             .eq('is_member', true).eq('is_trial', true)
             .is('trial_reminder_sent_at', null)
-            .eq('membership_paid_until', dateStr(plusDays(5)));
+            .lte('membership_paid_until', dateStr(plusDays(5)));
 
         for (const listing of dueReminder || []) {
             const toEmail = listing.email_member || listing.email;
@@ -4773,7 +4773,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
             .select('id, name, contact_name, email_member, email, membership_paid_until')
             .eq('is_member', true).eq('is_trial', true)
             .is('trial_extension_offer_sent_at', null)
-            .eq('membership_paid_until', dateStr(plusDays(2)));
+            .lte('membership_paid_until', dateStr(plusDays(2)));
 
         for (const listing of dueOffer || []) {
             const toEmail = listing.email_member || listing.email;
@@ -4798,7 +4798,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
             .select('id, name, contact_name, email_member, email, trial_extended_at')
             .eq('is_member', true).eq('is_trial', true)
             .is('trial_final_notice_sent_at', null)
-            .eq('membership_paid_until', dateStr(today));
+            .lte('membership_paid_until', dateStr(today));
 
         for (const listing of dueFinalNotice || []) {
             const toEmail = listing.email_member || listing.email;
