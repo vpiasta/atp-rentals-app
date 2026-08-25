@@ -25,6 +25,19 @@ function fetch_post_slug($postId) {
     return (is_array($data) && count($data)) ? $data[0]['slug'] : null;
 }
 
+function get_setting($key) {
+    list($code, $data) = supabase_request('GET', '/rest/v1/settings?select=value&key=eq.' . urlencode($key) . '&limit=1', SUPABASE_SERVICE_KEY);
+    return (is_array($data) && count($data)) ? $data[0]['value'] : null;
+}
+
+// First entry of X-Forwarded-For (Hostinger's proxy) or the direct connection —
+// same convention as getAdminIP()/the admin-login IP check in server.js.
+function visitor_ip() {
+    $fwd = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? null;
+    if ($fwd) { $parts = explode(',', $fwd); return trim($parts[0]); }
+    return $_SERVER['REMOTE_ADDR'] ?? null;
+}
+
 function approve_comment($commentId) {
     supabase_request('PATCH', '/rest/v1/blog_comments?id=eq.' . urlencode($commentId), SUPABASE_SERVICE_KEY, [
         'status' => 'approved',
@@ -117,34 +130,68 @@ if ($method === 'POST') {
         // treat it as a normal moderated submission instead of failing.
     }
 
-    // ── Normal visitor comment or reply — goes to moderation ─────────────────
-    list($code, $inserted) = supabase_request('POST', '/rest/v1/blog_comments', SUPABASE_SERVICE_KEY, [
+    // ── Normal visitor comment or reply ──────────────────────────────────────
+    // Auto-approved immediately when either: (a) it's genuinely Volker posting
+    // directly on the public page (his IP matches the stored admin_ip — same
+    // comparison used elsewhere, e.g. the admin-login IP gate), so he never
+    // has to go through his own moderation email; or (b) the site-wide
+    // 'comment_moderation_mode' setting is 'auto_approve' — a reversible trial
+    // toggle (flip the settings row back to 'moderated' to return to the old
+    // pending-until-ACEPTAR behavior, no redeploy needed). Either way the
+    // moderation email below is still sent so nothing goes unnoticed — it just
+    // no longer offers an ACEPTAR button once it's already live.
+    $adminIp   = get_setting('admin_ip');
+    $ip        = visitor_ip();
+    $isAdminIp = $adminIp && $ip && $ip === $adminIp;
+    $modeAutoApprove = get_setting('comment_moderation_mode') === 'auto_approve';
+    $autoApprove = $isAdminIp || $modeAutoApprove;
+
+    $insertData = [
         'post_id'           => $postId,
         'parent_comment_id' => $parentId,
         'author_name'       => $name,
         'author_email'      => $email ?: null,
         'body'              => $body,
-        'status'            => 'pending',
+        'status'            => $autoApprove ? 'approved' : 'pending',
         'is_admin_reply'    => false,
-    ], ['Prefer: return=representation']);
+    ];
+    if ($autoApprove) $insertData['approved_at'] = date('c');
+
+    list($code, $inserted) = supabase_request('POST', '/rest/v1/blog_comments', SUPABASE_SERVICE_KEY, $insertData, ['Prefer: return=representation']);
 
     if (!is_array($inserted) || !count($inserted)) json_out(['error' => 'No se pudo guardar el comentario'], 500);
     $comment = $inserted[0];
 
-    $approveToken = random_token();
     $newReplyToken = random_token();
     $expires = date('c', strtotime('+30 days'));
     supabase_request('POST', '/rest/v1/blog_comment_tokens', SUPABASE_SERVICE_KEY, [
-        'comment_id' => $comment['id'], 'action' => 'approve', 'token' => $approveToken, 'expires_at' => $expires,
-    ]);
-    supabase_request('POST', '/rest/v1/blog_comment_tokens', SUPABASE_SERVICE_KEY, [
         'comment_id' => $comment['id'], 'action' => 'reply', 'token' => $newReplyToken, 'expires_at' => $expires,
     ]);
+    $replyUrl = 'https://trustedpanamastays.com/blog-comment-action.php?action=reply&token=' . urlencode($newReplyToken);
 
     $slug = fetch_post_slug($postId);
-    $approveUrl = 'https://trustedpanamastays.com/blog-comment-action.php?action=approve&token=' . urlencode($approveToken);
-    $replyUrl   = 'https://trustedpanamastays.com/blog-comment-action.php?action=reply&token=' . urlencode($newReplyToken);
-    $postUrl    = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($slug ?: '');
+    $postUrl  = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($slug ?: '');
+    // Deep-links straight into the general admin panel's Comments tab, same
+    // pattern as the existing ?from=AtpUpdate deep link.
+    $adminUrl = 'https://trustedpanamastays.com/admin.html?from=BlogComment';
+
+    if ($autoApprove) {
+        $actionButtons = '<p><span style="color:#1a5c1a;font-weight:600;">✓ Ya publicado</span>&nbsp;&nbsp;&nbsp;&nbsp;'
+          . '<a href="' . htmlspecialchars($adminUrl, ENT_QUOTES, 'UTF-8') . '" style="background:#005ca9;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;">VER / ELIMINAR</a>'
+          . '&nbsp;&nbsp;&nbsp;&nbsp;'
+          . '<a href="' . htmlspecialchars($replyUrl, ENT_QUOTES, 'UTF-8') . '" style="background:#1a5c1a;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;">CONTESTAR</a></p>';
+    } else {
+        $approveToken = random_token();
+        supabase_request('POST', '/rest/v1/blog_comment_tokens', SUPABASE_SERVICE_KEY, [
+            'comment_id' => $comment['id'], 'action' => 'approve', 'token' => $approveToken, 'expires_at' => $expires,
+        ]);
+        $approveUrl = 'https://trustedpanamastays.com/blog-comment-action.php?action=approve&token=' . urlencode($approveToken);
+        $actionButtons = '<p>'
+          . '<a href="' . htmlspecialchars($approveUrl, ENT_QUOTES, 'UTF-8') . '" style="background:#005ca9;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;">ACEPTAR</a>'
+          . '&nbsp;&nbsp;&nbsp;&nbsp;'
+          . '<a href="' . htmlspecialchars($replyUrl, ENT_QUOTES, 'UTF-8') . '" style="background:#1a5c1a;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;">CONTESTAR</a>'
+          . '</p>';
+    }
 
     $html = '<div style="font-family:sans-serif;max-width:600px;">'
           . '<p><strong>' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</strong>'
@@ -153,11 +200,7 @@ if ($method === 'POST') {
           . '<blockquote style="border-left:3px solid #ccc;margin:0 0 1rem;padding:0.5rem 1rem;color:#333;">'
           . nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8'))
           . '</blockquote>'
-          . '<p>'
-          . '<a href="' . htmlspecialchars($approveUrl, ENT_QUOTES, 'UTF-8') . '" style="background:#005ca9;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;">ACEPTAR</a>'
-          . '&nbsp;&nbsp;&nbsp;&nbsp;'
-          . '<a href="' . htmlspecialchars($replyUrl, ENT_QUOTES, 'UTF-8') . '" style="background:#1a5c1a;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;">CONTESTAR</a>'
-          . '</p></div>';
+          . $actionButtons . '</div>';
 
     send_tps_email(
         'Nuevo comentario en el blog — ' . ($slug ?: ''),
@@ -168,7 +211,7 @@ if ($method === 'POST') {
         'info@trustedpanamastays.com'
     );
 
-    json_out(['success' => true, 'published' => false]);
+    json_out(['success' => true, 'published' => $autoApprove]);
 }
 
 json_out(['error' => 'Método no soportado'], 405);

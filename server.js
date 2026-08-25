@@ -1889,6 +1889,23 @@ app.post('/api/admin/wa-queue/add', requireAdmin, async (req, res) => {
     await supabaseAdmin.from('wa_campaign_queue').delete().eq('status', 'pending').in('listing_id', ids);
     const { error } = await supabaseAdmin.from('wa_campaign_queue').insert(rows);
     if (error) return res.status(500).json({ error: error.message });
+
+    // Log to campaign history — envío manual/gradual uno-a-uno, así que no se
+    // rastrea sent_count en vivo (se completaría de a poco, quizás en varios
+    // días); esta entrada queda como registro de qué y cuándo se agregó.
+    try {
+        const { data: waTemplateRow } = await supabaseAdmin.from('settings').select('value').eq('key', 'wa_campaign_template_es').maybeSingle();
+        await supabaseAdmin.from('campaigns').insert({
+            channel: 'whatsapp',
+            body_html: waTemplateRow?.value || WA_TEMPLATE_DEFAULT,
+            target_description: `Cola de WhatsApp — ${rows.length} agregado(s)`,
+            recipient_count: rows.length,
+            status: 'queued'
+        });
+    } catch (err) {
+        console.error('Campaign history log (wa-queue add) failed:', err.message);
+    }
+
     res.json({ success: true, added: rows.length });
 });
 
@@ -1917,6 +1934,21 @@ app.post('/api/admin/wa-queue/:id/mark-sent', requireAdmin, async (req, res) => 
 app.post('/api/admin/wa-queue/:id/skip', requireAdmin, async (req, res) => {
     await supabaseAdmin.from('wa_campaign_queue').update({ status: 'skipped' }).eq('id', parseInt(req.params.id));
     res.json({ success: true });
+});
+
+// ── Campaign history — "what did we send, when, and to how many" ────────────
+// Covers every email blast (send-followup-all/new/reminder/specific, all of
+// which funnel through sendToRosterList) and every WhatsApp queue batch
+// (wa-queue/add). Built so a quick look answers "what was the latest
+// campaign?" without having to remember or dig through event_log.
+app.get('/api/admin/campaigns', requireAdmin, async (req, res) => {
+    const { data, error } = await supabaseAdmin
+        .from('campaigns')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
 });
 
 // ── Editable help-panel content, one file per topic ──────────────────────────
@@ -3712,6 +3744,19 @@ app.post('/api/admin/send-followup-all', requireAdmin, async (req, res) => {
     let sampleCopy = null; // first successfully-sent email, included in the report below
     // Send in background, return immediately
     res.json({ success: true, message: 'Campaign started', total: APATEL_ROSTER.length });
+
+    let campaignId = null;
+    try {
+        const { data: campaignRow } = await supabaseAdmin.from('campaigns').insert({
+            subject, body_html: body, from_email: 'info@trustedpanamastays.com', channel: 'email',
+            target_description: 'Todos los miembros APATEL (roster completo)',
+            recipient_count: APATEL_ROSTER.length, status: 'sending'
+        }).select('id').single();
+        campaignId = campaignRow?.id || null;
+    } catch (err) {
+        console.error('Campaign history log (start) failed:', err.message);
+    }
+
     for (const member of APATEL_ROSTER) {
     if (!member.email || !member.email.includes('@')) continue;
     try {
@@ -3734,6 +3779,12 @@ const sampleHtml = sampleCopy
 const report = `<p>Follow-up campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${APATEL_ROSTER.length} total.</p>${sampleHtml}`;
 execFileAsync('php', [notifyPath, 'Follow-up campaign complete — Trusted Panama Stays', report, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(console.error);
 console.log(`Follow-up done: ${sent} sent, ${errors} errors`);
+
+if (campaignId) {
+    supabaseAdmin.from('campaigns').update({
+        sent_count: sent, error_count: errors, status: 'completed', finished_at: new Date().toISOString()
+    }).eq('id', campaignId).then(({ error }) => { if (error) console.error('Campaign history log (finish) failed:', error.message); });
+}
 });
 
 
@@ -4001,7 +4052,7 @@ app.post('/api/admin/send-followup-reminder', requireAdmin, async (req, res) => 
     const targets = roster.filter(m => m.email && contactedNotMemberEmails.has(m.email.toLowerCase().trim()));
 
     res.json({ success: true, message: `Sending reminder to ${targets.length} contacted-but-not-subscribed APATEL members`, total: targets.length });
-    await sendToRosterList(targets, subject, body);
+    await sendToRosterList(targets, subject, body, null, 'APATEL contactados sin membresía (recordatorio)');
 });
 
 // ── POST /api/admin/send-followup-new ────────────────────────────────────────
@@ -4025,7 +4076,7 @@ app.post('/api/admin/send-followup-new', requireAdmin, async (req, res) => {
     const targets = roster.filter(m => m.email && !contactedEmails.has(m.email.toLowerCase()));
 
     res.json({ success: true, message: `Sending to ${targets.length} not-yet-contacted APATEL members`, total: targets.length });
-    await sendToRosterList(targets, subject, body);
+    await sendToRosterList(targets, subject, body, null, 'APATEL no contactados aún (nuevo)');
 });
 
 app.post('/api/admin/send-followup-specific', requireAdmin, async (req, res) => {
@@ -4052,7 +4103,10 @@ app.post('/api/admin/send-followup-specific', requireAdmin, async (req, res) => 
     }
     if (!subject || !body || !targets.length) return res.status(400).json({ error: 'Missing fields' });
     res.json({ success: true, message: `Sending to ${targets.length} recipients`, total: targets.length });
-    await sendToRosterList(targets, subject, body, from);
+    const specificDescription = (Array.isArray(directTargets) && directTargets.length)
+        ? `Envío específico — selección directa (${targets.length} hospedajes)`
+        : `Envío específico — lista de correos (${targets.length})`;
+    await sendToRosterList(targets, subject, body, from, specificDescription);
 });
 
 // ── Helper: send to a list of roster-format members ───────────────────────────
@@ -4084,11 +4138,26 @@ async function resolveListingUrl(member) {
     }
 }
 
-async function sendToRosterList(targets, subject, body, from) {
+async function sendToRosterList(targets, subject, body, from, targetDescription) {
     const notifyPath = path.join(__dirname, 'public', 'notify.php');
     const sender = resolveSender(from);
     let sent = 0, errors = 0;
     let sampleCopy = null; // the first successfully-sent email, included below so the report always shows the real content — even for a 1-recipient campaign
+
+    // Log this send to the campaigns table so "what did we send and when" has
+    // an answer later — see /api/admin/campaigns. Logging failures must never
+    // block the actual send, so every step here is best-effort.
+    let campaignId = null;
+    try {
+        const { data: campaignRow } = await supabaseAdmin.from('campaigns').insert({
+            subject, body_html: body, from_email: sender.email, channel: 'email',
+            target_description: targetDescription || null, recipient_count: targets.length, status: 'sending'
+        }).select('id').single();
+        campaignId = campaignRow?.id || null;
+    } catch (err) {
+        console.error('Campaign history log (start) failed:', err.message);
+    }
+
     for (const member of targets) {
         if (!member.email || !member.email.includes('@')) continue;
         try {
@@ -4127,6 +4196,16 @@ async function sendToRosterList(targets, subject, body, from) {
         'Campaign complete — Trusted Panama Stays', report, 'info@trustedpanamastays.com'],
         { timeout: 15000 }).catch(console.error);
     console.log(`Campaign done: ${sent} sent, ${errors} errors`);
+
+    if (campaignId) {
+        try {
+            await supabaseAdmin.from('campaigns').update({
+                sent_count: sent, error_count: errors, status: 'completed', finished_at: new Date().toISOString()
+            }).eq('id', campaignId);
+        } catch (err) {
+            console.error('Campaign history log (finish) failed:', err.message);
+        }
+    }
 }
 
 // ── Reusable AI verification function ────────────────────────────────────────
@@ -5953,16 +6032,245 @@ app.post('/api/inbound-application', express.json({ limit: '10mb' }), async (req
         console.log(`📩 Inbound application #${submissionId} parsed — listing ${listingId || 'UNMATCHED'}, ${extractionMethod || 'NO DESCRIPTION'}, ${storedPhotos.length}/${attachments.length} photos`);
     } catch (err) {
         console.error('Inbound application processing error:', err.message);
-        // Fall back to raw capture so the submission isn't lost entirely
+        // Fall back to raw capture so the submission isn't lost entirely — grab
+        // subject/sender defensively (so the admin has something to go on
+        // without opening raw_payload) and store the actual error message, so
+        // a future failure is diagnosable from the database alone instead of
+        // needing server logs nobody here can reach.
+        let fallbackSubject = null, fallbackSender = null;
+        try {
+            fallbackSubject = req.body?.data?.subject || null;
+            fallbackSender  = req.body?.data?.from || null;
+        } catch (_) { /* ignore — payload shape unexpected */ }
         try {
             await supabaseAdmin.from('pending_submissions').insert({
                 raw_payload: req.body,
-                status: 'raw_unparsed'
+                status: 'raw_unparsed',
+                subject: fallbackSubject,
+                sender_email: fallbackSender,
+                reviewer_notes: `Auto-capture error: ${err.message}`
             });
         } catch (fallbackErr) {
             console.error('Inbound application fallback capture also failed:', fallbackErr.message);
         }
     }
+});
+
+// ── Admin: hasslefree-trial submission review ─────────────────────────────────
+// Lists every pending_submissions row (any status), enriched with the current
+// name/membership status of whatever listing it's matched to, if any.
+app.get('/api/admin/pending-submissions', requireAdmin, async (req, res) => {
+    const { data, error } = await supabaseAdmin
+        .from('pending_submissions')
+        .select('*')
+        .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+
+    const listingIds = [...new Set((data || []).filter(s => s.listing_id).map(s => s.listing_id))];
+    let listingsById = {};
+    if (listingIds.length) {
+        const { data: listings } = await supabaseAdmin
+            .from('listings')
+            .select('id, name, is_member, is_trial, membership_paid_until')
+            .in('id', listingIds);
+        listingsById = Object.fromEntries((listings || []).map(l => [l.id, l]));
+    }
+    res.json((data || []).map(s => ({ ...s, listing: s.listing_id ? (listingsById[s.listing_id] || null) : null })));
+});
+
+// Translates a single listing description field into whichever language is
+// missing. Same forced tool-use pattern as the blog's translate endpoint, but
+// scoped to one plain-text field instead of a full HTML post body.
+async function translateListingDescription(sourceText, sourceLang) {
+    if (!sourceText) return null;
+    const targetField = sourceLang === 'en' ? 'description_es' : 'description_en';
+    const targetLangName = sourceLang === 'en' ? 'natural Panama Spanish' : 'natural English';
+    const TOOL = {
+        name: 'save_description_translation',
+        description: 'Save the translated short-term-rental property description.',
+        input_schema: {
+            type: 'object',
+            properties: { translated_text: { type: 'string' } },
+            required: ['translated_text']
+        }
+    };
+    const prompt = `Translate the following short-term rental property description into ${targetLangName}, for a listing on Trusted Panama Stays (trustedpanamastays.com). Keep it natural, welcoming, and similar in length to the original — this is marketing copy for travelers, not a literal word-for-word translation. Call the save_description_translation tool with only the translated text, no extra commentary.
+
+DESCRIPTION:
+${sourceText}`;
+    try {
+        const response = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-5',
+            max_tokens: 2000,
+            thinking: { type: 'disabled' },
+            tools: [TOOL],
+            tool_choice: { type: 'tool', name: 'save_description_translation' },
+            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+        }, {
+            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+            timeout: 30000
+        });
+        const toolBlock = (response.data.content || []).find(b => b.type === 'tool_use' && b.name === 'save_description_translation');
+        if (!toolBlock || !toolBlock.input?.translated_text) return null;
+        return { [targetField]: toolBlock.input.translated_text };
+    } catch (err) {
+        console.error('translateListingDescription error:', err.message);
+        return null;
+    }
+}
+
+// Simple welcome-back email for a RETURNING member being reactivated — no new
+// password is generated or shown (they already have one; member_password only
+// ever holds a bcrypt hash, so an existing plaintext password can't be
+// recovered here to redisplay — reset-password.html covers that case).
+function reactivationEmailHtml(propertyName, contactName, listingId, paidUntil) {
+    const listingUrl = 'https://trustedpanamastays.com/listing.html?id=' + listingId + '&lang=es';
+    const hdr = '<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;"><h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1></div>';
+    const ftr = '<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;"><p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>';
+    return '<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">' + hdr +
+        '<p>Estimado/a <strong>' + (contactName || 'propietario/a') + '</strong>,</p>' +
+        '<p>Su membresía de prueba para <strong>' + propertyName + '</strong> ha sido reactivada y está activa hasta el <strong>' + paidUntil + '</strong>.</p>' +
+        '<p>Puede iniciar sesión con su contraseña existente aquí: <a href="' + listingUrl + '">' + listingUrl + '</a>. Si no la recuerda, use la opción de recuperar contraseña en esa misma página.</p>' +
+        '<p>Preguntas? <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>' + ftr + '</body></html>';
+}
+
+function trialSubmissionDenialEmailHtml(reason) {
+    const hdr = '<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;"><h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1></div>';
+    const ftr = '<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;"><p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>';
+    return '<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">' + hdr +
+        '<p>Estimado/a propietario/a,</p>' +
+        '<p>Gracias por su interés en Trusted Panama Stays. Por el momento no podemos activar su membresía de prueba' + (reason ? ': <strong>' + reason + '</strong>' : '.') + '</p>' +
+        '<p>Si desea volver a intentarlo, puede responder a este correo o visitar <a href="https://trustedpanamastays.com/join.html">join.html</a>.</p>' +
+        '<p>Preguntas? <a href="mailto:info@trustedpanamastays.com">info@trustedpanamastays.com</a></p>' + ftr + '</body></html>';
+}
+
+// ── Admin: approve a hasslefree-trial email submission ────────────────────────
+// listing_id / description_text in the body override the auto-detected values
+// — the admin panel always sends the current contents of those two editable
+// fields, whether or not they were changed, so this also fixes a bad auto-match
+// or a mis-parsed description as part of approving.
+app.post('/api/admin/pending-submissions/:id/approve', requireAdmin, async (req, res) => {
+    const submissionId = parseInt(req.params.id);
+    const { listing_id, description_text } = req.body;
+
+    const { data: submission, error: subErr } = await supabaseAdmin
+        .from('pending_submissions').select('*').eq('id', submissionId).single();
+    if (subErr || !submission) return res.status(404).json({ error: 'Submission not found' });
+    if (submission.status === 'approved' || submission.status === 'denied') {
+        return res.status(400).json({ error: 'This submission was already reviewed' });
+    }
+
+    const listingId = parseInt(listing_id) || submission.listing_id;
+    if (!listingId) return res.status(400).json({ error: 'No listing ID — enter one before approving' });
+
+    const { data: listing, error: listErr } = await supabaseAdmin
+        .from('listings').select('*').eq('id', listingId).single();
+    if (listErr || !listing) return res.status(404).json({ error: 'No listing found with ID ' + listingId });
+
+    try {
+        const bcrypt = require('bcrypt');
+        const isFirstTime = !listing.member_password;
+        let password = null;
+
+        const paidUntil = new Date();
+        paidUntil.setDate(paidUntil.getDate() + 30);
+        const paidUntilStr = paidUntil.toISOString().split('T')[0];
+
+        const updates = {
+            is_member: true, is_trial: true,
+            trial_started_at: new Date().toISOString(),
+            membership_paid_until: paidUntilStr,
+            invitation_status: 'member'
+        };
+
+        // Photos: append newly-submitted ones, never remove what's already there
+        // — an existing member's photos are untouched if this submission has none.
+        const newUrls = (submission.photos || []).map(p => p.url).filter(Boolean);
+        if (newUrls.length) {
+            const existing = Array.isArray(listing.photos) ? listing.photos : [];
+            updates.photos = [...existing, ...newUrls.filter(u => !existing.includes(u))];
+        }
+
+        const finalDescription = (description_text !== undefined ? description_text : submission.description_text) || null;
+        const descLang = submission.detected_lang === 'en' ? 'en' : 'es'; // default es if undetected
+        if (finalDescription) {
+            updates[descLang === 'en' ? 'description_en' : 'description_es'] = finalDescription;
+        }
+
+        if (isFirstTime) {
+            const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+            password = Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+            updates.member_password = await bcrypt.hash(password, 10);
+        }
+
+        const { data: updatedListing, error: updateErr } = await supabaseAdmin
+            .from('listings').update(updates).eq('id', listingId).select().single();
+        if (updateErr) throw updateErr;
+
+        // Auto-translate into whichever language is still missing, if we now
+        // have exactly one of the two description fields filled in.
+        if (finalDescription) {
+            const haveEn = !!updatedListing.description_en;
+            const haveEs = !!updatedListing.description_es;
+            if (haveEn !== haveEs) {
+                const translated = await translateListingDescription(finalDescription, descLang);
+                if (translated) await supabaseAdmin.from('listings').update(translated).eq('id', listingId);
+            }
+        }
+
+        await supabaseAdmin.from('pending_submissions').update({
+            status: 'approved', reviewed_at: new Date().toISOString(), listing_id: listingId
+        }).eq('id', submissionId);
+
+        let emailSent = false;
+        const toEmail = updatedListing.email_member || updatedListing.email || submission.sender_email;
+        if (toEmail && toEmail.includes('@')) {
+            const notifyPath = path.join(__dirname, 'public', 'notify.php');
+            const emailHtml = password
+                ? generateEmailHtml({ property_name: updatedListing.name, contact_name: updatedListing.contact_name, listing_id: listingId }, 'approved_trial', password, paidUntilStr)
+                : reactivationEmailHtml(updatedListing.name, updatedListing.contact_name, listingId, paidUntilStr);
+            try {
+                await execFileAsync('php', [notifyPath, 'Membresía de prueba activada — ' + updatedListing.name, emailHtml, toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
+                emailSent = true;
+            } catch (mailErr) { console.error('Trial submission approval email failed:', mailErr.message); }
+        }
+
+        await recalculateFeatureRanks();
+        await logEvent('pending_submission_approved', { submission_id: submissionId, listing_id: listingId, first_time_member: isFirstTime });
+        res.json({ success: true, listing_id: listingId, password, email_sent: emailSent });
+    } catch (err) {
+        console.error('Approve pending submission error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Admin: deny a hasslefree-trial email submission ───────────────────────────
+app.post('/api/admin/pending-submissions/:id/deny', requireAdmin, async (req, res) => {
+    const submissionId = parseInt(req.params.id);
+    const { reason } = req.body;
+
+    const { data: submission, error: subErr } = await supabaseAdmin
+        .from('pending_submissions').select('*').eq('id', submissionId).single();
+    if (subErr || !submission) return res.status(404).json({ error: 'Submission not found' });
+    if (submission.status === 'approved' || submission.status === 'denied') {
+        return res.status(400).json({ error: 'This submission was already reviewed' });
+    }
+
+    await supabaseAdmin.from('pending_submissions').update({
+        status: 'denied', reviewed_at: new Date().toISOString(), reviewer_notes: reason || null
+    }).eq('id', submissionId);
+
+    let emailSent = false;
+    if (submission.sender_email && submission.sender_email.includes('@')) {
+        const notifyPath = path.join(__dirname, 'public', 'notify.php');
+        try {
+            await execFileAsync('php', [notifyPath, 'Sobre su solicitud — Trusted Panama Stays', trialSubmissionDenialEmailHtml(reason), submission.sender_email, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
+            emailSent = true;
+        } catch (mailErr) { console.error('Trial submission denial email failed:', mailErr.message); }
+    }
+
+    await logEvent('pending_submission_denied', { submission_id: submissionId, reason: reason || null });
+    res.json({ success: true, email_sent: emailSent });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
