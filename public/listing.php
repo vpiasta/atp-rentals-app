@@ -68,6 +68,18 @@ track_event('listing_view', $listing['id']);
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
+// Members type their own website/booking/custom-link URLs, and commonly
+// leave off the protocol (e.g. "www.example.com"). Without this, <a href>
+// treats it as a RELATIVE link and resolves it against the current page
+// (trustedpanamastays.com/www.example.com) instead of taking the visitor
+// to the actual site. Applied at render time so it fixes every
+// already-stored bare-domain value too, with no data migration needed.
+function full_url($u) {
+    $u = trim((string)($u ?? ''));
+    if ($u === '') return '';
+    return preg_match('~^[a-z][a-z0-9+.-]*://~i', $u) ? $u : 'https://' . $u;
+}
+
 function is_active($listing) {
     if (empty($listing['is_member'])) return false;
     if (empty($listing['membership_paid_until'])) return false;
@@ -426,13 +438,13 @@ if ($has_links): ?>
         <div class="section-title"><?= $lang === 'es' ? 'Enlaces' : 'Links' ?></div>
         <div class="buttons" style="padding:0;border:none;">
             <?php if (!empty($listing['website_url'])): ?>
-            <a href="<?= h($listing['website_url']) ?>" target="_blank" class="btn">🌐 <?= $lang === 'es' ? 'Sitio Web' : 'Website' ?></a>
+            <a href="<?= h(full_url($listing['website_url'])) ?>" target="_blank" class="btn">🌐 <?= $lang === 'es' ? 'Sitio Web' : 'Website' ?></a>
             <?php endif; ?>
             <?php if (!empty($listing['booking_url'])): ?>
-            <a href="<?= h($listing['booking_url']) ?>" target="_blank" class="btn">🔗 <?= $lang === 'es' ? 'Reservar' : 'Book Now' ?></a>
+            <a href="<?= h(full_url($listing['booking_url'])) ?>" target="_blank" class="btn">🔗 <?= $lang === 'es' ? 'Reservar' : 'Book Now' ?></a>
             <?php endif; ?>
             <?php foreach ($custom as $link): if (empty($link['url'])) continue; ?>
-            <a href="<?= h($link['url']) ?>" target="_blank" class="btn" style="border-color:#666;color:#444;">
+            <a href="<?= h(full_url($link['url'])) ?>" target="_blank" class="btn" style="border-color:#666;color:#444;">
                 <?= h(($link['emoji'] ?? '') . ' ' . ($link['label'] ?? '')) ?>
             </a>
             <?php endforeach; ?>

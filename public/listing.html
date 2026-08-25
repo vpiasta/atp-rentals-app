@@ -437,6 +437,18 @@ function getPhoneNumbers(phoneStr) {
     };
 }
 
+// Members often type their website/booking/custom-link URLs without a
+// protocol (e.g. "www.example.com"). Left as-is, <a href="www.example.com">
+// is a RELATIVE link and the browser resolves it against the current page
+// (trustedpanamastays.com/www.example.com) instead of leaving the site.
+// Applied at render time so it fixes every already-stored bare-domain
+// value too, with no data migration needed.
+function fullUrl(u) {
+    u = (u || '').trim();
+    if (!u) return '';
+    return /^[a-z][a-z0-9+.-]*:\/\//i.test(u) ? u : 'https://' + u;
+}
+
 function mapsUrl(rental) {
     const query = [rental.name, rental.address, rental.province, 'Panama'].filter(Boolean).join(' - ');
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
@@ -691,9 +703,9 @@ function renderView(rental) {
         <div class="section">
             <div class="section-title">${T.links}</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
-                ${rental.website_url ? `<a href="${rental.website_url}" target="_blank" class="qbtn">${T.website}</a>` : ''}
-                ${rental.booking_url ? `<a href="${rental.booking_url}" target="_blank" class="qbtn">${T.booking}</a>` : ''}
-                ${links.map(l=>`<a href="${l.url}" target="_blank" class="qbtn custom">${l.emoji||''} ${l.label}</a>`).join('')}
+                ${rental.website_url ? `<a href="${fullUrl(rental.website_url)}" target="_blank" class="qbtn">${T.website}</a>` : ''}
+                ${rental.booking_url ? `<a href="${fullUrl(rental.booking_url)}" target="_blank" class="qbtn">${T.booking}</a>` : ''}
+                ${links.map(l=>`<a href="${fullUrl(l.url)}" target="_blank" class="qbtn custom">${l.emoji||''} ${l.label}</a>`).join('')}
             </div>
         </div>` : ''}
     </div>`;
@@ -897,7 +909,7 @@ async function saveChanges() {
     const linkRows   = document.querySelectorAll('#custom-link-list .custom-link-row');
     const savedLinks = Array.from(linkRows).map(row => {
         const inputs = row.querySelectorAll('input');
-        return { emoji: inputs[0].value.trim(), label: inputs[1].value.trim(), url: inputs[2].value.trim() };
+        return { emoji: inputs[0].value.trim(), label: inputs[1].value.trim(), url: fullUrl(inputs[2].value.trim()) };
     }).filter(l => l.label && l.url);
     const payload = {
         id:             listingId, token: sessionToken,
@@ -906,8 +918,8 @@ async function saveChanges() {
         address:        document.getElementById('edit-address')?.value.trim() || null,
         description_en: quillEn ? quillEn.root.innerHTML : null,
         description_es: quillEs ? quillEs.root.innerHTML : null,
-        website_url:    document.getElementById('edit-website')?.value.trim() || null,
-        booking_url:    document.getElementById('edit-booking')?.value.trim() || null,
+        website_url:    fullUrl(document.getElementById('edit-website')?.value.trim()) || null,
+        booking_url:    fullUrl(document.getElementById('edit-booking')?.value.trim()) || null,
         photos:         editPhotos.length ? editPhotos : null,
         custom_links:   savedLinks.length ? savedLinks : null,
         listing_keywords: getSelectedKeywords(),

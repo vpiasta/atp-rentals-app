@@ -547,15 +547,11 @@ async function checkPendingAtpApplications() {
             paidUntil.setDate(paidUntil.getDate() + 30);
             const paidUntilStr = paidUntil.toISOString().split('T')[0];
 
-            const baseSlug = app.property_name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-            let slug = baseSlug;
-            const { data: slugConflict } = await supabaseAdmin.from('listings').select('id, name').eq('slug', baseSlug).maybeSingle();
-            if (slugConflict) {
-                slug = baseSlug + '-' + listingId;
-                const conflictMsg = `<p>El nuevo miembro <strong>${app.property_name}</strong> (ID: ${listingId}) tiene un conflicto de slug con el miembro existente <strong>${slugConflict.name}</strong> (ID: ${slugConflict.id}).</p><p>Slug en conflicto: <code>${baseSlug}</code></p><p>Se ha asignado temporalmente el slug <code>${slug}</code>. Por favor, asigne un slug más apropiado en el panel de administración.</p>`;
-                const notifyPath = path.join(__dirname, 'public', 'notify.php');
-                execFileAsync('php', [notifyPath, 'Conflicto de slug — ' + app.property_name, conflictMsg, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(console.error);
-            }
+            // generateUniqueSlug() (defined below) excludes this exact listing's
+            // own row from the conflict check, and sends the admin alert itself
+            // if a REAL conflict (a different listing) is found -- no need to
+            // duplicate that logic here.
+            const slug = await generateUniqueSlug(app.property_name, listing.id);
 
             // Activate listing
             await supabase.from('listings').update({
@@ -5018,8 +5014,16 @@ async function generateUniqueSlug(propertyName, listingId) {
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-    const { data: conflict } = await supabaseAdmin
-        .from('listings').select('id, name').eq('slug', baseSlug).maybeSingle();
+    // Exclude the listing's own row from the conflict check -- otherwise a
+    // listing being (re-)approved a second time (e.g. a corrected/second
+    // application on file, or a reactivation) always "conflicts" with
+    // itself, since it already holds this exact slug from its first
+    // approval. `listingId` is the literal string 'new' for a
+    // not-yet-existing listing (one call site), which never matches a
+    // real numeric id, so it's safe to always apply this filter.
+    let query = supabaseAdmin.from('listings').select('id, name').eq('slug', baseSlug);
+    if (listingId !== 'new' && listingId != null) query = query.neq('id', listingId);
+    const { data: conflict } = await query.maybeSingle();
 
     if (conflict) {
         const tempSlug = baseSlug + '-' + listingId;
