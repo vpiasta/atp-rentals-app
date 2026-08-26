@@ -1913,7 +1913,7 @@ function renderTrialSubmissions(subs) {
         const thumbs = photos.length
             ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0.5rem 0;">${photos.map(p =>
                 `<a href="${p.url}" target="_blank"><img src="${p.url}" style="width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid #3a5a7a;"></a>`).join('')}</div>`
-            : isRaw ? `<div style="font-size:0.78rem;color:#e67e22;margin:0.5rem 0;">⚠️ El correo no pudo procesarse automáticamente — no se capturaron fotos ni descripción. Revise "raw_payload" en Supabase si necesita el contenido original, o pida al propietario que reenvíe.</div>`
+            : isRaw ? `<div style="font-size:0.78rem;color:#e67e22;margin:0.5rem 0;">⚠️ El correo no pudo procesarse automáticamente — no se capturaron fotos ni descripción. Use "📄 Ver correo original" abajo para leer el contenido tal como llegó, o pida al propietario que reenvíe.</div>`
             : `<div style="font-size:0.78rem;color:#888;margin:0.5rem 0;">Sin fotos adjuntas</div>`;
         const matchBadge = s.listing_id
             ? `<span class="reg-badge atp">ID ${s.listing_id}${s.listing ? ' · '+s.listing.name : ''}</span>`
@@ -1932,6 +1932,8 @@ function renderTrialSubmissions(subs) {
                 <span class="app-status ${s.status}">${({pending:'PENDIENTE',raw_unparsed:'SIN PROCESAR',approved:'APROBADA',denied:'RECHAZADA'}[s.status]||s.status).toUpperCase()}</span>
             </div>
             ${thumbs}
+            <button class="app-btn" style="background:#3d5166;color:#eee;margin-bottom:0.5rem;" onclick="toggleRawSubmission(${s.id})">📄 Ver correo original</button>
+            <div id="trial-sub-raw-${s.id}" style="display:none;background:#111;border:1px solid #333;border-radius:6px;padding:0.7rem;margin-bottom:0.6rem;font-size:0.82rem;"></div>
             ${!isDone ? `
             <div class="app-details">
                 <div class="field-group" style="grid-column:1/-1;">
@@ -1965,6 +1967,39 @@ function renderTrialSubmissions(subs) {
 
 function showDenyTrialForm(id) {
     document.getElementById('trial-sub-deny-form-'+id).classList.add('visible');
+}
+
+// ── View the original inbound email for one submission, without touching
+// Supabase by hand — subject/sender/date already show in the card header
+// (now backfilled from raw_payload when the DB columns are empty, see
+// server.js); this panel adds the plain-text body and attachment links,
+// fetched once and cached in the DOM's data attribute so re-toggling
+// doesn't re-fetch.
+async function toggleRawSubmission(id) {
+    const panel = document.getElementById('trial-sub-raw-' + id);
+    if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+    if (panel.dataset.loaded) return;
+    panel.innerHTML = '<span style="color:#aaa;">Cargando...</span>';
+    try {
+        const res = await adminFetch(`/api/admin/pending-submissions/${id}/raw`);
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Error');
+        const bodyHtml = d.plain_body
+            ? `<div style="white-space:pre-wrap;background:#1a1a1a;border-radius:4px;padding:0.6rem;color:#ddd;max-height:260px;overflow-y:auto;">${d.plain_body.replace(/</g,'&lt;')}</div>`
+            : '<span style="color:#888;">(sin texto plano)</span>';
+        const attachHtml = d.attachments.length
+            ? `<div style="margin-top:0.5rem;">${d.attachments.map(a =>
+                `<div>📎 <a href="${a.url}" target="_blank" style="color:#7ec8e3;">${a.filename||'archivo'}</a> ${a.sizeBytes?`(${Math.round(a.sizeBytes/1024)} KB)`:''}</div>`
+              ).join('')}<div style="font-size:0.72rem;color:#888;margin-top:2px;">Nota: estos enlaces son firmados y pueden haber expirado si el correo es antiguo.</div></div>`
+            : '';
+        panel.innerHTML = `
+            <div style="color:#aaa;margin-bottom:0.4rem;">De: ${d.sender_email||'desconocido'} · Asunto: ${d.subject||'(sin asunto)'}${d.date?' · '+d.date:''}</div>
+            ${bodyHtml}${attachHtml}`;
+        panel.dataset.loaded = '1';
+    } catch (err) {
+        panel.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`;
+    }
 }
 
 async function approveTrialSubmission(id) {
@@ -4046,10 +4081,13 @@ async function sendToCampaignContacts() {
     const resultEl = document.getElementById('followup-result');
     resultEl.innerHTML = '<span style="color:#FFD700;">Enviando... no cierre esta página.</span>';
     const from = document.getElementById('followup-from').value;
+    // Explicit label so "Historial de Campañas" shows this as its own
+    // audience, clearly separate from owner/hospedajes sends.
+    const target_description = `Autoridades y Legisladores (${targets.length})`;
     try {
         const res = await adminFetch('/api/admin/send-followup-specific', {
             method: 'POST',
-            body: JSON.stringify({ subject, body, targets, from })
+            body: JSON.stringify({ subject, body, targets, from, target_description })
         });
         const d = await res.json();
         resultEl.innerHTML = d.success

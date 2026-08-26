@@ -4087,7 +4087,7 @@ app.post('/api/admin/send-followup-new', requireAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/send-followup-specific', requireAdmin, async (req, res) => {
-    const { subject, body, emails, targets: directTargets, from } = req.body;
+    const { subject, body, emails, targets: directTargets, from, target_description } = req.body;
     let targets;
     if (Array.isArray(directTargets) && directTargets.length) {
         // Called from the Hospedajes-tab selection — real listing names/emails
@@ -4110,9 +4110,14 @@ app.post('/api/admin/send-followup-specific', requireAdmin, async (req, res) => 
     }
     if (!subject || !body || !targets.length) return res.status(400).json({ error: 'Missing fields' });
     res.json({ success: true, message: `Sending to ${targets.length} recipients`, total: targets.length });
-    const specificDescription = (Array.isArray(directTargets) && directTargets.length)
+    // target_description lets the caller stamp a clearer audience label into
+    // campaign history (e.g. "Autoridades y Legisladores") — used by the
+    // officials-contacts send (2026-08-26) so it's visually distinguishable
+    // from a regular owners/hospedajes selection in "Historial de Campañas".
+    // Falls back to the old generic wording when the caller doesn't send one.
+    const specificDescription = target_description || ((Array.isArray(directTargets) && directTargets.length)
         ? `Envío específico — selección directa (${targets.length} hospedajes)`
-        : `Envío específico — lista de correos (${targets.length})`;
+        : `Envío específico — lista de correos (${targets.length})`);
     await sendToRosterList(targets, subject, body, from, specificDescription);
 });
 
@@ -6107,6 +6112,26 @@ app.post('/api/inbound-application', express.json({ limit: '10mb' }), async (req
     }
 });
 
+// Rows created before 2026-08-25's ingest hardening never got subject/
+// sender_email backfilled onto their own columns (only the auto-capture
+// added that day does), even though the webhook's full payload — subject,
+// sender, plain-text body, attachment links — is sitting right there in
+// raw_payload.data. Pulls those out as a fallback so old rows don't show
+// "(sin asunto)"/"remitente desconocido" when the real values are on file.
+function rawPayloadFallback(submission) {
+    const d = submission?.raw_payload?.data || {};
+    return {
+        subject: submission?.subject || d.subject || null,
+        sender_email: submission?.sender_email || d.from || null,
+        plain_body: d.plainBody || null,
+        date: d.date || null,
+        attachments: Array.isArray(d.attachments) ? d.attachments.map(a => ({
+            filename: a.filename || null, url: a.fileUrl || null,
+            contentType: a.contentType || null, sizeBytes: a.sizeBytes || null
+        })) : []
+    };
+}
+
 // ── Admin: hasslefree-trial submission review ─────────────────────────────────
 // Lists every pending_submissions row (any status), enriched with the current
 // name/membership status of whatever listing it's matched to, if any.
@@ -6126,7 +6151,29 @@ app.get('/api/admin/pending-submissions', requireAdmin, async (req, res) => {
             .in('id', listingIds);
         listingsById = Object.fromEntries((listings || []).map(l => [l.id, l]));
     }
-    res.json((data || []).map(s => ({ ...s, listing: s.listing_id ? (listingsById[s.listing_id] || null) : null })));
+    res.json((data || []).map(s => {
+        const fallback = rawPayloadFallback(s);
+        return {
+            ...s,
+            subject: fallback.subject,
+            sender_email: fallback.sender_email,
+            has_raw_detail: !!(fallback.plain_body || fallback.attachments.length),
+            listing: s.listing_id ? (listingsById[s.listing_id] || null) : null
+        };
+    }));
+});
+
+// ── Admin: view the original inbound email for one submission — subject,
+// sender, plain-text body, and attachment links (signed GCS URLs — may have
+// expired for an old submission; still worth trying). Lets the admin read
+// exactly what was sent without opening Supabase and querying raw_payload
+// by hand, which is what this replaces.
+app.get('/api/admin/pending-submissions/:id/raw', requireAdmin, async (req, res) => {
+    const { data: submission, error } = await supabaseAdmin
+        .from('pending_submissions').select('*').eq('id', req.params.id).maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!submission) return res.status(404).json({ error: 'Submission not found' });
+    res.json(rawPayloadFallback(submission));
 });
 
 // Translates a single listing description field into whichever language is
@@ -6274,7 +6321,7 @@ app.post('/api/admin/pending-submissions/:id/approve', requireAdmin, async (req,
         }).eq('id', submissionId);
 
         let emailSent = false;
-        const toEmail = updatedListing.email_member || updatedListing.email || submission.sender_email;
+        const toEmail = updatedListing.email_member || updatedListing.email || rawPayloadFallback(submission).sender_email;
         if (toEmail && toEmail.includes('@')) {
             const notifyPath = path.join(__dirname, 'public', 'notify.php');
             const emailHtml = password
@@ -6312,10 +6359,11 @@ app.post('/api/admin/pending-submissions/:id/deny', requireAdmin, async (req, re
     }).eq('id', submissionId);
 
     let emailSent = false;
-    if (submission.sender_email && submission.sender_email.includes('@')) {
+    const denySenderEmail = rawPayloadFallback(submission).sender_email;
+    if (denySenderEmail && denySenderEmail.includes('@')) {
         const notifyPath = path.join(__dirname, 'public', 'notify.php');
         try {
-            await execFileAsync('php', [notifyPath, 'Sobre su solicitud — Trusted Panama Stays', trialSubmissionDenialEmailHtml(reason), submission.sender_email, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
+            await execFileAsync('php', [notifyPath, 'Sobre su solicitud — Trusted Panama Stays', trialSubmissionDenialEmailHtml(reason), denySenderEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
             emailSent = true;
         } catch (mailErr) { console.error('Trial submission denial email failed:', mailErr.message); }
     }
