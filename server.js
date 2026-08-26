@@ -3795,11 +3795,22 @@ function resolveSender(from) {
 }
 
 // ── Helper: wrap body content in full email template ─────────────────────────
-function buildFollowupHtml(hotel, manager, bodyContent) {
-    const firstName = (manager || '').split(' ')[0];
-    const greeting = firstName && firstName.length > 2
-        ? (hotel ? `${firstName}, propietario/a de <strong>${hotel}</strong>` : firstName)
-        : (hotel ? `propietario/a de <strong>${hotel}</strong>` : 'propietario/a');
+// salutationOverride (optional): a complete pre-built salutation line — used
+// by the formal/officials campaign send path (2026-08-26) so recipients who
+// aren't property owners (legislators, ATP/MiCI officials) don't get the
+// "Estimado/a propietario/a de {hotel}" owner-framed greeting. When omitted,
+// behavior is unchanged from before.
+function buildFollowupHtml(hotel, manager, bodyContent, salutationOverride) {
+    let salutationLine;
+    if (salutationOverride) {
+        salutationLine = salutationOverride;
+    } else {
+        const firstName = (manager || '').split(' ')[0];
+        const greeting = firstName && firstName.length > 2
+            ? (hotel ? `${firstName}, propietario/a de <strong>${hotel}</strong>` : firstName)
+            : (hotel ? `propietario/a de <strong>${hotel}</strong>` : 'propietario/a');
+        salutationLine = `Estimado/a ${greeting},`;
+    }
         return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;margin:0;padding:0;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto 1.5rem;">
     <tr><td bgcolor="#005ca9" style="background-color:#005ca9;" width="600">
@@ -3809,7 +3820,7 @@ function buildFollowupHtml(hotel, manager, bodyContent) {
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto;">
 <tr><td height="20" style="font-size:1px;line-height:1px;">&nbsp;</td></tr>
     <tr><td style="padding:0 20px;">
-<p style="margin-top:0;">Estimado/a ${greeting},</p>
+<p style="margin-top:0;">${salutationLine}</p>
 ${bodyContent}
 <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
 <p style="color:#888;font-size:0.78rem;">
@@ -4083,7 +4094,7 @@ app.post('/api/admin/send-followup-specific', requireAdmin, async (req, res) => 
         // already provided directly, no roster lookup needed for the greeting.
         // id/slug are passed through so resolveListingUrl() can skip the fuzzy
         // name-match lookup and use the exact listing directly.
-        targets = directTargets.map(t => ({ hotel: t.name, email: t.email, manager: t.contact_name || '', id: t.id, slug: t.slug }));
+        targets = directTargets.map(t => ({ hotel: t.name, email: t.email, manager: t.contact_name || '', id: t.id, slug: t.slug, salutation: t.salutation || null }));
     } else if (emails?.length) {
         // Plain email list (the "specific emails" textbox) — try matching
         // against the APATEL roster for a name, otherwise send unpersonalized.
@@ -4166,7 +4177,7 @@ async function sendToRosterList(targets, subject, body, from, targetDescription)
             const personalizedSubject = (subject.includes('{id}') && member.id)
                 ? subject.split('{id}').join(member.id)
                 : subject;
-            const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', personalizedBody);
+            const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', personalizedBody, member.salutation);
             await execFileAsync('php', [notifyPath, personalizedSubject, html, member.email, sender.email, sender.name], { timeout: 15000 });
             if (!sampleCopy) sampleCopy = { subject: personalizedSubject, html, to: member.email };
             // Mark as contacted in DB
@@ -4203,6 +4214,42 @@ async function sendToRosterList(targets, subject, body, from, targetDescription)
         }
     }
 }
+
+// ── campaign_contacts — small manually-managed list of legislators/officials ──
+// and similar non-owner recipients for the blog-post campaign mode (added
+// 2026-08-26). Deliberately separate from `listings`/APATEL roster since these
+// people have no listing and get a distinct, more formal introduction.
+app.get('/api/admin/campaign-contacts', requireAdmin, async (req, res) => {
+    const { data, error } = await supabaseAdmin.from('campaign_contacts').select('*').order('name');
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ contacts: data });
+});
+
+app.post('/api/admin/campaign-contacts', requireAdmin, async (req, res) => {
+    const { name, email, role, organization, notes } = req.body;
+    if (!name || !email || !email.includes('@')) return res.status(400).json({ error: 'Falta nombre o correo válido' });
+    const { data, error } = await supabaseAdmin.from('campaign_contacts')
+        .insert({ name, email, role: role || null, organization: organization || null, notes: notes || null })
+        .select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, contact: data });
+});
+
+app.put('/api/admin/campaign-contacts/:id', requireAdmin, async (req, res) => {
+    const { name, email, role, organization, notes } = req.body;
+    if (!name || !email || !email.includes('@')) return res.status(400).json({ error: 'Falta nombre o correo válido' });
+    const { data, error } = await supabaseAdmin.from('campaign_contacts')
+        .update({ name, email, role: role || null, organization: organization || null, notes: notes || null })
+        .eq('id', req.params.id).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, contact: data });
+});
+
+app.delete('/api/admin/campaign-contacts/:id', requireAdmin, async (req, res) => {
+    const { error } = await supabaseAdmin.from('campaign_contacts').delete().eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
+});
 
 // ── Reusable AI verification function ────────────────────────────────────────
 async function runAiVerification(application_id) {
@@ -6900,7 +6947,8 @@ app.post('/api/admin/blog/:id/translate', requireAdmin, async (req, res) => {
         }
     };
     const prompt = `Translate the following blog post from English into natural Panama Spanish (the way a Panamanian reader would expect, not generic textbook Spanish) for Trusted Panama Stays (trustedpanamastays.com).
-Preserve the HTML structure exactly — same tags, same paragraph breaks — only translate the text content, and change the internal directory link's href to "/index.php?lang=es" with natural Spanish link text ("nuestro directorio").
+Preserve the HTML structure EXACTLY — the output must have the identical sequence of tags as the input, only the text content inside each tag translated. This is critical: every <h2> in the English input must stay a real <h2>...</h2> in your output, and every <h3> must stay a real <h3>...</h3>. Never replace a heading tag with a <p> (styled or not), a <span>, or any other tag — do not invent inline styles like colored/enlarged <span> text as a substitute for a heading. Do not add, remove, split, or merge any <p> or heading elements — the same number of paragraph breaks as the English original. If the input contains an <ol> or <ul> list, translate EVERY <li> item and keep the exact same number of list items — do not summarize, shorten, or silently drop any list item, even if its markup looks unusual (e.g. an empty leading <span class="ql-ui">).
+Change the internal directory link's href to "/index.php?lang=es" with natural Spanish link text ("nuestro directorio").
 Do not include any quotation marks, delimiters, or labels in your translated output — the body_es field must start directly with the first HTML tag of the translated content, with nothing before it.
 TITLE: ${post.title_en}
 EXCERPT: ${post.excerpt_en}
@@ -6911,37 +6959,67 @@ ${post.body_en}
 ===BODY_END===
 Call the save_translation tool with the translated fields.`;
 
-    let response;
+    const countTags = (html, tag) => ((html || '').match(new RegExp('<' + tag + '[ >]', 'gi')) || []).length;
+    const headingSignature = (html) => ['h2', 'h3', 'li', 'p'].map(tag => tag + ':' + countTags(html, tag)).join(' ');
+    const englishHeadings = headingSignature(post.body_en);
+
+    const callTranslateApi = async (promptText) => {
+        let apiResponse;
+        try {
+            apiResponse = await axios.post('https://api.anthropic.com/v1/messages', {
+                model: 'claude-sonnet-5',
+                max_tokens: 8000,
+                thinking: { type: 'disabled' },
+                tools: [TRANSLATE_TOOL],
+                tool_choice: { type: 'tool', name: 'save_translation' },
+                messages: [{ role: 'user', content: [{ type: 'text', text: promptText }] }]
+            }, {
+                headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+                timeout: 60000
+            });
+        } catch (axiosErr) {
+            const apiMsg = axiosErr.response?.data?.error?.message || axiosErr.message;
+            throw new Error('Anthropic API call failed: ' + apiMsg);
+        }
+        if (apiResponse.data.stop_reason === 'max_tokens') {
+            throw new Error('Translation was cut off before finishing (hit the token limit).');
+        }
+        const block = (apiResponse.data.content || []).find(b => b.type === 'tool_use' && b.name === 'save_translation');
+        if (!block || !block.input) {
+            throw new Error('Claude did not return the expected translation.');
+        }
+        return block.input;
+    };
+
+    let t;
     try {
-        response = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-5',
-            max_tokens: 8000,
-            thinking: { type: 'disabled' },
-            tools: [TRANSLATE_TOOL],
-            tool_choice: { type: 'tool', name: 'save_translation' },
-            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
-        }, {
-            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-            timeout: 60000
-        });
-    } catch (axiosErr) {
-        const apiMsg = axiosErr.response?.data?.error?.message || axiosErr.message;
-        return res.status(500).json({ error: 'Anthropic API call failed: ' + apiMsg });
+        t = await callTranslateApi(prompt);
+        // Guard against the model silently swapping <h2>/<h3> headings for styled
+        // <p><span>...</span></p> fake-headings (observed 2026-08-26 — this is what
+        // produced the "extra blank line between paragraphs" symptom the user
+        // reported, since a fake heading's <p> margin stacks against the next real
+        // <p> instead of using the site's tighter <h3> margin). If the heading-tag
+        // counts don't match the English original, retry once with a corrective
+        // note before giving up and saving the mismatched result anyway.
+        if (headingSignature(t.body_es) !== englishHeadings) {
+            const retryPrompt = prompt + `\n\nIMPORTANT CORRECTION: your previous attempt changed the heading tags. The English original has ${englishHeadings.replace(/(h\d):/g, '$1 count=')}. Your Spanish output MUST have the exact same heading tags — do not turn any <h2> or <h3> into a <p> or <span>, no matter how you choose to style it. Try again, translating text only and keeping every tag identical to the original structure.`;
+            try {
+                const retry = await callTranslateApi(retryPrompt);
+                t = retry; // best effort — use the retry regardless, it's at least a second independent attempt
+            } catch (retryErr) {
+                // keep the first attempt if the retry itself fails
+            }
+        }
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
     }
-    if (response.data.stop_reason === 'max_tokens') {
-        return res.status(500).json({ error: 'Translation was cut off before finishing (hit the token limit).' });
-    }
-    const toolBlock = (response.data.content || []).find(b => b.type === 'tool_use' && b.name === 'save_translation');
-    if (!toolBlock || !toolBlock.input) {
-        return res.status(500).json({ error: 'Claude did not return the expected translation.' });
-    }
-    const t = toolBlock.input;
+
     const { data: updated, error: updateErr } = await supabaseAdmin.from('blog_posts').update({
         title_es: t.title_es, excerpt_es: t.excerpt_es, meta_description_es: t.meta_description_es, body_es: t.body_es
     }).eq('id', req.params.id).select().single();
     if (updateErr) return res.status(500).json({ error: updateErr.message });
     await logEvent('blog_post_translated', { id: updated.id });
-    res.json({ success: true, post: updated });
+    res.json({ success: true, post: updated, heading_check: headingSignature(t.body_es) === englishHeadings ? 'ok' : 'mismatch' });
 });
 
 // ── GET /api/admin/blog/comments — list all comments, with post context ─────
