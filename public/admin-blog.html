@@ -223,7 +223,7 @@ function postCard(p) {
   div.innerHTML = `
     <span class="badge ${badgeClass}">${p.status.replace('_',' ')}</span>
     <h3>${escapeHtml(p.title_en || '(no title)')}</h3>
-    <div class="meta">slug: ${escapeHtml(p.slug)} · id: ${p.id} · category: ${escapeHtml(p.category||'—')} · ${p.ai_generated ? 'AI-generated' : 'manual'}</div>
+    <div class="meta">${p.status === 'published' && p.published_at ? `published: ${new Date(p.published_at).toLocaleDateString()} · ` : ''}slug: ${escapeHtml(p.slug)} · id: ${p.id} · category: ${escapeHtml(p.category||'—')} · ${p.ai_generated ? 'AI-generated' : 'manual'}</div>
     <div class="excerpt">${escapeHtml(p.excerpt_en || '')}</div>
     <div class="row">
       <button class="btn btn-outline" onclick="togglePostEdit(${p.id})">Edit</button>
@@ -484,7 +484,12 @@ async function loadPublished() {
   const panel = document.getElementById('panel-published');
   try {
     const all = await api('/api/admin/blog/all');
-    const posts = all.filter(p => p.status === 'published');
+    // /api/admin/blog/all orders by created_at (right default for
+    // Pending/Rejected, where nothing has published yet) — for the
+    // Published tab specifically, sort by the real publish date instead,
+    // newest first, so it matches what readers actually see on blog.php.
+    const posts = all.filter(p => p.status === 'published')
+      .sort((a, b) => new Date(b.published_at || b.created_at) - new Date(a.published_at || a.created_at));
     quillInstances = {};
     clearAllAutosaveTimers();
     posts.forEach(p => postsById[p.id] = p);

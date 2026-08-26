@@ -3993,14 +3993,20 @@ async function loadBlogCampaignPosts() {
     try {
         const res = await adminFetch('/api/admin/blog/all');
         const all = await res.json();
-        _blogCampaignPosts = (Array.isArray(all) ? all : []).filter(p => p.status === 'published');
+        // Newest published first, by actual publish date — matches the
+        // public blog list's own ordering, so the post at the top of this
+        // dropdown is the same one a visitor sees first on blog.php.
+        _blogCampaignPosts = (Array.isArray(all) ? all : [])
+            .filter(p => p.status === 'published')
+            .sort((a, b) => new Date(b.published_at || b.created_at) - new Date(a.published_at || a.created_at));
         if (!_blogCampaignPosts.length) {
             sel.innerHTML = '<option value="">(no hay publicaciones publicadas)</option>';
             return;
         }
-        sel.innerHTML = _blogCampaignPosts.map(p =>
-            `<option value="${p.id}">${_escHtml(p.title_es || p.title_en || '(sin título)')}</option>`
-        ).join('');
+        sel.innerHTML = _blogCampaignPosts.map(p => {
+            const dateLabel = p.published_at ? new Date(p.published_at).toLocaleDateString('es-PA') : '';
+            return `<option value="${p.id}">${dateLabel ? '['+dateLabel+'] ' : ''}${_escHtml(p.title_es || p.title_en || '(sin título)')}</option>`;
+        }).join('');
     } catch (e) {
         sel.innerHTML = '<option value="">Error al cargar publicaciones</option>';
     }
