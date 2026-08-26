@@ -1948,6 +1948,7 @@ function renderTrialSubmissions(subs) {
             <div class="app-actions">
                 <button class="app-btn approve" onclick="approveTrialSubmission(${s.id})">✅ Aprobar</button>
                 <button class="app-btn reject" onclick="showDenyTrialForm(${s.id})">🔴 Rechazar</button>
+                <button class="app-btn" style="background:#5a1a1a;color:#ffb3b3;" onclick="deleteTrialSubmission(${s.id})">🗑️ Eliminar</button>
             </div>
             <div class="approve-result" id="trial-sub-result-${s.id}"></div>
             <div class="reject-form" id="trial-sub-deny-form-${s.id}">
@@ -1960,6 +1961,9 @@ function renderTrialSubmissions(subs) {
             <div style="font-size:0.78rem;color:#aaa;">
                 Revisado: ${s.reviewed_at?new Date(s.reviewed_at).toLocaleString():'—'}
                 ${s.reviewer_notes?`<br>Notas: ${s.reviewer_notes}`:''}
+            </div>
+            <div class="app-actions">
+                <button class="app-btn" style="background:#5a1a1a;color:#ffb3b3;" onclick="deleteTrialSubmission(${s.id})">🗑️ Eliminar</button>
             </div>`}
         </div>`;
     }).join('');
@@ -2041,6 +2045,22 @@ async function denyTrialSubmission(id) {
         await loadTrialSubmissions();
     } catch(err) {
         resultEl.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`;
+    }
+}
+
+// Permanently removes a submission row — for junk/test entries (expired
+// attachments, duplicate/unusable replies) that aren't worth keeping as a
+// record, whether or not they were ever formally rejected. Separate from
+// "Rechazar" (which reviews + emails the sender but keeps the row).
+async function deleteTrialSubmission(id) {
+    if (!confirm('¿Eliminar esta solicitud permanentemente? Esto no se puede deshacer.')) return;
+    try {
+        const res = await adminFetch(`/api/admin/pending-submissions/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al eliminar');
+        await loadTrialSubmissions();
+    } catch(err) {
+        alert('Error: ' + err.message);
     }
 }
 

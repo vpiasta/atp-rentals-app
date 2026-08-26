@@ -6372,6 +6372,20 @@ app.post('/api/admin/pending-submissions/:id/deny', requireAdmin, async (req, re
     res.json({ success: true, email_sent: emailSent });
 });
 
+// ── Admin: permanently delete a pending submission row — for junk/test
+// entries (expired-attachment raw_unparsed rows, duplicate replies, etc.)
+// that aren't worth keeping around at all, denied or not. "Rechazar" above
+// marks a submission reviewed and (when possible) emails the sender, but
+// deliberately leaves the row in place as a record — this is the separate,
+// explicit "actually remove it from the list" action (2026-08-26).
+app.delete('/api/admin/pending-submissions/:id', requireAdmin, async (req, res) => {
+    const submissionId = parseInt(req.params.id);
+    const { error } = await supabaseAdmin.from('pending_submissions').delete().eq('id', submissionId);
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('pending_submission_deleted', { submission_id: submissionId });
+    res.json({ success: true });
+});
+
 // ═════════════════════════════════════════════════════════════════════════════
 //  BLOG
 // ═════════════════════════════════════════════════════════════════════════════
