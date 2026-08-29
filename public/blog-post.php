@@ -126,6 +126,7 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
         .post-body p { margin-bottom: 0.9rem; }
         .post-body ul, .post-body ol { margin: 0 0 0.9rem 1.4rem; }
         .post-body a { color: #005ca9; }
+        .author-disclaimer { background: white; padding: 1rem 1.4rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 1rem; font-size: 0.82rem; color: #666; font-style: italic; }
         .back-link { display: inline-block; margin-bottom: 1rem; color: #005ca9; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
         .not-found { background: white; padding: 2rem; border-radius: 10px; text-align: center; }
         .comments-section { background: white; padding: 1.4rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 1rem; }
@@ -195,6 +196,13 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
         </div>
         <?php if ($image): ?><img class="post-image" src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>"><?php endif; ?>
         <div class="post-body"><?= $bodyHtml ?></div>
+
+        <div class="author-disclaimer">
+            <?= $is_en
+                ? 'Not a lawyer: this article is written by the operator of an ATP-registered property in Panama, based on a direct reading of the primary legal texts it cites — not secondhand summaries. It\'s shared here to help other owners get oriented, not as legal advice for your specific situation. Confirm how anything here applies to your business with a licensed Panamanian attorney or accountant.'
+                : 'No soy abogado: este artículo lo escribe el operador de un hospedaje registrado ante la ATP en Panamá, basado en una lectura directa de los textos legales que cita — no en resúmenes de terceros. Se comparte aquí para ayudar a otros propietarios a orientarse, no como asesoría legal para su situación particular. Confirme cómo se aplica esto a su negocio con un abogado o contador panameño autorizado.'
+            ?>
+        </div>
 
         <div class="comments-section" id="comments-section">
             <h2><?= $is_en ? 'Comments' : 'Comentarios' ?></h2>
