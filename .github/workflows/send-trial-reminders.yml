@@ -11,5 +11,5 @@ jobs:
     steps:
       - name: Send trial expiry reminders
         run: |
-          curl -s --connect-timeout 15 --max-time 60 --retry 2 --retry-delay 10 \
+          curl -s --connect-timeout 15 --max-time 100 --retry 2 --retry-delay 10 \
             "https://trustedpanamastays.com/api/send-trial-reminders?secret=${{ secrets.ADMIN_SECRET }}"
