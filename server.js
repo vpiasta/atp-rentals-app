@@ -3157,7 +3157,7 @@ app.get('/api/admin/qb-pending-payments', requireServiceAuth, async (req, res) =
         const appIds      = [...new Set((payments||[]).map(p => p.application_id).filter(Boolean))];
 
         const { data: listings } = listingIds.length
-            ? await supabaseAdmin.from('listings').select('id, name, contact_name').in('id', listingIds)
+            ? await supabaseAdmin.from('listings').select('id, name, contact_name, slug').in('id', listingIds)
             : { data: [] };
         const { data: apps } = appIds.length
             ? await supabaseAdmin.from('membership_applications').select('id, contact_name, documents').in('id', appIds)
@@ -3174,6 +3174,7 @@ app.get('/api/admin/qb-pending-payments', requireServiceAuth, async (req, res) =
                 payment_id:     p.id,
                 listing_id:     p.listing_id,
                 property_name:  listing.name || null,
+                slug:           listing.slug || null,
                 contact_name:   listing.contact_name || app.contact_name || null,
                 amount_net:     p.amount_net,
                 itbms:          p.itbms,
