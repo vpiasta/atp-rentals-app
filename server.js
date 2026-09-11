@@ -3181,7 +3181,7 @@ app.get('/api/admin/qb-pending-payments', requireServiceAuth, async (req, res) =
                 payment_date:   p.payment_date || p.invoice_date || p.created_at,
                 payment_method: p.payment_method,
                 invoice_number: p.invoice_number,
-                invoice_url:    p.invoice_url,
+                invoice_uuid:   p.invoice_uuid,
                 proof_path:     proofDoc ? proofDoc.path : null
             };
         });
@@ -4749,7 +4749,7 @@ app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
 
 // ── Download the CAFE (invoice PDF) from eFacturaPty, proxied through our server ──
 // so the API bearer token never reaches the browser.
-app.get('/api/admin/invoice-pdf/:invoiceId', requireAdmin, async (req, res) => {
+app.get('/api/admin/invoice-pdf/:invoiceId', requireAdminOrService, async (req, res) => {
     const { invoiceId } = req.params;
     try {
         const response = await axios.get(
