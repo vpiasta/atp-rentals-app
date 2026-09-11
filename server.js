@@ -1568,6 +1568,16 @@ app.post('/api/admin-login', async (req, res) => {
 });
 
 // ── Admin auth middleware ──────────────────────────────────────────────────────
+// Sliding session (added 2026-09-11): a token older than
+// ADMIN_TOKEN_REFRESH_AFTER_MS gets silently reissued (fresh timestamp) on
+// any authenticated request, via the X-Refreshed-Token response header —
+// so an admin actively working (autosave, edits, tab switches, etc.) never
+// hits the hard ADMIN_TOKEN_MAX_AGE_MS cutoff below. Only a tab genuinely
+// left idle for that long still gets logged out. See admin-blog.html's
+// api() for the client side that picks up the header.
+const ADMIN_TOKEN_REFRESH_AFTER_MS = 30 * 60 * 1000; // 30 minutes
+const ADMIN_TOKEN_MAX_AGE_MS = 4 * 60 * 60 * 1000;   // 4 hours
+
 async function requireAdmin(req, res, next) {
     const token = req.headers['authorization']?.replace('Bearer ', '');
     if (!token) return res.status(401).json({ error: 'No token' });
@@ -1578,9 +1588,14 @@ async function requireAdmin(req, res, next) {
         if (role !== 'admin') return res.status(403).json({ error: 'Not admin' });
         if (secret !== process.env.ADMIN_SECRET) return res.status(403).json({ error: 'Invalid token' });
 
-        // Token expires after 4 hours
-        if (Date.now() - parseInt(timestamp) > 4 * 60 * 60 * 1000) {
+        const age = Date.now() - parseInt(timestamp);
+        if (age > ADMIN_TOKEN_MAX_AGE_MS) {
             return res.status(401).json({ error: 'Session expired' });
+        }
+
+        if (age > ADMIN_TOKEN_REFRESH_AFTER_MS) {
+            const freshToken = Buffer.from(`admin:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
+            res.setHeader('X-Refreshed-Token', freshToken);
         }
 
         next();
@@ -6435,6 +6450,23 @@ app.get('/api/admin/blog/all', requireAdmin, async (req, res) => {
     res.json(data);
 });
 
+// ── POST /api/admin/blog/new — blank draft, nothing generated (added 2026-09-11) ─
+// For pasting in text written outside the admin panel. No AI call, no seed
+// text required — just a bare row to open and fill in by hand.
+app.post('/api/admin/blog/new', requireAdmin, async (req, res) => {
+    const slug = `borrador-${Date.now()}`;
+    const { data, error } = await supabaseAdmin.from('blog_posts').insert({
+        slug,
+        title_en: '',
+        body_en: '',
+        status: 'pending_review',
+        ai_generated: false
+    }).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('blog_post_created_blank', { id: data.id });
+    res.json({ success: true, post: data });
+});
+
 // ── POST /api/admin/blog/:id/edit — admin edits a draft before approving ──────
 app.post('/api/admin/blog/:id/edit', requireAdmin, async (req, res) => {
     const { title_en, title_es, excerpt_en, excerpt_es, body_en, body_es,
@@ -6981,49 +7013,72 @@ Call the save_blog_chapter tool with this chapter.`;
     return inserted;
 }
 
-// ── POST /api/admin/blog/:id/translate — translates the CURRENT English ──────
-// fields into Spanish and saves them. Fetches fresh from the DB (not the
-// request body) so it always reflects the latest saved English edits, not
-// whatever was originally generated. Overwrites any existing Spanish fields
-// — the admin panel confirms before calling this if Spanish already exists.
+// ── POST /api/admin/blog/:id/translate?direction=en-to-es|es-to-en ───────────
+// Translates the CURRENT fields in the source language and saves them into
+// the target language. Defaults to en-to-es (the original, one-directional
+// behavior) when no direction is given, so any existing caller keeps working
+// unchanged. Fetches fresh from the DB (not the request body) so it always
+// reflects the latest saved edits, not whatever was originally generated.
+// Overwrites any existing target-language fields — the admin panel confirms
+// before calling this if the target language already has content.
+// ES→EN direction added 2026-09-11: when a post is drafted directly in
+// Spanish (e.g. because it hinges on a verbatim Spanish quote or legal text),
+// this avoids the double-translation drift of ES→EN (draft) then EN→ES
+// (publish) that the one-directional version caused.
 app.post('/api/admin/blog/:id/translate', requireAdmin, async (req, res) => {
+    const direction = req.query.direction === 'es-to-en' ? 'es-to-en' : 'en-to-es';
+    const toSpanish = direction === 'en-to-es';
+    const sourceCols = toSpanish
+        ? 'title_en, excerpt_en, meta_description_en, body_en'
+        : 'title_es, excerpt_es, meta_description_es, body_es';
+
     const { data: post, error: fetchErr } = await supabaseAdmin.from('blog_posts')
-        .select('title_en, excerpt_en, meta_description_en, body_en')
+        .select(sourceCols)
         .eq('id', req.params.id).maybeSingle();
     if (fetchErr) return res.status(500).json({ error: fetchErr.message });
     if (!post) return res.status(404).json({ error: 'Post not found' });
-    if (!post.title_en || !post.body_en) return res.status(400).json({ error: 'English version is incomplete — nothing to translate' });
+
+    const srcTitle = toSpanish ? post.title_en : post.title_es;
+    const srcExcerpt = toSpanish ? post.excerpt_en : post.excerpt_es;
+    const srcMeta = toSpanish ? post.meta_description_en : post.meta_description_es;
+    const srcBody = toSpanish ? post.body_en : post.body_es;
+    if (!srcTitle || !srcBody) {
+        return res.status(400).json({ error: `${toSpanish ? 'English' : 'Spanish'} version is incomplete — nothing to translate` });
+    }
 
     const TRANSLATE_TOOL = {
         name: 'save_translation',
-        description: 'Save the Panama Spanish translation of this blog post.',
+        description: `Save the ${toSpanish ? 'Panama Spanish' : 'English'} translation of this blog post.`,
         input_schema: {
             type: 'object',
             properties: {
-                title_es: { type: 'string' },
-                excerpt_es: { type: 'string' },
-                meta_description_es: { type: 'string' },
-                body_es: { type: 'string', description: 'Same HTML structure/tags as the English body, translated' }
+                title: { type: 'string' },
+                excerpt: { type: 'string' },
+                meta_description: { type: 'string' },
+                body: { type: 'string', description: 'Same HTML structure/tags as the source body, translated' }
             },
-            required: ['title_es', 'excerpt_es', 'meta_description_es', 'body_es']
+            required: ['title', 'excerpt', 'meta_description', 'body']
         }
     };
-    const prompt = `Translate the following blog post from English into natural Panama Spanish (the way a Panamanian reader would expect, not generic textbook Spanish) for Trusted Panama Stays (trustedpanamastays.com).
-Preserve the HTML structure EXACTLY — the output must have the identical sequence of tags as the input, only the text content inside each tag translated. This is critical: every <h2> in the English input must stay a real <h2>...</h2> in your output, and every <h3> must stay a real <h3>...</h3>. Never replace a heading tag with a <p> (styled or not), a <span>, or any other tag — do not invent inline styles like colored/enlarged <span> text as a substitute for a heading. Do not add, remove, split, or merge any <p> or heading elements — the same number of paragraph breaks as the English original. If the input contains an <ol> or <ul> list, translate EVERY <li> item and keep the exact same number of list items — do not summarize, shorten, or silently drop any list item, even if its markup looks unusual (e.g. an empty leading <span class="ql-ui">).
-Change the internal directory link's href to "/index.php?lang=es" with natural Spanish link text ("nuestro directorio").
-Do not include any quotation marks, delimiters, or labels in your translated output — the body_es field must start directly with the first HTML tag of the translated content, with nothing before it.
-TITLE: ${post.title_en}
-EXCERPT: ${post.excerpt_en}
-META DESCRIPTION: ${post.meta_description_en}
+    const linkInstruction = toSpanish
+        ? `Change the internal directory link's href to "/index.php?lang=es" with natural Spanish link text ("nuestro directorio").`
+        : `Change the internal directory link's href to "/index.php" with natural English link text ("our directory").`;
+    const prompt = `Translate the following blog post from ${toSpanish ? 'English into natural Panama Spanish (the way a Panamanian reader would expect, not generic textbook Spanish)' : 'Panama Spanish into natural English'} for Trusted Panama Stays (trustedpanamastays.com).
+Preserve the HTML structure EXACTLY — the output must have the identical sequence of tags as the input, only the text content inside each tag translated. This is critical: every <h2> in the input must stay a real <h2>...</h2> in your output, and every <h3> must stay a real <h3>...</h3>. Never replace a heading tag with a <p> (styled or not), a <span>, or any other tag — do not invent inline styles like colored/enlarged <span> text as a substitute for a heading. Do not add, remove, split, or merge any <p> or heading elements — the same number of paragraph breaks as the original. If the input contains an <ol> or <ul> list, translate EVERY <li> item and keep the exact same number of list items — do not summarize, shorten, or silently drop any list item, even if its markup looks unusual (e.g. an empty leading <span class="ql-ui">).
+${linkInstruction}
+Do not include any quotation marks, delimiters, or labels in your translated output — the body field must start directly with the first HTML tag of the translated content, with nothing before it.
+TITLE: ${srcTitle}
+EXCERPT: ${srcExcerpt}
+META DESCRIPTION: ${srcMeta}
 BODY (translate only the content between the markers — do not include the markers themselves in your output):
 ===BODY_START===
-${post.body_en}
+${srcBody}
 ===BODY_END===
 Call the save_translation tool with the translated fields.`;
 
     const countTags = (html, tag) => ((html || '').match(new RegExp('<' + tag + '[ >]', 'gi')) || []).length;
     const headingSignature = (html) => ['h2', 'h3', 'li', 'p'].map(tag => tag + ':' + countTags(html, tag)).join(' ');
-    const englishHeadings = headingSignature(post.body_en);
+    const sourceHeadings = headingSignature(srcBody);
 
     const callTranslateApi = async (promptText) => {
         let apiResponse;
@@ -7061,10 +7116,10 @@ Call the save_translation tool with the translated fields.`;
         // produced the "extra blank line between paragraphs" symptom the user
         // reported, since a fake heading's <p> margin stacks against the next real
         // <p> instead of using the site's tighter <h3> margin). If the heading-tag
-        // counts don't match the English original, retry once with a corrective
-        // note before giving up and saving the mismatched result anyway.
-        if (headingSignature(t.body_es) !== englishHeadings) {
-            const retryPrompt = prompt + `\n\nIMPORTANT CORRECTION: your previous attempt changed the heading tags. The English original has ${englishHeadings.replace(/(h\d):/g, '$1 count=')}. Your Spanish output MUST have the exact same heading tags — do not turn any <h2> or <h3> into a <p> or <span>, no matter how you choose to style it. Try again, translating text only and keeping every tag identical to the original structure.`;
+        // counts don't match the source, retry once with a corrective note before
+        // giving up and saving the mismatched result anyway.
+        if (headingSignature(t.body) !== sourceHeadings) {
+            const retryPrompt = prompt + `\n\nIMPORTANT CORRECTION: your previous attempt changed the heading tags. The original has ${sourceHeadings.replace(/(h\d):/g, '$1 count=')}. Your output MUST have the exact same heading tags — do not turn any <h2> or <h3> into a <p> or <span>, no matter how you choose to style it. Try again, translating text only and keeping every tag identical to the original structure.`;
             try {
                 const retry = await callTranslateApi(retryPrompt);
                 t = retry; // best effort — use the retry regardless, it's at least a second independent attempt
@@ -7076,12 +7131,15 @@ Call the save_translation tool with the translated fields.`;
         return res.status(500).json({ error: err.message });
     }
 
-    const { data: updated, error: updateErr } = await supabaseAdmin.from('blog_posts').update({
-        title_es: t.title_es, excerpt_es: t.excerpt_es, meta_description_es: t.meta_description_es, body_es: t.body_es
-    }).eq('id', req.params.id).select().single();
+    const updates = toSpanish
+        ? { title_es: t.title, excerpt_es: t.excerpt, meta_description_es: t.meta_description, body_es: t.body }
+        : { title_en: t.title, excerpt_en: t.excerpt, meta_description_en: t.meta_description, body_en: t.body };
+
+    const { data: updated, error: updateErr } = await supabaseAdmin.from('blog_posts').update(updates)
+        .eq('id', req.params.id).select().single();
     if (updateErr) return res.status(500).json({ error: updateErr.message });
-    await logEvent('blog_post_translated', { id: updated.id });
-    res.json({ success: true, post: updated, heading_check: headingSignature(t.body_es) === englishHeadings ? 'ok' : 'mismatch' });
+    await logEvent('blog_post_translated', { id: updated.id, direction });
+    res.json({ success: true, post: updated, heading_check: headingSignature(t.body) === sourceHeadings ? 'ok' : 'mismatch' });
 });
 
 // ── GET /api/admin/blog/comments — list all comments, with post context ─────

@@ -116,10 +116,19 @@ async function api(path, opts = {}) {
     ...opts,
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN, ...(opts.headers||{}) }
   });
+  // Sliding session: the server silently reissues a fresh token (in this
+  // header) once the current one is more than 30 minutes old, as long as
+  // you're still making requests — so actively working never logs you out.
+  // Only a tab left genuinely idle for 4+ hours hits the hard expiry below.
+  const refreshedToken = res.headers.get('X-Refreshed-Token');
+  if (refreshedToken) {
+    TOKEN = refreshedToken;
+    sessionStorage.setItem('tps_blog_admin_token', TOKEN);
+  }
   let data;
   try { data = await res.json(); } catch (e) { data = {}; }
   if (res.status === 401 || res.status === 403) {
-    logout('Your session expired (this happens after 4 hours). Nothing was lost — any unsaved edits were backed up on this device. Log in again to recover them.');
+    logout('Your session expired (this happens after 4 hours of inactivity). Nothing was lost — any unsaved edits were backed up on this device. Log in again to recover them.');
     throw new Error(data.error || 'Session expired — please log in again');
   }
   if (!res.ok) throw new Error(data.error || 'Request failed');
@@ -253,11 +262,17 @@ function postCard(p) {
       <label>Slug</label><input id="f-slug-${p.id}" value="${escapeAttr(p.slug)}" oninput="markDirty(${p.id})">
       <label>Featured image URL</label><input id="f-featured_image_url-${p.id}" value="${escapeAttr(p.featured_image_url)}" oninput="markDirty(${p.id})">
       <div class="two-col">
-        <div><label>Body (EN)</label><div class="quill-editor" id="quill-body_en-${p.id}">${p.body_en||''}</div></div>
+        <div>
+          <label style="display:flex;align-items:center;justify-content:space-between;">
+            <span>Body (EN)</span>
+            <button class="btn" id="translate-btn-en-${p.id}" style="padding:4px 12px;font-size:12px;background:#6b7280;color:#fff;border:2px solid #52525b;border-radius:4px;font-weight:600;cursor:pointer;" onclick="translatePost(${p.id}, 'es-to-en')">🌐 Translate from Spanish</button>
+          </label>
+          <div class="quill-editor" id="quill-body_en-${p.id}">${p.body_en||''}</div>
+        </div>
         <div>
           <label style="display:flex;align-items:center;justify-content:space-between;">
             <span>Body (ES)</span>
-            <button class="btn" id="translate-btn-${p.id}" style="padding:4px 12px;font-size:12px;background:#3366cc;color:#fff;border:2px solid #244c99;border-radius:4px;font-weight:600;cursor:pointer;" onclick="translatePost(${p.id})">🌐 Translate from English</button>
+            <button class="btn" id="translate-btn-es-${p.id}" style="padding:4px 12px;font-size:12px;background:#3366cc;color:#fff;border:2px solid #244c99;border-radius:4px;font-weight:600;cursor:pointer;" onclick="translatePost(${p.id}, 'en-to-es')">🌐 Translate from English</button>
           </label>
           <div class="quill-editor" id="quill-body_es-${p.id}">${p.body_es||''}</div>
         </div>
@@ -268,27 +283,44 @@ function postCard(p) {
   return div;
 }
 
-async function translatePost(id) {
+async function translatePost(id, direction = 'en-to-es') {
   const p = postsById[id];
-  if (p && p.body_es && p.body_es.trim() && !confirm('This will overwrite the existing Spanish version with a fresh translation. Continue?')) return;
-  const btn = document.getElementById(`translate-btn-${id}`);
+  const toSpanish = direction === 'en-to-es';
+  const sourceLangLabel = toSpanish ? 'English' : 'Spanish';
+  const targetLangLabel = toSpanish ? 'Spanish' : 'English';
+  const sourceHasText = toSpanish ? !!(p && p.body_en && p.body_en.trim()) : !!(p && p.body_es && p.body_es.trim());
+  const targetHasText = toSpanish ? !!(p && p.body_es && p.body_es.trim()) : !!(p && p.body_en && p.body_en.trim());
+  if (!sourceHasText) { showToast(`Nothing to translate — the ${sourceLangLabel} body is empty`); return; }
+  if (targetHasText && !confirm(`This will overwrite the existing ${targetLangLabel} version with a fresh translation. Continue?`)) return;
+
+  const btn = document.getElementById(toSpanish ? `translate-btn-es-${id}` : `translate-btn-en-${id}`);
   const originalHTML = btn ? btn.innerHTML : '';
   if (dirtyPosts.has(id)) {
-  showToast('Saving your English edits first…');
-  await autosaveToServer(id);
+    showToast('Saving your edits first…');
+    await autosaveToServer(id);
   }
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; btn.style.cursor = 'default'; btn.innerHTML = '🌐 Traduciendo…'; }
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; btn.style.cursor = 'default'; btn.innerHTML = toSpanish ? '🌐 Traduciendo…' : '🌐 Translating…'; }
   try {
-  const data = await api(`/api/admin/blog/${id}/translate`, { method: 'POST' });
-  const t = data.post;
-  postsById[id] = { ...postsById[id], title_es: t.title_es, excerpt_es: t.excerpt_es, meta_description_es: t.meta_description_es, body_es: t.body_es };
-  const setIf = (fieldId, val) => { const el = document.getElementById(fieldId); if (el) el.value = val || ''; };
-  setIf(`f-title_es-${id}`, t.title_es);
-  setIf(`f-excerpt_es-${id}`, t.excerpt_es);
-  setIf(`f-meta_description_es-${id}`, t.meta_description_es);
-  const qEs = quillInstances[`body_es-${id}`];
-  if (qEs) qEs.root.innerHTML = t.body_es || '';
-  showToast('Translated to Spanish');
+    const data = await api(`/api/admin/blog/${id}/translate?direction=${direction}`, { method: 'POST' });
+    const t = data.post;
+    const setIf = (fieldId, val) => { const el = document.getElementById(fieldId); if (el) el.value = val || ''; };
+    if (toSpanish) {
+      postsById[id] = { ...postsById[id], title_es: t.title_es, excerpt_es: t.excerpt_es, meta_description_es: t.meta_description_es, body_es: t.body_es };
+      setIf(`f-title_es-${id}`, t.title_es);
+      setIf(`f-excerpt_es-${id}`, t.excerpt_es);
+      setIf(`f-meta_description_es-${id}`, t.meta_description_es);
+      const qEs = quillInstances[`body_es-${id}`];
+      if (qEs) qEs.root.innerHTML = t.body_es || '';
+      showToast('Translated to Spanish');
+    } else {
+      postsById[id] = { ...postsById[id], title_en: t.title_en, excerpt_en: t.excerpt_en, meta_description_en: t.meta_description_en, body_en: t.body_en };
+      setIf(`f-title_en-${id}`, t.title_en);
+      setIf(`f-excerpt_en-${id}`, t.excerpt_en);
+      setIf(`f-meta_description_en-${id}`, t.meta_description_en);
+      const qEn = quillInstances[`body_en-${id}`];
+      if (qEn) qEn.root.innerHTML = t.body_en || '';
+      showToast('Translated to English');
+    }
   } catch (e) { showToast('Error: ' + e.message); }
   finally { if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = 'pointer'; btn.innerHTML = originalHTML; } }
 }
@@ -755,7 +787,30 @@ function renderGeneratePanel() {
       <p style="font-size:0.78rem;color:#888;margin-top:6px;">"Full Series" writes every chapter in one pass so the story stays continuous, then drops all of them into Pending Review as separate posts (titled "Part 1 of N", "Part 2 of N", etc.) for you to review and publish one at a time, whenever you're ready. This can take 1–3 minutes for a multi-chapter brief — don't close the tab.</p>
       <div class="gen-error" id="gen-seed-error"></div>
     </div>
+    <div class="gen-box">
+      <h3 style="color:#005ca9;">Start from scratch</h3>
+      <p style="font-size:0.85rem;color:#666;margin:6px 0 10px;">Creates a completely blank post — nothing generated, nothing filled in. Use this when the text is already written (e.g. outside the admin panel) and you just want to paste it in and edit from there.</p>
+      <button class="btn btn-outline" id="gen-blank-btn" onclick="createBlankPost()">+ Create Empty Post</button>
+      <div class="gen-error" id="gen-blank-error"></div>
+    </div>
   `;
+}
+
+async function createBlankPost() {
+  const btn = document.getElementById('gen-blank-btn');
+  const errEl = document.getElementById('gen-blank-error');
+  errEl.textContent = '';
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    const data = await api('/api/admin/blog/new', { method: 'POST' });
+    showToast('Blank post created — opening it now');
+    switchTab('pending');
+    await loadPending();
+    togglePostEdit(data.post.id);
+  } catch (e) {
+    errEl.textContent = 'Error: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = '+ Create Empty Post';
 }
 
 async function generateDraft(seedText, btnId) {
