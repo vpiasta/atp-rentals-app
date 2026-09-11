@@ -3108,7 +3108,18 @@ overall: PASS (amount correct, recent, REALIZADA), REVIEW (minor issues), FAIL (
         res.status(500).json({ error: err.message });
     }
 });
-app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
+// Accepts either a browser admin session token OR the modTPS service key —
+// the admin panel and the QB sync macro both need to resolve a storage path
+// (e.g. a comprobante_pago) to a downloadable URL.
+async function requireAdminOrService(req, res, next) {
+    const serviceKey = req.headers['x-service-key'];
+    if (serviceKey && process.env.TPS_SERVICE_SECRET && serviceKey === process.env.TPS_SERVICE_SECRET) {
+        return next();
+    }
+    return requireAdmin(req, res, next);
+}
+
+app.get('/api/admin/document-url', requireAdminOrService, async (req, res) => {
     const { path: filePath } = req.query;
     if (!filePath) return res.status(400).json({ error: 'Missing path' });
     const { data, error } = await supabaseAdmin.storage
@@ -3116,6 +3127,105 @@ app.get('/api/admin/document-url', requireAdmin, async (req, res) => {
         .createSignedUrl(filePath, 3600);
     if (error) return res.status(500).json({ error: error.message });
     res.json({ url: data.signedUrl });
+});
+
+// ── QuickBooks sync: TPS payments/invoices not yet registered in QB ──────────
+// Consumed by the modTPS macro in Tuscany_Contabilidad.xlsm — a machine
+// caller, not a logged-in admin in a browser — so these use a separate
+// long-lived service key (TPS_SERVICE_SECRET) instead of requireAdmin's
+// short-lived 4-hour session token, which a macro can't refresh itself.
+async function requireServiceAuth(req, res, next) {
+    const key = req.headers['x-service-key'];
+    if (!key || !process.env.TPS_SERVICE_SECRET || key !== process.env.TPS_SERVICE_SECRET) {
+        return res.status(403).json({ error: 'Invalid service key' });
+    }
+    next();
+}
+
+app.get('/api/admin/qb-pending-payments', requireServiceAuth, async (req, res) => {
+    try {
+        const { data: payments, error: payErr } = await supabaseAdmin
+            .from('payments')
+            .select('*')
+            .eq('status', 'invoiced')
+            .not('invoice_number', 'is', null)
+            .is('qb_synced_at', null)
+            .order('id', { ascending: true });
+        if (payErr) throw new Error(payErr.message);
+
+        const listingIds = [...new Set((payments||[]).map(p => p.listing_id).filter(Boolean))];
+        const appIds      = [...new Set((payments||[]).map(p => p.application_id).filter(Boolean))];
+
+        const { data: listings } = listingIds.length
+            ? await supabaseAdmin.from('listings').select('id, name, contact_name').in('id', listingIds)
+            : { data: [] };
+        const { data: apps } = appIds.length
+            ? await supabaseAdmin.from('membership_applications').select('id, contact_name, documents').in('id', appIds)
+            : { data: [] };
+
+        const listingMap = {}; (listings||[]).forEach(l => listingMap[l.id] = l);
+        const appMap      = {}; (apps||[]).forEach(a => appMap[a.id] = a);
+
+        const result = (payments||[]).map(p => {
+            const listing = listingMap[p.listing_id] || {};
+            const app     = appMap[p.application_id] || {};
+            const proofDoc = (app.documents || []).find(d => d.type === 'comprobante_pago');
+            return {
+                payment_id:     p.id,
+                listing_id:     p.listing_id,
+                property_name:  listing.name || null,
+                contact_name:   listing.contact_name || app.contact_name || null,
+                amount_net:     p.amount_net,
+                itbms:          p.itbms,
+                amount_total:   p.amount_total,
+                payment_date:   p.payment_date || p.invoice_date || p.created_at,
+                payment_method: p.payment_method,
+                invoice_number: p.invoice_number,
+                invoice_url:    p.invoice_url,
+                proof_path:     proofDoc ? proofDoc.path : null
+            };
+        });
+
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/admin/qb-mark-synced', requireServiceAuth, async (req, res) => {
+    const { payment_id, qb_customer_id, qb_invoice_id, qb_payment_id } = req.body;
+    if (!payment_id) return res.status(400).json({ error: 'Missing payment_id' });
+    try {
+        const { error } = await supabaseAdmin
+            .from('payments')
+            .update({
+                qb_customer_id: qb_customer_id || null,
+                qb_invoice_id:  qb_invoice_id || null,
+                qb_payment_id:  qb_payment_id || null,
+                qb_synced_at:   new Date().toISOString(),
+                qb_sync_error:  null
+            })
+            .eq('id', payment_id);
+        if (error) throw new Error(error.message);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/admin/qb-mark-error', requireServiceAuth, async (req, res) => {
+    const { payment_id, error: errorMessage } = req.body;
+    if (!payment_id) return res.status(400).json({ error: 'Missing payment_id' });
+    try {
+        const { error } = await supabaseAdmin
+            .from('payments')
+            .update({ qb_sync_error: String(errorMessage || '').substring(0, 500) })
+            .eq('id', payment_id);
+        if (error) throw new Error(error.message);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ── POST /api/listing-change-password ─────────────────────────────────────────
