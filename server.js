@@ -1297,8 +1297,40 @@ app.get('/api/ping', (req, res) => {
     res.json({ message: 'pong', timestamp: new Date().toISOString() });
 });
 
-app.get('/health', (req, res) => {
-    res.json({ status: 'OK', timestamp: new Date().toISOString(), pdf_status: PDF_STATUS, total_rentals: CURRENT_RENTALS.length });
+// Self-healing health check. Before this fix, /health always returned 200
+// "OK" even when CURRENT_RENTALS was empty — exactly what happened on
+// 2026-09-18: the site loaded (200s everywhere) but the province dropdown
+// was empty because the in-memory cache never got populated after a
+// restart, and nothing (including this endpoint) noticed or fixed it.
+// Now: if the cache is empty, try reloading it straight from Supabase right
+// here — the same thing /api/admin/refresh-cache does — before answering.
+// An external monitor hitting this endpoint every few minutes therefore
+// both detects AND repairs this specific failure automatically. Only if
+// the reload itself fails (e.g. Supabase is actually unreachable) does this
+// report unhealthy (503), which is the case a monitor should alert on.
+app.get('/health', async (req, res) => {
+    let healed = false;
+    if (CURRENT_RENTALS.length === 0) {
+        try {
+            const reloaded = await loadListingsFromDB();
+            if (reloaded && reloaded.length > 0) {
+                CURRENT_RENTALS = reloaded;
+                DATA_SOURCE = DATA_SOURCE || 'supabase';
+                healed = true;
+                console.log(`✅ /health self-heal: reloaded ${reloaded.length} listings into CURRENT_RENTALS`);
+            }
+        } catch (err) {
+            console.error('❌ /health self-heal failed:', err.message);
+        }
+    }
+    const healthy = CURRENT_RENTALS.length > 0;
+    res.status(healthy ? 200 : 503).json({
+        status: healthy ? 'OK' : 'UNHEALTHY',
+        timestamp: new Date().toISOString(),
+        pdf_status: PDF_STATUS,
+        total_rentals: CURRENT_RENTALS.length,
+        self_healed: healed
+    });
 });
 
 // Manual trigger to check ATP for updates. By default does a genuine check —
