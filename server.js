@@ -3870,16 +3870,23 @@ app.post('/api/admin/send-followup-test', requireAdmin, async (req, res) => {
     const testSubject = subject.includes('{id}') ? subject.split('{id}').join('99999') : subject;
     const fullHtml = buildFollowupHtml('HOTEL EJEMPLO', 'Juan García', body);
     const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    // Unique stamp per test (2026-10-02): identical "[TEST] subject" lines made
+    // mail clients group every test into one conversation and show an older
+    // message, so a fresh test looked like it carried stale content.
+    const stamp = new Date().toLocaleTimeString('es-PA', { timeZone: 'America/Panama', hour12: false });
+    // Echo back what the server actually received, so the admin panel can
+    // confirm it matches the editor before anything goes out for real.
+    const plainText = body.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
     try {
         await execFileAsync('php', [
             notifyPath,
-            '[TEST] ' + testSubject,
+            `[TEST ${stamp}] ` + testSubject,
             fullHtml,
             'info@trustedpanamastays.com',
             sender.email,
             sender.name
         ], { timeout: 15000 });
-        res.json({ success: true });
+        res.json({ success: true, stamp, receivedChars: body.length, receivedStart: plainText.slice(0, 120) });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
