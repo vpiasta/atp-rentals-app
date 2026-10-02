@@ -3176,9 +3176,13 @@ async function sendTestFollowup() {
     try {
         const res  = await adminFetch('/api/admin/send-followup-test', {method:'POST',body:JSON.stringify({subject,body,from})});
         const data = await res.json();
-        resultEl.innerHTML = data.success
-            ? '<span style="color:#adf5ad;">&#10003; Prueba enviada a info@trustedpanamastays.com</span>'
-            : `<span style="color:#ff7070;">&#10007; ${data.error||'Error'}</span>`;
+        if (!data.success) { resultEl.innerHTML = `<span style="color:#ff7070;">&#10007; ${_escHtml(data.error||'Error')}</span>`; return; }
+        // Confirm the server received exactly what is in the editor right now.
+        const matches = data.receivedChars === body.length;
+        resultEl.innerHTML = `<span style="color:#adf5ad;">&#10003; Prueba enviada a info@trustedpanamastays.com con asunto <strong>[TEST ${_escHtml(data.stamp)}]</strong> — busque ese asunto exacto en su bandeja.</span><br>`
+            + (matches
+                ? `<span style="color:#adf5ad;">&#10003; El servidor recibió el contenido actual del editor (${data.receivedChars} caracteres). Comienza con: «${_escHtml(data.receivedStart)}…»</span>`
+                : `<span style="color:#ff7070;">&#9888; El servidor recibió ${data.receivedChars} caracteres, pero el editor tiene ${body.length}. No envíe la campaña — avise a soporte.</span>`);
     } catch(err) { resultEl.innerHTML = `<span style="color:#ff7070;">&#10007; ${err.message}</span>`; }
 }
 
@@ -4055,14 +4059,33 @@ async function loadCampaignContacts() {
     renderCampaignContacts();
 }
 
+// Contacts unticked for the current send only (2026-10-02). Unticking never
+// deletes anyone — the 🗑️ button is still the only permanent removal. The
+// selection resets to "everyone ticked" whenever the admin page is reloaded.
+const _ccExcluded = new Set();
+
+function _selectedCampaignContacts() {
+    return _campaignContacts.filter(c => !_ccExcluded.has(c.id));
+}
+
+function toggleCampaignContact(id, checked) {
+    if (checked) _ccExcluded.delete(id); else _ccExcluded.add(id);
+    document.getElementById('cc-count').textContent = _selectedCampaignContacts().length;
+}
+
 function renderCampaignContacts() {
     const list = document.getElementById('campaign-contacts-list');
-    document.getElementById('cc-count').textContent = _campaignContacts.length;
+    // Forget exclusions for contacts that no longer exist
+    for (const id of [..._ccExcluded]) if (!_campaignContacts.some(c => c.id === id)) _ccExcluded.delete(id);
+    document.getElementById('cc-count').textContent = _selectedCampaignContacts().length;
     if (!_campaignContacts.length) { list.innerHTML = '<span style="color:#888;">Sin contactos todavía.</span>'; return; }
     list.innerHTML = _campaignContacts.map(c => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #333;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #333;">
             <span>${_escHtml(c.name)} — ${_escHtml(c.email)}${c.role ? ' · ' + _escHtml(c.role) : ''}${c.organization ? ' (' + _escHtml(c.organization) + ')' : ''}</span>
-            <button onclick="deleteCampaignContact(${c.id})" style="background:none;border:none;color:#ff7070;cursor:pointer;font-size:0.9rem;">🗑️</button>
+            <span style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                <input type="checkbox" title="Recibe este envío (desmarcar no elimina el contacto)" ${_ccExcluded.has(c.id) ? '' : 'checked'} onchange="toggleCampaignContact(${c.id}, this.checked)" style="width:16px;height:16px;cursor:pointer;">
+                <button onclick="deleteCampaignContact(${c.id})" title="Eliminar contacto permanentemente" style="background:none;border:none;color:#ff7070;cursor:pointer;font-size:0.9rem;">🗑️</button>
+            </span>
         </div>`).join('');
 }
 
@@ -4082,7 +4105,7 @@ async function addCampaignContact() {
 }
 
 async function deleteCampaignContact(id) {
-    if (!confirm('¿Eliminar este contacto?')) return;
+    if (!confirm('¿Eliminar este contacto PERMANENTEMENTE de la lista?\n\nSi solo quiere excluirlo de este envío, desmarque su casilla en vez de eliminarlo.')) return;
     try {
         await adminFetch('/api/admin/campaign-contacts/' + id, { method: 'DELETE' });
         await loadCampaignContacts();
@@ -4093,10 +4116,13 @@ async function sendToCampaignContacts() {
     const subject = document.getElementById('followup-subject').value;
     const body = (document.getElementById('followup-editor')||{}).innerHTML||'';
     if (!subject || body.trim().length < 50) { alert('Escriba o cargue el contenido del correo primero.'); return; }
+    const selected = _selectedCampaignContacts();
     if (!_campaignContacts.length) { alert('Agregue al menos un contacto primero.'); return; }
-    if (!confirm(`¿Enviar a ${_campaignContacts.length} contacto(s) con introducción formal?`)) return;
+    if (!selected.length) { alert('No hay contactos marcados para este envío.'); return; }
+    const skipped = _campaignContacts.length - selected.length;
+    if (!confirm(`¿Enviar a ${selected.length} contacto(s) con introducción formal?` + (skipped ? `\n(${skipped} desmarcado(s) no lo recibirán.)` : ''))) return;
 
-    const targets = _campaignContacts.map(c => {
+    const targets = selected.map(c => {
         let sal = `Estimado/a ${c.name}`;
         if (c.role) sal += `, ${c.role}`;
         if (c.organization) sal += ` de ${c.organization}`;
