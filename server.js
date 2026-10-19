@@ -1098,24 +1098,24 @@ app.get('/api/rentals', async (req, res) => {
             const memberMap = {};
             memberData.forEach(m => { memberMap[m.id] = m; });
             enriched = CURRENT_RENTALS.map(r => {
-                const m = memberMap[r.id];
-                if (!m) return r;
-                return {
-                    ...r,
-                    phone_member:          m.phone_member || null,
-                    email_member:          m.email_member || null,
-                    address:               m.address || null,
-                    photos:                m.photos || null,
-                    is_member:             m.is_member || false,
-                    membership_paid_until: m.membership_paid_until || null,
-                    slug:                  m.slug || null,
-                    rental_type:           m.rental_type || r.rental_type,
-                    feature_rank:          m.feature_rank || 0,
-                    listing_keywords:      m.listing_keywords || [],
-                    apatel_member:         m.apatel_member || false
-                };
+            const m = memberMap[r.id];
+            if (!m) return r;
+            return publicListing({
+                ...r,
+                phone_member:          m.phone_member || null,
+                email_member:          m.email_member || null,
+                address:               m.address || null,
+                photos:                m.photos || null,
+                is_member:             m.is_member || false,
+                membership_paid_until: m.membership_paid_until || null,
+                slug:                  m.slug || null,
+                rental_type:           m.rental_type || r.rental_type,
+                feature_rank:          m.feature_rank || 0,
+                listing_keywords:      m.listing_keywords || [],
+                apatel_member:         m.apatel_member || false
             });
-        }
+        });
+      }
     } catch (err) {
         console.error('Error enriching rentals with member data:', err.message);
     }
@@ -1198,13 +1198,14 @@ app.get('/api/rentals', async (req, res) => {
         const { data: miciListings } = await miciQuery;
 
         if (miciListings && miciListings.length > 0) {
-          let miciFiltered = miciListings;
+          // Strip member-only data from non-members BEFORE search scoring
+          let miciFiltered = miciListings.map(publicListing);
           if (search) {
               const s = search.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
               const words = s.split(/\s+/).filter(w => w.length >= 3);
               const normalize = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
               const tokenizeMici = str => (str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[\s@._\-\/]+/).filter(t => t.length > 0);
-              const scored = miciListings.map(r => {
+              const scored = miciFiltered.map(r => {
                   const n = normalize(r.name);
                   const e = normalize(r.email_member || r.email || '');
                   const p = normalize(r.phone_member || r.phone || '');
@@ -1392,6 +1393,30 @@ app.get('/', (req, res) => {
 
 // The /api/debug-reload endpoint was removed because it could rewrite the database unintentionally
 
+// ── Public data rule: a listing without an active membership shows ONLY ──
+// the data from the official registry (ATP/MiCI). Everything below was
+// entered by a member, the admin, or an import (e.g. APATEL directory) and
+// is blanked for non-members/expired members. The data stays in the DB, so
+// it reappears automatically if the listing (re)activates a membership.
+const NON_REGISTRY_FIELDS = [
+    'address', 'phone_member', 'email_member', 'description_en', 'description_es',
+    'photos', 'website_url', 'booking_url', 'custom_links', 'listing_keywords', 'contact_name'
+];
+
+function isActiveMember(l) {
+    if (!l || !l.is_member || !l.membership_paid_until) return false;
+    return new Date(l.membership_paid_until) >= new Date();
+}
+
+function publicListing(l) {
+    if (!l || isActiveMember(l)) return l;
+    const out = { ...l };
+    NON_REGISTRY_FIELDS.forEach(f => {
+        if (f in out) out[f] = Array.isArray(out[f]) ? [] : null;
+    });
+    return out;
+}
+
 // Slug endpoint to find record with slug and ID
 app.get('/api/listing/slug/:slug', async (req, res) => {
     const { slug } = req.params;
@@ -1401,7 +1426,7 @@ app.get('/api/listing/slug/:slug', async (req, res) => {
         .eq('slug', slug)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
-    res.json(data);
+    res.json(publicListing(data));
 });
 
 app.get('/api/listing/:id', async (req, res) => {
@@ -1412,7 +1437,7 @@ app.get('/api/listing/:id', async (req, res) => {
         .eq('id', id)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
-    res.json(data);
+    res.json(publicListing(data));
 });
 
 // ── Admin-only: mint a valid listing session token without the member's ──
