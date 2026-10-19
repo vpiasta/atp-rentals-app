@@ -1,7 +1,6 @@
 <?php
 // ── Config ────────────────────────────────────────────────────────────────────
-define('SUPABASE_URL', 'https://caqdkxukezpckqphogwl.supabase.co');
-define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcWRreHVrZXpwY2txcGhvZ3dsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDc2MDIsImV4cCI6MjA5NjAyMzYwMn0.xqNuCWm_ALivBRpl3pSTDDJeoBN1WfX4-G_OJq2Sd8g');
+require_once __DIR__ . '/includes/supabase-config.php';
 define('SITE_URL',     'https://trustedpanamastays.com');
 
 // ── Get slug or id from URL ───────────────────────────────────────────────────

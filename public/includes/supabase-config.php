@@ -1,17 +1,35 @@
 <?php
 /**
- * Shared Supabase connection constants + a small REST helper, used by any
- * PHP script that talks to Supabase directly (blog-post.php,
- * blog-comment-action.php, ...).
+ * Shared Supabase connection constants + a small REST helper, used by every
+ * PHP script that talks to Supabase directly (index.php, listing.php,
+ * blog.php, sitemap.php, blog-post.php, blog-comment-action.php).
+ *
+ * SUPABASE_KEY  = publishable key. Public by design; what it may read/write
+ *                 is limited by the database's Row Level Security rules.
+ * SUPABASE_SERVICE_KEY = secret key. NEVER put it in this file or anywhere
+ *                 in the git repo. It is read from the private .env file in
+ *                 /home/u945180857/secure_beds24_tokens/ (outside the web
+ *                 root), line:  SUPABASE_SECRET_KEY=sb_secret_...
  */
 if (!defined('SUPABASE_URL')) {
     define('SUPABASE_URL', 'https://caqdkxukezpckqphogwl.supabase.co');
 }
 if (!defined('SUPABASE_KEY')) {
-    define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcWRreHVrZXpwY2txcGhvZ3dsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDc2MDIsImV4cCI6MjA5NjAyMzYwMn0.xqNuCWm_ALivBRpl3pSTDDJeoBN1WfX4-G_OJq2Sd8g');
+    define('SUPABASE_KEY', 'sb_publishable_YNeI_nRW0naGllAlN2OIRQ_uZCjM9Aw');
 }
 if (!defined('SUPABASE_SERVICE_KEY')) {
-    define('SUPABASE_SERVICE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcWRreHVrZXpwY2txcGhvZ3dsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDQ0NzYwMiwiZXhwIjoyMDk2MDIzNjAyfQ.8xv--2xlBWzIiKQergU69t-lOKLiFrfesd6LF9ZMkm0');
+    $tpsSecret = '';
+    $tpsEnvFile = '/home/u945180857/secure_beds24_tokens/.env';
+    if (is_readable($tpsEnvFile)) {
+        foreach (file($tpsEnvFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $tpsLine) {
+            if (preg_match('/^\s*SUPABASE_SECRET_KEY\s*=\s*["\']?([^"\'\s]+)["\']?\s*$/', $tpsLine, $m)) {
+                $tpsSecret = $m[1];
+                break;
+            }
+        }
+    }
+    define('SUPABASE_SERVICE_KEY', $tpsSecret);
+    unset($tpsSecret, $tpsEnvFile, $tpsLine, $m);
 }
 
 /**

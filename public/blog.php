@@ -34,8 +34,7 @@ function format_blog_date($isoDate, $lang) {
 }
 
 // ── Server-render the post list (SEO/crawler-safe, same pattern as index.php) ──
-define('SUPABASE_URL', 'https://caqdkxukezpckqphogwl.supabase.co');
-define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcWRreHVrZXpwY2txcGhvZ3dsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDc2MDIsImV4cCI6MjA5NjAyMzYwMn0.xqNuCWm_ALivBRpl3pSTDDJeoBN1WfX4-G_OJq2Sd8g');
+require_once __DIR__ . '/includes/supabase-config.php';
 
 function ssr_blog_posts($lang) {
     $select = "id,slug,title_$lang,excerpt_$lang,featured_image_url,category,published_at";

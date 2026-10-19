@@ -41,8 +41,7 @@ $t = [
 // crawlers that don't (fully) execute JS still see real content instead of
 // a bare "use search" placeholder — which was triggering Google's soft-404
 // detection on this exact page.
-define('SUPABASE_URL', 'https://caqdkxukezpckqphogwl.supabase.co');
-define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcWRreHVrZXpwY2txcGhvZ3dsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDc2MDIsImV4cCI6MjA5NjAyMzYwMn0.xqNuCWm_ALivBRpl3pSTDDJeoBN1WfX4-G_OJq2Sd8g');
+require_once __DIR__ . '/includes/supabase-config.php';
 
 function ssr_featured_listings() {
     $today = date('Y-m-d');
