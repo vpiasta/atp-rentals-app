@@ -4367,7 +4367,17 @@ async function notifyAdmin(subject, html) {
 
 async function sendToRosterList(targets, subject, body, from, targetDescription) {
     const sender = resolveSender(from);
-    const valid  = (targets || []).filter(m => m.email && m.email.includes('@'));
+    // One email per ADDRESS: an owner with several listings under the same
+    // email gets the campaign once, not once per listing (28 shared
+    // addresses among the 1155 listings, 2026-10-20). First listing wins.
+    const seenEmails = new Set();
+    const valid = (targets || []).filter(m => {
+        if (!m.email || !m.email.includes('@')) return false;
+        const key = m.email.trim().toLowerCase();
+        if (seenEmails.has(key)) return false;
+        seenEmails.add(key);
+        return true;
+    });
 
     const { data: campaignRow, error: campErr } = await supabaseAdmin.from('campaigns').insert({
         subject, body_html: body, from_email: sender.email, channel: 'email',
