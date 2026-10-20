@@ -5154,7 +5154,20 @@ app.get('/api/send-trial-reminders', async (req, res) => {
     const dateStr  = d => d.toISOString().split('T')[0];
     const plusDays = n => { const d = new Date(today); d.setDate(d.getDate() + n); return d; };
 
-    const results = { reminder5day: 0, extensionOffer: 0, finalNotice: 0, errors: 0 };
+    const results = { reminder5day: 0, extensionOffer: 0, finalNotice: 0, silentlyClosed: 0, errors: 0 };
+
+    // Each email is only sent inside its own time window, and a listing gets
+    // at most ONE lifecycle email per run. (2026-10-19: this job had never run
+    // successfully until the ADMIN_SECRET fix; its first run sent all three
+    // emails — "vence en 5 días", the extension offer and the final notice —
+    // within 17 seconds to 6 owners whose trials had ended months earlier,
+    // because every stage only checked "expiry <= X days from now".)
+    //   Stage 1 (reminder):  expiry 3–5 days from today
+    //   Stage 2 (offer):     expiry 1–2 days from today
+    //   Stage 3 (ended):     expiry today or up to 7 days ago → final notice
+    //                        expired longer ago → closed quietly, no email
+    const STALE_DAYS = 7;
+    const emailedThisRun = new Set();
 
     try {
         // ── Stage 1: 5-day renewal reminder ──────────────────────────────────
@@ -5163,6 +5176,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
             .select('id, name, contact_name, email_member, email, membership_paid_until, slug, photos')
             .eq('is_member', true).eq('is_trial', true)
             .is('trial_reminder_sent_at', null)
+            .gte('membership_paid_until', dateStr(plusDays(3)))
             .lte('membership_paid_until', dateStr(plusDays(5)));
 
         for (const listing of dueReminder || []) {
@@ -5182,13 +5196,16 @@ app.get('/api/send-trial-reminders', async (req, res) => {
 <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:1rem;margin:1rem 0;">
     <p style="margin:0;color:#856404;"><strong>💡 Notamos que su listado aún no tiene fotos.</strong> Con solo una foto, su hospedaje aparecerá destacado en la página principal de Trusted Panama Stays.</p>
 </div>` : '';
+                const daysLeft = Math.max(1, Math.round((new Date(listing.membership_paid_until + 'T00:00:00Z') - new Date(dateStr(today) + 'T00:00:00Z')) / 86400000));
                 const body = fillTemplate(loadTemplateFile('trial_reminder_5day.html'), {
+                days_left: daysLeft,
                 name, listing_name: listing.name, expiry_date: listing.membership_paid_until,
                 listing_id: listing.id, renew_url: renewUrl, renew_label: renewLabel,
                 listing_url: listingUrl, no_photos_block: noPhotosBlock
                 });
-                await execFileAsync('php', [notifyPath, `Su prueba gratuita vence en 5 días — ${listing.name}`, wrapTrialEmailHtml(listing.name, listing.contact_name, body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });await supabaseAdmin.from('listings').update({ trial_reminder_sent_at: new Date().toISOString() }).eq('id', listing.id);
+                await execFileAsync('php', [notifyPath, `Su prueba gratuita vence en ${daysLeft} días — ${listing.name}`, wrapTrialEmailHtml(listing.name, listing.contact_name, body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });await supabaseAdmin.from('listings').update({ trial_reminder_sent_at: new Date().toISOString() }).eq('id', listing.id);
                 await logEvent('trial_reminder_sent', { listing_id: listing.id, email: toEmail });
+                emailedThisRun.add(listing.id);
                 results.reminder5day++;
             } catch (err) { results.errors++; console.error(`5-day reminder failed for listing ${listing.id}:`, err.message); }
         }
@@ -5199,9 +5216,11 @@ app.get('/api/send-trial-reminders', async (req, res) => {
             .select('id, name, contact_name, email_member, email, membership_paid_until')
             .eq('is_member', true).eq('is_trial', true)
             .is('trial_extension_offer_sent_at', null)
+            .gte('membership_paid_until', dateStr(plusDays(1)))
             .lte('membership_paid_until', dateStr(plusDays(2)));
 
         for (const listing of dueOffer || []) {
+            if (emailedThisRun.has(listing.id)) continue;
             const toEmail = listing.email_member || listing.email;
             if (!toEmail || !toEmail.includes('@')) continue;
             try {
@@ -5214,6 +5233,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
                 await execFileAsync('php', [notifyPath, `¿Necesita más tiempo? 7 días gratis — ${listing.name}`, wrapTrialEmailHtml(listing.name, listing.contact_name, body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
                 await supabaseAdmin.from('listings').update({ trial_extension_offer_sent_at: new Date().toISOString() }).eq('id', listing.id);
                 await logEvent('trial_extension_offer_sent', { listing_id: listing.id, email: toEmail });
+                emailedThisRun.add(listing.id);
                 results.extensionOffer++;
             } catch (err) { results.errors++; console.error(`Extension offer failed for listing ${listing.id}:`, err.message); }
         }
@@ -5221,7 +5241,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
         // ── Stage 3: expiry reached (original or extended) → final notice, then demote.
         const { data: dueFinalNotice } = await supabaseAdmin
             .from('listings')
-            .select('id, name, contact_name, email_member, email, trial_extended_at')
+            .select('id, name, contact_name, email_member, email, trial_extended_at, membership_paid_until')
             .eq('is_member', true).eq('is_trial', true)
             .is('trial_final_notice_sent_at', null)
             .lte('membership_paid_until', dateStr(today));
@@ -5229,8 +5249,12 @@ app.get('/api/send-trial-reminders', async (req, res) => {
         for (const listing of dueFinalNotice || []) {
             const toEmail = listing.email_member || listing.email;
             const wasExtended = !!listing.trial_extended_at;
+            // Ended long ago (job missed it) → close quietly; a "your trial
+            // has ended" email months late only confuses the owner.
+            const isStale = listing.membership_paid_until < dateStr(plusDays(-STALE_DAYS));
+            const sendNotice = !isStale && !emailedThisRun.has(listing.id);
             try {
-              if (toEmail && toEmail.includes('@')) {
+              if (sendNotice && toEmail && toEmail.includes('@')) {
                   const name = listing.contact_name || 'propietario/a';
                   const documented = await hasDocumentedApplication(listing.id);
                   const renewUrl = documented
@@ -5247,12 +5271,12 @@ app.get('/api/send-trial-reminders', async (req, res) => {
                     trial_final_notice_sent_at: new Date().toISOString(),
                     is_member: false, is_trial: false, membership_paid_until: null
                 }).eq('id', listing.id);
-                await logEvent('trial_expired_demoted', { listing_id: listing.id, extended: wasExtended, email: toEmail || null });
-                results.finalNotice++;
+                await logEvent('trial_expired_demoted', { listing_id: listing.id, extended: wasExtended, email: sendNotice ? (toEmail || null) : null, silent: !sendNotice });
+                if (sendNotice) results.finalNotice++; else results.silentlyClosed++;
             } catch (err) { results.errors++; console.error(`Final notice/demotion failed for listing ${listing.id}:`, err.message); }
         }
 
-        if (results.finalNotice > 0) await recalculateFeatureRanks();
+        if (results.finalNotice + results.silentlyClosed > 0) await recalculateFeatureRanks();
 
         res.json({ success: true, ...results });
     } catch (err) {
