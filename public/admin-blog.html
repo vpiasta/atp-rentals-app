@@ -101,6 +101,20 @@
 
 <div id="toast" class="toast"></div>
 
+<!-- Re-login box shown ON TOP of the open editor when the server refuses a
+     request because the login is no longer valid. The editor (and any
+     unsaved text) stays exactly as it is; after logging in, the refused
+     request is repeated automatically. -->
+<div id="reauthOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;">
+  <div class="login-box" style="margin-top:12vh;">
+    <h3 style="color:#005ca9;margin:0 0 0.6rem;">Log in again to continue</h3>
+    <p id="reauthReason" style="font-size:13px;color:#555;margin:0 0 0.8rem;line-height:1.45;"></p>
+    <input type="password" id="reauthPassword" placeholder="Admin password" onkeydown="if(event.key==='Enter')doReauth()">
+    <button onclick="doReauth()">Log in and continue</button>
+    <div id="reauthError" class="error"></div>
+  </div>
+</div>
+
 <script>
 let TOKEN = sessionStorage.getItem('tps_blog_admin_token') || null;
 
@@ -111,7 +125,7 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-async function api(path, opts = {}) {
+async function api(path, opts = {}, _retried = false) {
   const res = await fetch(path, {
     ...opts,
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN, ...(opts.headers||{}) }
@@ -119,20 +133,73 @@ async function api(path, opts = {}) {
   // Sliding session: the server silently reissues a fresh token (in this
   // header) once the current one is more than 30 minutes old, as long as
   // you're still making requests — so actively working never logs you out.
-  // Only a tab left genuinely idle for 4+ hours hits the hard expiry below.
   const refreshedToken = res.headers.get('X-Refreshed-Token');
   if (refreshedToken) {
     TOKEN = refreshedToken;
     sessionStorage.setItem('tps_blog_admin_token', TOKEN);
   }
+  const isJson = (res.headers.get('content-type') || '').includes('application/json');
   let data;
   try { data = await res.json(); } catch (e) { data = {}; }
+
   if (res.status === 401 || res.status === 403) {
-    logout('Your session expired (this happens after 4 hours of inactivity). Nothing was lost — any unsaved edits were backed up on this device. Log in again to recover them.');
-    throw new Error(data.error || 'Session expired — please log in again');
+    // Our own server refused the login (JSON answer): keep the editor open,
+    // ask for the password on top of it, then repeat this same request.
+    // (Before 2026-10-20 this logged out on the spot and hid the reason —
+    // e.g. a login from before the ADMIN_SECRET change made every Save
+    // look like a random logout.)
+    if (isJson && !_retried) {
+      await requestReauth(data.error);
+      return api(path, opts, true);
+    }
+    // Not JSON = the hosting firewall/CDN blocked it, not a login problem
+    throw new Error(isJson
+      ? (data.error || 'Not authorized')
+      : `The hosting firewall refused this request (HTTP ${res.status}). This is not a login problem — nothing was lost; your text is still in the editor.`);
   }
-  if (!res.ok) throw new Error(data.error || 'Request failed');
+  if (!res.ok) throw new Error(data.error || `Request failed (HTTP ${res.status})`);
   return data;
+}
+
+// ── Re-login without leaving the editor ─────────────────────────────────────
+let reauthWaiters = null;   // requests waiting for the new login
+function requestReauth(serverError) {
+  if (!reauthWaiters) {
+    reauthWaiters = [];
+    const reason = serverError === 'Session expired'
+      ? 'Your session expired (4 hours without activity).'
+      : 'Your login is no longer valid' + (serverError ? ` (server: "${serverError}")` : '') + ' — for example because the admin secret was changed.';
+    document.getElementById('reauthReason').textContent =
+      reason + ' Your edits are still on screen. After logging in, the action you just started is completed automatically.';
+    document.getElementById('reauthError').textContent = '';
+    document.getElementById('reauthPassword').value = '';
+    document.getElementById('reauthOverlay').style.display = 'block';
+    setTimeout(() => document.getElementById('reauthPassword').focus(), 50);
+  }
+  return new Promise(resolve => reauthWaiters.push(resolve));
+}
+
+async function doReauth() {
+  const errEl = document.getElementById('reauthError');
+  errEl.textContent = '';
+  try {
+    const res = await fetch('/api/admin-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: document.getElementById('reauthPassword').value })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.token) throw new Error(data.error || 'Login failed');
+    TOKEN = data.token;
+    sessionStorage.setItem('tps_blog_admin_token', TOKEN);
+    document.getElementById('reauthOverlay').style.display = 'none';
+    document.getElementById('reauthPassword').value = '';
+    const waiting = reauthWaiters || [];
+    reauthWaiters = null;
+    waiting.forEach(resolve => resolve());
+  } catch (e) {
+    errEl.textContent = e.message;
+  }
 }
 
 async function doLogin() {
