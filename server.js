@@ -4542,7 +4542,7 @@ async function recalculateFeatureRanks() {
         const today = new Date().toISOString().split('T')[0];
         const { data: featured } = await supabaseAdmin
             .from('listings')
-            .select('id, is_trial, membership_paid_until, trial_started_at, member_since, photos')
+            .select('id, name, is_trial, membership_paid_until, trial_started_at, member_since, photos')
             .eq('is_member', true)
             .gte('membership_paid_until', today);
         if (!featured || !featured.length) return;
@@ -4562,14 +4562,13 @@ async function recalculateFeatureRanks() {
         featured.sort((a, b) => {
             const td = tier(a) - tier(b);
             if (td !== 0) return td;
-            const sa = a.member_since || '9999-12-31';   // unknown → last
-            const sb = b.member_since || '9999-12-31';
-            if (sa !== sb) return sa < sb ? -1 : 1;
-            // Otherwise (at least one has no trial date — e.g. went straight to a
-            // supporting membership) fall back to listing ID, which is always
-            // present and deterministic — avoids ties depending on arbitrary
-            // database row order, which was the actual bug here.
-            return a.id - b.id;
+            // Seniority = exact start time of the current continuous membership.
+            // The listing ID is NEVER a ranking criterion (it is an arbitrary
+            // number). Unknown start → last; an exact tie (same second) → name.
+            const ta = a.member_since ? new Date(a.member_since).getTime() : Infinity;
+            const tb = b.member_since ? new Date(b.member_since).getTime() : Infinity;
+            if (ta !== tb) return ta < tb ? -1 : 1;
+            return (a.name || '').localeCompare(b.name || '', 'es');
         });
 
         for (let i = 0; i < featured.length; i++) {
