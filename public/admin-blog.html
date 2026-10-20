@@ -125,6 +125,16 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+// Load HTML into a Quill editor the same way Quill reads a post when it
+// opens. Writing to q.root.innerHTML directly made Quill turn every line
+// break between two tags (e.g. after </h2>) into an empty paragraph — the
+// extra blank line after headings in fresh translations (2026-10-20).
+function setQuillHtml(q, html) {
+  const clean = (html || '').replace(/>\s*\n\s*</g, '><').trim();
+  q.setContents([], 'silent');
+  q.clipboard.dangerouslyPasteHTML(0, clean, 'user');
+}
+
 async function api(path, opts = {}, _retried = false) {
   const res = await fetch(path, {
     ...opts,
@@ -377,7 +387,7 @@ async function translatePost(id, direction = 'en-to-es') {
       setIf(`f-excerpt_es-${id}`, t.excerpt_es);
       setIf(`f-meta_description_es-${id}`, t.meta_description_es);
       const qEs = quillInstances[`body_es-${id}`];
-      if (qEs) qEs.root.innerHTML = t.body_es || '';
+      if (qEs) setQuillHtml(qEs, t.body_es);
       showToast('Translated to Spanish');
     } else {
       postsById[id] = { ...postsById[id], title_en: t.title_en, excerpt_en: t.excerpt_en, meta_description_en: t.meta_description_en, body_en: t.body_en };
@@ -385,7 +395,7 @@ async function translatePost(id, direction = 'en-to-es') {
       setIf(`f-excerpt_en-${id}`, t.excerpt_en);
       setIf(`f-meta_description_en-${id}`, t.meta_description_en);
       const qEn = quillInstances[`body_en-${id}`];
-      if (qEn) qEn.root.innerHTML = t.body_en || '';
+      if (qEn) setQuillHtml(qEn, t.body_en);
       showToast('Translated to English');
     }
   } catch (e) { showToast('Error: ' + e.message); }

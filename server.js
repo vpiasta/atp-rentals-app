@@ -41,7 +41,14 @@ app.use(cors());
 // name/email/id/slug pushes the JSON body past 100kb). Raised to 5mb, which
 // comfortably covers campaign payloads for years of growth.
 app.use(express.json({ limit: '5mb' }));
-app.use(express.static('public'));
+// HTML pages must always be re-checked by the browser: without this, a
+// browser kept running an old cached admin-blog.html after a fix was
+// deployed (2026-10-20). Images/CSS/JS keep normal caching.
+app.use(express.static('public', {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+    }
+}));
 
 // Suppress PDF.js font warnings
 const originalConsoleWarn = console.warn;
@@ -7533,6 +7540,10 @@ Call the save_translation tool with the translated fields.`;
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
+
+    // Line breaks between tags (e.g. "</h2>\n<p>") become empty paragraphs
+    // in the blog editor — remove them (spaces inside a paragraph are kept)
+    t.body = String(t.body || '').replace(/>\s*\n\s*</g, '><').trim();
 
     const updates = toSpanish
         ? { title_es: t.title, excerpt_es: t.excerpt, meta_description_es: t.meta_description, body_es: t.body }
