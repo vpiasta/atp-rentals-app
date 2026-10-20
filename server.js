@@ -3976,6 +3976,27 @@ function resolveSender(from) {
 // aren't property owners (legislators, ATP/MiCI officials) don't get the
 // "Estimado/a propietario/a de {hotel}" owner-framed greeting. When omitted,
 // behavior is unchanged from before.
+// ── Signature at the end of every owner/campaign email ──────────────────────
+// Part of the template, so campaign texts must NOT include their own
+// "Atentamente / Volker Piasta" lines. Same look as Volker's ordinary emails:
+// logo left, name and contact details right. Table layout = renders the same
+// in Outlook, Gmail and phone mail apps.
+const EMAIL_SIGNATURE_HTML = `
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:1.75rem 0 0.5rem;">
+  <tr>
+    <td valign="bottom" style="padding-right:18px;">
+      <img src="https://trustedpanamastays.com/images/android-chrome-512x512.png" width="110" height="110" alt="Trusted Panama Stays" style="display:block;width:110px;height:110px;border:0;">
+    </td>
+    <td valign="bottom" style="line-height:1.55;color:#111;padding-bottom:3px;">
+      Atentamente,<br><br>
+      <strong>Ing. Volker Piasta</strong><br>
+      Trusted Panama Stays<br>
+      <a href="mailto:info@trustedpanamastays.com" style="color:#3b7f8c;">info@trustedpanamastays.com</a><br>
+      WhatsApp <a href="https://wa.me/50768750410" style="color:#111;text-decoration:none;">+507 6875 0410</a>
+    </td>
+  </tr>
+</table>`;
+
 function buildFollowupHtml(hotel, manager, bodyContent, salutationOverride) {
     let salutationLine;
     if (salutationOverride) {
@@ -3998,6 +4019,7 @@ function buildFollowupHtml(hotel, manager, bodyContent, salutationOverride) {
     <tr><td style="padding:0 20px;">
 <p style="margin-top:0;">${salutationLine}</p>
 ${bodyContent}
+${EMAIL_SIGNATURE_HTML}
 <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
 <p style="color:#888;font-size:0.78rem;">
     Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
@@ -5192,6 +5214,7 @@ function wrapTrialEmailHtml(hotel, manager, bodyHtml) {
     <tr><td style="padding:0 20px;">
 <p style="margin-top:0;">Estimado/a ${greeting},</p>
 ${bodyHtml}
+${EMAIL_SIGNATURE_HTML}
 <hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
 <p style="color:#888;font-size:0.78rem;">
     Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
