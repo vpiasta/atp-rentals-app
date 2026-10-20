@@ -3953,54 +3953,10 @@ app.post('/api/admin/send-followup-test', requireAdmin, async (req, res) => {
 app.post('/api/admin/send-followup-all', requireAdmin, async (req, res) => {
     const { subject, body } = req.body;
     if (!subject || !body) return res.status(400).json({ error: 'Missing subject or body' });
-
     const APATEL_ROSTER = require('./apatel_emails.json');
-    const notifyPath    = path.join(__dirname, 'public', 'notify.php');
-    let sent = 0, errors = 0;
-    let sampleCopy = null; // first successfully-sent email, included in the report below
-    // Send in background, return immediately
+    // Send in background through the persistent campaign queue, return immediately
     res.json({ success: true, message: 'Campaign started', total: APATEL_ROSTER.length });
-
-    let campaignId = null;
-    try {
-        const { data: campaignRow } = await supabaseAdmin.from('campaigns').insert({
-            subject, body_html: body, from_email: 'info@trustedpanamastays.com', channel: 'email',
-            target_description: 'Todos los miembros APATEL (roster completo)',
-            recipient_count: APATEL_ROSTER.length, status: 'sending'
-        }).select('id').single();
-        campaignId = campaignRow?.id || null;
-    } catch (err) {
-        console.error('Campaign history log (start) failed:', err.message);
-    }
-
-    for (const member of APATEL_ROSTER) {
-    if (!member.email || !member.email.includes('@')) continue;
-    try {
-        const html = buildFollowupHtml(member.hotel, member.manager, body);
-        await execFileAsync('php', [notifyPath, subject, html, member.email], { timeout: 15000 });
-        if (!sampleCopy) sampleCopy = { subject, html, to: member.email };
-        await logEvent('followup_sent', { hotel: member.hotel, email: member.email });
-        sent++;
-        await new Promise(r => setTimeout(r, 600));
-    } catch (err) {
-        errors++;
-        console.error(`Follow-up failed for ${member.hotel}:`, err.message);
-    }
-}
-// Send completion report to admin — includes a real copy of the first
-// successfully-sent email.
-const sampleHtml = sampleCopy
-    ? `<hr style="margin:1.5rem 0;"><p style="color:#666;font-size:0.85rem;">Copia real enviada a ${sampleCopy.to} (asunto: "${sampleCopy.subject}"):</p><div style="border:1px solid #ddd;border-radius:8px;padding:1rem;">${sampleCopy.html}</div>`
-    : '<p style="color:#888;">(Ningún correo se envió con éxito — no hay copia disponible.)</p>';
-const report = `<p>Follow-up campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${APATEL_ROSTER.length} total.</p>${sampleHtml}`;
-execFileAsync('php', [notifyPath, 'Follow-up campaign complete — Trusted Panama Stays', report, 'info@trustedpanamastays.com'], { timeout: 15000 }).catch(console.error);
-console.log(`Follow-up done: ${sent} sent, ${errors} errors`);
-
-if (campaignId) {
-    supabaseAdmin.from('campaigns').update({
-        sent_count: sent, error_count: errors, status: 'completed', finished_at: new Date().toISOString()
-    }).eq('id', campaignId).then(({ error }) => { if (error) console.error('Campaign history log (finish) failed:', error.message); });
-}
+    await sendToRosterList(APATEL_ROSTER, subject, body, 'info@trustedpanamastays.com', 'Todos los miembros APATEL (roster completo)');
 });
 
 
@@ -4370,73 +4326,179 @@ async function resolveListingUrl(member) {
     }
 }
 
-async function sendToRosterList(targets, subject, body, from, targetDescription) {
+// ── Email campaigns: persistent, restart-proof queue ────────────────────────
+// Every recipient is saved in campaign_recipients (status 'pending') BEFORE
+// the first email goes out; processCampaign() then works through the list and
+// marks each one 'sent' or 'error'. If the server restarts mid-campaign
+// (deploy, auto-heal), resumeInterruptedCampaigns() picks it up again a
+// minute after startup and continues where it stopped, then sends the usual
+// completion report. (2026-09-11: an in-memory send loop was killed by a
+// restart after 752 of 1155 emails — no resume, no report, status stuck on
+// "sending".)
+const CAMPAIGN_RUNNING = new Set();
+
+async function notifyAdmin(subject, html) {
     const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    await execFileAsync('php', [notifyPath, subject, html, 'info@trustedpanamastays.com'], { timeout: 15000 })
+        .catch(err => console.error('Admin notify failed:', err.message));
+}
+
+async function sendToRosterList(targets, subject, body, from, targetDescription) {
     const sender = resolveSender(from);
-    let sent = 0, errors = 0;
-    let sampleCopy = null; // the first successfully-sent email, included below so the report always shows the real content — even for a 1-recipient campaign
+    const valid  = (targets || []).filter(m => m.email && m.email.includes('@'));
 
-    // Log this send to the campaigns table so "what did we send and when" has
-    // an answer later — see /api/admin/campaigns. Logging failures must never
-    // block the actual send, so every step here is best-effort.
-    let campaignId = null;
+    const { data: campaignRow, error: campErr } = await supabaseAdmin.from('campaigns').insert({
+        subject, body_html: body, from_email: sender.email, channel: 'email',
+        target_description: targetDescription || null, recipient_count: valid.length, status: 'sending'
+    }).select('id').single();
+    if (campErr || !campaignRow) {
+        console.error('Campaign could not be created:', campErr?.message);
+        await notifyAdmin('⚠️ Campaña NO enviada — Trusted Panama Stays',
+            `<p>La campaña "<strong>${subject}</strong>" no se pudo iniciar: ${campErr?.message || 'error desconocido'}.</p><p>No se envió ningún correo.</p>`);
+        return;
+    }
+    const campaignId = campaignRow.id;
+
+    const rows = valid.map(m => ({
+        campaign_id: campaignId,
+        email:  m.email,
+        member: { hotel: m.hotel || null, manager: m.manager || '', id: m.id || null, slug: m.slug || null, salutation: m.salutation || null },
+        status: 'pending'
+    }));
+    for (let k = 0; k < rows.length; k += 500) {
+        const { error: insErr } = await supabaseAdmin.from('campaign_recipients').insert(rows.slice(k, k + 500));
+        if (insErr) {
+            console.error('Campaign recipients could not be saved:', insErr.message);
+            await supabaseAdmin.from('campaign_recipients').delete().eq('campaign_id', campaignId);
+            await supabaseAdmin.from('campaigns').update({ status: 'failed', finished_at: new Date().toISOString() }).eq('id', campaignId);
+            await notifyAdmin('⚠️ Campaña NO enviada — Trusted Panama Stays',
+                `<p>La campaña "<strong>${subject}</strong>" no se pudo iniciar (lista de destinatarios): ${insErr.message}.</p><p>No se envió ningún correo.</p>`);
+            return;
+        }
+    }
+    await processCampaign(campaignId);
+}
+
+// Builds the exact email one recipient gets (placeholders filled in)
+async function buildCampaignEmail(campaign, member) {
+    const body = campaign.body_html || '';
+    const listingUrl = body.includes('{url}') ? await resolveListingUrl(member) : null;
+    const personalizedBody = listingUrl ? body.split('{url}').join(listingUrl) : body;
+    const subject = campaign.subject || '';
+    const personalizedSubject = (subject.includes('{id}') && member.id)
+        ? subject.split('{id}').join(member.id)
+        : subject;
+    const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', personalizedBody, member.salutation);
+    return { subject: personalizedSubject, html };
+}
+
+async function countRecipients(campaignId, status) {
+    const { count } = await supabaseAdmin.from('campaign_recipients')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', campaignId).eq('status', status);
+    return count || 0;
+}
+
+async function processCampaign(campaignId) {
+    if (CAMPAIGN_RUNNING.has(campaignId)) return;
+    CAMPAIGN_RUNNING.add(campaignId);
+    const notifyPath = path.join(__dirname, 'public', 'notify.php');
     try {
-        const { data: campaignRow } = await supabaseAdmin.from('campaigns').insert({
-            subject, body_html: body, from_email: sender.email, channel: 'email',
-            target_description: targetDescription || null, recipient_count: targets.length, status: 'sending'
-        }).select('id').single();
-        campaignId = campaignRow?.id || null;
-    } catch (err) {
-        console.error('Campaign history log (start) failed:', err.message);
-    }
+        const { data: campaign } = await supabaseAdmin.from('campaigns')
+            .select('id, subject, body_html, from_email, status, recipient_count')
+            .eq('id', campaignId).single();
+        if (!campaign || campaign.status !== 'sending') return;
+        const sender = resolveSender(campaign.from_email);
 
-    for (const member of targets) {
-        if (!member.email || !member.email.includes('@')) continue;
-        try {
-            // Replace the {url} placeholder (if the message uses it) with this
-            // recipient's actual listing page — works for any send path.
-            const listingUrl = body.includes('{url}') ? await resolveListingUrl(member) : null;
-            const personalizedBody = listingUrl ? body.split('{url}').join(listingUrl) : body;
-            // Replace the {id} placeholder (if the subject uses it) with this
-            // recipient's listing ID — e.g. for the [TPS-{id}] reply tag.
-            const personalizedSubject = (subject.includes('{id}') && member.id)
-                ? subject.split('{id}').join(member.id)
-                : subject;
-            const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', personalizedBody, member.salutation);
-            await execFileAsync('php', [notifyPath, personalizedSubject, html, member.email, sender.email, sender.name], { timeout: 15000 });
-            if (!sampleCopy) sampleCopy = { subject: personalizedSubject, html, to: member.email };
-            // Mark as contacted in DB
-            await supabase.from('listings')
-                .update({ apatel_contacted_at: new Date().toISOString() })
-                .or(`email.ilike.%${member.email}%,email_member.ilike.%${member.email}%`)
-                .eq('apatel_member', true);
-            await logEvent('followup_sent', { hotel: member.hotel, email: member.email, listing_id: member.id || null });
-            sent++;
-            await new Promise(r => setTimeout(r, 600));
-        } catch (err) {
-            errors++;
-            console.error(`Failed for ${member.hotel||member.email}:`, err.message);
-        }
-    }
-    // Completion report to admin — always includes a real copy of the first
-    // successfully-sent email, so you can see exactly what went out.
-    const sampleHtml = sampleCopy
-        ? `<hr style="margin:1.5rem 0;"><p style="color:#666;font-size:0.85rem;">Copia real enviada a ${sampleCopy.to} (asunto: "${sampleCopy.subject}"):</p><div style="border:1px solid #ddd;border-radius:8px;padding:1rem;">${sampleCopy.html}</div>`
-        : '<p style="color:#888;">(Ningún correo se envió con éxito — no hay copia disponible.)</p>';
-    const report = `<p>Campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${targets.length} total.</p>${sampleHtml}`;
-    execFileAsync('php', [path.join(__dirname, 'public', 'notify.php'),
-        'Campaign complete — Trusted Panama Stays', report, 'info@trustedpanamastays.com'],
-        { timeout: 15000 }).catch(console.error);
-    console.log(`Campaign done: ${sent} sent, ${errors} errors`);
+        // A recipient left in 'sending' was interrupted mid-send → try again
+        await supabaseAdmin.from('campaign_recipients').update({ status: 'pending' })
+            .eq('campaign_id', campaignId).eq('status', 'sending');
 
-    if (campaignId) {
-        try {
+        let firstSent = null;
+        while (true) {
+            const { data: batch, error } = await supabaseAdmin.from('campaign_recipients')
+                .select('id, email, member')
+                .eq('campaign_id', campaignId).eq('status', 'pending')
+                .order('id', { ascending: true }).limit(50);
+            if (error) throw new Error(error.message);
+            if (!batch || !batch.length) break;
+
+            for (const r of batch) {
+                const member = { ...(r.member || {}), email: r.email };
+                await supabaseAdmin.from('campaign_recipients')
+                    .update({ status: 'sending', attempted_at: new Date().toISOString() }).eq('id', r.id);
+                try {
+                    const mail = await buildCampaignEmail(campaign, member);
+                    await execFileAsync('php', [notifyPath, mail.subject, mail.html, r.email, sender.email, sender.name], { timeout: 15000 });
+                    await supabaseAdmin.from('campaign_recipients')
+                        .update({ status: 'sent', sent_at: new Date().toISOString(), error: null }).eq('id', r.id);
+                    if (!firstSent) firstSent = { ...mail, to: r.email };
+                    await supabaseAdmin.from('listings')
+                        .update({ apatel_contacted_at: new Date().toISOString() })
+                        .or(`email.ilike.%${r.email}%,email_member.ilike.%${r.email}%`)
+                        .eq('apatel_member', true);
+                    await logEvent('followup_sent', { hotel: member.hotel, email: r.email, listing_id: member.id || null, campaign_id: campaignId });
+                } catch (err) {
+                    console.error(`Campaign ${campaignId}: failed for ${r.email}:`, err.message);
+                    await supabaseAdmin.from('campaign_recipients')
+                        .update({ status: 'error', error: String(err.message).substring(0, 300) }).eq('id', r.id);
+                }
+                await new Promise(res => setTimeout(res, 600));
+            }
+            // live progress for "Historial de Campañas"
             await supabaseAdmin.from('campaigns').update({
-                sent_count: sent, error_count: errors, status: 'completed', finished_at: new Date().toISOString()
+                sent_count: await countRecipients(campaignId, 'sent'),
+                error_count: await countRecipients(campaignId, 'error')
             }).eq('id', campaignId);
-        } catch (err) {
-            console.error('Campaign history log (finish) failed:', err.message);
         }
+
+        const sent   = await countRecipients(campaignId, 'sent');
+        const errors = await countRecipients(campaignId, 'error');
+        await supabaseAdmin.from('campaigns').update({
+            sent_count: sent, error_count: errors, status: 'completed', finished_at: new Date().toISOString()
+        }).eq('id', campaignId);
+
+        // Completion report — always shows a real copy of an email that went out
+        // (rebuilt from the first sent recipient if this run sent none itself,
+        // e.g. when it only finished a resumed campaign's last few)
+        if (!firstSent) {
+            const { data: one } = await supabaseAdmin.from('campaign_recipients')
+                .select('email, member').eq('campaign_id', campaignId).eq('status', 'sent')
+                .order('id', { ascending: true }).limit(1).maybeSingle();
+            if (one) firstSent = { ...(await buildCampaignEmail(campaign, { ...(one.member || {}), email: one.email })), to: one.email };
+        }
+        const sampleHtml = firstSent
+            ? `<hr style="margin:1.5rem 0;"><p style="color:#666;font-size:0.85rem;">Copia real enviada a ${firstSent.to} (asunto: "${firstSent.subject}"):</p><div style="border:1px solid #ddd;border-radius:8px;padding:1rem;">${firstSent.html}</div>`
+            : '<p style="color:#888;">(Ningún correo se envió con éxito — no hay copia disponible.)</p>';
+        const report = `<p>Campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${campaign.recipient_count} total.</p>${sampleHtml}`;
+        await notifyAdmin('Campaign complete — Trusted Panama Stays', report);
+        console.log(`Campaign ${campaignId} done: ${sent} sent, ${errors} errors`);
+    } catch (err) {
+        // Status stays 'sending' → resumed after the next restart
+        console.error(`Campaign ${campaignId} interrupted:`, err.message);
+    } finally {
+        CAMPAIGN_RUNNING.delete(campaignId);
+    }
+}
+
+// Called once, shortly after startup
+async function resumeInterruptedCampaigns() {
+    try {
+        const { data: open } = await supabaseAdmin.from('campaigns')
+            .select('id').eq('channel', 'email').eq('status', 'sending');
+        for (const c of open || []) {
+            const { count } = await supabaseAdmin.from('campaign_recipients')
+                .select('id', { count: 'exact', head: true }).eq('campaign_id', c.id);
+            if (!count) {
+                // Campaign from before the queue existed — cannot be resumed
+                await supabaseAdmin.from('campaigns').update({ status: 'interrupted' }).eq('id', c.id);
+                continue;
+            }
+            console.log(`Resuming interrupted campaign ${c.id}`);
+            processCampaign(c.id); // runs in background, one campaign after the other is fine
+        }
+    } catch (err) {
+        console.error('Campaign resume check failed:', err.message);
     }
 }
 
@@ -7497,6 +7559,9 @@ app.use((err, req, res, next) => {
 const server = require('http').createServer({ maxHeaderSize: 81920 }, app);
 server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
+    // Continue any email campaign that a restart interrupted (after the
+    // startup load has settled)
+    setTimeout(resumeInterruptedCampaigns, 60 * 1000);
     console.log(`📍 Main page: http://localhost:${PORT}`);
     console.log(`📍 Health:    http://localhost:${PORT}/health`);
 });
