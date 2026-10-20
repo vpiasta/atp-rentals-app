@@ -2109,7 +2109,11 @@ async function logEvent(type, data) {
 
 // ─── SECTION A: EMAIL HELPERS ─────────────────────────────────────────────────
 
+// Shown in welcome/renewal messages when an existing password was kept
+const PASSWORD_KEPT_TEXT = 'su contraseña actual (sin cambios). Si la olvidó, use "¿Olvidó su contraseña?" en su página';
+
 function generateWaText(app, type, password, paidUntil) {
+    password = password || PASSWORD_KEPT_TEXT;
     const listingUrl = 'https://trustedpanamastays.com/listing.html?id=' + app.listing_id + '&lang=es';
     const payUrl     = 'https://trustedpanamastays.com/pay.html';
     if (type === 'approved_trial')
@@ -2122,6 +2126,9 @@ function generateWaText(app, type, password, paidUntil) {
 }
 
 function generateEmailHtml(app, type, password, paidUntil, rejectReason) {
+    const pwHtml = password
+        ? '<td style="font-family:monospace;font-size:1.1rem;"><strong>' + password + '</strong></td>'
+        : '<td>' + PASSWORD_KEPT_TEXT.replace(/"/g, '&quot;') + '</td>';
     const listingUrl = 'https://trustedpanamastays.com/listing.html?id=' + app.listing_id + '&lang=es';
     const payUrl     = 'https://trustedpanamastays.com/pay.html';
     const hdr = '<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;"><h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1></div>';
@@ -2141,7 +2148,7 @@ function generateEmailHtml(app, type, password, paidUntil, rejectReason) {
             '<h3 style="color:#005ca9;">Sus datos de acceso:</h3>' +
             '<table style="border:1px solid #e1e5e9;border-radius:8px;background:#f8f9fa;width:100%;margin-bottom:1rem;">' +
             '<tr><td style="padding:8px;font-weight:bold;">URL:</td><td><a href="' + listingUrl + '">' + listingUrl + '</a></td></tr>' +
-            '<tr><td style="padding:8px;font-weight:bold;">Contraseña:</td><td style="font-family:monospace;font-size:1.1rem;"><strong>' + password + '</strong></td></tr>' +
+            '<tr><td style="padding:8px;font-weight:bold;">Contraseña:</td>' + pwHtml + '</tr>' +
             '<tr><td style="padding:8px;font-weight:bold;">N° membresía:</td><td style="font-family:monospace;"><strong>' + app.listing_id + '</strong></td></tr>' +
             '</table>' + trialNote + addendum +
             '<p>Para editar su listado, haga clic en Acceso en el enlace arriba.</p>' +
@@ -2756,32 +2763,55 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
             }
         }
 
-        // ── Generate password ─────────────────────────────────────────────
-        const chars    = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-        const password = Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-        const hash     = await bcrypt.hash(password, 10);
+        // ── Current state of the listing (renewal handling) ───────────────
+        const { data: current } = await supabaseAdmin
+            .from('listings')
+            .select('member_password, membership_paid_until, trial_started_at')
+            .eq('id', listingId).single();
+
+        // ── Password: a renewal KEEPS the member's existing password ──────
+        // (2026-10-19: approving CASA CAYUCO's renewal replaced their password
+        // with a new random one). Only a first approval generates one.
+        const keepPassword = !!current?.member_password;
+        let password = null, hash = null;
+        if (!keepPassword) {
+            const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+            password = Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+            hash     = await bcrypt.hash(password, 10);
+        }
 
         // ── Calculate dates ───────────────────────────────────────────────
+        // A paid plan is added to the CURRENT expiry date if that is still in
+        // the future (renewing early must not cost the member remaining days);
+        // otherwise it starts today. Same rule as the auto-activation in
+        // /api/submit-payment.
         const correctedMonths = await resolveApprovedDurationMonths(app);
-        const paidUntil = new Date();
+        const todayMs   = Date.now();
+        const currentMs = current?.membership_paid_until ? new Date(current.membership_paid_until).getTime() : 0;
+        const paidUntil = new Date(isTrial ? todayMs : Math.max(todayMs, currentMs));
         if (isTrial) paidUntil.setDate(paidUntil.getDate() + 30);
         else paidUntil.setFullYear(paidUntil.getFullYear() + (correctedMonths === 24 ? 2 : 1));
         const paidUntilStr = paidUntil.toISOString().split('T')[0];
         const slug = await generateUniqueSlug(app.property_name, listingId);
 
         // ── Update listing ────────────────────────────────────────────────
-        await supabaseAdmin.from('listings').update({
+        // trial_started_at is kept on a paid approval: it records that a
+        // trial was used (blocks a second free trial). member_since (ranking
+        // seniority) is maintained by the database trigger
+        // tps_track_member_since — not set here.
+        const listingUpdate = {
             is_member:             true,
             is_trial:              isTrial,
-            trial_started_at:      isTrial ? new Date().toISOString() : null,
+            trial_started_at:      isTrial ? new Date().toISOString() : (current?.trial_started_at || null),
             membership_paid_until: paidUntilStr,
-            member_password:       hash,
             contact_name:          app.contact_name,
             slug,
             invitation_status:     'member',
             verified_at:           new Date().toISOString(),
             verified_by:           'admin'
-        }).eq('id', listingId);
+        };
+        if (hash) listingUpdate.member_password = hash;
+        await supabaseAdmin.from('listings').update(listingUpdate).eq('id', listingId);
 
         // ── Log invoice for paid plans ────────────────────────────────────
         if (!isTrial) {
@@ -2814,9 +2844,9 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
         } else { waText = waMsg; }
 
         const phone = app.contact_phone?.replace(/[^\d]/g,'').substring(0,8) || null;
-        await logEvent('application_approved', { application_id, listing_id: listingId, membership_type: app.membership_type, paid_until: paidUntilStr });
+        await logEvent('application_approved', { application_id, listing_id: listingId, membership_type: app.membership_type, paid_until: paidUntilStr, password_kept: keepPassword });
         await recalculateFeatureRanks();
-        res.json({ success: true, password, paid_until: paidUntilStr, listing_id: listingId, property_name: app.property_name, email_sent: emailSent, whatsapp_text: waText, phone });
+        res.json({ success: true, password: password || '(sin cambio — contraseña actual)', password_kept: keepPassword, paid_until: paidUntilStr, listing_id: listingId, property_name: app.property_name, email_sent: emailSent, whatsapp_text: waText, phone });
 
     } catch (err) {
         console.error('Approve error:', err.message);
@@ -4512,13 +4542,16 @@ async function recalculateFeatureRanks() {
         const today = new Date().toISOString().split('T')[0];
         const { data: featured } = await supabaseAdmin
             .from('listings')
-            .select('id, is_trial, membership_paid_until, trial_started_at, photos')
+            .select('id, is_trial, membership_paid_until, trial_started_at, member_since, photos')
             .eq('is_member', true)
             .gte('membership_paid_until', today);
         if (!featured || !featured.length) return;
 
         // Sort: paid+photo, paid+no photo, trial+photo, trial+no photo
-        // Within each group: by trial_started_at ASC (oldest first), nulls last
+        // Within each group: by member_since ASC (oldest continuous membership
+        // first). member_since is kept by the DB trigger tps_track_member_since:
+        // trial → paid without a gap keeps the trial date; a gap of more than
+        // 7 days (grace period) before a new membership or renewal restarts it.
         const hasPhoto = l => Array.isArray(l.photos) && l.photos.length > 0;
         const tier = l => {
             if (!l.is_trial && hasPhoto(l))  return 0;
@@ -4529,11 +4562,9 @@ async function recalculateFeatureRanks() {
         featured.sort((a, b) => {
             const td = tier(a) - tier(b);
             if (td !== 0) return td;
-            // Both have a real trial_started_at — use it to rank by seniority
-            if (a.trial_started_at && b.trial_started_at) {
-                const diff = new Date(a.trial_started_at) - new Date(b.trial_started_at);
-                if (diff !== 0) return diff;
-            }
+            const sa = a.member_since || '9999-12-31';   // unknown → last
+            const sb = b.member_since || '9999-12-31';
+            if (sa !== sb) return sa < sb ? -1 : 1;
             // Otherwise (at least one has no trial date — e.g. went straight to a
             // supporting membership) fall back to listing ID, which is always
             // present and deterministic — avoids ties depending on arbitrary
@@ -4839,6 +4870,33 @@ app.get('/api/admin/invoice-pdf/:invoiceId', requireAdminOrService, async (req, 
 });
 
 // ── POST /api/admin/verify-documents ──────────────────────────────────────────
+// ── Documents to send to the AI check ───────────────────────────────────────
+// A renewal submitted via pay.html carries ONLY the new payment proof — the
+// Aviso de Operación and cédula were uploaded with the ORIGINAL join.html
+// application. Without them the AI reported "documents missing" and FAILed
+// a valid renewal (2026-10-19: HOSTAL FAMILIAR CASA CAYUCO #11066, renewal
+// application #23 — its documents were on trial application #20).
+// So: this application's own documents first, then any document TYPE it lacks
+// taken from the newest earlier (non-rejected) application of the same
+// listing. An older payment proof is never reused — it can't prove this payment.
+function gatherVerificationDocs(app, earlierApps) {
+    const docs = [];
+    const seenTypes = new Set();
+    for (const doc of (app.documents || [])) {
+        docs.push({ doc, fromApp: null });
+        seenTypes.add(doc.type);
+    }
+    for (const ea of (earlierApps || [])) {          // newest first
+        for (const doc of (ea.documents || [])) {
+            if (doc.type === 'comprobante_pago') continue;
+            if (seenTypes.has(doc.type)) continue;
+            seenTypes.add(doc.type);
+            docs.push({ doc, fromApp: ea });
+        }
+    }
+    return docs;
+}
+
 app.post('/api/admin/verify-documents', requireAdmin, async (req, res) => {
     const { application_id } = req.body;
     if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
@@ -4849,14 +4907,33 @@ app.post('/api/admin/verify-documents', requireAdmin, async (req, res) => {
         .eq('id', application_id)
         .single();
     if (appError || !app) return res.status(404).json({ error: 'Application not found' });
-    if (!app.documents || !app.documents.length)
+
+    // Earlier applications of the same listing (renewals reuse their documents)
+    let earlierApps = [];
+    if (app.listing_id) {
+        const { data: prev } = await supabaseAdmin
+            .from('membership_applications')
+            .select('id, created_at, status, documents, ruc, ruc_dv, business_name, contact_name')
+            .eq('listing_id', app.listing_id)
+            .neq('id', app.id)
+            .not('status', 'in', '(rejected,archived)')
+            .order('created_at', { ascending: false });
+        earlierApps = prev || [];
+    }
+    const docsToCheck = gatherVerificationDocs(app, earlierApps);
+    if (!docsToCheck.length)
         return res.status(400).json({ error: 'No documents to verify' });
+
+    const approvedBefore = earlierApps.find(ea => ea.status === 'approved') || null;
+    const onFile         = earlierApps.find(ea => ea.ruc) || null;
+    const isRenewal      = !!approvedBefore && app.membership_type !== 'trial';
+    const fmtDate        = d => (d ? String(d).split('T')[0] : '?');
 
     try {
         const imageContents = [];
 
         // Download each document from Supabase Storage
-        for (const doc of app.documents) {
+        for (const { doc, fromApp } of docsToCheck) {
             const { data: fileData, error: dlError } = await supabaseAdmin.storage
                 .from('member-documents')
                 .download(doc.path);
@@ -4877,9 +4954,12 @@ app.post('/api/admin/verify-documents', requireAdmin, async (req, res) => {
                     source: { type: 'base64', media_type: doc.mime, data: base64 }
                 });
             }
+            const origin = fromApp
+                ? ` (ON FILE: uploaded with earlier application #${fromApp.id} of ${fmtDate(fromApp.created_at)}, status ${fromApp.status})`
+                : ' (submitted with THIS application)';
             imageContents.push({
                 type: 'text',
-                text: `The above document is the: ${doc.type.replace(/_/g,' ').toUpperCase()}`
+                text: `The above document is the: ${doc.type.replace(/_/g,' ').toUpperCase()}${origin}`
             });
         }
 
@@ -4889,7 +4969,21 @@ app.post('/api/admin/verify-documents', requireAdmin, async (req, res) => {
             });
         }
 
-        const prompt = `You are verifying membership application documents for a Panama tourism rental directory.
+        // Prices: $24 (1 year) / $45 (2 years) NET, plus 7% ITBMS
+        const netPrice   = app.duration_months === 24 ? 45 : app.duration_months === 12 ? 24 : 0;
+        const itbmsPrice = (netPrice * 0.07).toFixed(2);
+        const grossPrice = (netPrice * 1.07).toFixed(2);
+        const amountLine = netPrice
+            ? `$${grossPrice} TOTAL = $${netPrice}.00 net + $${itbmsPrice} ITBMS (7%). A payment of $${grossPrice} is EXACTLY CORRECT. $${netPrice}.00 without ITBMS would be an underpayment of $${itbmsPrice}. Differences of up to $0.05 are rounding and still correct.`
+            : 'none (free trial — no payment expected)';
+
+        const renewalBlock = isRenewal ? `
+THIS IS A RENEWAL of an existing member. The listing's earlier application #${approvedBefore.id} (${fmtDate(approvedBefore.created_at)}) was approved, and its Aviso de Operación and ID were verified at that time. Those documents are attached again below and marked "ON FILE" — they are valid for this renewal. Do NOT report them as missing just because they were not uploaded again.` : '';
+
+        const onFileBlock = onFile ? `
+Data on file from earlier application #${onFile.id}: business name "${onFile.business_name || '—'}", RUC ${onFile.ruc || '—'} DV ${onFile.ruc_dv || '—'}, contact "${onFile.contact_name || '—'}".` : '';
+
+        const prompt = `You are verifying membership application documents for a Panama tourism rental directory (Trusted Panama Stays).
 
 Application details:
 - Property name: ${app.property_name}
@@ -4897,13 +4991,26 @@ Application details:
 - Province: ${app.province}
 - Plan: ${app.membership_type === 'trial' ? 'Free trial' : app.duration_months + ' months paid'}
 - Payment method: ${app.payment_method || 'none'}
-- Amount expected: ${app.duration_months === 24 ? '$45' : app.duration_months === 12 ? '$24' : 'none (trial)'}
+- Amount expected: ${amountLine}
+- Correct payment recipient: TUSCANY REAL ESTATES, S.A. (RUC 1401220-1-627960 DV 21), the company that owns and operates Trusted Panama Stays. A payment to this company is CORRECT. Spelling variants such as "TUSCANY REAL ESTATE, S.A." or "Tuscany Real Estates SA" are the same company.${renewalBlock}${onFileBlock}
+
+NAME MATCHING RULES (apply these before deciding names_match):
+- The property/establishment name (e.g. a hostal's name) and the legal owner on the Aviso de Operación ("Expedido a favor de", often a corporation ending in INC, S.A., CORP) are normally DIFFERENT names. That is expected and is NOT a mismatch.
+- The payer of the transfer may be the property, the legal owner on the Aviso, the legal representative, or the contact person. Any of these counts as a match.
+- A different first name with the same surname (e.g. a family member's bank account), or a bank account holder who differs from the contact, is worth a note but on its own is at most REVIEW — never FAIL.
+- Set names_match to false only if the payer or the document holder is clearly unrelated to all of the above.
 
 IMPORTANT - Panamanian Aviso de Operación document layout:
 - LEFT box labeled "Aviso de Operación No." contains the LICENSE NUMBER (not the RUC)
 - RIGHT box labeled "Expedido a favor de" contains the owner/company name and below it the RUC number
 - RUC format examples: 8-822-1374 or 1401220-1-627960 (short number, NOT the full aviso number)
 - The DV (dígito verificador) appears after the RUC separated by a dash
+
+RESULT RULES:
+- PASS: documents present (this application's or ON FILE), names consistent under the rules above, payment amount correct (or trial), recipient correct.
+- REVIEW: minor doubts only (e.g. family-member payer, unreadable detail, missing transfer reference).
+- FAIL: forged or invalid documents, wrong amount, payment to a different recipient, or payer/holder clearly unrelated.
+
 Please verify the documents and return ONLY a JSON object with this structure:
 {
   "aviso_operacion": {
@@ -4956,25 +5063,28 @@ Return ONLY the JSON, no other text.`;
             timeout: 60000
         });
 
-        const content = response.data.content[0].text;
+        // Find the text block by type, not by position (a non-text block can come first)
+        const textBlock = (response.data.content || []).find(b => b.type === 'text');
+        const content = textBlock ? textBlock.text : '';
         const clean   = content.replace(/```json\n?|\n?```/g, '').trim();
         const result  = JSON.parse(clean);
 
         await logEvent('ai_verification_completed', {
             application_id,
-            result: result.verification?.overall_result
+            result: result.verification?.overall_result,
+            docs_on_file: docsToCheck.filter(d => d.fromApp).map(d => d.doc.type)
         });
-        // Save extracted RUC data to application
-        if (result.aviso_operacion) {
-            await supabaseAdmin
-                .from('membership_applications')
-                .update({
-                    ruc:          result.aviso_operacion.ruc || null,
-                    ruc_dv:       result.aviso_operacion.ruc_dv || null,
-                    business_name: result.aviso_operacion.business_name || null
-                })
-                .eq('id', application_id);
-        }
+        // Save extracted RUC data to application — never overwrite known
+        // values with empty ones; fall back to what is already on file.
+        const av = result.aviso_operacion || {};
+        await supabaseAdmin
+            .from('membership_applications')
+            .update({
+                ruc:           av.ruc           || app.ruc           || onFile?.ruc           || null,
+                ruc_dv:        av.ruc_dv        || app.ruc_dv        || onFile?.ruc_dv        || null,
+                business_name: av.business_name || app.business_name || onFile?.business_name || null
+            })
+            .eq('id', application_id);
 
         res.json({ success: true, verification: result });
 
