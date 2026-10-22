@@ -4479,7 +4479,7 @@ async function processCampaign(campaignId) {
     const notifyPath = path.join(__dirname, 'public', 'notify.php');
     try {
         const { data: campaign } = await supabaseAdmin.from('campaigns')
-            .select('id, subject, body_html, from_email, status, recipient_count')
+            .select('id, subject, body_html, from_email, status, recipient_count, target_description')
             .eq('id', campaignId).single();
         if (!campaign || campaign.status !== 'sending') return;
         const sender = resolveSender(campaign.from_email);
@@ -4545,7 +4545,10 @@ async function processCampaign(campaignId) {
             ? `<hr style="margin:1.5rem 0;"><p style="color:#666;font-size:0.85rem;">Copia real enviada a ${firstSent.to} (asunto: "${firstSent.subject}"):</p><div style="border:1px solid #ddd;border-radius:8px;padding:1rem;">${firstSent.html}</div>`
             : '<p style="color:#888;">(Ningún correo se envió con éxito — no hay copia disponible.)</p>';
         const report = `<p>Campaign complete: <strong>${sent}</strong> sent, ${errors} errors out of ${campaign.recipient_count} total.</p>${sampleHtml}`;
-        await notifyAdmin('Campaign complete — Trusted Panama Stays', report);
+        // Distinct subject per campaign — identical subjects made mail programs
+        // group two reports into one conversation (one looked missing, 2026-10-20)
+        const audience = String(campaign.target_description || '').substring(0, 80);
+        await notifyAdmin(`Campaign complete: ${sent}/${campaign.recipient_count} sent${errors ? `, ${errors} errors` : ''} — ${audience || 'Trusted Panama Stays'}`, report);
         console.log(`Campaign ${campaignId} done: ${sent} sent, ${errors} errors`);
     } catch (err) {
         // Status stays 'sending' → resumed after the next restart

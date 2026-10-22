@@ -621,7 +621,7 @@
             <div style="background:#1a2a3a;border-radius:10px;padding:1.5rem;margin-bottom:1rem;">
                 <h3 style="color:#FFD700;margin-bottom:1rem;">📧 Campaña de Mensajes por Correo y WhatsApp (Invitos, Recordatarios)</h3>
 
-                <button type="button" onclick="toggleCampaignHistory()" class="action-btn" style="background:#3a3a6b;color:#d4adf5;margin-bottom:1rem;">🕘 Ver Historial de Campañas</button>
+                <button type="button" id="campaign-history-btn" onclick="toggleCampaignHistory()" style="display:block;width:100%;padding:12px 16px;margin-bottom:1rem;background:#6a3fc8;color:#ffffff;border:2px solid #9b7af0;border-radius:8px;cursor:pointer;font-size:1.05rem;font-weight:700;letter-spacing:0.02em;">🕘 Ver Historial de Campañas — qué se envió, cuándo y a cuántos</button>
                 <div id="campaign-history-panel" style="display:none;background:#111;border:1px solid #3a3a6b;border-radius:8px;padding:1rem;margin-bottom:1rem;">
                     <div id="campaign-history-list" style="max-height:420px;overflow-y:auto;">Cargando...</div>
                 </div>
@@ -3866,6 +3866,8 @@ function toggleCampaignHistory() {
     const panel = document.getElementById('campaign-history-panel');
     const show = panel.style.display === 'none';
     panel.style.display = show ? 'block' : 'none';
+    const btn = document.getElementById('campaign-history-btn');
+    if (btn) btn.textContent = show ? '✕ Ocultar Historial de Campañas' : '🕘 Ver Historial de Campañas — qué se envió, cuándo y a cuántos';
     if (show) loadCampaignHistory();
 }
 async function loadCampaignHistory() {
@@ -4080,12 +4082,10 @@ function renderCampaignContacts() {
     document.getElementById('cc-count').textContent = _selectedCampaignContacts().length;
     if (!_campaignContacts.length) { list.innerHTML = '<span style="color:#888;">Sin contactos todavía.</span>'; return; }
     list.innerHTML = _campaignContacts.map(c => `
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #333;">
+        <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #333;">
+            <button onclick="deleteCampaignContact(${c.id})" title="Eliminar contacto permanentemente" style="background:none;border:none;color:#ff7070;cursor:pointer;font-size:0.9rem;padding:0;flex-shrink:0;">🗑️</button>
+            <input type="checkbox" title="Recibe este envío (desmarcar no elimina el contacto)" ${_ccExcluded.has(c.id) ? '' : 'checked'} onchange="toggleCampaignContact(${c.id}, this.checked)" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;margin:0;">
             <span>${_escHtml(c.name)} — ${_escHtml(c.email)}${c.role ? ' · ' + _escHtml(c.role) : ''}${c.organization ? ' (' + _escHtml(c.organization) + ')' : ''}</span>
-            <span style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                <input type="checkbox" title="Recibe este envío (desmarcar no elimina el contacto)" ${_ccExcluded.has(c.id) ? '' : 'checked'} onchange="toggleCampaignContact(${c.id}, this.checked)" style="width:16px;height:16px;cursor:pointer;">
-                <button onclick="deleteCampaignContact(${c.id})" title="Eliminar contacto permanentemente" style="background:none;border:none;color:#ff7070;cursor:pointer;font-size:0.9rem;">🗑️</button>
-            </span>
         </div>`).join('');
 }
 
