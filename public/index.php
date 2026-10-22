@@ -66,6 +66,39 @@ function ssr_featured_listings() {
     return is_array($data) ? $data : [];
 }
 $ssr_listings = ssr_featured_listings();
+
+// ── Server-render the stats line and ATP report date (SEO/crawler fallback) ──
+// Without these the HTML only contained "Cargando..." here, and if the API was
+// briefly unavailable the page showed an "updating the system" message —
+// both made Google classify the homepage as Soft 404 (Oct 2026).
+function ssr_stats($is_en) {
+    $out = ['total' => null, 'date' => null];
+    $headers = ['apikey: ' . SUPABASE_KEY, 'Authorization: Bearer ' . SUPABASE_KEY, 'Accept: application/json'];
+    // total number of listings (same number the stats API reports)
+    $ch = curl_init(SUPABASE_URL . '/rest/v1/listings?select=id');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true, CURLOPT_NOBODY => false,
+        CURLOPT_HTTPHEADER => array_merge($headers, ['Prefer: count=exact', 'Range: 0-0']),
+        CURLOPT_TIMEOUT => 5, CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    $resp = curl_exec($ch);
+    curl_close($ch);
+    if ($resp && preg_match('/content-range:\s*[^\/\r\n]*\/(\d+)/i', $resp, $m)) $out['total'] = (int)$m[1];
+    // ATP report date, from the report's file name (…-VIGENTE-3-8-2026.pdf)
+    $ch = curl_init(SUPABASE_URL . '/rest/v1/pdf_meta?select=pdf_url&order=last_updated.desc&limit=1');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $headers, CURLOPT_TIMEOUT => 5, CURLOPT_SSL_VERIFYPEER => false]);
+    $rows = json_decode((string)curl_exec($ch), true);
+    curl_close($ch);
+    $pdf = is_array($rows) && !empty($rows[0]['pdf_url']) ? $rows[0]['pdf_url'] : '';
+    if (preg_match('/(\d{1,2})-(\d{1,2})-(\d{4})\.pdf/i', $pdf, $d) && checkdate((int)$d[2], (int)$d[1], (int)$d[3])) {
+        $mEn = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        $mEs = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+        $day = (int)$d[1]; $mon = (int)$d[2] - 1; $yr = $d[3];
+        $out['date'] = $is_en ? "{$mEn[$mon]} {$day}, {$yr}" : "{$day} de {$mEs[$mon]} de {$yr}";
+    }
+    return $out;
+}
+$ssr_stats = ssr_stats($is_en);
 ?>
 <!DOCTYPE html>
 <html lang="<?= $t['html_lang'] ?>">
@@ -281,11 +314,18 @@ $ssr_listings = ssr_featured_listings();
       $subheading       = $t['subheading'];
       $lang_toggle_href = $t['lang_href'];
       $show_atp_badge   = true;
-      $atp_badge_extra  = '· ' . $t['updated'] . ' <span id="formatted-date">' . $t['loading'] . '</span>';
+      $atp_badge_extra  = '· ' . $t['updated'] . ' <span id="formatted-date"' . ($ssr_stats['date'] ? ' data-ssr="1"' : '') . '>'
+                        . htmlspecialchars($ssr_stats['date'] ?: $t['loading'], ENT_QUOTES, 'UTF-8') . '</span>';
       include __DIR__ . '/includes/header.php';
     ?>
 
+    <?php if ($ssr_stats['total']): $nFeat = count($ssr_listings); ?>
+    <div class="stats" id="statsPanel" data-ssr="1"><div style="display:flex;justify-content:center;flex-wrap:wrap;gap:12px;font-size:0.85rem;padding:0.3rem 0;">
+        <span>🏨 <strong><?= (int)$ssr_stats['total'] ?></strong> <?= $is_en ? 'verified accommodations' : 'hospedajes verificados' ?><?php if ($nFeat > 0): ?> · <strong><?= $nFeat ?></strong> <?= $is_en ? 'featured' : ('destacado' . ($nFeat > 1 ? 's' : '')) ?><?php endif; ?></span>
+        <span id="selectedCount"></span></div></div>
+    <?php else: ?>
     <div class="stats" id="statsPanel"><div class="loading"><?= $t['loading'] ?></div></div>
+    <?php endif; ?>
 
     <section class="search-section">
         <div class="search-box">
@@ -392,11 +432,15 @@ function updatePageDates() {
     fetch(`${API_BASE_URL}/api/pdf-info`).then(r=>r.json()).then(data => {
         if (data.formattedDate && data.formattedDate !== 'Date not available') {
             const el = document.getElementById('formatted-date');
-            if (el) el.textContent = data.formattedDate;
+            if (el && !el.dataset.ssr) el.textContent = data.formattedDate; // server already wrote it (in the page language)
         }
     }).catch(()=>{});
 }
 document.addEventListener('DOMContentLoaded', () => { updatePageDates(); setInterval(updatePageDates, 30000); });
+
+// Server-rendered member cards, kept so a failed API call never leaves the
+// page empty (an empty page is what Google flags as Soft 404)
+const SSR_RESULTS_HTML = (document.getElementById('resultsContainer') || {}).innerHTML || '';
 
 async function showDefaultView() {
     resultsContainer.innerHTML = `<div class="loading">${LANG === 'en' ? 'Loading...' : 'Cargando...'}</div>`;
@@ -472,6 +516,7 @@ async function showDefaultView() {
         resultsContainer.appendChild(hint);
 
       } catch {
+          if (SSR_RESULTS_HTML.includes('result-card')) { resultsContainer.innerHTML = SSR_RESULTS_HTML; return; }
           resultsContainer.innerHTML = `<div class="no-results"><p>${LANG === 'en' ? 'Use the search or filters to find registered accommodations' : 'Use la búsqueda o los filtros para encontrar hospedajes registrados'}</p></div>`;
       }
   }
@@ -492,7 +537,7 @@ async function loadStats() {
         statsPanel.innerHTML = `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:12px;font-size:0.85rem;padding:0.3rem 0;">
             <span>🏨 <strong>${total}</strong> ${LANG === 'en' ? 'verified accommodations' : 'hospedajes verificados'}${featuredText}</span>
             <span id="selectedCount"></span></div>`;
-    } catch { statsPanel.innerHTML = `<div style="color:#666;">${LANG === 'en' ? "We're updating the system. The page will be available again in a few minutes." : 'Estamos actualizando el sistema. La página estará disponible dentro de pocos minutos.'}</div>`; }
+    } catch { if (statsPanel.dataset.ssr) return; /* keep server-rendered stats */ statsPanel.innerHTML = `<div style="color:#666;">${LANG === 'en' ? "We're updating the system. The page will be available again in a few minutes." : 'Estamos actualizando el sistema. La página estará disponible dentro de pocos minutos.'}</div>`; }
 }
 
 async function loadFilters() {

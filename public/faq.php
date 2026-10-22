@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/supabase-config.php'; // canonical-host redirect (www → bare domain)
 $lang  = isset($_GET['lang']) && $_GET['lang'] === 'es' ? 'es' : 'en';
 $is_en = $lang === 'en';
 

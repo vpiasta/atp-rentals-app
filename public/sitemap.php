@@ -39,8 +39,7 @@ echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 
 $staticPages = [
-    ['loc' => '/',                    'priority' => '1.00'],
-    ['loc' => '/index.php?lang=en',   'priority' => '1.00'],
+    ['loc' => '/index.php',           'priority' => '1.00'],
     ['loc' => '/index.php?lang=es',   'priority' => '1.00'],
     ['loc' => '/about.html?lang=en',  'priority' => '0.80'],
     ['loc' => '/about.html?lang=es',  'priority' => '0.80'],

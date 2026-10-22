@@ -41,6 +41,41 @@ app.use(cors());
 // name/email/id/slug pushes the JSON body past 100kb). Raised to 5mb, which
 // comfortably covers campaign payloads for years of growth.
 app.use(express.json({ limit: '5mb' }));
+// ── Canonical URLs (301) — Search Console flagged the www copies and the tiny
+// meta-refresh pages index.html / index_es.html as Soft 404 (Oct 2026).
+app.use((req, res, next) => {
+    const host = String(req.headers.host || '').toLowerCase();
+    if (host.startsWith('www.')) {
+        return res.redirect(301, 'https://trustedpanamastays.com' + req.originalUrl);
+    }
+    if (req.method === 'GET' || req.method === 'HEAD') {
+        if (req.path === '/' || req.path === '/index.html') {
+            return res.redirect(301, req.query.lang === 'es' ? '/index.php?lang=es' : '/index.php');
+        }
+        if (req.path === '/index_es.html') return res.redirect(301, '/index.php?lang=es');
+    }
+    next();
+});
+
+// listing.html for a listing that does not exist → real 404 (not a page that
+// says "not found" with status 200, which Google counts as Soft 404)
+app.get('/listing.html', async (req, res, next) => {
+    const id = parseInt(req.query.id, 10);
+    const slug = typeof req.query.slug === 'string' ? req.query.slug.trim() : '';
+    if (!id && !slug) return next();
+    try {
+        let q = supabaseAdmin.from('listings').select('id').limit(1);
+        q = id ? q.eq('id', id) : q.eq('slug', slug);
+        const { data, error } = await q;
+        if (!error && Array.isArray(data) && data.length === 0) {
+            res.status(404);
+            res.setHeader('Cache-Control', 'no-cache');
+            return res.sendFile(path.join(__dirname, 'public', 'listing.html'));
+        }
+    } catch (e) { /* on any lookup problem just serve the page normally */ }
+    next();
+});
+
 // HTML pages must always be re-checked by the browser: without this, a
 // browser kept running an old cached admin-blog.html after a fix was
 // deployed (2026-10-20). Images/CSS/JS keep normal caching.

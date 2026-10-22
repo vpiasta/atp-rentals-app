@@ -1,4 +1,13 @@
 <?php
+// ── Canonical host: www.trustedpanamastays.com → trustedpanamastays.com (301) ──
+// Google indexed both hosts and flagged the www copies (e.g. the Spanish
+// homepage) as Soft 404 / duplicates (Search Console, Oct 2026). Every PHP
+// page includes this file before any output, so the redirect works for all.
+if (PHP_SAPI !== 'cli' && isset($_SERVER['HTTP_HOST']) && stripos($_SERVER['HTTP_HOST'], 'www.') === 0) {
+    header('Location: https://trustedpanamastays.com' . ($_SERVER['REQUEST_URI'] ?? '/'), true, 301);
+    exit;
+}
+
 /**
  * Shared Supabase connection constants + a small REST helper, used by every
  * PHP script that talks to Supabase directly (index.php, listing.php,
