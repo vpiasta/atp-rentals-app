@@ -85,8 +85,12 @@ function ssr_stats($is_en) {
     curl_close($ch);
     if ($resp && preg_match('/content-range:\s*[^\/\r\n]*\/(\d+)/i', $resp, $m)) $out['total'] = (int)$m[1];
     // ATP report date, from the report's file name (…-VIGENTE-3-8-2026.pdf)
+    // pdf_meta is not readable with the public key (RLS) — read it with the
+    // server-side secret key (from the private .env; never sent to browsers)
+    $metaKey = (defined('SUPABASE_SERVICE_KEY') && SUPABASE_SERVICE_KEY) ? SUPABASE_SERVICE_KEY : SUPABASE_KEY;
     $ch = curl_init(SUPABASE_URL . '/rest/v1/pdf_meta?select=pdf_url&order=last_updated.desc&limit=1');
-    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $headers, CURLOPT_TIMEOUT => 5, CURLOPT_SSL_VERIFYPEER => false]);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 5, CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_HTTPHEADER => ['apikey: ' . $metaKey, 'Authorization: Bearer ' . $metaKey, 'Accept: application/json']]);
     $rows = json_decode((string)curl_exec($ch), true);
     curl_close($ch);
     $pdf = is_array($rows) && !empty($rows[0]['pdf_url']) ? $rows[0]['pdf_url'] : '';

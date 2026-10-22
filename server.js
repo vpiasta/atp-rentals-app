@@ -1430,7 +1430,7 @@ app.get('/api/test-heading', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.redirect(301, '/index.php'); // index.html was removed (Soft 404 fix, Oct 2026)
 });
 
 // The /api/debug-reload endpoint was removed because it could rewrite the database unintentionally
@@ -2744,7 +2744,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 
             } else {
                 // ── ATP: no match found — set to pending_atp ─────────────
-                const directoryUrl = 'https://trustedpanamastays.com/index_es.html';
+                const directoryUrl = 'https://trustedpanamastays.com/index.php?lang=es';
 
                 await supabaseAdmin.from('membership_applications').update({
                     status:             'pending_atp',
@@ -4381,12 +4381,12 @@ async function resolveListingUrl(member) {
                 .limit(1);
             listing = data?.[0];
         }
-        if (!listing) return 'https://trustedpanamastays.com/index_es.html';
+        if (!listing) return 'https://trustedpanamastays.com/index.php?lang=es';
         return listing.slug
             ? `https://trustedpanamastays.com/listing.php?slug=${listing.slug}&lang=es`
             : `https://trustedpanamastays.com/listing.php?id=${listing.id}&lang=es`;
     } catch {
-        return 'https://trustedpanamastays.com/index_es.html';
+        return 'https://trustedpanamastays.com/index.php?lang=es';
     }
 }
 

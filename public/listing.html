@@ -203,7 +203,7 @@
             </div>
         </div>
         <div class="header-right">
-            <a id="back-link" href="index.html" class="header-btn">← Back</a>
+            <a id="back-link" href="index.php" class="header-btn">← Back</a>
             <a id="lang-link" href="#" class="header-btn"></a>
         </div>
     </header>
@@ -344,7 +344,7 @@ const T = {
 };
 
 document.getElementById('back-link').textContent       = T.back;
-document.getElementById('back-link').href = document.referrer || (isEs ? 'index_es.html' : 'index.html');
+document.getElementById('back-link').href = document.referrer || (isEs ? 'index.php?lang=es' : 'index.php');
 document.getElementById('header-subtitle').textContent = T.subtitle;
 document.getElementById('footer-text').innerHTML       = T.footer;
 document.getElementById('modal-title').textContent     = T.modalTitle;
