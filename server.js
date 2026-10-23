@@ -628,7 +628,7 @@ async function checkPendingAtpApplications() {
 </div>
 <p>Estimado/a <strong>${app.contact_name}</strong>,</p>
 <p>Su hospedaje <strong>${listing.name}</strong> acaba de aparecer en el registro público de hospedajes de la ATP, y hemos activado automáticamente su membresía de prueba gratuita.</p>
-<p>Su prueba está activa hasta el <strong>${paidUntilStr}</strong>.</p>
+<p>Su prueba está activa hasta el <strong>${fmtDatePA(paidUntilStr)}</strong>.</p>
 <h3 style="color:#005ca9;margin-top:1.2rem;">Sus datos de acceso:</h3>
 <table style="border:1px solid #e1e5e9;border-radius:8px;background:#f8f9fa;width:100%;margin-bottom:1rem;">
     <tr><td style="padding:8px;font-weight:bold;">URL:</td>
@@ -639,7 +639,7 @@ async function checkPendingAtpApplications() {
         <td style="padding:8px;font-family:monospace;"><strong>${listing.id}</strong></td></tr>
 </table>
 <p style="background:#fffbe6;padding:1rem;border-radius:6px;border:1px solid #FFD700;margin-top:1rem;">
-    <strong>⚠️ Recordatorio:</strong> Su prueba vence el <strong>${paidUntilStr}</strong>.
+    <strong>⚠️ Recordatorio:</strong> Su prueba vence el <strong>${fmtDatePA(paidUntilStr)}</strong>.
     Recibirá un recordatorio 5 días antes.<br>
     Para renovar: <a href="${payUrl}">${payUrl}</a> · N° membresía: <strong>${listing.id}</strong>
 </p>
@@ -2154,7 +2154,15 @@ async function logEvent(type, data) {
 // Shown in welcome/renewal messages when an existing password was kept
 const PASSWORD_KEPT_TEXT = 'su contraseña actual (sin cambios). Si la olvidó, use "¿Olvidó su contraseña?" en su página';
 
+// Panama date format for anything owners read: 'YYYY-MM-DD' (or ISO) → 'dd/mm/aaaa'.
+function fmtDatePA(v) {
+    if (!v) return '';
+    const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v);
+}
+
 function generateWaText(app, type, password, paidUntil) {
+    paidUntil = fmtDatePA(paidUntil);
     password = password || PASSWORD_KEPT_TEXT;
     const listingUrl = 'https://trustedpanamastays.com/listing.html?id=' + app.listing_id + '&lang=es';
     const payUrl     = 'https://trustedpanamastays.com/pay.html';
@@ -2168,6 +2176,7 @@ function generateWaText(app, type, password, paidUntil) {
 }
 
 function generateEmailHtml(app, type, password, paidUntil, rejectReason) {
+    paidUntil = fmtDatePA(paidUntil);
     const pwHtml = password
         ? '<td style="font-family:monospace;font-size:1.1rem;"><strong>' + password + '</strong></td>'
         : '<td>' + PASSWORD_KEPT_TEXT.replace(/"/g, '&quot;') + '</td>';
@@ -5339,7 +5348,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
                 const daysLeft = Math.max(1, Math.round((new Date(listing.membership_paid_until + 'T00:00:00Z') - new Date(dateStr(today) + 'T00:00:00Z')) / 86400000));
                 const body = fillTemplate(loadTemplateFile('trial_reminder_5day.html'), {
                 days_left: daysLeft,
-                name, listing_name: listing.name, expiry_date: listing.membership_paid_until,
+                name, listing_name: listing.name, expiry_date: fmtDatePA(listing.membership_paid_until),
                 listing_id: listing.id, renew_url: renewUrl, renew_label: renewLabel,
                 listing_url: listingUrl, no_photos_block: noPhotosBlock
                 });
@@ -5368,7 +5377,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
                 const extendUrl = `https://trustedpanamastays.com/api/extend-trial?id=${listing.id}&token=${encodeURIComponent(token)}`;
                 const name = listing.contact_name || 'propietario/a';
                 const body = fillTemplate(loadTemplateFile('trial_extension_offer.html'), {
-                    name, listing_name: listing.name, expiry_date: listing.membership_paid_until, extend_url: extendUrl
+                    name, listing_name: listing.name, expiry_date: fmtDatePA(listing.membership_paid_until), extend_url: extendUrl
                 });
                 await execFileAsync('php', [notifyPath, `¿Necesita más tiempo? 7 días gratis — ${listing.name}`, wrapTrialEmailHtml(listing.name, listing.contact_name, body), toEmail, 'info@trustedpanamastays.com', 'Trusted Panama Stays', 'info@trustedpanamastays.com'], { timeout: 15000 });
                 await supabaseAdmin.from('listings').update({ trial_extension_offer_sent_at: new Date().toISOString() }).eq('id', listing.id);
@@ -5481,7 +5490,7 @@ document.getElementById('confirmBtn').addEventListener('click', async () => {
         const resp = await fetch('/api/extend-trial/confirm?id=${encodeURIComponent(id || '')}&token=${encodeURIComponent(token || '')}', { method: 'POST' });
         const data = await resp.json();
         document.getElementById('resultMsg').innerHTML = data.success
-            ? '<strong style="color:#00a859;">¡Listo! Su prueba ahora vence el ' + data.newExpiry + '.</strong>'
+            ? '<strong style="color:#00a859;">¡Listo! Su prueba ahora vence el ' + String(data.newExpiry).split('-').reverse().join('/') + '.</strong>'
             : '<strong style="color:#c0392b;">' + (data.message || 'Ocurrió un error.') + '</strong>';
         if (data.success) { btn.style.display = 'none'; } else { btn.disabled = false; btn.textContent = 'Sí, deme 7 días más →'; }
     } catch (e) {
@@ -6685,6 +6694,7 @@ ${sourceText}`;
 // ever holds a bcrypt hash, so an existing plaintext password can't be
 // recovered here to redisplay — reset-password.html covers that case).
 function reactivationEmailHtml(propertyName, contactName, listingId, paidUntil) {
+    paidUntil = fmtDatePA(paidUntil);
     const listingUrl = 'https://trustedpanamastays.com/listing.html?id=' + listingId + '&lang=es';
     const hdr = '<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;"><h1 style="color:white;margin:0;font-size:1.4rem;">Trusted Panama Stays</h1></div>';
     const ftr = '<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;"><p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21</p>';

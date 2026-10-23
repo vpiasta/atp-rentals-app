@@ -940,6 +940,24 @@ function doLogout() {
 }
 
 // ── API helper ────────────────────────────────────────────────────────────────
+
+// ── Dates in Panama format: dd/mm/aaaa (and 24-h time) ──────────────────────
+// 'YYYY-MM-DD' strings are converted as text (no timezone shift — new Date()
+// would read them as UTC midnight and show the previous day in Panama).
+function fmtDate(v) {
+  if (!v) return '—';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) { const [y, m, d] = v.split('-'); return `${d}/${m}/${y}`; }
+  const t = new Date(v);
+  if (isNaN(t)) return String(v);
+  return String(t.getDate()).padStart(2, '0') + '/' + String(t.getMonth() + 1).padStart(2, '0') + '/' + t.getFullYear();
+}
+function fmtDateTime(v) {
+  if (!v) return '—';
+  const t = new Date(v);
+  if (isNaN(t)) return String(v);
+  return fmtDate(t) + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+}
+
 async function adminFetch(url, options={}) {
     const res = await fetch(`${API}${url}`, {
         ...options,
@@ -1020,7 +1038,7 @@ function getInvitationStatus(m) {
         const sentAt = new Date(m.invitation_sent_at);
         const daysSince = (new Date() - sentAt) / (1000*60*60*24);
         if (daysSince >= 30) return { key:'no_response', label:'SIN RESPUESTA', cls:'s-no-response' };
-        return { key:'invited', label:'INVITADO', cls:'s-invited', date: sentAt.toLocaleDateString() };
+        return { key:'invited', label:'INVITADO', cls:'s-invited', date: fmtDate(sentAt) };
     }
     return { key:'not_invited', label:'INVITAR', cls:'s-not-invited' };
 }
@@ -1208,7 +1226,7 @@ async function showMessageHistory() {
             const recipient = d.email || (d.listing_id ? `Listado ID ${d.listing_id}` : '(sin destinatario)');
             const label = MESSAGE_EVENT_LABELS[l.event_type] || l.event_type;
             return `<div style="padding:6px 0;border-bottom:1px solid #223;">
-                <span style="color:#7ec8e3;">${new Date(l.created_at).toLocaleString()}</span>
+                <span style="color:#7ec8e3;">${fmtDateTime(l.created_at)}</span>
                 &nbsp;·&nbsp;<strong>${label}</strong>&nbsp;·&nbsp;${recipient}${d.hotel ? ' — ' + d.hotel : ''}
             </div>`;
         }).join('');
@@ -1294,7 +1312,7 @@ function renderMembers(members) {
                 : `<span class="status-badge ${s.cls}" onclick="cycleStatus(${m.id})"
                     title="${s.date?'Invitado: '+s.date:''}">${s.label}</span>`;
         const paidUntil = m.membership_paid_until
-            ? `<span style="color:${m.membership_paid_until<today?'#ff7070':'#adf5ad'};font-size:0.78rem;">${m.membership_paid_until}</span>`
+            ? `<span style="color:${m.membership_paid_until<today?'#ff7070':'#adf5ad'};font-size:0.78rem;">${fmtDate(m.membership_paid_until)}</span>`
             : '<span style="color:#555;">—</span>';
         const waBtn = m.whatsapp ? `<button class="action-btn wa" onclick="openWaPanel(${m.id})" title="WhatsApp">💬</button>` : '';return `<tr>
             <td><input type="checkbox" class="member-select-cb" data-id="${m.id}" ${isChecked} onchange="toggleMemberSelection(${m.id}, this.checked)"></td>
@@ -1588,7 +1606,7 @@ function renderApplicationInfo(app, payment) {
                 CUFE <code style="font-size:0.75rem;">${payment.cufe||'—'}</code>
                 ${payment.invoice_url ? ` — <a href="${payment.invoice_url}" target="_blank" style="color:#7ec8e3;">Ver factura</a>` : ''}
                 ${payment.invoice_uuid ? ` — <button class="doc-btn" onclick="downloadInvoicePdf('${payment.invoice_uuid}','${payment.listing_id}','${payment.amount_total||''}','${payment.invoice_number||''}',true)">⬇️ Descargar PDF</button>` : ''}
-                <br><span style="color:#aaa;font-size:0.78rem;">Total: $${payment.amount_total||'—'} · ${payment.payment_method||''} · ${payment.invoice_date||''}</span>
+                <br><span style="color:#aaa;font-size:0.78rem;">Total: $${payment.amount_total||'—'} · ${payment.payment_method||''} · ${payment.invoice_date ? fmtDate(payment.invoice_date) : ''}</span>
             </div>` : (app.membership_type === 'paid' ? `
             <div style="margin-top:0.6rem;">
                 <strong style="color:#7ec8e3;">🧾 Invoice:</strong>
@@ -1814,7 +1832,7 @@ function renderApplications(apps) {
                 <div>
                     <div class="app-name">${app.property_name}</div>
                     <div class="app-meta">
-                        ${app.province} · ${new Date(app.created_at).toLocaleDateString()} · ID: ${app.id}
+                        ${app.province} · ${fmtDate(app.created_at)} · ID: ${app.id}
                         ${app.registration_type === 'mici' ? `<span class="reg-badge mici">MiCI</span>` : app.listing_id ? `<span class="reg-badge atp">ATP · ${app.listing_id}</span>` : `<span class="reg-badge" style="background:#7a3a00;color:#ffd;">ATP · No match</span>`}
                     </div>
                 </div>
@@ -1860,7 +1878,7 @@ function renderApplications(apps) {
                 </div>
             </div>` : `
             <div style="font-size:0.78rem;color:#aaa;">
-                Revisado: ${app.reviewed_at?new Date(app.reviewed_at).toLocaleString():'—'}
+                Revisado: ${app.reviewed_at?fmtDateTime(app.reviewed_at):'—'}
                 ${app.notes?`<br>Notas: ${app.notes}`:''}
             </div>`}
         </div>`;
@@ -1925,7 +1943,7 @@ function renderTrialSubmissions(subs) {
                 <div>
                     <div class="app-name">${s.subject || '(sin asunto)'}</div>
                     <div class="app-meta">
-                        ${s.sender_email || 'remitente desconocido'} · ${new Date(s.created_at).toLocaleDateString()} · ID solicitud: ${s.id}
+                        ${s.sender_email || 'remitente desconocido'} · ${fmtDate(s.created_at)} · ID solicitud: ${s.id}
                         ${matchBadge} ${langBadge}
                     </div>
                 </div>
@@ -1959,7 +1977,7 @@ function renderTrialSubmissions(subs) {
                 </div>
             </div>` : `
             <div style="font-size:0.78rem;color:#aaa;">
-                Revisado: ${s.reviewed_at?new Date(s.reviewed_at).toLocaleString():'—'}
+                Revisado: ${s.reviewed_at?fmtDateTime(s.reviewed_at):'—'}
                 ${s.reviewer_notes?`<br>Notas: ${s.reviewer_notes}`:''}
             </div>
             <div class="app-actions">
@@ -2102,7 +2120,7 @@ function renderComments(comments) {
                 <div>
                     <div class="app-name">${c.author_name}${c.is_admin_reply?' <span class="reg-badge" style="background:#1a5c1a;">Respuesta admin</span>':''}</div>
                     <div class="app-meta">
-                        ${c.author_email||'sin correo'} · ${new Date(c.created_at).toLocaleString()}
+                        ${c.author_email||'sin correo'} · ${fmtDateTime(c.created_at)}
                         ${c.post ? ` · ${c.post.title_en||c.post.slug}` : ''}
                         ${c.parent_comment_id ? ' · <em>respuesta a otro comentario</em>' : ''}
                     </div>
@@ -2210,7 +2228,7 @@ async function verifyDocuments(appId) {
             <div class="verify-row">
                 <span class="verify-icon">💳</span>
                 <span class="verify-label">Comprobante</span>
-                <span class="verify-value">${v.payment.amount||'—'} · ${v.payment.date||'—'}</span>
+                <span class="verify-value">${v.payment.amount||'—'} · ${fmtDate(v.payment.date)}</span>
             </div>`:''}
             <div class="verify-row">
                 <span class="verify-icon">${ov.names_match?'✅':'❌'}</span>
@@ -2298,7 +2316,7 @@ async function approveApplication(appId) {
             <div style="color:#adf5ad;font-weight:700;margin-bottom:0.5rem;">✅ ¡Solicitud aprobada!</div>
             <div style="font-size:0.82rem;color:#ccc;">
                 Contraseña: <code style="background:#2c3e50;padding:2px 6px;border-radius:4px;">${data.password}</code><br>
-                Membresía hasta: <strong>${data.paid_until}</strong><br>
+                Membresía hasta: <strong>${fmtDate(data.paid_until)}</strong><br>
                 ID de Membresía: <strong>${data.listing_id||'—'}</strong><br>
                 ${data.email_sent ? '📧 Correo de bienvenida enviado' : '📱 Sin correo — texto de WhatsApp descargado'}
             </div>`;
@@ -2373,7 +2391,7 @@ function renderInvoiceLog(invoices) {
     tbody.innerHTML = invoices.map(inv => {
         const d = inv.event_data;
         return `<tr>
-            <td>${new Date(inv.created_at).toLocaleDateString()}</td>
+            <td>${fmtDate(inv.created_at)}</td>
             <td>${d.property_name||'—'}</td>
             <td>${d.contact_name||'—'}</td>
             <td style="font-size:0.75rem;">${d.contact_email||'—'}</td>
@@ -2392,7 +2410,7 @@ function exportInvoiceCSV() {
     const headers = ['Fecha','Propiedad','Contacto','Correo','RUC','Plan','Monto','ITBMS','Total','Pago'];
     const rows = allInvoices.map(inv => {
         const d = inv.event_data;
-        return [new Date(inv.created_at).toLocaleDateString(),
+        return [fmtDate(inv.created_at),
             d.property_name, d.contact_name, d.contact_email,
             d.ruc||'', d.plan, d.amount, d.itbms, d.total, d.payment_method
         ].map(v=>`"${v||''}"`).join(',');
@@ -2442,7 +2460,7 @@ function renderReconcilePanel(invoices) {
                 <div id="recon-row-${safeId}" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;background:#111;padding:8px;margin-bottom:8px;border-radius:6px;">
                     <div style="min-width:200px;">
                         <div style="color:#aaa;font-size:0.7rem;">Factura</div>
-                        <div style="font-size:0.82rem;">${inv.invoice_number||'—'} · ${inv.issue_date?new Date(inv.issue_date).toLocaleDateString():'—'}</div>
+                        <div style="font-size:0.82rem;">${inv.invoice_number||'—'} · ${inv.issue_date?fmtDate(inv.issue_date):'—'}</div>
                         <div style="color:#aaa;font-size:0.72rem;">${inv.receptor_name||'—'} ${inv.receptor_ruc?'('+inv.receptor_ruc+')':''}</div>
                         <div style="color:#7ec8e3;font-size:0.78rem;">$${inv.amount_total!=null?parseFloat(inv.amount_total).toFixed(2):'—'}</div>
                     </div>
@@ -2521,14 +2539,14 @@ function renderLog(logs) {
             const extra = d.hotel ? ` — ${d.hotel}` : (d.extended ? ' — prueba fue extendida' : '');
             return `
         <div class="log-entry">
-            <span class="log-time">${new Date(l.created_at).toLocaleString()}</span>
+            <span class="log-time">${fmtDateTime(l.created_at)}</span>
             <span class="log-type">${EMAIL_EVENT_LABELS[l.event_type]}</span>
             <span class="log-data">${recipient}${extra}</span>
         </div>`;
         }
         return `
         <div class="log-entry">
-            <span class="log-time">${new Date(l.created_at).toLocaleString()}</span>
+            <span class="log-time">${fmtDateTime(l.created_at)}</span>
             <span class="log-type">${l.event_type}</span>
             <span class="log-data">${JSON.stringify(l.event_data)}</span>
         </div>`;
@@ -3249,7 +3267,7 @@ async function renderSuggestions() {
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
                 <div>
                     <span style="color:#FFD700;font-size:1rem;font-weight:700;">"${s.suggestion}"</span>
-                    <span style="color:#aaa;font-size:0.78rem;margin-left:0.5rem;">by listing #${s.listing_id} · ${new Date(s.created_at).toLocaleDateString()}</span>
+                    <span style="color:#aaa;font-size:0.78rem;margin-left:0.5rem;">by listing #${s.listing_id} · ${fmtDate(s.created_at)}</span>
                 </div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start;">
                   <div style="display:flex;flex-direction:column;gap:2px;">
@@ -3886,7 +3904,7 @@ function renderCampaignHistory(rows) {
     if (!rows.length) { list.innerHTML = '<p style="color:#aaa;">Aún no hay campañas registradas.</p>'; return; }
     const statusLabels = { sending: '⏳ Enviando', completed: '✅ Completada', queued: '📋 En cola (envío manual)' };
     list.innerHTML = rows.map((c, i) => {
-        const date = new Date(c.created_at).toLocaleString('es-PA', { dateStyle: 'medium', timeStyle: 'short' });
+        const date = fmtDateTime(c.created_at);
         const channelBadge = c.channel === 'whatsapp'
             ? '<span style="background:#25D366;color:#111;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:700;">💬 WhatsApp</span>'
             : '<span style="background:#005ca9;color:white;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:700;">📧 Correo</span>';
@@ -4010,7 +4028,7 @@ async function loadBlogCampaignPosts() {
             return;
         }
         sel.innerHTML = _blogCampaignPosts.map(p => {
-            const dateLabel = p.published_at ? new Date(p.published_at).toLocaleDateString('es-PA') : '';
+            const dateLabel = p.published_at ? fmtDate(p.published_at) : '';
             return `<option value="${p.id}">${dateLabel ? '['+dateLabel+'] ' : ''}${_escHtml(p.title_es || p.title_en || '(sin título)')}</option>`;
         }).join('');
     } catch (e) {

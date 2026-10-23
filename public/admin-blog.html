@@ -135,6 +135,24 @@ function setQuillHtml(q, html) {
   q.clipboard.dangerouslyPasteHTML(0, clean, 'user');
 }
 
+
+// ── Dates in Panama format: dd/mm/aaaa (and 24-h time) ──────────────────────
+// 'YYYY-MM-DD' strings are converted as text (no timezone shift — new Date()
+// would read them as UTC midnight and show the previous day in Panama).
+function fmtDate(v) {
+  if (!v) return '—';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) { const [y, m, d] = v.split('-'); return `${d}/${m}/${y}`; }
+  const t = new Date(v);
+  if (isNaN(t)) return String(v);
+  return String(t.getDate()).padStart(2, '0') + '/' + String(t.getMonth() + 1).padStart(2, '0') + '/' + t.getFullYear();
+}
+function fmtDateTime(v) {
+  if (!v) return '—';
+  const t = new Date(v);
+  if (isNaN(t)) return String(v);
+  return fmtDate(t) + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+}
+
 async function api(path, opts = {}, _retried = false) {
   const res = await fetch(path, {
     ...opts,
@@ -276,7 +294,7 @@ async function renderCommentsPanel() {
       div.innerHTML = `
         <span class="badge ${badgeClass}">${c.status}</span>
         ${c.is_admin_reply ? '<span class="badge">admin reply</span>' : ''}
-        <div class="meta">on: ${escapeHtml(c.post ? c.post.title_en : ('post #' + c.post_id))} · ${new Date(c.created_at).toLocaleString()}</div>
+        <div class="meta">on: ${escapeHtml(c.post ? c.post.title_en : ('post #' + c.post_id))} · ${fmtDateTime(c.created_at)}</div>
         <h3>${escapeHtml(c.author_name)}${c.author_email ? ' — ' + escapeHtml(c.author_email) : ''}</h3>
         <div class="excerpt">${escapeHtml(c.body)}</div>
         <div class="row">
@@ -309,7 +327,7 @@ function postCard(p) {
   div.innerHTML = `
     <span class="badge ${badgeClass}">${p.status.replace('_',' ')}</span>
     <h3>${escapeHtml(p.title_en || '(no title)')}</h3>
-    <div class="meta">${p.status === 'published' && p.published_at ? `published: ${new Date(p.published_at).toLocaleDateString()} · ` : ''}slug: ${escapeHtml(p.slug)} · id: ${p.id} · category: ${escapeHtml(p.category||'—')} · ${p.ai_generated ? 'AI-generated' : 'manual'}</div>
+    <div class="meta">${p.status === 'published' && p.published_at ? `published: ${fmtDate(p.published_at)} · ` : ''}slug: ${escapeHtml(p.slug)} · id: ${p.id} · category: ${escapeHtml(p.category||'—')} · ${p.ai_generated ? 'AI-generated' : 'manual'}</div>
     <div class="excerpt">${escapeHtml(p.excerpt_en || '')}</div>
     <div class="row">
       <button class="btn btn-outline" onclick="togglePostEdit(${p.id})">Edit</button>
@@ -667,7 +685,7 @@ async function loadMaterial() {
       div.innerHTML = `
         <span class="badge ${m.used ? 'badge-published' : 'badge-pending'}">${m.used ? 'used' : 'unused'}</span>
         <h3>${escapeHtml(m.title || '(untitled)')}</h3>
-        <div class="meta">${escapeHtml(m.source_type)} · added ${new Date(m.created_at).toLocaleDateString()}${m.used_in_post_id ? ' · used in post #' + m.used_in_post_id : ''}</div>
+        <div class="meta">${escapeHtml(m.source_type)} · added ${fmtDate(m.created_at)}${m.used_in_post_id ? ' · used in post #' + m.used_in_post_id : ''}</div>
         <div class="excerpt">${escapeHtml((m.content||'').slice(0,220))}${m.content && m.content.length > 220 ? '…' : ''}</div>
         <div class="row">
           <button class="btn btn-outline" onclick="toggleMaterialEdit(${m.id})">Edit</button>
@@ -778,7 +796,7 @@ async function loadKnowledge() {
       div.innerHTML = `
         <span class="badge badge-pending">${escapeHtml(k.category)}</span>
         <h3>${escapeHtml(k.title || '(untitled)')}</h3>
-        <div class="meta">added ${new Date(k.created_at).toLocaleDateString()}</div>
+        <div class="meta">added ${fmtDate(k.created_at)}</div>
         <div class="excerpt">${escapeHtml((k.content||'').slice(0,220))}${k.content && k.content.length > 220 ? '…' : ''}</div>
         <div class="row">
           <button class="btn btn-outline" onclick="toggleKnowledgeEdit(${k.id})">Edit</button>
