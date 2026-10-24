@@ -1333,9 +1333,21 @@ function renderMembers(members) {
                 <button class="action-btn edit" onclick="openEditPanel(${m.id})">✏️</button>
                 <button class="action-btn pwd"  onclick="openPwdPanel(${m.id},'${m.name.replace(/'/g,"\\'")}')">🔑</button>
                 ${waBtn}
+                ${m.slug ? `<button class="action-btn" onclick="copyAdminBadge('${m.slug}', this)" title="Copiar código del sello (ES) para el sitio web del propietario">🏅</button>` : ''}
             </td>
         </tr>`;
     }).join('');
+}
+
+// Copies the owner-website badge code (Spanish) — same code the member sees
+// in their own listing page. Image: /badge/<slug>.svg · link: listing.php.
+function copyAdminBadge(slug, btn) {
+    const alt  = 'Registrado en la ATP · Verificado en Trusted Panama Stays';
+    const code = '<a href="https://trustedpanamastays.com/listing.php?slug=' + slug + '&amp;lang=es" target="_blank" title="' + alt + '">' +
+                 '<img src="https://trustedpanamastays.com/badge/' + slug + '.svg?lang=es" alt="' + alt + '" width="220" height="64" style="border:0;"></a>';
+    const done = () => { const t = btn.textContent; btn.textContent = '✅'; setTimeout(() => { btn.textContent = t; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, () => prompt('Copiar:', code));
+    else prompt('Copiar:', code);
 }
 
 // ── Cycle status ──────────────────────────────────────────────────────────────

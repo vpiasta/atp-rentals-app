@@ -76,6 +76,54 @@ app.get('/listing.html', async (req, res, next) => {
     next();
 });
 
+// ── Verification badge for owners' own websites ─────────────────────────────
+// <img src="https://trustedpanamastays.com/badge/<slug>.svg[?lang=es]">, wrapped
+// in a link to listing.php?slug=<slug>. The image reflects the CURRENT ATP
+// status: if the rental drops off the ATP report (atp_active=false) or the slug
+// no longer exists, the badge turns grey "not verified" on the owner's site.
+// Membership does not change the badge — it states only ATP registration.
+function badgeSvg(ok, lang) {
+  const es = lang === 'es';
+  const l1 = ok ? (es ? 'Registrado en la ATP' : 'ATP-registered') : (es ? 'Registro ATP' : 'ATP registration');
+  const l2 = ok ? (es ? 'Verificado en' : 'Verified on') : (es ? 'no verificado' : 'not verified');
+  const bg = ok ? '#ffffff' : '#f2f2f2', border = ok ? '#005ca9' : '#999999', accent = ok ? '#00a859' : '#888888';
+  const logo = ok ? `<g transform="translate(9,10) scale(0.172)">
+    <rect x="30" y="110" width="100" height="62" fill="#fff"/><rect x="130" y="110" width="100" height="62" fill="#cc0000"/>
+    <rect x="30" y="172" width="100" height="62" fill="#1a3a6b"/><rect x="130" y="172" width="100" height="62" fill="#fff"/>
+    <rect x="30" y="110" width="200" height="124" fill="none" stroke="#1a3a6b" stroke-width="4"/>
+    <polygon points="80,127 82.5,135 91,135 84,140 86.5,148 80,143 73.5,148 76,140 69,135 77.5,135" fill="#1a3a6b"/>
+    <polygon points="180,189 182.5,197 191,197 184,202 186.5,210 180,205 173.5,210 176,202 169,197 177.5,197" fill="#cc0000"/>
+    <polyline points="5,108 130,8 255,108" fill="none" stroke="#1a3a6b" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M54,118 L98,226 L218,8" fill="none" stroke="#b8860b" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/></g>`
+    : `<circle cx="31" cy="32" r="16" fill="none" stroke="#999" stroke-width="3"/><text x="31" y="39" font-size="20" text-anchor="middle" fill="#999" font-family="Arial,Helvetica,sans-serif" font-weight="bold">?</text>`;
+  const l3 = ok ? `<text x="62" y="52" textLength="148" lengthAdjust="spacingAndGlyphs" font-family="Arial,Helvetica,sans-serif" font-size="13.5" font-weight="bold" fill="#005ca9">Trusted Panama Stays</text>` : '';
+  const title = ok ? (es ? 'Hospedaje registrado en la ATP, verificado en Trusted Panama Stays' : 'ATP-registered accommodation, verified on Trusted Panama Stays')
+                   : (es ? 'Registro ATP no verificado' : 'ATP registration not verified');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="64" viewBox="0 0 220 64" role="img" aria-label="${title}">
+<title>${title}</title>
+<rect x="1" y="1" width="218" height="62" rx="8" fill="${bg}" stroke="${border}" stroke-width="2"/>
+${logo}
+<text x="62" y="${ok ? 21 : 29}" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="bold" fill="${accent}">${ok ? '✓ ' : ''}${l1}</text>
+<text x="62" y="${ok ? 35 : 45}" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#555">${l2}</text>
+${l3}
+</svg>`;
+}
+
+app.get('/badge/:slug.svg', async (req, res) => {
+    const slug = String(req.params.slug || '').trim().toLowerCase();
+    const lang = req.query.lang === 'es' ? 'es' : 'en';
+    let ok = false;
+    if (/^[a-z0-9-]{1,120}$/.test(slug)) {
+        try {
+            const { data } = await supabaseAdmin.from('listings').select('atp_active').eq('slug', slug).limit(1);
+            ok = !!(data && data[0] && data[0].atp_active !== false);
+        } catch (e) { ok = false; }
+    }
+    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(badgeSvg(ok, lang));
+});
+
 // HTML pages must always be re-checked by the browser: without this, a
 // browser kept running an old cached admin-blog.html after a fix was
 // deployed (2026-10-20). Images/CSS/JS keep normal caching.

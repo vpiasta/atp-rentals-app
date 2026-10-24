@@ -824,8 +824,60 @@ function renderEdit(rental) {
                 <span id="suggestion-msg" style="font-size:0.78rem;color:#888;display:none;"></span>
             </div>
         </div>
+        ${renderBadgeSection(rental)}
     </div>
 </div>`;
+}
+
+// ── Verification badge for the owner's own website ──────────────────────────
+// The image is served live by /badge/<slug>.svg (turns grey if the rental
+// leaves the ATP report); the link goes to listing.php, the indexed page.
+function badgeSnippet(slug, lang) {
+    const es = lang === 'es';
+    const page = 'https://trustedpanamastays.com/listing.php?slug=' + slug + (es ? '&lang=es' : '');
+    const img  = 'https://trustedpanamastays.com/badge/' + slug + '.svg' + (es ? '?lang=es' : '');
+    const alt  = es ? 'Registrado en la ATP · Verificado en Trusted Panama Stays'
+                    : 'ATP-registered · Verified on Trusted Panama Stays';
+    return '<a href="' + page.replace(/&/g, '&amp;') + '" target="_blank" title="' + alt + '">' +
+           '<img src="' + img + '" alt="' + alt + '" width="220" height="64" style="border:0;"></a>';
+}
+
+function renderBadgeSection(rental) {
+    if (!rental.slug) return '';
+    const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const block = (lang, label) => {
+        const code = badgeSnippet(rental.slug, lang);
+        return `
+            <div style="flex:1 1 280px;min-width:0;">
+                <div style="font-size:0.8rem;font-weight:700;color:#555;margin-bottom:0.4rem;">${label}</div>
+                <div style="margin-bottom:0.5rem;">${code}</div>
+                <textarea id="badge-code-${lang}" readonly onclick="this.select()"
+                    style="width:100%;height:92px;font-family:monospace;font-size:0.72rem;padding:6px;border:1px solid #ccd;border-radius:6px;resize:vertical;">${esc(code)}</textarea>
+                <button type="button" class="qbtn" onclick="copyBadgeCode('${lang}', this)" style="margin-top:0.4rem;">
+                    📋 ${isEs ? 'Copiar código' : 'Copy code'}
+                </button>
+            </div>`;
+    };
+    return `
+        <div class="edit-section" style="border:1px solid #c0cce0;border-radius:10px;padding:1rem 1.2rem;margin:0.5rem 0;background:#f4f7fb;">
+            <div class="section-title">🏅 ${isEs ? 'Sello de verificación para su sitio web' : 'Verification badge for your website'}</div>
+            <p style="font-size:0.85rem;color:#666;margin-bottom:0.8rem;">${isEs
+                ? 'Muestre a sus huéspedes que su hospedaje está registrado legalmente. Copie el código y péguelo en su sitio web (o envíelo a quien administra su sitio). Al hacer clic, el huésped ve su ficha en Trusted Panama Stays. El sello se actualiza solo: si su registro ATP dejara de aparecer en el reporte oficial, el sello lo indicará.'
+                : 'Show your guests that your accommodation is legally registered. Copy the code and paste it into your website (or send it to whoever manages your site). Clicking it opens your Trusted Panama Stays page. The badge updates itself: if your ATP registration ever disappears from the official report, the badge will show it.'}</p>
+            <div style="display:flex;flex-wrap:wrap;gap:1.2rem;">
+                ${block('es', 'Español')}
+                ${block('en', 'English')}
+            </div>
+        </div>`;
+}
+
+function copyBadgeCode(lang, btn) {
+    const ta = document.getElementById('badge-code-' + lang);
+    if (!ta) return;
+    const done = () => { const t = btn.innerHTML; btn.innerHTML = '✅ ' + (isEs ? 'Copiado' : 'Copied'); setTimeout(() => { btn.innerHTML = t; }, 2000); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
+    } else { ta.select(); document.execCommand('copy'); done(); }
 }
 
 
