@@ -370,7 +370,7 @@ $ssr_stats = ssr_stats($is_en);
                     <?php if (!empty($r['province'])): ?><span class="result-badge badge-province"><?= htmlspecialchars($r['province'], ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
                     <span class="result-badge badge-member">⭐ <?= $is_en ? 'Member' : 'Miembro' ?></span>
                 </div>
-                <a href="listing.html?<?= !empty($r['slug']) ? 'slug=' . urlencode($r['slug']) : 'id=' . intval($r['id']) ?>&lang=<?= $lang ?>" class="contact-button"><?= $is_en ? 'See More' : 'Ver Más' ?></a>
+                <a href="listing.php?<?= !empty($r['slug']) ? 'slug=' . urlencode($r['slug']) : 'id=' . intval($r['id']) ?><?= $lang === 'es' ? '&lang=es' : '' ?>" class="contact-button"><?= $is_en ? 'See More' : 'Ver Más' ?></a>
             </div>
             <?php endforeach; ?>
         <?php else: ?>
@@ -467,9 +467,11 @@ async function showDefaultView() {
             const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
             const photos  = Array.isArray(rental.photos) ? rental.photos : [];
             const thumb   = active && photos.length ? photos[0] : null;
-            const listUrl = rental.slug
-                ? `listing.html?slug=${rental.slug}&lang=${LANG}`
-                : `listing.html?id=${rental.id}&lang=${LANG}`;
+            // Active members → listing.php (server-rendered, indexable, same URL as
+            // the sitemap/canonical). Non-members keep listing.html (noindex).
+            const listUrl = active
+                ? (rental.slug ? `listing.php?slug=${encodeURIComponent(rental.slug)}` : `listing.php?id=${rental.id}`) + (LANG === 'es' ? '&lang=es' : '')
+                : (rental.slug ? `listing.html?slug=${rental.slug}&lang=${LANG}` : `listing.html?id=${rental.id}&lang=${LANG}`);
             const thumbHtml = (active && thumb)
                 ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
                     <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">
@@ -698,9 +700,10 @@ function displayResults(rentals) {
           const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
           const photos  = Array.isArray(rental.photos) ? rental.photos : [];
           const thumb   = active && photos.length ? photos[0] : null;
-          const listUrl = rental.slug
-              ? `listing.html?slug=${rental.slug}&lang=${LANG}`
-              : `listing.html?id=${rental.id}&lang=${LANG}`;
+          // Active members → listing.php (indexable); non-members → listing.html (noindex).
+          const listUrl = active
+              ? (rental.slug ? `listing.php?slug=${encodeURIComponent(rental.slug)}` : `listing.php?id=${rental.id}`) + (LANG === 'es' ? '&lang=es' : '')
+              : (rental.slug ? `listing.html?slug=${rental.slug}&lang=${LANG}` : `listing.html?id=${rental.id}&lang=${LANG}`);
               const thumbHtml = (active && thumb)
                   ? `<a href="${listUrl}" class="member-thumb" onclick="saveSearchState()">
                       <img src="${thumb}" alt="${rental.name}" loading="lazy" class="member-thumb-img">

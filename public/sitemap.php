@@ -59,6 +59,7 @@ foreach ($listings as $l) {
     $loc  = SITE_URL . '/listing.php?slug=' . $slug;
     $lastmod = !empty($l['created_at']) ? date('Y-m-d', strtotime($l['created_at'])) : $today;
     echo "  <url><loc>{$loc}</loc><lastmod>{$lastmod}</lastmod><priority>0.90</priority></url>\n";
+    echo "  <url><loc>{$loc}&amp;lang=es</loc><lastmod>{$lastmod}</lastmod><priority>0.90</priority></url>\n";
 }
 
 foreach ($blogPosts as $b) {

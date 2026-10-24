@@ -140,6 +140,12 @@ $lang_qs = $lang === 'es' ? '&lang=es' : '';
 $canonical = $canonical_slug
     ? SITE_URL . '/listing.php?slug=' . urlencode($canonical_slug) . $lang_qs
     : SITE_URL . '/listing.php?id=' . $listing['id'] . $lang_qs;
+// English/Spanish versions of this page, announced to Google via hreflang
+$alt_base = $canonical_slug
+    ? SITE_URL . '/listing.php?slug=' . urlencode($canonical_slug)
+    : SITE_URL . '/listing.php?id=' . $listing['id'];
+$alt_en = $alt_base;
+$alt_es = $alt_base . '&lang=es';
 
 $title_en    = $name . ' — Trusted Panama Stays';
 $title_es    = $name . ' — Trusted Panama Stays';
@@ -211,7 +217,10 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     <title><?= h($page_title) ?></title>
     <meta name="description" content="<?= h($page_desc) ?>">
     <?= $active ? '' : '<meta name="robots" content="noindex,follow">' . "\n    " ?><link rel="canonical" href="<?= h($canonical) ?>">
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <?php if ($active): ?><link rel="alternate" hreflang="en" href="<?= h($alt_en) ?>">
+    <link rel="alternate" hreflang="es" href="<?= h($alt_es) ?>">
+    <link rel="alternate" hreflang="x-default" href="<?= h($alt_en) ?>">
+    <?php endif; ?>    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <!-- Open Graph -->
     <meta property="og:title"       content="<?= h($page_title) ?>">
     <meta property="og:description" content="<?= h($page_desc) ?>">
