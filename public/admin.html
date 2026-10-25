@@ -3216,11 +3216,25 @@ async function sendTestFollowup() {
     } catch(err) { resultEl.innerHTML = `<span style="color:#ff7070;">&#10007; ${err.message}</span>`; }
 }
 
+// Checks subject and body before any send, with a message that says WHICH is
+// missing (the old single message also fired for a short test text, 2026-10-24).
+function campaignContentOk(subject, bodyHtml) {
+    if (!String(subject || '').trim()) { alert('Falta el asunto del correo.'); return false; }
+    const tmp = document.createElement('div');
+    tmp.innerHTML = bodyHtml || '';
+    const text = (tmp.textContent || '').replace(/\s+/g, ' ').trim();
+    if (text.length < 10) {
+        alert(text ? 'El texto del correo es demasiado corto (mínimo 10 caracteres).' : 'Escriba o cargue el contenido del correo primero.');
+        return false;
+    }
+    return true;
+}
+
 async function sendToSpecificEmails() {
     const subject = document.getElementById('followup-subject').value;
     const body = (document.getElementById('followup-editor')||{}).innerHTML||'';
     const resultEl = document.getElementById('specific-emails-result');
-    if (!subject || body.trim().length < 50) { alert('Escriba o cargue el contenido del correo primero.'); return; }
+    if (!campaignContentOk(subject, body)) return;
     const emails = document.getElementById('specific-emails').value
         .split(',').map(e => e.trim()).filter(e => e.includes('@'));
     if (!emails.length) { alert('Ingrese al menos un correo válido.'); return; }
@@ -3994,7 +4008,7 @@ function updateWaQueueCounter() {
 async function sendToFbTargets() {
     const subject = document.getElementById('followup-subject').value;
     const body = (document.getElementById('followup-editor')||{}).innerHTML||'';
-    if (!subject || body.trim().length < 50) { alert('Escriba o cargue el contenido del correo primero.'); return; }
+    if (!campaignContentOk(subject, body)) return;
     if (!fbConfirmedTargets.length) { alert('Primero construya y confirme una selección de destinatarios arriba.'); return; }
     if (!confirm(`¿Enviar a ${fbConfirmedTargets.length} destinatario(s) confirmado(s)?`)) return;
 
@@ -4145,7 +4159,7 @@ async function deleteCampaignContact(id) {
 async function sendToCampaignContacts() {
     const subject = document.getElementById('followup-subject').value;
     const body = (document.getElementById('followup-editor')||{}).innerHTML||'';
-    if (!subject || body.trim().length < 50) { alert('Escriba o cargue el contenido del correo primero.'); return; }
+    if (!campaignContentOk(subject, body)) return;
     const selected = _selectedCampaignContacts();
     if (!_campaignContacts.length) { alert('Agregue al menos un contacto primero.'); return; }
     if (!selected.length) { alert('No hay contactos marcados para este envío.'); return; }
