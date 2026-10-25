@@ -5085,33 +5085,39 @@ app.post('/api/admin/atp-diff/confirm-match', requireAdmin, async (req, res) => 
 // Only called on-demand from the admin panel, never from the automated
 // daily checkForPdfUpdate flow — keeps this slow, external-API-dependent
 // step fully decoupled from the resource-sensitive cron path.
-async function analyzeDroppedListing(dropped, candidateNames) {
+async function analyzeDroppedListing(dropped, candidates) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured on the server');
 
-    const candidatesText = candidateNames.length
-        ? `Also, these NEW businesses appeared in the same updated ATP report (same source, same update cycle):\n${candidateNames.map(n => `- ${n}`).join('\n')}`
+    // 2026-10-25: the AI used to get only the NAMES of the new entries, so it
+    // "matched" by name and web search alone — and once named a new entry whose
+    // ATP phone differed from the old one. Now it gets every new entry's full
+    // ATP data and must base a "renamed" verdict on that data.
+    const line = c => `- ${c.name} | province: ${c.province || '?'} | phone: ${c.phone || 'none'} | email: ${c.email || 'none'} | type: ${c.rental_type || '?'}`;
+    const candidatesText = candidates.length
+        ? `These NEW businesses appeared in the same updated ATP report (official ATP data):\n${candidates.map(line).join('\n')}`
         : 'No new businesses appeared in this report update.';
 
     const prompt = `A short-term rental / hotel business registered with Panama's ATP (Autoridad de Turismo de Panamá) tourism registry no longer appears in the latest official ATP report.
 
-Business details:
+Dropped business (official ATP data):
 - Name: ${dropped.name}
 - Province: ${dropped.province}
 - Phone: ${dropped.phone || 'unknown'}
+- Email: ${dropped.email || 'unknown'}
 - Type: ${dropped.rental_type || 'unknown'}
 
 ${candidatesText}
 
-Please research and determine ONE of the following:
-1. This business likely renamed/rebranded and is one of the NEW businesses listed above — say which one and why.
-2. This business likely closed, stopped operating, or did not renew its ATP registration — say what evidence supports this.
-3. Unclear — not enough information available.
+Determine ONE of the following:
+1. renamed — the dropped business IS one of the new entries above. Only choose this if the ATP data supports it: the same phone number or the same email address in the ATP data of both entries, or a near-identical name in the same province that web sources clearly tie to BOTH ATP phone numbers or emails. A matching phone found only on the web for the OLD entry is not enough if the NEW entry's ATP phone and email are different.
+2. closed — it likely closed, stopped operating, or did not renew its ATP registration — say what evidence supports this.
+3. unclear — not enough information, or the evidence conflicts (for example similar name but different phone and email).
 
 Respond in exactly this format:
 VERDICT: renamed|closed|unclear
-MATCH: <exact name from the new list above, or "none">
-EXPLANATION: <2-3 sentences, mention what you found>`;
+MATCH: <the exact full name of the new entry as written in the list above, or "none">
+EXPLANATION: <2-4 sentences: state the phone and email of BOTH entries as they appear in the ATP data, whether they match, and what you found on the web>`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -5122,7 +5128,7 @@ EXPLANATION: <2-3 sentences, mention what you found>`;
         },
         body: JSON.stringify({
             model: 'claude-sonnet-5',
-            max_tokens: 500,
+            max_tokens: 1500,
             messages: [{ role: 'user', content: prompt }],
             tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }]
         })
@@ -5137,9 +5143,16 @@ EXPLANATION: <2-3 sentences, mention what you found>`;
     const matchM       = text.match(/MATCH:\s*(.+)/i);
     const explanationM = text.match(/EXPLANATION:\s*([\s\S]+)/i);
 
+    let verdict   = verdictM ? verdictM[1].toLowerCase() : 'unclear';
+    let matchName = (matchM && matchM[1].trim().toLowerCase() !== 'none') ? matchM[1].trim() : null;
+    // The match must be one of the real new entries — never a truncated or invented name
+    if (matchName && !candidates.some(c => c.name.trim().toLowerCase() === matchName.toLowerCase())) {
+        matchName = null;
+        if (verdict === 'renamed') verdict = 'unclear';
+    }
     return {
-        verdict:     verdictM ? verdictM[1].toLowerCase() : 'unclear',
-        matchName:   (matchM && matchM[1].trim().toLowerCase() !== 'none') ? matchM[1].trim() : null,
+        verdict,
+        matchName,
         explanation: explanationM ? explanationM[1].trim() : text.trim()
     };
 }
@@ -5155,8 +5168,8 @@ app.post('/api/admin/atp-diff/analyze-dropped', requireAdmin, async (req, res) =
                       || diff.toFlagMembers.find(x => x.id === droppedId && !x.matched);
         if (!dropped) return res.status(400).json({ error: 'Listing not found in pending diff' });
 
-        const candidateNames = (diff.toInsert || []).filter(x => !x.matched).map(x => x.name);
-        const analysis = await analyzeDroppedListing(dropped, candidateNames);
+        const candidates = (diff.toInsert || []).filter(x => !x.matched);
+        const analysis = await analyzeDroppedListing(dropped, candidates);
         res.json(analysis);
     } catch (err) {
         res.status(500).json({ error: err.message });
