@@ -4022,7 +4022,12 @@ app.post('/api/admin/send-followup-test', requireAdmin, async (req, res) => {
 
     const sender = resolveSender(from);
     const testSubject = subject.includes('{id}') ? subject.split('{id}').join('99999') : subject;
-    const fullHtml = buildFollowupHtml('HOTEL EJEMPLO', 'Juan García', body);
+    // {url} is filled per recipient in real sends; the test shows a real
+    // example page so the link can be checked (it stayed literal before, 2026-10-24)
+    const testBody = body.includes('{url}')
+        ? body.split('{url}').join('https://trustedpanamastays.com/listing.php?slug=aparthotel-boquete&lang=es')
+        : body;
+    const fullHtml = buildFollowupHtml('HOTEL EJEMPLO', 'Juan García', testBody);
     const notifyPath = path.join(__dirname, 'public', 'notify.php');
     // Unique stamp per test (2026-10-02): identical "[TEST] subject" lines made
     // mail clients group every test into one conversation and show an older
@@ -4460,8 +4465,17 @@ const CAMPAIGN_RUNNING = new Set();
 
 async function notifyAdmin(subject, html) {
     const notifyPath = path.join(__dirname, 'public', 'notify.php');
-    await execFileAsync('php', [notifyPath, subject, html, 'info@trustedpanamastays.com'], { timeout: 15000 })
-        .catch(err => console.error('Admin notify failed:', err.message));
+    // Result is written to event_log (2026-10-24: a "Campaign complete" report
+    // never arrived and there was no trace of whether it was sent or failed).
+    try {
+        const { stdout, stderr } = await execFileAsync('php', [notifyPath, subject, html, 'info@trustedpanamastays.com'], { timeout: 30000 });
+        const out = String(stdout || stderr || '').substring(0, 500);
+        // notify.php exits normally even when sending fails; it prints {"error": ...}
+        await logEvent(out.includes('"success":true') ? 'admin_notify_sent' : 'admin_notify_failed', { subject, bytes: html.length, output: out });
+    } catch (err) {
+        console.error('Admin notify failed:', err.message);
+        await logEvent('admin_notify_failed', { subject, bytes: html.length, error: String(err.message || err).substring(0, 500) }).catch(() => {});
+    }
 }
 
 async function sendToRosterList(targets, subject, body, from, targetDescription) {
