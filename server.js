@@ -45,30 +45,31 @@ async function execFileAsync(cmd, args, opts) {
 }
 
 // One-time check at startup, written to event_log as 'php_diagnostic'.
-// 2026-10-24: child processes returned NO output at all (not even `echo`),
-// so this records exit status / signal / error of several commands directly.
+// 2026-10-25: php -v works with spawnSync, but `php notify.php` via the async
+// execFile returns no output at all. This compares async vs sync child
+// processes and runs notify.php once (test mail to info@aparthotel-boquete.com)
+// with PHP errors shown, recording exit code, stdout and stderr.
 setTimeout(async () => {
     const { spawnSync } = require('child_process');
-    const run = (cmd, args) => {
-        try {
-            const r = spawnSync(cmd, args, { timeout: 10000, encoding: 'utf8' });
-            return { cmd: [cmd, ...args].join(' '), status: r.status, signal: r.signal,
-                     error: r.error ? String(r.error.message || r.error) : null,
-                     stdout: String(r.stdout || '').substring(0, 300), stderr: String(r.stderr || '').substring(0, 300) };
-        } catch (e) { return { cmd, thrown: String(e.message || e) }; }
-    };
-    const info = {
-        php_bin: PHP_BIN, node: process.version, execPath: process.execPath, cwd: process.cwd(),
-        uid: typeof process.getuid === 'function' ? process.getuid() : null,
-        path_env: String(process.env.PATH || '').substring(0, 400),
-        checks: [
-            run('/bin/sh', ['-c', 'echo hello']),
-            run('echo', ['hello']),
-            run(PHP_BIN, ['-v']),
-            run('/usr/bin/php', ['-v']),
-            run('/bin/sh', ['-c', 'ls -la /usr/bin/php* /usr/local/bin/php* /opt/alt/php*/usr/bin/php 2>&1 | head -20']),
-        ]
-    };
+    const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    const short = v => String(v || '').substring(0, 600);
+    const info = { php_bin: PHP_BIN, dirname: __dirname, notify_exists: fs.existsSync(notifyPath) };
+    for (const f of ['/home/u945180857/secure_beds24_tokens/env_loader.php',
+                     '/home/u945180857/secure_beds24_tokens/.env',
+                     '/home/u945180857/domains/aparthotel-boquete.com/public_html/PHPMailer-master/src/PHPMailer.php',
+                     path.join(__dirname, 'public', 'includes', 'mailer.php')]) {
+        info['exists ' + f] = fs.existsSync(f);
+    }
+    try { const r = await _execFileAsync('echo', ['async-hello']); info.async_echo = { stdout: short(r.stdout), stderr: short(r.stderr) }; }
+    catch (e) { info.async_echo = { error: short(e.message) }; }
+    try { const r = await _execFileAsync(PHP_BIN, ['-r', 'echo "async-php-ok";']); info.async_php = { stdout: short(r.stdout), stderr: short(r.stderr) }; }
+    catch (e) { info.async_php = { error: short(e.message) }; }
+    try {
+        const r = spawnSync(PHP_BIN, ['-d', 'display_errors=1', '-d', 'error_reporting=E_ALL', notifyPath,
+            'TPS diagnostic (sync)', '<p>Diagnostic test mail from the TPS server startup check.</p>', 'info@aparthotel-boquete.com'],
+            { timeout: 30000, encoding: 'utf8' });
+        info.sync_notify = { status: r.status, signal: r.signal, error: r.error ? short(r.error.message) : null, stdout: short(r.stdout), stderr: short(r.stderr) };
+    } catch (e) { info.sync_notify = { thrown: short(e.message) }; }
     try { await logEvent('php_diagnostic', info); } catch (e) { console.error('diagnostic log failed', e.message); }
 }, 5000);
 const multer = require('multer');
