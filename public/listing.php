@@ -302,11 +302,11 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
 
 <header>
     <div>
-        <h1>Trusted Panama Stays</h1>
+        <h1><a href="<?= $lang === 'es' ? 'index.php?lang=es' : 'index.php' ?>" style="color:inherit;text-decoration:none;">Trusted Panama Stays</a></h1>
         <p style="font-size:0.8rem;opacity:0.85;"><?= $lang === 'es' ? 'Hospedajes verificados en Panamá' : 'Verified accommodations in Panama' ?></p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
-        <a href="#" onclick="history.back(); return false;" class="back-link">← <?= $lang === 'es' ? 'Volver' : 'Back' ?></a>
+        <a href="<?= $lang === 'es' ? 'index.php?lang=es' : 'index.php' ?>" class="back-link">🏠 <?= $lang === 'es' ? 'Directorio' : 'Directory' ?></a>
         <?php
         $other_lang = $lang === 'es' ? 'en' : 'es';
         $lang_url   = $slug_val

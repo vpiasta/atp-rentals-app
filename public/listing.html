@@ -198,7 +198,7 @@
                 <path d="M54,138 L98,246 L218,26" fill="none" stroke="#FFD700" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <div>
-                <h1>Trusted Panama Stays</h1>
+                <h1><a href="index.php" onclick="this.href = isEs ? 'index.php?lang=es' : 'index.php';" style="color:inherit;text-decoration:none;">Trusted Panama Stays</a></h1>
                 <p id="header-subtitle">Verified ATP-Registered Accommodation</p>
             </div>
         </div>
@@ -284,7 +284,7 @@ let customLinks  = [];
 let hasUnsavedChanges = false;
 
 const T = {
-    back:          isEs ? '← Volver'                  : '← Back',
+    back:          isEs ? '🏠 Directorio'             : '🏠 Directory',
     subtitle:      isEs ? 'Alojamiento verificado ATP' : 'Verified ATP-Registered Accommodation',
     phone:         isEs ? 'Teléfono'    : 'Phone',
     email:         isEs ? 'Correo'      : 'Email',
@@ -344,7 +344,10 @@ const T = {
 };
 
 document.getElementById('back-link').textContent       = T.back;
-document.getElementById('back-link').href = document.referrer || (isEs ? 'index.php?lang=es' : 'index.php');
+// Always to the directory — a visitor may arrive from an owner's website
+// (verification badge), where "back" would leave TPS. The browser's own
+// Back button still covers returning to the previous page.
+document.getElementById('back-link').href = isEs ? 'index.php?lang=es' : 'index.php';
 document.getElementById('header-subtitle').textContent = T.subtitle;
 document.getElementById('footer-text').innerHTML       = T.footer;
 document.getElementById('modal-title').textContent     = T.modalTitle;
