@@ -44,15 +44,32 @@ async function execFileAsync(cmd, args, opts) {
     return r;
 }
 
-// One-time PHP check at startup, written to event_log as 'php_diagnostic'
+// One-time check at startup, written to event_log as 'php_diagnostic'.
+// 2026-10-24: child processes returned NO output at all (not even `echo`),
+// so this records exit status / signal / error of several commands directly.
 setTimeout(async () => {
-    try {
-        const sh = `command -v ${PHP_BIN}; ${PHP_BIN} -v 2>&1 | head -1; ${PHP_BIN} -r 'echo "sapi=".php_sapi_name();' 2>&1; echo; echo "PATH=$PATH"`;
-        const { stdout, stderr } = await _execFileAsync('sh', ['-c', sh], { timeout: 15000 });
-        await logEvent('php_diagnostic', { php_bin: PHP_BIN, output: String(stdout || '').substring(0, 1500), stderr: String(stderr || '').substring(0, 500) });
-    } catch (e) {
-        try { await logEvent('php_diagnostic', { php_bin: PHP_BIN, error: String(e.message || e).substring(0, 1000) }); } catch (_) {}
-    }
+    const { spawnSync } = require('child_process');
+    const run = (cmd, args) => {
+        try {
+            const r = spawnSync(cmd, args, { timeout: 10000, encoding: 'utf8' });
+            return { cmd: [cmd, ...args].join(' '), status: r.status, signal: r.signal,
+                     error: r.error ? String(r.error.message || r.error) : null,
+                     stdout: String(r.stdout || '').substring(0, 300), stderr: String(r.stderr || '').substring(0, 300) };
+        } catch (e) { return { cmd, thrown: String(e.message || e) }; }
+    };
+    const info = {
+        php_bin: PHP_BIN, node: process.version, execPath: process.execPath, cwd: process.cwd(),
+        uid: typeof process.getuid === 'function' ? process.getuid() : null,
+        path_env: String(process.env.PATH || '').substring(0, 400),
+        checks: [
+            run('/bin/sh', ['-c', 'echo hello']),
+            run('echo', ['hello']),
+            run(PHP_BIN, ['-v']),
+            run('/usr/bin/php', ['-v']),
+            run('/bin/sh', ['-c', 'ls -la /usr/bin/php* /usr/local/bin/php* /opt/alt/php*/usr/bin/php 2>&1 | head -20']),
+        ]
+    };
+    try { await logEvent('php_diagnostic', info); } catch (e) { console.error('diagnostic log failed', e.message); }
 }, 5000);
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
