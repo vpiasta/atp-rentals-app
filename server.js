@@ -24,7 +24,36 @@ const PDFJS_STANDARD_FONTS_URL = path.join(
 const { supabase, supabaseAdmin } = require('./db');   // <-- Supabase client
 const { execFile } = require('child_process');
 const { promisify } = require('util');
-const execFileAsync = promisify(execFile);
+const _execFileAsync = promisify(execFile);
+// PHP binary for notify.php; PHP_BIN env var overrides (2026-10-24 diagnosis)
+const PHP_BIN = process.env.PHP_BIN || 'php';
+// Every e-mail goes through `php notify.php …`. notify.php exits normally even
+// when nothing was sent (it prints {"error":…}, or prints nothing at all if PHP
+// itself misbehaves) — so a send only counts as done when it prints
+// {"success":true}. Before 2026-10-24 any normal exit counted as "sent", and a
+// campaign was reported 1124/1124 sent while mail had silently stopped.
+async function execFileAsync(cmd, args, opts) {
+    const isPhp = cmd === 'php';
+    const r = await _execFileAsync(isPhp ? PHP_BIN : cmd, args, opts);
+    if (isPhp && Array.isArray(args) && /notify\.php$/.test(String(args[0] || ''))) {
+        const out = String(r.stdout || '');
+        if (!out.includes('"success":true')) {
+            throw new Error('notify.php did not confirm sending: ' + (out || String(r.stderr || '') || '(no output)').substring(0, 300));
+        }
+    }
+    return r;
+}
+
+// One-time PHP check at startup, written to event_log as 'php_diagnostic'
+setTimeout(async () => {
+    try {
+        const sh = `command -v ${PHP_BIN}; ${PHP_BIN} -v 2>&1 | head -1; ${PHP_BIN} -r 'echo "sapi=".php_sapi_name();' 2>&1; echo; echo "PATH=$PATH"`;
+        const { stdout, stderr } = await _execFileAsync('sh', ['-c', sh], { timeout: 15000 });
+        await logEvent('php_diagnostic', { php_bin: PHP_BIN, output: String(stdout || '').substring(0, 1500), stderr: String(stderr || '').substring(0, 500) });
+    } catch (e) {
+        try { await logEvent('php_diagnostic', { php_bin: PHP_BIN, error: String(e.message || e).substring(0, 1000) }); } catch (_) {}
+    }
+}, 5000);
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -4560,7 +4589,8 @@ async function processCampaign(campaignId) {
             .eq('campaign_id', campaignId).eq('status', 'sending');
 
         let firstSent = null;
-        while (true) {
+        let consecutiveErrors = 0, stopNow = false;
+        while (!stopNow) {
             const { data: batch, error } = await supabaseAdmin.from('campaign_recipients')
                 .select('id, email, member')
                 .eq('campaign_id', campaignId).eq('status', 'pending')
@@ -4583,10 +4613,14 @@ async function processCampaign(campaignId) {
                         .or(`email.ilike.%${r.email}%,email_member.ilike.%${r.email}%`)
                         .eq('apatel_member', true);
                     await logEvent('followup_sent', { hotel: member.hotel, email: r.email, listing_id: member.id || null, campaign_id: campaignId });
+                    consecutiveErrors = 0;
                 } catch (err) {
                     console.error(`Campaign ${campaignId}: failed for ${r.email}:`, err.message);
                     await supabaseAdmin.from('campaign_recipients')
                         .update({ status: 'error', error: String(err.message).substring(0, 300) }).eq('id', r.id);
+                    // 5 failures in a row = the mail system is down, not a bad
+                    // address: stop, keep the rest 'pending' so it can be resumed
+                    if (++consecutiveErrors >= 5) { stopNow = true; break; }
                 }
                 await new Promise(res => setTimeout(res, 600));
             }
@@ -4599,6 +4633,15 @@ async function processCampaign(campaignId) {
 
         const sent   = await countRecipients(campaignId, 'sent');
         const errors = await countRecipients(campaignId, 'error');
+        if (stopNow) {
+            await supabaseAdmin.from('campaigns').update({
+                sent_count: sent, error_count: errors, status: 'stopped', finished_at: new Date().toISOString()
+            }).eq('id', campaignId);
+            await logEvent('campaign_stopped', { campaign_id: campaignId, sent, errors, reason: '5 consecutive send failures' });
+            await notifyAdmin(`⚠️ Campaña DETENIDA: ${sent}/${campaign.recipient_count} enviados, ${errors} errores — ${String(campaign.target_description || '').substring(0, 80)}`,
+                `<p>La campaña se detuvo tras 5 errores seguidos de envío (el sistema de correo no confirmó los envíos). Los destinatarios restantes siguen pendientes.</p>`);
+            return;
+        }
         await supabaseAdmin.from('campaigns').update({
             sent_count: sent, error_count: errors, status: 'completed', finished_at: new Date().toISOString()
         }).eq('id', campaignId);
