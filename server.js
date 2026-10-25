@@ -4524,6 +4524,24 @@ async function resolveListingUrl(member) {
 // "sending".)
 const CAMPAIGN_RUNNING = new Set();
 
+// ── Daily cap (2026-10-25) ──────────────────────────────────────────────────
+// Brevo's free plan delivers 300 e-mails a day and QUEUES the rest. With a big
+// campaign in that queue, every other e-mail (trial reminders, approvals,
+// passwords, tests) also waited days. So campaigns send at most
+// CAMPAIGN_DAILY_CAP e-mails per 24 hours (rolling window — independent of
+// when Brevo's own day resets), leaving room for system e-mails. A campaign
+// that reaches the cap is set to 'paused'; an hourly check continues it once
+// the last 24 hours have room again. A report is sent after every batch.
+const CAMPAIGN_DAILY_CAP = parseInt(process.env.CAMPAIGN_DAILY_CAP || '250', 10);
+
+async function campaignEmailsSentLast24h() {
+    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const { count } = await supabaseAdmin.from('campaign_recipients')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'sent').gte('sent_at', since);
+    return count || 0;
+}
+
 async function notifyAdmin(subject, html) {
     const notifyPath = path.join(__dirname, 'public', 'notify.php');
     // Result is written to event_log (2026-10-24: a "Campaign complete" report
@@ -4613,24 +4631,39 @@ async function processCampaign(campaignId) {
         const { data: campaign } = await supabaseAdmin.from('campaigns')
             .select('id, subject, body_html, from_email, status, recipient_count, target_description')
             .eq('id', campaignId).single();
-        if (!campaign || campaign.status !== 'sending') return;
+        if (!campaign || (campaign.status !== 'sending' && campaign.status !== 'paused')) return;
         const sender = resolveSender(campaign.from_email);
+
+        // Daily cap: nothing left for today → stay paused, no report
+        let sentLast24h = await campaignEmailsSentLast24h();
+        if (sentLast24h >= CAMPAIGN_DAILY_CAP) {
+            if (campaign.status !== 'paused') {
+                await supabaseAdmin.from('campaigns').update({ status: 'paused' }).eq('id', campaignId);
+            }
+            return;
+        }
+        if (campaign.status === 'paused') {
+            await supabaseAdmin.from('campaigns').update({ status: 'sending' }).eq('id', campaignId);
+        }
 
         // A recipient left in 'sending' was interrupted mid-send → try again
         await supabaseAdmin.from('campaign_recipients').update({ status: 'pending' })
             .eq('campaign_id', campaignId).eq('status', 'sending');
 
         let firstSent = null;
-        let consecutiveErrors = 0, stopNow = false;
-        while (!stopNow) {
+        let consecutiveErrors = 0, stopNow = false, capReached = false, sentThisRun = 0;
+        while (!stopNow && !capReached) {
             const { data: batch, error } = await supabaseAdmin.from('campaign_recipients')
                 .select('id, email, member')
                 .eq('campaign_id', campaignId).eq('status', 'pending')
                 .order('id', { ascending: true }).limit(50);
             if (error) throw new Error(error.message);
             if (!batch || !batch.length) break;
+            // recount per batch of 50, in case another campaign is sending at the same time
+            sentLast24h = await campaignEmailsSentLast24h();
 
             for (const r of batch) {
+                if (sentLast24h >= CAMPAIGN_DAILY_CAP) { capReached = true; break; }
                 const member = { ...(r.member || {}), email: r.email };
                 await supabaseAdmin.from('campaign_recipients')
                     .update({ status: 'sending', attempted_at: new Date().toISOString() }).eq('id', r.id);
@@ -4640,6 +4673,7 @@ async function processCampaign(campaignId) {
                     await supabaseAdmin.from('campaign_recipients')
                         .update({ status: 'sent', sent_at: new Date().toISOString(), error: null }).eq('id', r.id);
                     if (!firstSent) firstSent = { ...mail, to: r.email };
+                    sentLast24h++; sentThisRun++;
                     await supabaseAdmin.from('listings')
                         .update({ apatel_contacted_at: new Date().toISOString() })
                         .or(`email.ilike.%${r.email}%,email_member.ilike.%${r.email}%`)
@@ -4665,6 +4699,23 @@ async function processCampaign(campaignId) {
 
         const sent   = await countRecipients(campaignId, 'sent');
         const errors = await countRecipients(campaignId, 'error');
+        if (capReached && !stopNow) {
+            const pending = await countRecipients(campaignId, 'pending');
+            await supabaseAdmin.from('campaigns').update({
+                sent_count: sent, error_count: errors, status: 'paused'
+            }).eq('id', campaignId);
+            await logEvent('campaign_paused_daily_cap', { campaign_id: campaignId, sent_this_run: sentThisRun, sent, pending, cap: CAMPAIGN_DAILY_CAP });
+            if (sentThisRun > 0) {
+                const audience = String(campaign.target_description || '').substring(0, 80);
+                const sample = firstSent
+                    ? `<hr style="margin:1.5rem 0;"><p style="color:#666;font-size:0.85rem;">Copia real enviada a ${firstSent.to} (asunto: "${firstSent.subject}"):</p><div style="border:1px solid #ddd;border-radius:8px;padding:1rem;">${firstSent.html}</div>`
+                    : '';
+                await notifyAdmin(`Lote enviado: ${sentThisRun} hoy, ${sent}/${campaign.recipient_count} en total — continúa mañana — ${audience || 'Trusted Panama Stays'}`,
+                    `<p>Lote del día enviado: <strong>${sentThisRun}</strong> correos. En total <strong>${sent}</strong> de ${campaign.recipient_count} enviados, ${errors} errores, <strong>${pending}</strong> pendientes.</p>` +
+                    `<p>Límite: ${CAMPAIGN_DAILY_CAP} correos de campaña cada 24 horas (Brevo gratis: 300/día; el resto queda libre para correos del sistema). El envío continúa automáticamente.</p>` + sample);
+            }
+            return;
+        }
         if (stopNow) {
             await supabaseAdmin.from('campaigns').update({
                 sent_count: sent, error_count: errors, status: 'stopped', finished_at: new Date().toISOString()
@@ -4708,7 +4759,7 @@ async function processCampaign(campaignId) {
 async function resumeInterruptedCampaigns() {
     try {
         const { data: open } = await supabaseAdmin.from('campaigns')
-            .select('id').eq('channel', 'email').eq('status', 'sending');
+            .select('id').eq('channel', 'email').in('status', ['sending', 'paused']);
         for (const c of open || []) {
             const { count } = await supabaseAdmin.from('campaign_recipients')
                 .select('id', { count: 'exact', head: true }).eq('campaign_id', c.id);
@@ -4718,7 +4769,7 @@ async function resumeInterruptedCampaigns() {
                 continue;
             }
             console.log(`Resuming interrupted campaign ${c.id}`);
-            processCampaign(c.id); // runs in background, one campaign after the other is fine
+            await processCampaign(c.id); // one after the other, so the daily cap is shared correctly
         }
     } catch (err) {
         console.error('Campaign resume check failed:', err.message);
@@ -7791,6 +7842,8 @@ server.listen(PORT, () => {
     // Continue any email campaign that a restart interrupted (after the
     // startup load has settled)
     setTimeout(resumeInterruptedCampaigns, 60 * 1000);
+    // continues campaigns paused by the daily cap once the 24 h window has room
+    setInterval(resumeInterruptedCampaigns, 60 * 60 * 1000);
     console.log(`📍 Main page: http://localhost:${PORT}`);
     console.log(`📍 Health:    http://localhost:${PORT}/health`);
 });

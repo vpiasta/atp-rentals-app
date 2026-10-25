@@ -3928,7 +3928,7 @@ async function loadCampaignHistory() {
 function renderCampaignHistory(rows) {
     const list = document.getElementById('campaign-history-list');
     if (!rows.length) { list.innerHTML = '<p style="color:#aaa;">Aún no hay campañas registradas.</p>'; return; }
-    const statusLabels = { sending: '⏳ Enviando', completed: '✅ Completada', queued: '📋 En cola (envío manual)', stopped: '⛔ Detenida (errores de envío)' };
+    const statusLabels = { sending: '⏳ Enviando', completed: '✅ Completada', queued: '📋 En cola (envío manual)', stopped: '⛔ Detenida (errores de envío)', paused: '⏸ En pausa — continúa en 24 h (límite diario)' };
     list.innerHTML = rows.map((c, i) => {
         const date = fmtDateTime(c.created_at);
         const channelBadge = c.channel === 'whatsapp'
