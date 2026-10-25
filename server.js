@@ -24,17 +24,52 @@ const PDFJS_STANDARD_FONTS_URL = path.join(
 const { supabase, supabaseAdmin } = require('./db');   // <-- Supabase client
 const { execFile } = require('child_process');
 const { promisify } = require('util');
-const _execFileAsync = promisify(execFile);
-// PHP binary for notify.php; PHP_BIN env var overrides (2026-10-24 diagnosis)
+// PHP binary for notify.php; PHP_BIN env var overrides
 const PHP_BIN = process.env.PHP_BIN || 'php';
+
+// ── Running external programs (php notify.php, php fetch scripts, …) ────────
+// 2026-10-25: on Hostinger's new Node runtime (hbuilds, Node 22.23) the normal
+// asynchronous execFile() returns NO output at all — even `echo` comes back
+// empty — and mail stopped going out, while spawnSync() works perfectly. So each
+// call runs spawnSync inside a short-lived worker thread: it works like
+// spawnSync, but doesn't freeze the web server while PHP sends an e-mail.
+const { Worker } = require('worker_threads');
+const CHILD_WORKER_SRC = `
+const { parentPort, workerData } = require('worker_threads');
+const { spawnSync } = require('child_process');
+const r = spawnSync(workerData.cmd, workerData.args, {
+    timeout: workerData.timeout, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
+parentPort.postMessage({ status: r.status, signal: r.signal,
+    error: r.error ? String(r.error.message || r.error) : null,
+    stdout: r.stdout || '', stderr: r.stderr || '' });
+`;
+function runChild(cmd, args, opts = {}) {
+    return new Promise((resolve, reject) => {
+        const timeout = opts.timeout || 60000;
+        const w = new Worker(CHILD_WORKER_SRC, { eval: true, workerData: { cmd, args: args || [], timeout } });
+        let done = false;
+        w.once('message', r => {
+            done = true;
+            if (r.error || r.signal || r.status !== 0) {
+                const e = new Error(`Command failed: ${cmd} ${String((args || [])[0] || '')} — ` +
+                    (r.error || (r.signal ? 'signal ' + r.signal : 'exit ' + r.status)) +
+                    (r.stderr ? ' — ' + String(r.stderr).substring(0, 300) : ''));
+                e.code = r.status; e.signal = r.signal; e.stdout = r.stdout; e.stderr = r.stderr;
+                return reject(e);
+            }
+            resolve({ stdout: r.stdout, stderr: r.stderr });
+        });
+        w.once('error', err => { if (!done) { done = true; reject(err); } });
+        w.once('exit', code => { if (!done) { done = true; reject(new Error('child worker exited ' + code)); } });
+    });
+}
+
 // Every e-mail goes through `php notify.php …`. notify.php exits normally even
-// when nothing was sent (it prints {"error":…}, or prints nothing at all if PHP
-// itself misbehaves) — so a send only counts as done when it prints
-// {"success":true}. Before 2026-10-24 any normal exit counted as "sent", and a
-// campaign was reported 1124/1124 sent while mail had silently stopped.
+// when nothing was sent (it prints {"error":…}), so a send only counts as done
+// when it prints {"success":true}.
 async function execFileAsync(cmd, args, opts) {
     const isPhp = cmd === 'php';
-    const r = await _execFileAsync(isPhp ? PHP_BIN : cmd, args, opts);
+    const r = await runChild(isPhp ? PHP_BIN : cmd, args, opts);
     if (isPhp && Array.isArray(args) && /notify\.php$/.test(String(args[0] || ''))) {
         const out = String(r.stdout || '');
         if (!out.includes('"success":true')) {
@@ -44,32 +79,11 @@ async function execFileAsync(cmd, args, opts) {
     return r;
 }
 
-// One-time check at startup, written to event_log as 'php_diagnostic'.
-// 2026-10-25: php -v works with spawnSync, but `php notify.php` via the async
-// execFile returns no output at all. This compares async vs sync child
-// processes and runs notify.php once (test mail to info@aparthotel-boquete.com)
-// with PHP errors shown, recording exit code, stdout and stderr.
+// Startup self-test of the above (no e-mail sent), logged as 'php_diagnostic'
 setTimeout(async () => {
-    const { spawnSync } = require('child_process');
-    const notifyPath = path.join(__dirname, 'public', 'notify.php');
-    const short = v => String(v || '').substring(0, 600);
-    const info = { php_bin: PHP_BIN, dirname: __dirname, notify_exists: fs.existsSync(notifyPath) };
-    for (const f of ['/home/u945180857/secure_beds24_tokens/env_loader.php',
-                     '/home/u945180857/secure_beds24_tokens/.env',
-                     '/home/u945180857/domains/aparthotel-boquete.com/public_html/PHPMailer-master/src/PHPMailer.php',
-                     path.join(__dirname, 'public', 'includes', 'mailer.php')]) {
-        info['exists ' + f] = fs.existsSync(f);
-    }
-    try { const r = await _execFileAsync('echo', ['async-hello']); info.async_echo = { stdout: short(r.stdout), stderr: short(r.stderr) }; }
-    catch (e) { info.async_echo = { error: short(e.message) }; }
-    try { const r = await _execFileAsync(PHP_BIN, ['-r', 'echo "async-php-ok";']); info.async_php = { stdout: short(r.stdout), stderr: short(r.stderr) }; }
-    catch (e) { info.async_php = { error: short(e.message) }; }
-    try {
-        const r = spawnSync(PHP_BIN, ['-d', 'display_errors=1', '-d', 'error_reporting=E_ALL', notifyPath,
-            'TPS diagnostic (sync)', '<p>Diagnostic test mail from the TPS server startup check.</p>', 'info@aparthotel-boquete.com'],
-            { timeout: 30000, encoding: 'utf8' });
-        info.sync_notify = { status: r.status, signal: r.signal, error: r.error ? short(r.error.message) : null, stdout: short(r.stdout), stderr: short(r.stderr) };
-    } catch (e) { info.sync_notify = { thrown: short(e.message) }; }
+    const info = { php_bin: PHP_BIN, dirname: __dirname, node: process.version };
+    try { info.echo = (await execFileAsync('echo', ['worker-ok'])).stdout.trim(); } catch (e) { info.echo_error = String(e.message).substring(0, 300); }
+    try { info.php = (await execFileAsync(PHP_BIN, ['-r', 'echo PHP_VERSION;'])).stdout.trim(); } catch (e) { info.php_error = String(e.message).substring(0, 300); }
     try { await logEvent('php_diagnostic', info); } catch (e) { console.error('diagnostic log failed', e.message); }
 }, 5000);
 const multer = require('multer');
