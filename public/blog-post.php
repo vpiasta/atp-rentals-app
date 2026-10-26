@@ -5,6 +5,18 @@ $lang  = isset($_GET['lang']) && $_GET['lang'] === 'es' ? 'es' : 'en';
 $is_en = $lang === 'en';
 $slug  = isset($_GET['slug']) ? trim($_GET['slug']) : '';
 require_once __DIR__ . '/includes/supabase-config.php';
+
+// Dates in the reader's language (same approach as format_blog_date() in blog.php: done by hand,
+// because setlocale() can silently do nothing on shared hosting). $short = "26 Oct 2026" / "26 oct 2026".
+function post_date($isoDate, $lang, $short = false) {
+    $ts = $isoDate ? strtotime($isoDate) : false;
+    if (!$ts) return '';
+    $en = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    $es = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    $d = (int)date('j', $ts); $m = (int)date('n', $ts) - 1; $y = date('Y', $ts);
+    if ($short) return $d . ' ' . ($lang === 'es' ? mb_substr($es[$m], 0, 3) : substr($en[$m], 0, 3)) . ' ' . $y;
+    return $lang === 'es' ? "$d de {$es[$m]} de $y" : "{$en[$m]} $d, $y";
+}
 // ── Preview mode: a random one-time token, minted by ──
 // /api/admin/blog/:id/preview-link and stored in the blog_preview_tokens
 // table. Checked here by querying Supabase directly (same pattern this
@@ -192,7 +204,7 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
         <div class="post-header">
             <?php if ($category): ?><span class="cat"><?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
             <h1><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></h1>
-            <?php if ($published): ?><div class="meta"><?= date('F j, Y', strtotime($published)) ?></div><?php endif; ?>
+            <?php if ($published): ?><div class="meta"><?= post_date($published, $lang) ?></div><?php endif; ?>
         </div>
         <?php if ($image): ?><img class="post-image" src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>"><?php endif; ?>
         <div class="post-body"><?= $bodyHtml ?></div>
@@ -211,11 +223,11 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
             <?php endif; ?>
             <?php foreach ($topLevelComments as $c): ?>
                 <div class="comment" id="comment-<?= htmlspecialchars($c['id'], ENT_QUOTES, 'UTF-8') ?>">
-                    <div class="c-meta"><span class="c-name"><?= htmlspecialchars($c['author_name'], ENT_QUOTES, 'UTF-8') ?></span> <span class="c-date">— <?= date('j M Y', strtotime($c['created_at'])) ?></span></div>
+                    <div class="c-meta"><span class="c-name"><?= htmlspecialchars($c['author_name'], ENT_QUOTES, 'UTF-8') ?></span> <span class="c-date">— <?= post_date($c['created_at'], $lang, true) ?></span></div>
                     <div class="c-body"><?= htmlspecialchars($c['body'], ENT_QUOTES, 'UTF-8') ?></div>
                     <?php foreach (($repliesByParent[$c['id']] ?? []) as $r): ?>
                         <div class="comment-reply">
-                            <div class="c-meta"><span class="c-name"><?= htmlspecialchars($r['author_name'], ENT_QUOTES, 'UTF-8') ?></span> <span class="c-date">— <?= date('j M Y', strtotime($r['created_at'])) ?></span></div>
+                            <div class="c-meta"><span class="c-name"><?= htmlspecialchars($r['author_name'], ENT_QUOTES, 'UTF-8') ?></span> <span class="c-date">— <?= post_date($r['created_at'], $lang, true) ?></span></div>
                             <div class="c-body"><?= htmlspecialchars($r['body'], ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                     <?php endforeach; ?>
