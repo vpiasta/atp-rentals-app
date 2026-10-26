@@ -1,0 +1,15 @@
+name: IndexNow ping
+
+on:
+  schedule:
+    - cron: '30 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Submit new or changed URLs to IndexNow
+        run: |
+          curl -s --connect-timeout 15 --max-time 60 --retry 2 --retry-delay 10 \
+            https://trustedpanamastays.com/indexnow-ping.php

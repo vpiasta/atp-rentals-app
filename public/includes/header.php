@@ -37,6 +37,7 @@ if (!isset($atp_badge_extra)) $atp_badge_extra = '';
               <a href="/about.html?lang=<?= $lang ?>" class="lang-toggle"><?= $is_en ? 'About us' : 'Quiénes somos' ?></a>
               <a href="/faq.php?lang=<?= $lang ?>" class="lang-toggle"><?= $is_en ? 'FAQ' : 'Preguntas' ?></a>
               <a href="/blog.php?lang=<?= $lang ?>" class="lang-toggle">Blog</a>
+              <a href="/tpsipedia.php<?= $lang === 'es' ? '?lang=es' : '' ?>" class="lang-toggle">TPSipedia</a>
                 <a href="<?= htmlspecialchars($lang_toggle_href, ENT_QUOTES, 'UTF-8') ?>" class="lang-toggle">
                     <?php if ($is_en): ?>
                       <svg width="20" height="14" viewBox="0 0 20 14" style="flex-shrink:0;">

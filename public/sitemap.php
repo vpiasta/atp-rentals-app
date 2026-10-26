@@ -35,6 +35,8 @@ $listings = supabase_get_all($filter);
 $blogFilter = 'blog_posts?select=slug,published_at,updated_at&status=eq.published';
 $blogPosts  = supabase_get_all($blogFilter);
 
+$tpsiPages  = supabase_get_all('tpsipedia_pages?select=slug_en,slug_es,updated_at&status=eq.published&order=sort_order.asc');
+
 echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 
@@ -68,6 +70,19 @@ foreach ($blogPosts as $b) {
     $stamp   = $b['updated_at'] ?? $b['published_at'] ?? null;
     $lastmod = $stamp ? date('Y-m-d', strtotime($stamp)) : $today;
     echo "  <url><loc>{$loc}</loc><lastmod>{$lastmod}</lastmod><priority>0.70</priority></url>\n";
+}
+
+// TPSipedia: index (EN/ES) + each question page in both languages (each language has its own slug)
+if (!empty($tpsiPages)) {
+    $tpsiLatest = max(array_map(function ($p) { return strtotime($p['updated_at']); }, $tpsiPages));
+    $tpsiIdxMod = date('Y-m-d', $tpsiLatest);
+    echo "  <url><loc>" . SITE_URL . "/tpsipedia.php</loc><lastmod>{$tpsiIdxMod}</lastmod><priority>0.85</priority></url>\n";
+    echo "  <url><loc>" . SITE_URL . "/tpsipedia.php?lang=es</loc><lastmod>{$tpsiIdxMod}</lastmod><priority>0.85</priority></url>\n";
+    foreach ($tpsiPages as $p) {
+        $lastmod = date('Y-m-d', strtotime($p['updated_at']));
+        echo "  <url><loc>" . SITE_URL . '/tpsipedia.php?slug=' . urlencode($p['slug_en']) . "</loc><lastmod>{$lastmod}</lastmod><priority>0.90</priority></url>\n";
+        echo "  <url><loc>" . SITE_URL . '/tpsipedia.php?slug=' . urlencode($p['slug_es']) . "&amp;lang=es</loc><lastmod>{$lastmod}</lastmod><priority>0.90</priority></url>\n";
+    }
 }
 
 echo '</urlset>';

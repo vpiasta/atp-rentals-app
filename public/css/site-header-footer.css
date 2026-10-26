@@ -21,7 +21,7 @@ footer a:hover { text-decoration: underline; }
     .header-logo  { width: 36px; height: 36px; }
     .header-text  { flex: 1; }
     .header-text h1 { font-size: 0.9rem; }
-    .header-right { max-width: 100%; width: 100%; justify-content: center; flex-wrap: nowrap; }
+    .header-right { max-width: 100%; width: 100%; justify-content: center; flex-wrap: wrap; }
     .atp-badge { display: block; text-align: right; flex-basis: 100%; }
 }
 
