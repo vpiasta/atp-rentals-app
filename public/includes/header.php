@@ -12,9 +12,12 @@
  * Optional:
  *   $show_atp_badge    bool (default true)
  *   $atp_badge_extra   string — extra HTML appended after the ATP link (e.g. "Updated:" date span)
+ *   $header_title_tag  'h1' (default) | 'div' — pages that have their own <h1> (blog post,
+ *                      TPSipedia) set 'div', so each page has exactly one H1 (Bing flags two).
  */
 if (!isset($show_atp_badge))  $show_atp_badge  = true;
 if (!isset($atp_badge_extra)) $atp_badge_extra = '';
+$header_title_tag = (isset($header_title_tag) && $header_title_tag === 'div') ? 'div' : 'h1';
 ?>
     <header>
         <div class="header-inner">
@@ -30,7 +33,7 @@ if (!isset($atp_badge_extra)) $atp_badge_extra = '';
                 <path d="M54,138 L98,246 L218,26" fill="none" stroke="#FFD700" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <div class="header-text">
-                <h1><?= htmlspecialchars($heading, ENT_QUOTES, 'UTF-8') ?></h1>
+                <<?= $header_title_tag ?> class="site-title"><?= htmlspecialchars($heading, ENT_QUOTES, 'UTF-8') ?></<?= $header_title_tag ?>>
                 <p><?= htmlspecialchars($subheading, ENT_QUOTES, 'UTF-8') ?></p>
             </div>
             <div class="header-right">

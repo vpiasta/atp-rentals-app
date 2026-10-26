@@ -145,10 +145,11 @@ if ($page) {
     $altEs     = tpsi_url($page['slug_es'], 'es');
     $toggle    = $is_en ? $altEs : $altEn;
 } elseif ($slug === '') {
-    $title     = $is_en ? 'TPSipedia: Panama tourist rental law, answered | Trusted Panama Stays'
-                        : 'TPSipedia: la ley de alquileres turísticos de Panamá, respondida | Trusted Panama Stays';
-    $metaDesc  = $is_en ? 'Short, sourced answers to common legal questions about Airbnb-style and tourist rentals in Panama: ATP registration, the 45-day rule, ITBMS and pending bills.'
-                        : 'Respuestas breves y con fuentes a preguntas legales frecuentes sobre alquileres turísticos tipo Airbnb en Panamá: registro ATP, regla de 45 días, ITBMS y proyectos de ley.';
+    // Bing limits: title ≤ 70 characters, meta description 25–160 characters.
+    $title     = $is_en ? 'TPSipedia: Panama tourist rental law, answered'
+                        : 'TPSipedia: ley de alquileres turísticos en Panamá';
+    $metaDesc  = $is_en ? 'Short, sourced answers on Airbnb-style and tourist rentals in Panama: ATP registration, the 45-day rule, ITBMS and pending bills.'
+                        : 'Respuestas breves y con fuentes sobre alquileres turísticos tipo Airbnb en Panamá: registro ATP, regla de 45 días, ITBMS y proyectos de ley.';
     $canonical = tpsi_url('', $lang);
     $altEn     = tpsi_url('', 'en');
     $altEs     = tpsi_url('', 'es');
@@ -313,6 +314,7 @@ $e = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
       $subheading       = $is_en ? 'Registered and verified hotels, apartments and vacation rentals in Panama' : 'Hoteles, apartamentos y alquileres vacacionales registrados y verificados en Panamá';
       $lang_toggle_href = $toggle;
       $show_atp_badge   = false;
+      $header_title_tag = 'div'; // this page has its own <h1>
       include __DIR__ . '/includes/header.php';
     ?>
 

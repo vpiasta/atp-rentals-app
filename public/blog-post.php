@@ -182,6 +182,7 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
       $previewParam     = $isPreview ? '&preview=' . urlencode($_GET['preview']) : '';
       $lang_toggle_href = 'blog-post.php?slug=' . urlencode($slug) . ($is_en ? '&lang=es' : '&lang=en') . $previewParam;
       $show_atp_badge   = false;
+      $header_title_tag = 'div'; // page has its own <h1>
       include __DIR__ . '/includes/header.php';
     ?>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
