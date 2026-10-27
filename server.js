@@ -209,6 +209,8 @@ let PDF_URL = 'PDF URL not found';
 let PDF_HEADING = 'Hospedajes Registrados - ATP';
 let PDF_STATUS = "Not loaded";
 let PDF_RENTALS = [];
+let PDF_REPORT_TOTAL = null;  // the report's own "Total de Hospedajes vigentes" line
+const ATP_TYPES = ['Albergue','Aparta-Hotel','Bungalow','Cabaña','Hostal Familiar','Hotel','Motel','Pensión','Residencial','Sitio de acampar'];
 let DATA_SOURCE = "";
 let PENDING_ATP_DIFF = null; // set when a new PDF is parsed but not yet reviewed/applied
 
@@ -386,7 +388,7 @@ async function mergeListingsWithDB(parsedRentals) {
         while (true) {
             const { data, error } = await supabaseAdmin
                 .from('listings')
-                .select('id, name, province, atp_active, is_member')
+                .select('id, name, province, rental_type, atp_active, is_member')
                 .or('registry_source.is.null,registry_source.neq.mici') // include NULL (native ATP listings) and anything not explicitly MiCI
                 .range(from, from + BATCH - 1);
             if (error) throw new Error(error.message);
@@ -407,6 +409,11 @@ async function mergeListingsWithDB(parsedRentals) {
         if (match) {
             seenIds.add(match.id);
             const updates = { atp_last_seen: nowIso };
+            // The ATP's classification is authoritative: fill a missing type and follow reclassifications
+            if (ATP_TYPES.includes(rental.rental_type) && rental.rental_type !== match.rental_type) {
+                updates.rental_type = rental.rental_type;
+                match.rental_type = rental.rental_type;
+            }
             if (!match.atp_active) updates.atp_active = true; // reappeared — clear any stale flag
             if (!match.atp_active) updates.atp_review_flagged_at = null;
             await supabaseAdmin.from('listings').update(updates).eq('id', match.id);
@@ -486,7 +493,7 @@ async function sendAtpReviewEmail(listingId, propertyName) {
 }
 
 // Update pdf_meta with the new URL
-async function savePdfMeta(pdfUrl, pdfHeading) {
+async function savePdfMeta(pdfUrl, pdfHeading, reportTotal, reportByType) {
     // Try update first, then insert if no row exists.
     // Uses supabaseAdmin — the anon client's writes were being silently blocked
     // by RLS (no error thrown, but zero rows actually affected), which is why
@@ -496,7 +503,8 @@ async function savePdfMeta(pdfUrl, pdfHeading) {
     if (existing) {
         const { data, error } = await supabaseAdmin
             .from('pdf_meta')
-            .update({ pdf_url: pdfUrl, pdf_heading: pdfHeading, last_updated: new Date().toISOString() })
+            .update({ pdf_url: pdfUrl, pdf_heading: pdfHeading, last_updated: new Date().toISOString(),
+                      ...(reportTotal ? { report_total: reportTotal, report_by_type: reportByType || null } : {}) })
             .eq('id', existing.id)
             .select();
         if (error) throw error;
@@ -504,7 +512,8 @@ async function savePdfMeta(pdfUrl, pdfHeading) {
     } else {
         const { data, error } = await supabaseAdmin
             .from('pdf_meta')
-            .insert({ pdf_url: pdfUrl, pdf_heading: pdfHeading, last_updated: new Date().toISOString() })
+            .insert({ pdf_url: pdfUrl, pdf_heading: pdfHeading, last_updated: new Date().toISOString(),
+                      ...(reportTotal ? { report_total: reportTotal, report_by_type: reportByType || null } : {}) })
             .select();
         if (error) throw error;
         if (!data || data.length === 0) throw new Error('pdf_meta insert returned no row');
@@ -604,9 +613,13 @@ async function checkForPdfUpdate() {
         if (result.success && PDF_RENTALS.length > 0) {
             // Compute what would change, but wait for admin review before writing/emailing
             const diff = await computeAtpDiff(PDF_RENTALS);
+            const reportByType = {};
+            PDF_RENTALS.forEach(r => { if (ATP_TYPES.includes(r.rental_type)) reportByType[r.rental_type] = (reportByType[r.rental_type] || 0) + 1; });
             PENDING_ATP_DIFF = {
                 newUrl, newHeading: PDF_HEADING,
                 parsedRentals: PDF_RENTALS,
+                reportTotal: PDF_REPORT_TOTAL || PDF_RENTALS.length,
+                reportByType,
                 diff,
                 computedAt: new Date().toISOString()
             };
@@ -1105,6 +1118,7 @@ async function parsePDFWithCoordinates() {
         console.log(`PDF loaded with ${numPages} pages...`);
 
         const allRentals = [];
+        PDF_REPORT_TOTAL = null;
         let currentProvince = '';
         let currentRental = null;
 
@@ -1125,6 +1139,14 @@ async function parsePDFWithCoordinates() {
                 const row = rows[i];
                 const rowText = row.items.map(item => item.text).join(' ');
 
+                // Last line of the report: "Total de Hospedajes vigentes: 1244" — keep the number,
+                // never treat it as part of the last listing (it once ended up in an e-mail address)
+                const totalMatch = rowText.match(/Total\s*de\s*Hospedajes\s*vigentes:?\s*([\d.,]+)/i);
+                if (totalMatch) {
+                    PDF_REPORT_TOTAL = parseInt(totalMatch[1].replace(/[.,]/g, ''), 10) || null;
+                    console.log(`Report total line: ${PDF_REPORT_TOTAL}`);
+                    continue;
+                }
                 if (rowText.includes('Provincia:')) {
                     currentProvince = rowText.replace('Provincia:', '').replace(/Total.*/, '').trim();
                     console.log(`Found province: ${currentProvince}`);
@@ -1174,7 +1196,9 @@ async function parsePDFWithCoordinates() {
 app.get('/api/stats', (req, res) => {
     try {
         res.json({
-            total_rentals: CURRENT_RENTALS.length,
+            // Only what is currently registered: in the latest ATP report, or registered with MiCI.
+            // (Listings that dropped out of the report stay in the table but are not counted.)
+            total_rentals: CURRENT_RENTALS.filter(r => r.atp_active || r.registry_source === 'mici').length,
             last_updated: new Date().toISOString(),
             status: PDF_STATUS || "Data Loaded",
             features: "Search by name, type, province",
@@ -5026,9 +5050,9 @@ app.get('/api/admin/atp-diff', requireAdmin, async (req, res) => {
 app.post('/api/admin/apply-atp-diff', requireAdmin, async (req, res) => {
     if (!PENDING_ATP_DIFF) return res.status(400).json({ error: 'No pending diff to apply' });
     try {
-        const { newUrl, newHeading, parsedRentals } = PENDING_ATP_DIFF;
+        const { newUrl, newHeading, parsedRentals, reportTotal, reportByType } = PENDING_ATP_DIFF;
         const result = await mergeListingsWithDB(parsedRentals);
-        await savePdfMeta(newUrl, newHeading);
+        await savePdfMeta(newUrl, newHeading, reportTotal, reportByType);
 
         // Reload from DB so IDs/enrichment stay correct — never assign PDF_RENTALS directly
         CURRENT_RENTALS = await loadListingsFromDB();

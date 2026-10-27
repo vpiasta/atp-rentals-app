@@ -74,8 +74,8 @@ $ssr_listings = ssr_featured_listings();
 function ssr_stats($is_en) {
     $out = ['total' => null, 'date' => null];
     $headers = ['apikey: ' . SUPABASE_KEY, 'Authorization: Bearer ' . SUPABASE_KEY, 'Accept: application/json'];
-    // total number of listings (same number the stats API reports)
-    $ch = curl_init(SUPABASE_URL . '/rest/v1/listings?select=id');
+    // number of currently registered listings (same rule as the stats API: in the latest ATP report, or MiCI)
+    $ch = curl_init(SUPABASE_URL . '/rest/v1/listings?select=id&or=(atp_active.eq.true,registry_source.eq.mici)');
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true, CURLOPT_NOBODY => false,
         CURLOPT_HTTPHEADER => array_merge($headers, ['Prefer: count=exact', 'Range: 0-0']),
