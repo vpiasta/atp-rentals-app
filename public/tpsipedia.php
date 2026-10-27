@@ -39,7 +39,30 @@ function tpsi_stats() {
     if ($code >= 200 && $code < 300 && is_array($data) && !empty($data['total'])) return $data;
     // Fallback: last known values (ATP report of 2 Oct 2026, synced 25 Oct 2026) if the RPC is unreachable.
     return ['total' => 1243, 'synced_at' => '2026-10-25',
-            'by_type' => ['Hotel' => 333, 'Hostal Familiar' => 427, 'Residencial' => 143, 'Cabaña' => 106, 'Bungalow' => 56]];
+            'by_type' => ['Hotel' => 333, 'Hostal Familiar' => 427, 'Residencial' => 143, 'Cabaña' => 106, 'Bungalow' => 56],
+            'report_url' => 'https://www.atp.gob.pa/wp-content/uploads/2026/10/3.REPORTE-HOSPEDAJES-VIGENTE-2-10-2026.pdf',
+            'report_date' => '2-10-2026'];
+}
+
+// ATP report date comes as "2-10-2026" (day-month-year) → "2026-10-02"
+function tpsi_report_iso($stats) {
+    $d = DateTime::createFromFormat('!j-n-Y', (string)($stats['report_date'] ?? ''));
+    return $d ? $d->format('Y-m-d') : null;
+}
+
+// The ATP PDF the live numbers come from, as a source entry (title in the page language)
+function tpsi_report_source($stats, $lang) {
+    $url = $stats['report_url'] ?? '';
+    if ($url === '') return null;
+    $date = tpsi_date(tpsi_report_iso($stats), $lang);
+    return [
+        'title'     => $lang === 'es'
+            ? 'ATP, Reporte de hospedajes vigentes' . ($date ? ", edición del $date" : '') . ' (PDF)'
+            : 'ATP, Reporte de hospedajes vigentes (registry of licensed lodgings)' . ($date ? ", edition of $date" : '') . ' (PDF)',
+        'publisher' => 'Autoridad de Turismo de Panamá',
+        'url'       => $url,
+        'primary'   => true,
+    ];
 }
 
 function tpsi_fill($text, $stats, $page, $lang) {
@@ -54,6 +77,12 @@ function tpsi_fill($text, $stats, $page, $lang) {
         '{{REG_BUNGALOW}}'        => $n($t['Bungalow'] ?? 0),
         '{{REG_DATE}}'            => tpsi_date($stats['synced_at'] ?? null, $lang),
         '{{STATUS_DATE}}'         => tpsi_date($page['status_date'] ?? $page['updated_at'] ?? null, $lang),
+        '{{REG_REPORT_URL}}'      => htmlspecialchars($stats['report_url'] ?? '', ENT_QUOTES, 'UTF-8'),
+        '{{REG_REPORT_DATE}}'     => tpsi_date(tpsi_report_iso($stats), $lang),
+        '{{REG_REPORT_LINK}}'     => empty($stats['report_url']) ? '' :
+            '<a href="' . htmlspecialchars($stats['report_url'], ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">'
+            . ($lang === 'es' ? 'Reporte de hospedajes vigentes de la ATP' : 'ATP report of licensed lodgings')
+            . ' (' . tpsi_date(tpsi_report_iso($stats), $lang) . ', PDF)</a>',
     ];
     return strtr($text, $map);
 }
@@ -152,7 +181,17 @@ if ($page) {
                     return ['q' => $f['q'], 'a' => tpsi_fill($f['a'], $stats, $page, $lang)];
                  }, $page["faq_$lang"] ?? []);
     $related   = $page["related_$lang"] ?? [];
-    $sources   = $page['sources'] ?? [];
+    $sources   = array_map(function ($s) use ($stats, $page, $lang) {      // placeholders allowed in sources too
+                    $s['url']   = html_entity_decode(tpsi_fill($s['url'] ?? '', $stats, $page, $lang), ENT_QUOTES, 'UTF-8');
+                    $s['title'] = tpsi_plain(tpsi_fill($s['title'] ?? '', $stats, $page, $lang));
+                    return $s;
+                 }, $page['sources'] ?? []);
+    // A page that shows live registry numbers always cites the ATP PDF they come from
+    $repSrc = tpsi_report_source($stats, $lang);
+    if ($repSrc && strpos(json_encode($page, JSON_UNESCAPED_UNICODE), '{{REG_') !== false
+        && !in_array($repSrc['url'], array_column($sources, 'url'), true)) {
+        $sources[] = $repSrc;
+    }
     $category  = $page["category_$lang"] ?? '';
     $title     = $q . ' (' . date('Y', strtotime($page['updated_at'])) . ') | TPSipedia';
     $metaDesc  = $page["meta_description_$lang"] ?: tpsi_plain($short);

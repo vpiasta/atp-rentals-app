@@ -1037,7 +1037,7 @@ let tpsiRichEditors = {};    // key → { quill, mode: 'visual'|'html' }
 let tpsiFaqCounts = {};      // id → number of FAQ rows on screen
 let tpsiFilling = false;     // true while the editor is being filled: not a user edit
 const TPSI_AUTOSAVE_MS = 5 * 60 * 1000;
-const TPSI_PLACEHOLDERS = ['{{REG_TOTAL}}', '{{REG_HOTEL}}', '{{REG_HOSTAL_FAMILIAR}}', '{{REG_RESIDENCIAL}}', '{{REG_CABANA}}', '{{REG_BUNGALOW}}', '{{REG_DATE}}', '{{STATUS_DATE}}'];
+const TPSI_PLACEHOLDERS = ['{{REG_TOTAL}}', '{{REG_HOTEL}}', '{{REG_HOSTAL_FAMILIAR}}', '{{REG_RESIDENCIAL}}', '{{REG_CABANA}}', '{{REG_BUNGALOW}}', '{{REG_DATE}}', '{{STATUS_DATE}}', '{{REG_REPORT_LINK}}', '{{REG_REPORT_URL}}', '{{REG_REPORT_DATE}}'];
 
 function tpsiEnsureLoaded() { if (!tpsiLoaded) { tpsiLoaded = true; tpsiLoad(); } }
 
@@ -1062,6 +1062,7 @@ async function tpsiLoad() {
         Public: <a href="https://trustedpanamastays.com/tpsipedia.php" target="_blank">tpsipedia.php</a>.
         The first sentence of the short answer should be the answer itself. Publishing pings IndexNow automatically.<br>
         Live numbers from the ATP registry — type these anywhere in the text: ${TPSI_PLACEHOLDERS.map(p => `<code>${p}</code>`).join(' ')}
+        <br><code>{{REG_REPORT_LINK}}</code> = clickable link to the current ATP report PDF. Pages that use live numbers list that PDF under “Primary sources” automatically.
         <br>Tables: Quill can't keep tables — fields that contain one open in <strong>HTML</strong> mode; edit them there.
       </div>
       <datalist id="tpsi-cats">${cats.map(c => `<option value="${escapeAttr(c)}">`).join('')}</datalist>
