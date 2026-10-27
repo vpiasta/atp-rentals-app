@@ -231,7 +231,7 @@ async function loadListingsFromDB() {
     let from = 0;
     const BATCH = 1000;
     while (true) {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('listings')
             .select('*')
             .range(from, from + BATCH - 1);
@@ -637,7 +637,7 @@ async function checkPendingAtpApplications() {
     console.log('🔄 Checking pending ATP applications...');
     try {
         // Get all applications waiting for ATP registration
-        const { data: pending, error } = await supabase
+        const { data: pending, error } = await supabaseAdmin
             .from('membership_applications')
             .select('*')
             .eq('status', 'pending_atp')
@@ -705,7 +705,7 @@ async function checkPendingAtpApplications() {
             const slug = await generateUniqueSlug(app.property_name, listing.id);
 
             // Activate listing
-            await supabase.from('listings').update({
+            await supabaseAdmin.from('listings').update({
                 is_member:             true,
                 is_trial:              true,
                 trial_started_at:      new Date().toISOString(),
@@ -1195,7 +1195,7 @@ app.get('/api/provinces', async (req, res) => {
 
     // Add MiCI listings from database
     try {
-        const { data: miciListings } = await supabase
+        const { data: miciListings } = await supabaseAdmin
             .from('listings')
             .select('province')
             .eq('registry_source', 'mici')
@@ -1236,7 +1236,7 @@ app.get('/api/rentals', async (req, res) => {
             let from = 0;
             const BATCH = 1000;
             while (true) {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseAdmin
                     .from('listings')
                     .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type, apatel_member, feature_rank, listing_keywords')
                     .in('id', ids)
@@ -1336,7 +1336,7 @@ app.get('/api/rentals', async (req, res) => {
 
     // Add MiCI-only listings from database (not in ATP PDF)
     try {
-        let miciQuery = supabase
+        let miciQuery = supabaseAdmin
             .from('listings')
             .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, registry_source, atp_active')
             .eq('registry_source', 'mici')
@@ -1571,7 +1571,7 @@ function publicListing(l) {
 // Slug endpoint to find record with slug and ID
 app.get('/api/listing/slug/:slug', async (req, res) => {
     const { slug } = req.params;
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from('listings')
         .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links, is_trial, trial_started_at, registry_source, apatel_member, listing_keywords')
         .eq('slug', slug)
@@ -1582,7 +1582,7 @@ app.get('/api/listing/slug/:slug', async (req, res) => {
 
 app.get('/api/listing/:id', async (req, res) => {
     const { id } = req.params;
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from('listings')
         .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug, is_trial, trial_started_at, registry_source, apatel_member, listing_keywords')
         .eq('id', id)
@@ -1610,7 +1610,7 @@ app.post('/api/listing-login', async (req, res) => {
     const { id, password } = req.body;
     if (!id || !password) return res.status(400).json({ error: 'Missing id or password' });
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from('listings')
         .select('id, member_password, membership_paid_until, is_member')
         .eq('id', id)
@@ -1738,7 +1738,7 @@ app.post('/api/admin/update-ip', requireAdmin, async (req, res) => {
 
 // ── Check admin IP helper ─────────────────────────────────────────────────────
 async function getAdminIP() {
-    const { data } = await supabase
+    const { data } = await supabaseAdmin
         .from('settings')
         .select('value')
         .eq('key', 'admin_ip')
@@ -1818,7 +1818,7 @@ app.get('/api/admin/members', requireAdmin, async (req, res) => {
     let from = 0;
     const BATCH = 1000;
     while (true) {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
           .from('listings')
           .select('id, name, email, phone, province, rental_type, is_member, is_trial, membership_paid_until, invitation_sent_at, invitation_status, atp_active, slug, contact_name, notes, password_changed, apatel_member, feature_rank, whatsapp, photos, registry_source')
           .order('name')
@@ -1899,7 +1899,7 @@ app.post('/api/admin/set-password', requireAdmin, async (req, res) => {
     const { id, password } = req.body;
     if (!id || !password) return res.status(400).json({ error: 'Missing fields' });
     const hash = await bcrypt.hash(password, 10);
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
         .from('listings')
         .update({ member_password: hash })
         .eq('id', id);
@@ -1911,7 +1911,7 @@ app.post('/api/admin/set-password', requireAdmin, async (req, res) => {
 // ── Admin API: mark invitation sent ──────────────────────────────────────────
 app.post('/api/admin/mark-invited', requireAdmin, async (req, res) => {
     const { id } = req.body;
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
         .from('listings')
         .update({ invitation_sent_at: new Date().toISOString() })
         .eq('id', id);
@@ -2442,7 +2442,7 @@ app.post('/api/membership-apply',
         if (!isMici) {
           if (listing_id_hint) {
             // Frontend already identified the listing via dropdown
-            const { data: hintListing } = await supabase
+            const { data: hintListing } = await supabaseAdmin
                 .from('listings')
                 .select('id, name, is_trial, trial_started_at, is_member')
                 .eq('id', parseInt(listing_id_hint))
@@ -2460,7 +2460,7 @@ app.post('/api/membership-apply',
             // Fallback: word-by-word scoring match
             const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
             const appWords = normalize(property_name).split(/\s+/).filter(w => w.length >= 3);
-            const { data: candidates } = await supabase
+            const { data: candidates } = await supabaseAdmin
                 .from('listings')
                 .select('id, name, province, is_trial, trial_started_at, is_member')
                 .limit(2000);
@@ -2915,7 +2915,7 @@ app.post('/api/admin/approve-application', requireAdmin, async (req, res) => {
 
         // ── Block duplicate trial ─────────────────────────────────────────
         if (isTrial && listingId) {
-            const { data: existing } = await supabase.from('listings').select('is_trial, trial_started_at, is_member').eq('id', listingId).single();
+            const { data: existing } = await supabaseAdmin.from('listings').select('is_trial, trial_started_at, is_member').eq('id', listingId).single();
             if (existing?.trial_started_at || existing?.is_member) {
                 await supabaseAdmin.from('membership_applications').update({ status: 'rejected', notes: 'Rechazado automáticamente: ya tuvo prueba o membresía.', reviewed_at: new Date().toISOString(), reviewed_by: 'system' }).eq('id', application_id);
                 await logEvent('application_auto_rejected', { application_id, reason: 'existing_trial_or_membership', listing_id: listingId });
@@ -3182,7 +3182,7 @@ app.post('/api/submit-payment',
         } catch { return res.status(403).json({ error: 'Invalid token' }); }
     }
     try {
-        const { data: listing } = await supabase
+        const { data: listing } = await supabaseAdmin
             .from('listings')
             .select('id, name, province, email, email_member, phone, contact_name')
             .eq('id', listing_id).single();
@@ -3493,7 +3493,7 @@ app.post('/api/listing-change-password', async (req, res) => {
     } catch { return res.status(403).json({ error: 'Invalid token' }); }
 
     // Get current password hash
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from('listings')
         .select('member_password')
         .eq('id', id)
@@ -3506,7 +3506,7 @@ app.post('/api/listing-change-password', async (req, res) => {
 
     // Save new password
     const hash = await bcrypt.hash(new_password, 10);
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
         .from('listings')
         .update({ member_password: hash, password_changed: true })
         .eq('id', id);
@@ -3523,7 +3523,7 @@ app.post('/api/request-password-reset', async (req, res) => {
         return res.status(400).json({ error: 'Missing fields' });
 
     // Find listing and verify email matches
-    const { data: listing, error } = await supabase
+    const { data: listing, error } = await supabaseAdmin
         .from('listings')
         .select('id, name, email_member, email')
         .eq('id', listing_id)
@@ -3548,7 +3548,7 @@ app.post('/api/request-password-reset', async (req, res) => {
     const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     // Save token to database
-    const { error: insertError } = await supabase
+    const { error: insertError } = await supabaseAdmin
         .from('password_reset_tokens')
         .insert({
             listing_id: listing.id,
@@ -3602,7 +3602,7 @@ app.post('/api/reset-password', async (req, res) => {
         return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
 
     // Find and validate token
-    const { data: resetToken, error } = await supabase
+    const { data: resetToken, error } = await supabaseAdmin
         .from('password_reset_tokens')
         .select('*')
         .eq('token', token)
@@ -3618,14 +3618,14 @@ app.post('/api/reset-password', async (req, res) => {
 
     // Save new password
     const hash = await bcrypt.hash(new_password, 10);
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
         .from('listings')
         .update({ member_password: hash, password_changed: true })
         .eq('id', listing_id);
     if (updateError) return res.status(500).json({ error: updateError.message });
 
     // Mark token as used
-    await supabase
+    await supabaseAdmin
         .from('password_reset_tokens')
         .update({ used: true })
         .eq('id', resetToken.id);
@@ -3642,7 +3642,7 @@ app.post('/api/reset-password', async (req, res) => {
 app.get('/api/featured-listing', async (req, res) => {
     try {
       const today = new Date().toISOString().split('T')[0];
-      const { data: listings, error } = await supabase
+      const { data: listings, error } = await supabaseAdmin
           .from('listings')
           .select('id, name, phone, email, province, rental_type, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, website_url, booking_url, registry_source, atp_active, apatel_member, is_trial, feature_rank')
           .gt('feature_rank', 0)
@@ -3669,7 +3669,7 @@ app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => 
 
     try {
         // Build query
-        let query = supabase
+        let query = supabaseAdmin
             .from('listings')
             .select('id, name, email, province, rental_type, slug, apatel_member, invitation_status, invitation_sent_at, atp_active')
             .eq('is_member', false)  // non-members only
@@ -3766,7 +3766,7 @@ app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => 
                 ], { timeout: 15000 });
 
                 // Mark as invited
-                await supabase.from('listings').update({
+                await supabaseAdmin.from('listings').update({
                     invitation_status:  'invited',
                     invitation_sent_at: new Date().toISOString()
                 }).eq('id', listing.id);
@@ -3805,7 +3805,7 @@ app.get('/api/admin/invitation-stats', requireAdmin, async (req, res) => {
       let from = 0;
       const BATCH = 1000;
       while (true) {
-          const { data: batch, error } = await supabase
+          const { data: batch, error } = await supabaseAdmin
               .from('listings')
               .select('id, email, apatel_member, invitation_status, invitation_sent_at, is_member')
               .eq('is_member', false)
@@ -3856,7 +3856,7 @@ app.post('/api/track', async (req, res) => {
     }
 
     try {
-        await supabase.from('listing_events').insert({
+        await supabaseAdmin.from('listing_events').insert({
             event_type,
             listing_id: listing_id ? parseInt(listing_id) : null,
             ip,
@@ -3910,7 +3910,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         // Enrich with listing names
         if (topListings.length > 0) {
             const ids = topListings.map(l => l.listing_id);
-            const { data: names } = await supabase
+            const { data: names } = await supabaseAdmin
                 .from('listings')
                 .select('id, name, province, slug')
                 .in('id', ids);
@@ -3998,7 +3998,7 @@ app.get('/api/admin/send-weekly-report', async (req, res) => {
         // Get listing names
         if (topListings.length > 0) {
             const ids = topListings.map(([id]) => parseInt(id));
-            const { data: names } = await supabase.from('listings').select('id, name').in('id', ids);
+            const { data: names } = await supabaseAdmin.from('listings').select('id, name').in('id', ids);
             const nameMap = {};
             (names || []).forEach(l => { nameMap[l.id] = l.name; });
 
@@ -4494,10 +4494,10 @@ async function resolveListingUrl(member) {
     try {
         let listing = null;
         if (member.id) {
-            const { data } = await supabase.from('listings').select('id, slug').eq('id', member.id).maybeSingle();
+            const { data } = await supabaseAdmin.from('listings').select('id, slug').eq('id', member.id).maybeSingle();
             listing = data;
         } else if (member.hotel) {
-            const { data } = await supabase
+            const { data } = await supabaseAdmin
                 .from('listings')
                 .select('id, slug')
                 .ilike('name', `%${member.hotel.substring(0, 15)}%`)
@@ -5774,7 +5774,7 @@ app.get('/api/keywords', async (req, res) => {
 // ── GET /api/keywords/active ──────────────────────────────────────────────────
 // Only keywords used by at least one member
 app.get('/api/keywords/active', async (req, res) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from('listings')
         .select('listing_keywords')
         .eq('is_member', true)

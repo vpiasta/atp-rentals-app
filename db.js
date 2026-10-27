@@ -13,7 +13,7 @@ const supabaseAdmin = createClient(
 // Test the connection
 supabase
     .from('listings')
-    .select('*')
+    .select('id')
     .limit(1)
     .then(({ data, error }) => {
         if (error) console.error('Supabase connection error:', error);

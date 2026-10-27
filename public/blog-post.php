@@ -23,14 +23,15 @@ function post_date($isoDate, $lang, $short = false) {
 // file already uses to fetch the post itself) — no call back into the
 // Node app.
 function is_valid_preview_token($token) {
-    if (!$token) return false;
+    if (!$token || !SUPABASE_SERVICE_KEY) return false;
+    // Checked with the server-side secret key: blog_preview_tokens is not readable with the public key.
     $url = SUPABASE_URL . '/rest/v1/blog_preview_tokens?select=id&token=eq.' . urlencode($token) . '&expires_at=gt.' . urlencode(date('c')) . '&limit=1';
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => [
-            'apikey: ' . SUPABASE_KEY,
-            'Authorization: Bearer ' . SUPABASE_KEY,
+            'apikey: ' . SUPABASE_SERVICE_KEY,
+            'Authorization: Bearer ' . SUPABASE_SERVICE_KEY,
             'Accept: application/json',
         ],
         CURLOPT_TIMEOUT => 5,
