@@ -7805,6 +7805,217 @@ Call the save_translation tool with the translated fields.`;
     res.json({ success: true, post: updated, heading_check: headingSignature(t.body) === sourceHeadings ? 'ok' : 'mismatch' });
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  TPSipedia admin (added 2026-10-26) — short Q&A pages, table tpsipedia_pages.
+//  Edited in admin-blog.html → "TPSipedia" tab. Public page: public/tpsipedia.php
+// ═════════════════════════════════════════════════════════════════════════════
+const TPSI_TEXT_FIELDS = ['slug_en', 'slug_es', 'category_en', 'category_es', 'question_en', 'question_es',
+    'meta_description_en', 'meta_description_es', 'short_answer_en', 'short_answer_es', 'body_en', 'body_es'];
+const TPSI_JSON_FIELDS = ['faq_en', 'faq_es', 'related_en', 'related_es', 'sources'];
+
+// Ask the public IndexNow script to submit whatever changed. Fire-and-forget:
+// a failure here never blocks a save (the daily GitHub workflow catches up).
+function tpsiPingIndexNow() {
+    axios.get('https://trustedpanamastays.com/indexnow-ping.php', { timeout: 20000 })
+        .then(r => console.log('IndexNow ping:', JSON.stringify(r.data).substring(0, 200)))
+        .catch(e => console.warn('IndexNow ping failed (daily workflow will retry):', e.message));
+}
+
+// GET /api/admin/tpsipedia — every page, any status
+app.get('/api/admin/tpsipedia', requireAdmin, async (req, res) => {
+    const { data, error } = await supabaseAdmin.from('tpsipedia_pages').select('*')
+        .order('sort_order', { ascending: true }).order('id', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+// POST /api/admin/tpsipedia/new — blank draft
+app.post('/api/admin/tpsipedia/new', requireAdmin, async (req, res) => {
+    const stamp = Date.now();
+    const { data, error } = await supabaseAdmin.from('tpsipedia_pages').insert({
+        slug_en: `draft-${stamp}`, slug_es: `borrador-${stamp}`,
+        question_en: '', question_es: '', short_answer_en: '', short_answer_es: '',
+        status: 'draft', sort_order: 100
+    }).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('tpsipedia_page_created', { id: data.id });
+    res.json({ success: true, page: data });
+});
+
+// POST /api/admin/tpsipedia/:id/edit — save fields. updated_at (the public
+// "Updated" date, sitemap lastmod and IndexNow trigger) only moves when the
+// content really changed, so autosaves of unchanged text don't touch it.
+app.post('/api/admin/tpsipedia/:id/edit', requireAdmin, async (req, res) => {
+    const { data: cur, error: curErr } = await supabaseAdmin.from('tpsipedia_pages').select('*').eq('id', req.params.id).maybeSingle();
+    if (curErr) return res.status(500).json({ error: curErr.message });
+    if (!cur) return res.status(404).json({ error: 'Page not found' });
+
+    const updates = {};
+    for (const f of TPSI_TEXT_FIELDS) {
+        if (req.body[f] === undefined) continue;
+        let v = String(req.body[f] ?? '');
+        if (f.startsWith('slug_')) {
+            v = v.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+                 .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            if (!v) return res.status(400).json({ error: `${f} cannot be empty` });
+        }
+        if (v !== (cur[f] ?? '')) updates[f] = v;
+    }
+    for (const f of TPSI_JSON_FIELDS) {
+        if (req.body[f] === undefined) continue;
+        if (!Array.isArray(req.body[f])) return res.status(400).json({ error: `${f} must be a list` });
+        if (JSON.stringify(req.body[f]) !== JSON.stringify(cur[f] ?? [])) updates[f] = req.body[f];
+    }
+    if (req.body.sort_order !== undefined && Number(req.body.sort_order) !== cur.sort_order) {
+        updates.sort_order = parseInt(req.body.sort_order, 10) || 100;
+    }
+    if (req.body.status_date !== undefined) {
+        const sd = req.body.status_date || null;
+        if (sd !== (cur.status_date ?? null)) updates.status_date = sd;
+    }
+    if (!Object.keys(updates).length) return res.json({ success: true, changed: false, page: cur });
+
+    updates.updated_at = new Date().toISOString();
+    const { data, error } = await supabaseAdmin.from('tpsipedia_pages').update(updates).eq('id', req.params.id).select().single();
+    if (error) {
+        const msg = /duplicate key/.test(error.message) ? 'That slug is already used by another page — choose a different one.' : error.message;
+        return res.status(400).json({ error: msg });
+    }
+    await logEvent('tpsipedia_page_edited', { id: data.id, fields: Object.keys(updates) });
+    if (data.status === 'published') tpsiPingIndexNow();
+    res.json({ success: true, changed: true, page: data });
+});
+
+// POST /api/admin/tpsipedia/:id/publish
+app.post('/api/admin/tpsipedia/:id/publish', requireAdmin, async (req, res) => {
+    const { data: cur } = await supabaseAdmin.from('tpsipedia_pages').select('*').eq('id', req.params.id).maybeSingle();
+    if (!cur) return res.status(404).json({ error: 'Page not found' });
+    const missing = ['question_en', 'question_es', 'short_answer_en', 'short_answer_es'].filter(f => !String(cur[f] || '').trim());
+    if (missing.length) return res.status(400).json({ error: 'Cannot publish — empty: ' + missing.join(', ') });
+    if (/^(draft|borrador)-\d+$/.test(cur.slug_en) || /^(draft|borrador)-\d+$/.test(cur.slug_es)) {
+        return res.status(400).json({ error: 'Cannot publish — set real slugs (EN and ES) first.' });
+    }
+    const now = new Date().toISOString();
+    const { data, error } = await supabaseAdmin.from('tpsipedia_pages')
+        .update({ status: 'published', published_at: cur.published_at || now, updated_at: now })
+        .eq('id', req.params.id).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('tpsipedia_page_published', { id: data.id });
+    tpsiPingIndexNow();
+    res.json({ success: true, page: data });
+});
+
+// POST /api/admin/tpsipedia/:id/unpublish — back to draft (page returns 404)
+app.post('/api/admin/tpsipedia/:id/unpublish', requireAdmin, async (req, res) => {
+    const { data, error } = await supabaseAdmin.from('tpsipedia_pages').update({ status: 'draft' })
+        .eq('id', req.params.id).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('tpsipedia_page_unpublished', { id: data.id });
+    res.json({ success: true, page: data });
+});
+
+// POST /api/admin/tpsipedia/:id/delete
+app.post('/api/admin/tpsipedia/:id/delete', requireAdmin, async (req, res) => {
+    const { error } = await supabaseAdmin.from('tpsipedia_pages').delete().eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('tpsipedia_page_deleted', { id: req.params.id });
+    res.json({ success: true });
+});
+
+// GET /api/admin/tpsipedia/:id/preview-link — 24h token, checked by tpsipedia.php
+app.get('/api/admin/tpsipedia/:id/preview-link', requireAdmin, async (req, res) => {
+    const { data: page } = await supabaseAdmin.from('tpsipedia_pages').select('id, slug_en, slug_es').eq('id', req.params.id).maybeSingle();
+    if (!page) return res.status(404).json({ error: 'Page not found' });
+    const token = require('crypto').randomBytes(24).toString('hex');
+    const { error } = await supabaseAdmin.from('tpsipedia_preview_tokens').insert({
+        page_id: page.id, token, expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    });
+    if (error) return res.status(500).json({ error: 'Could not create preview link: ' + error.message });
+    const base = 'https://trustedpanamastays.com/tpsipedia.php?slug=';
+    res.json({
+        url_en: `${base}${encodeURIComponent(page.slug_en)}&preview=${token}`,
+        url_es: `${base}${encodeURIComponent(page.slug_es)}&lang=es&preview=${token}`
+    });
+});
+
+// POST /api/admin/tpsipedia/:id/translate?direction=en-to-es|es-to-en
+// Translates question, category, meta description, short answer, body, FAQ and
+// related-link titles; saves them to the target language. Slugs are not touched.
+app.post('/api/admin/tpsipedia/:id/translate', requireAdmin, async (req, res) => {
+    const toSpanish = req.query.direction !== 'es-to-en';
+    const [S, T] = toSpanish ? ['en', 'es'] : ['es', 'en'];
+    const { data: p } = await supabaseAdmin.from('tpsipedia_pages').select('*').eq('id', req.params.id).maybeSingle();
+    if (!p) return res.status(404).json({ error: 'Page not found' });
+    if (!String(p['question_' + S] || '').trim() || !String(p['short_answer_' + S] || '').trim()) {
+        return res.status(400).json({ error: `The ${toSpanish ? 'English' : 'Spanish'} question and short answer are needed first` });
+    }
+    const source = {
+        question: p['question_' + S], category: p['category_' + S] || '', meta_description: p['meta_description_' + S] || '',
+        short_answer: p['short_answer_' + S], body: p['body_' + S] || '',
+        faq: p['faq_' + S] || [], related_titles: (p['related_' + S] || []).map(r => r.title || '')
+    };
+    const TOOL = {
+        name: 'save_translation',
+        description: 'Save the translated TPSipedia page.',
+        input_schema: {
+            type: 'object',
+            properties: {
+                question: { type: 'string' }, category: { type: 'string' }, meta_description: { type: 'string' },
+                short_answer: { type: 'string' }, body: { type: 'string' },
+                faq: { type: 'array', items: { type: 'object', properties: { q: { type: 'string' }, a: { type: 'string' } }, required: ['q', 'a'] } },
+                related_titles: { type: 'array', items: { type: 'string' } }
+            },
+            required: ['question', 'category', 'meta_description', 'short_answer', 'body', 'faq', 'related_titles']
+        }
+    };
+    const prompt = `Translate this legal Q&A page from ${toSpanish ? 'English into natural Panama Spanish' : 'Panama Spanish into natural English'} for Trusted Panama Stays (trustedpanamastays.com).
+Rules:
+- Neutral, precise legal register. Keep names of laws, decrees, bills and institutions exactly as written (Decreto Ejecutivo 82 de 2008, Proyecto de Ley 301, ATP, MICI, DGI, ITBMS, aviso de operación, etc.). ${toSpanish ? 'Write "artículo 57" instead of "Art. 57" in running text, and "H.D." instead of "Dip." before deputies\' names.' : 'Write "Art. 57" in running text, and "Dip." before deputies\' names.'}
+- Keep every placeholder like {{REG_TOTAL}} or {{STATUS_DATE}} exactly as it is.
+- Keep all HTML exactly: same tags, same order, same attributes (href, class, target). Translate only visible text. Tables keep the same rows and cells.
+- Dates: ${toSpanish ? '"26 de octubre de 2026" / "30 de septiembre de 2026"' : '"26 October 2026" / "30 Sep 2026" (day first)'}.
+- The FAQ list must have exactly ${source.faq.length} items in the same order; related_titles exactly ${source.related_titles.length} items.
+- meta_description: at most 155 characters.
+Source (JSON):
+${JSON.stringify(source)}
+Call save_translation with the translated fields.`;
+    let t;
+    try {
+        const r = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-5', max_tokens: 16000, thinking: { type: 'disabled' },
+            tools: [TOOL], tool_choice: { type: 'tool', name: 'save_translation' },
+            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+        }, { headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, timeout: 120000 });
+        if (r.data.stop_reason === 'max_tokens') throw new Error('Translation was cut off (token limit).');
+        const block = (r.data.content || []).find(b => b.type === 'tool_use' && b.name === 'save_translation');
+        if (!block || !block.input) throw new Error('Claude did not return the expected translation.');
+        t = block.input;
+    } catch (e) {
+        return res.status(500).json({ error: 'Translation failed: ' + (e.response?.data?.error?.message || e.message) });
+    }
+    if (!Array.isArray(t.faq) || t.faq.length !== source.faq.length) {
+        return res.status(500).json({ error: `Translation returned ${t.faq?.length ?? 0} FAQ items instead of ${source.faq.length} — nothing was saved, try again.` });
+    }
+    const clean = h => String(h || '').replace(/>\s*\n\s*</g, '><').trim();
+    const related = (p['related_' + S] || []).map((r, i) => {
+        let url = r.url || '';
+        if (toSpanish && /blog-post\.php\?slug=/.test(url) && !/[?&]lang=es/.test(url)) url += '&lang=es';
+        if (!toSpanish) url = url.replace(/&lang=es\b/, '');
+        return { title: (t.related_titles || [])[i] || r.title, url };
+    });
+    const updates = {
+        ['question_' + T]: t.question, ['category_' + T]: t.category, ['meta_description_' + T]: t.meta_description,
+        ['short_answer_' + T]: clean(t.short_answer), ['body_' + T]: clean(t.body),
+        ['faq_' + T]: t.faq.map(f => ({ q: f.q, a: clean(f.a) })), ['related_' + T]: related,
+        updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabaseAdmin.from('tpsipedia_pages').update(updates).eq('id', p.id).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    await logEvent('tpsipedia_page_translated', { id: p.id, direction: `${S}-to-${T}` });
+    if (data.status === 'published') tpsiPingIndexNow();
+    res.json({ success: true, page: data });
+});
+
 // ── GET /api/admin/blog/comments — list all comments, with post context ─────
 app.get('/api/admin/blog/comments', requireAdmin, async (req, res) => {
     const { data: comments, error } = await supabaseAdmin.from('blog_comments')

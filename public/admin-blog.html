@@ -88,6 +88,7 @@
     <div class="tab" data-tab="knowledge" onclick="switchTab('knowledge')">Knowledge Base</div>
     <div class="tab" data-tab="generate" onclick="switchTab('generate')">Generate New</div>
     <div class="tab" data-tab="comments" onclick="switchTab('comments')">Comments</div>
+    <div class="tab" data-tab="tpsipedia" onclick="switchTab('tpsipedia')">TPSipedia</div>
     <div style="margin-left:auto;"><button class="btn btn-gray" onclick="logout()">Log out</button></div>
   </div>
 
@@ -97,6 +98,7 @@
   <div id="panel-knowledge" class="panel"></div>
   <div id="panel-generate" class="panel"></div>
   <div id="panel-comments" class="panel"></div>
+  <div id="panel-tpsipedia" class="panel"></div>
 </div>
 
 <div id="toast" class="toast"></div>
@@ -279,6 +281,7 @@ function showApp() {
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+  if (name === 'tpsipedia') tpsiEnsureLoaded();
 }
 async function renderCommentsPanel() {
   const panel = document.getElementById('panel-comments');
@@ -1000,6 +1003,454 @@ window.addEventListener('beforeunload', (e) => {
     e.preventDefault();
     e.returnValue = '';
   }
+});
+</script>
+<!-- ═══ TPSipedia editor (added 2026-10-26) — pages in table tpsipedia_pages, public page tpsipedia.php ═══ -->
+<style>
+  .tpsi-help { font-size: 0.8rem; color: #555; background: #f0f6fb; border-radius: 8px; padding: 0.7rem 0.9rem; margin-bottom: 1rem; line-height: 1.5; }
+  .tpsi-help code { background: #fff; padding: 0 4px; border-radius: 3px; font-size: 0.78rem; }
+  .tpsi-section { border-top: 1px solid #e1e5e9; margin-top: 14px; padding-top: 10px; }
+  .tpsi-section > h4 { color: #005ca9; font-size: 0.95rem; margin-bottom: 4px; }
+  .tpsi-rich { margin-bottom: 8px; }
+  .tpsi-rich-bar { display: flex; justify-content: flex-end; margin-bottom: 2px; }
+  .tpsi-rich-bar button { font-size: 11px; padding: 2px 8px; border: 1px solid #ccd; background: #fff; border-radius: 4px; cursor: pointer; color: #555; }
+  .tpsi-rich-bar button.on { background: #1a3a6b; color: #fff; border-color: #1a3a6b; }
+  .tpsi-rich textarea.tpsi-html { width: 100%; min-height: 160px; font-family: monospace; font-size: 12px; padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px; }
+  .tpsi-small .ql-editor { min-height: 70px !important; max-height: 200px !important; }
+  .tpsi-faq-row { border: 1px solid #e1e5e9; border-radius: 8px; padding: 8px; margin-bottom: 8px; background: #fcfdfe; }
+  .tpsi-faq-row .tpsi-row-tools { display: flex; gap: 4px; justify-content: flex-end; margin-bottom: 4px; }
+  .tpsi-row-tools button, .tpsi-x { font-size: 11px; padding: 2px 7px; border: 1px solid #ccd; background: #fff; border-radius: 4px; cursor: pointer; }
+  .tpsi-grid-src { display: grid; grid-template-columns: 2fr 1.4fr 2fr auto auto; gap: 6px; align-items: center; margin-bottom: 4px; }
+  .tpsi-grid-rel { display: grid; grid-template-columns: 1.5fr 2fr auto; gap: 6px; align-items: center; margin-bottom: 4px; }
+  .tpsi-grid-src input, .tpsi-grid-rel input { margin-bottom: 0 !important; }
+  .tpsi-count { font-weight: 400; color: #888; }
+  .tpsi-count.over { color: #cc3333; font-weight: 700; }
+  @media (max-width: 700px) { .tpsi-grid-src, .tpsi-grid-rel { grid-template-columns: 1fr; } }
+</style>
+<script>
+// ── TPSipedia editor ──────────────────────────────────────────────────────────
+let tpsiPages = {};          // id → page row as last loaded/saved
+let tpsiLoaded = false;
+let tpsiDirty = new Set();
+let tpsiTimers = {};
+let tpsiRichEditors = {};    // key → { quill, mode: 'visual'|'html' }
+let tpsiFaqCounts = {};      // id → number of FAQ rows on screen
+let tpsiFilling = false;     // true while the editor is being filled: not a user edit
+const TPSI_AUTOSAVE_MS = 5 * 60 * 1000;
+const TPSI_PLACEHOLDERS = ['{{REG_TOTAL}}', '{{REG_HOTEL}}', '{{REG_HOSTAL_FAMILIAR}}', '{{REG_RESIDENCIAL}}', '{{REG_CABANA}}', '{{REG_BUNGALOW}}', '{{REG_DATE}}', '{{STATUS_DATE}}'];
+
+function tpsiEnsureLoaded() { if (!tpsiLoaded) { tpsiLoaded = true; tpsiLoad(); } }
+
+function tpsiSlugify(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+}
+
+async function tpsiLoad() {
+  const panel = document.getElementById('panel-tpsipedia');
+  for (const id of Array.from(tpsiDirty)) { try { await tpsiSave(id, true); } catch (e) {} }
+  Object.values(tpsiTimers).forEach(t => clearInterval(t));
+  tpsiTimers = {}; tpsiRichEditors = {}; tpsiFaqCounts = {};
+  panel.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const rows = await api('/api/admin/tpsipedia');
+    tpsiPages = {}; rows.forEach(p => tpsiPages[p.id] = p);
+    const cats = [...new Set(rows.flatMap(p => [p.category_en, p.category_es]).filter(Boolean))];
+    panel.innerHTML = `
+      <div class="tpsi-help">
+        <strong>TPSipedia</strong> — one short Q&amp;A page per legal question, EN + ES.
+        Public: <a href="https://trustedpanamastays.com/tpsipedia.php" target="_blank">tpsipedia.php</a>.
+        The first sentence of the short answer should be the answer itself. Publishing pings IndexNow automatically.<br>
+        Live numbers from the ATP registry — type these anywhere in the text: ${TPSI_PLACEHOLDERS.map(p => `<code>${p}</code>`).join(' ')}
+        <br>Tables: Quill can't keep tables — fields that contain one open in <strong>HTML</strong> mode; edit them there.
+      </div>
+      <datalist id="tpsi-cats">${cats.map(c => `<option value="${escapeAttr(c)}">`).join('')}</datalist>
+      <div class="row" style="margin:0 0 12px;"><button class="btn btn-green" onclick="tpsiNew()">➕ New page</button>
+        <button class="btn btn-gray" onclick="tpsiLoad()">🔄 Reload</button></div>
+      <div id="tpsi-list"></div>`;
+    const list = document.getElementById('tpsi-list');
+    if (!rows.length) { list.innerHTML = '<div class="empty">No pages yet.</div>'; return; }
+    rows.forEach(p => list.appendChild(tpsiCard(p)));
+  } catch (e) { panel.innerHTML = `<div class="empty">Error: ${escapeHtml(e.message)}</div>`; }
+}
+
+function tpsiCard(p) {
+  const div = document.createElement('div');
+  div.className = 'card';
+  div.id = 'tpsi-card-' + p.id;
+  const pub = p.status === 'published';
+  const f = (name, label, extra = '') => `<div><label>${label}</label><input id="tp-${name}-${p.id}" value="${escapeAttr(p[name] ?? '')}" oninput="tpsiDirtyMark(${p.id})" ${extra}></div>`;
+  const metaInput = lang => `<div><label>Meta description (${lang.toUpperCase()}) <span class="tpsi-count" id="tp-cnt-${lang}-${p.id}"></span></label>
+      <input id="tp-meta_description_${lang}-${p.id}" value="${escapeAttr(p['meta_description_' + lang] ?? '')}" oninput="tpsiDirtyMark(${p.id});tpsiCount(${p.id},'${lang}')"></div>`;
+  const slugInput = lang => `<div><label style="display:flex;justify-content:space-between;"><span>Slug (${lang.toUpperCase()})</span>
+      <a href="#" style="font-weight:400;font-size:0.75rem;" onclick="tpsiAutoSlug(${p.id},'${lang}');return false;">↻ from question</a></label>
+      <input id="tp-slug_${lang}-${p.id}" value="${escapeAttr(p['slug_' + lang] ?? '')}" oninput="tpsiDirtyMark(${p.id})"></div>`;
+  div.innerHTML = `
+    <span class="badge ${pub ? 'badge-published' : 'badge-pending'}">${pub ? 'published' : 'draft'}</span>
+    <h3>${escapeHtml(p.question_en || '(no question yet)')}</h3>
+    <div class="meta">id: ${p.id} · ${escapeHtml(p.category_en || '—')} · updated: ${fmtDateTime(p.updated_at)}${p.published_at ? ' · first published: ' + fmtDate(p.published_at) : ''}</div>
+    <div class="row">
+      <button class="btn btn-outline" onclick="tpsiToggle(${p.id})">Edit</button>
+      <button class="btn" onclick="tpsiPreview(${p.id},'en')">Preview EN</button>
+      <button class="btn" onclick="tpsiPreview(${p.id},'es')">Preview ES</button>
+      <button class="btn btn-green" onclick="tpsiSave(${p.id})">💾 Save</button>
+      ${pub ? `<a class="btn btn-outline" style="text-decoration:none;" target="_blank" href="https://trustedpanamastays.com/tpsipedia.php?slug=${encodeURIComponent(p.slug_en)}">View live</a>
+               <button class="btn btn-gray" onclick="tpsiUnpublish(${p.id})">Unpublish</button>`
+            : `<button class="btn btn-green" onclick="tpsiPublish(${p.id})">Publish</button>`}
+      <button class="btn btn-red" onclick="tpsiDelete(${p.id})">Delete</button>
+      <span class="autosave-status" id="tpsi-status-${p.id}"></span>
+    </div>
+    <div class="edit-form" id="tpsi-edit-${p.id}">
+      <div class="two-col">${f('question_en', 'Question (EN) — the page H1')}${f('question_es', 'Question (ES)')}</div>
+      <div class="two-col">${slugInput('en')}${slugInput('es')}</div>
+      <div class="two-col">${f('category_en', 'Category (EN)', 'list="tpsi-cats"')}${f('category_es', 'Category (ES)', 'list="tpsi-cats"')}</div>
+      <div class="two-col">${metaInput('en')}${metaInput('es')}</div>
+      <div class="two-col">
+        <div><label>Sort order (lower = first)</label><input type="number" id="tp-sort_order-${p.id}" value="${p.sort_order ?? 100}" oninput="tpsiDirtyMark(${p.id})"></div>
+        <div><label>Bill status verified on → {{STATUS_DATE}}</label><input type="date" id="tp-status_date-${p.id}" value="${p.status_date || ''}" oninput="tpsiDirtyMark(${p.id})"></div>
+      </div>
+      <div class="row" style="margin:6px 0 2px;">
+        <button class="btn" style="background:#3366cc;" id="tpsi-tr-es-${p.id}" onclick="tpsiTranslate(${p.id},'en-to-es')">🌐 Translate EN → ES</button>
+        <button class="btn" style="background:#6b7280;" id="tpsi-tr-en-${p.id}" onclick="tpsiTranslate(${p.id},'es-to-en')">🌐 Translate ES → EN</button>
+        <span style="font-size:0.75rem;color:#888;align-self:center;">Overwrites question, category, meta, short answer, body, FAQ and related titles in the other language. Slugs and sources stay.</span>
+      </div>
+
+      <div class="tpsi-section"><h4>Short answer — shown first, in the blue box</h4>
+        <div class="two-col"><div><label>EN</label>${tpsiRichShell('sa-en-' + p.id, true)}</div><div><label>ES</label>${tpsiRichShell('sa-es-' + p.id, true)}</div></div>
+      </div>
+      <div class="tpsi-section"><h4>Body — H2 sections (Key facts, The rule, …)</h4>
+        <div class="two-col"><div><label>EN</label>${tpsiRichShell('body-en-' + p.id)}</div><div><label>ES</label>${tpsiRichShell('body-es-' + p.id)}</div></div>
+      </div>
+      <div class="tpsi-section"><h4>FAQ — each row: EN question + answer | ES question + answer</h4>
+        <div id="tpsi-faq-${p.id}"></div>
+        <button class="btn btn-outline" onclick="tpsiFaqAdd(${p.id})">➕ Add question</button>
+      </div>
+      <div class="tpsi-section"><h4>Sources — title · publisher/date · URL · primary legal text?</h4>
+        <div id="tpsi-src-${p.id}"></div>
+        <button class="btn btn-outline" onclick="tpsiRowAdd(${p.id},'src')">➕ Add source</button>
+      </div>
+      <div class="tpsi-section"><h4>Related reading (blog posts)</h4>
+        <div class="two-col">
+          <div><label>EN</label><div id="tpsi-rel-en-${p.id}"></div><button class="btn btn-outline" onclick="tpsiRowAdd(${p.id},'rel-en')">➕ Add</button></div>
+          <div><label>ES</label><div id="tpsi-rel-es-${p.id}"></div><button class="btn btn-outline" onclick="tpsiRowAdd(${p.id},'rel-es')">➕ Add</button></div>
+        </div>
+      </div>
+      <div class="row"><button class="btn btn-green" onclick="tpsiSave(${p.id})">Save Changes</button></div>
+    </div>`;
+  return div;
+}
+
+// ── Rich text field: Quill, with an HTML switch (Quill cannot keep tables) ──
+function tpsiRichShell(key, small) {
+  return `<div class="tpsi-rich${small ? ' tpsi-small' : ''}" id="tr-${key}">
+    <div class="tpsi-rich-bar"><button type="button" id="trb-${key}" onclick="tpsiToggleHtml('${key}')">&lt;/&gt; HTML</button></div>
+    <div id="trw-${key}"><div class="quill-editor" id="trq-${key}"></div></div>
+    <textarea class="tpsi-html" id="trt-${key}" style="display:none;"></textarea>
+  </div>`;
+}
+function tpsiRichInit(key, html, small, pageId) {
+  if (tpsiRichEditors[key]) return;
+  const q = new Quill(document.getElementById('trq-' + key), {
+    theme: 'snow',
+    modules: { toolbar: small
+      ? [['bold', 'italic'], ['link'], ['clean']]
+      : [[{ header: [2, 3, false] }], ['bold', 'italic'], [{ list: 'ordered' }, { list: 'bullet' }], ['link'], ['clean']] }
+  });
+  const ed = { quill: q, mode: 'visual' };
+  tpsiRichEditors[key] = ed;
+  const ta = document.getElementById('trt-' + key);
+  ta.addEventListener('input', () => tpsiDirtyMark(pageId));
+  q.on('text-change', () => tpsiDirtyMark(pageId));
+  tpsiRichSet(key, html);
+}
+// Put HTML into a field and remember it, so an untouched field saves its original HTML unchanged
+function tpsiRichSet(key, html) {
+  const ed = tpsiRichEditors[key];
+  html = html || '';
+  const was = tpsiFilling; tpsiFilling = true;
+  if (/<table/i.test(html)) tpsiSetMode(key, 'html');
+  if (ed.mode === 'html') document.getElementById('trt-' + key).value = html;
+  else setQuillHtml(ed.quill, html);
+  tpsiFilling = was;
+  ed.orig = html;
+  ed.initial = tpsiRichRaw(key);
+}
+function tpsiSetMode(key, mode) {
+  tpsiRichEditors[key].mode = mode;
+  document.getElementById('trw-' + key).style.display = mode === 'html' ? 'none' : '';
+  document.getElementById('trt-' + key).style.display = mode === 'html' ? '' : 'none';
+  document.getElementById('trb-' + key).classList.toggle('on', mode === 'html');
+}
+function tpsiToggleHtml(key) {
+  const ed = tpsiRichEditors[key]; if (!ed) return;
+  const ta = document.getElementById('trt-' + key);
+  const changed = tpsiRichRaw(key) !== ed.initial;
+  const cur = tpsiRichValue(key);
+  if (ed.mode === 'visual') ta.value = cur;
+  else if (/<table/i.test(ta.value) && !confirm('This field contains a table. The visual editor will REMOVE the table. Switch anyway?')) return;
+  tpsiFilling = true;
+  if (ed.mode === 'html') setQuillHtml(ed.quill, ta.value);
+  tpsiSetMode(key, ed.mode === 'visual' ? 'html' : 'visual');
+  tpsiFilling = false;
+  if (!changed) ed.initial = tpsiRichRaw(key);   // still untouched in the new mode
+}
+function tpsiRichValue(key) {
+  const ed = tpsiRichEditors[key]; if (!ed) return undefined;
+  const v = tpsiRichRaw(key);
+  return v === ed.initial ? ed.orig : v;
+}
+function tpsiRichRaw(key) {
+  const ed = tpsiRichEditors[key];
+  if (ed.mode === 'html') return document.getElementById('trt-' + key).value.trim();
+  const h = ed.quill.root.innerHTML;
+  return (h === '<p><br></p>' ? '' : h).trim();
+}
+// Short answers are shown inside a <p>: drop a single wrapping <p>…</p> from Quill
+function tpsiUnwrapP(h) {
+  const m = /^<p>([\s\S]*)<\/p>$/.exec(h || '');
+  return m && !/<\/?p[\s>]/i.test(m[1]) ? m[1] : (h || '');
+}
+
+// ── FAQ rows (EN and ES side by side, kept in the same order) ──
+function tpsiFaqRender(id, faqEn, faqEs) {
+  const box = document.getElementById('tpsi-faq-' + id);
+  Object.keys(tpsiRichEditors).filter(k => k.startsWith(`fa-`) && k.endsWith(`-${id}`)).forEach(k => delete tpsiRichEditors[k]);
+  const n = Math.max(faqEn.length, faqEs.length);
+  tpsiFaqCounts[id] = n;
+  box.innerHTML = Array.from({ length: n }, (_, i) => `
+    <div class="tpsi-faq-row">
+      <div class="tpsi-row-tools"><span style="margin-right:auto;font-size:0.75rem;color:#888;">#${i + 1}</span>
+        <button onclick="tpsiFaqMove(${id},${i},-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button onclick="tpsiFaqMove(${id},${i},1)" ${i === n - 1 ? 'disabled' : ''}>↓</button>
+        <button onclick="tpsiFaqMove(${id},${i},0)" title="Remove">✕</button></div>
+      <div class="two-col">
+        <div><input id="fq-en-${i}-${id}" placeholder="Question (EN)" value="${escapeAttr((faqEn[i] || {}).q || '')}" oninput="tpsiDirtyMark(${id})">${tpsiRichShell(`fa-en-${i}-${id}`, true)}</div>
+        <div><input id="fq-es-${i}-${id}" placeholder="Pregunta (ES)" value="${escapeAttr((faqEs[i] || {}).q || '')}" oninput="tpsiDirtyMark(${id})">${tpsiRichShell(`fa-es-${i}-${id}`, true)}</div>
+      </div>
+    </div>`).join('');
+  const was = tpsiFilling; tpsiFilling = true;
+  for (let i = 0; i < n; i++) {
+    tpsiRichInit(`fa-en-${i}-${id}`, (faqEn[i] || {}).a || '', true, id);
+    tpsiRichInit(`fa-es-${i}-${id}`, (faqEs[i] || {}).a || '', true, id);
+  }
+  tpsiFilling = was;
+}
+function tpsiFaqCollect(id, lang) {
+  const out = [];
+  for (let i = 0; i < (tpsiFaqCounts[id] || 0); i++) {
+    const q = (document.getElementById(`fq-${lang}-${i}-${id}`) || {}).value || '';
+    const a = tpsiUnwrapP(tpsiRichValue(`fa-${lang}-${i}-${id}`) || '');
+    out.push({ q: q.trim(), a });
+  }
+  return out;
+}
+function tpsiFaqMove(id, i, dir) {
+  const en = tpsiFaqCollect(id, 'en'), es = tpsiFaqCollect(id, 'es');
+  if (dir === 0) {
+    if (!confirm(`Remove question #${i + 1} in both languages?`)) return;
+    en.splice(i, 1); es.splice(i, 1);
+  } else {
+    const j = i + dir;
+    [en[i], en[j]] = [en[j], en[i]]; [es[i], es[j]] = [es[j], es[i]];
+  }
+  tpsiFaqRender(id, en, es); tpsiDirtyMark(id);
+}
+function tpsiFaqAdd(id) {
+  const en = tpsiFaqCollect(id, 'en'), es = tpsiFaqCollect(id, 'es');
+  en.push({ q: '', a: '' }); es.push({ q: '', a: '' });
+  tpsiFaqRender(id, en, es); tpsiDirtyMark(id);
+}
+
+// ── Sources and related links ──
+function tpsiRowsRender(id, kind, rows) {
+  const box = document.getElementById(`tpsi-${kind}-${id}`);
+  box.innerHTML = rows.map((r, i) => kind === 'src'
+    ? `<div class="tpsi-grid-src" data-i="${i}">
+         <input placeholder="Title" value="${escapeAttr(r.title || '')}" oninput="tpsiDirtyMark(${id})">
+         <input placeholder="Publisher, date" value="${escapeAttr(r.publisher || '')}" oninput="tpsiDirtyMark(${id})">
+         <input placeholder="https://…" value="${escapeAttr(r.url || '')}" oninput="tpsiDirtyMark(${id})">
+         <label style="margin:0;font-weight:400;white-space:nowrap;"><input type="checkbox" style="width:auto;margin:0 3px 0 0;" ${r.primary ? 'checked' : ''} onchange="tpsiDirtyMark(${id})">primary</label>
+         <button class="tpsi-x" onclick="tpsiRowRemove(${id},'${kind}',${i})">✕</button></div>`
+    : `<div class="tpsi-grid-rel" data-i="${i}">
+         <input placeholder="Title" value="${escapeAttr(r.title || '')}" oninput="tpsiDirtyMark(${id})">
+         <input placeholder="https://…" value="${escapeAttr(r.url || '')}" oninput="tpsiDirtyMark(${id})">
+         <button class="tpsi-x" onclick="tpsiRowRemove(${id},'${kind}',${i})">✕</button></div>`).join('');
+}
+function tpsiRowsCollect(id, kind) {
+  return Array.from(document.querySelectorAll(`#tpsi-${kind}-${id} > div`)).map(row => {
+    const ins = row.querySelectorAll('input');
+    return kind === 'src'
+      ? { title: ins[0].value.trim(), publisher: ins[1].value.trim(), url: ins[2].value.trim(), primary: ins[3].checked }
+      : { title: ins[0].value.trim(), url: ins[1].value.trim() };
+  }).filter(r => r.title || r.url);
+}
+function tpsiRowAdd(id, kind) {
+  const rows = tpsiRowsCollect(id, kind);
+  rows.push(kind === 'src' ? { title: '', publisher: '', url: '', primary: false } : { title: '', url: '' });
+  tpsiRowsRender(id, kind, rows);
+}
+function tpsiRowRemove(id, kind, i) {
+  const rows = Array.from(document.querySelectorAll(`#tpsi-${kind}-${id} > div`)).map(row => {
+    const ins = row.querySelectorAll('input');
+    return kind === 'src' ? { title: ins[0].value, publisher: ins[1].value, url: ins[2].value, primary: ins[3].checked } : { title: ins[0].value, url: ins[1].value };
+  });
+  rows.splice(i, 1);
+  tpsiRowsRender(id, kind, rows); tpsiDirtyMark(id);
+}
+
+// ── Open / fill the editor ──
+function tpsiToggle(id) {
+  const form = document.getElementById('tpsi-edit-' + id);
+  const opening = !form.classList.contains('open');
+  form.classList.toggle('open');
+  if (opening && !tpsiRichEditors['sa-en-' + id]) setTimeout(() => tpsiFill(id), 0);   // fill once; reopening keeps edits
+}
+function tpsiFill(id, fromPage) {
+  const p = fromPage || tpsiPages[id];
+  let local = null;
+  if (!fromPage) {
+    try {
+      const raw = localStorage.getItem('tps_tpsi_draft_' + id);
+      if (raw) {
+        const d = JSON.parse(raw);
+        const mins = Math.max(1, Math.round((Date.now() - d.savedAt) / 60000));
+        if (confirm(`Found unsaved local edits for "${p.question_en || 'this page'}" from ~${mins} minute(s) ago. Load them instead of the saved version?`)) local = d.payload;
+        else localStorage.removeItem('tps_tpsi_draft_' + id);
+      }
+    } catch (e) {}
+  }
+  const src = local ? { ...p, ...local } : p;
+  tpsiFilling = true;
+  ['en', 'es'].forEach(l => {
+    ['sa', 'body'].forEach(kind => {
+      const key = `${kind}-${l}-${id}`;
+      const html = kind === 'sa' ? src['short_answer_' + l] : src['body_' + l];
+      if (tpsiRichEditors[key]) tpsiRichSet(key, html);
+      else tpsiRichInit(key, html, kind === 'sa', id);
+    });
+    tpsiRowsRender(id, 'rel-' + l, src['related_' + l] || []);
+    tpsiCount(id, l);
+  });
+  if (local || fromPage) ['question_en','question_es','slug_en','slug_es','category_en','category_es','meta_description_en','meta_description_es','sort_order','status_date']
+    .forEach(f => { const el = document.getElementById(`tp-${f}-${id}`); if (el && src[f] !== undefined) el.value = src[f] ?? ''; });
+  tpsiFaqRender(id, src.faq_en || [], src.faq_es || []);
+  tpsiRowsRender(id, 'src', src.sources || []);
+  ['en', 'es'].forEach(l => tpsiCount(id, l));
+  tpsiFilling = false;
+  if (local) tpsiDirtyMark(id); else if (!fromPage) { tpsiDirty.delete(id); tpsiStatus(id, ''); }
+}
+function tpsiCount(id, lang) {
+  const el = document.getElementById(`tp-meta_description_${lang}-${id}`), c = document.getElementById(`tp-cnt-${lang}-${id}`);
+  if (!el || !c) return;
+  const n = el.value.length;
+  c.textContent = `${n}/160`;
+  c.classList.toggle('over', n > 160 || (n > 0 && n < 50));
+}
+function tpsiAutoSlug(id, lang) {
+  const q = document.getElementById(`tp-question_${lang}-${id}`).value;
+  document.getElementById(`tp-slug_${lang}-${id}`).value = tpsiSlugify(q);
+  tpsiDirtyMark(id);
+}
+
+// ── Collect + save ──
+function tpsiPayload(id) {
+  const out = {};
+  ['question_en','question_es','slug_en','slug_es','category_en','category_es','meta_description_en','meta_description_es','sort_order','status_date']
+    .forEach(f => { const el = document.getElementById(`tp-${f}-${id}`); if (el) out[f] = el.value; });
+  if (!tpsiRichEditors[`sa-en-${id}`]) return out;   // editor never opened: send only the simple fields
+  ['en', 'es'].forEach(l => {
+    out['short_answer_' + l] = tpsiUnwrapP(tpsiRichValue(`sa-${l}-${id}`));
+    out['body_' + l] = tpsiRichValue(`body-${l}-${id}`);
+    out['faq_' + l] = tpsiFaqCollect(id, l);
+    out['related_' + l] = tpsiRowsCollect(id, 'rel-' + l);
+  });
+  out.sources = tpsiRowsCollect(id, 'src');
+  return out;
+}
+function tpsiStatus(id, text) { const el = document.getElementById('tpsi-status-' + id); if (el) el.textContent = text; }
+function tpsiDirtyMark(id) {
+  if (tpsiFilling) return;
+  tpsiDirty.add(id);
+  try { localStorage.setItem('tps_tpsi_draft_' + id, JSON.stringify({ payload: tpsiPayload(id), savedAt: Date.now() })); } catch (e) {}
+  tpsiStatus(id, '● Unsaved changes — backed up locally');
+  if (!tpsiTimers[id]) tpsiTimers[id] = setInterval(() => { if (tpsiDirty.has(id)) tpsiSave(id, true); }, TPSI_AUTOSAVE_MS);
+}
+function tpsiCheckPlaceholders(payload) {
+  const text = JSON.stringify(payload);
+  const bad = [...new Set((text.match(/\{\{[^}]*\}\}/g) || []).filter(t => !TPSI_PLACEHOLDERS.includes(t)))];
+  return bad;
+}
+async function tpsiSave(id, silent) {
+  const payload = tpsiPayload(id);
+  const bad = tpsiCheckPlaceholders(payload);
+  if (bad.length && !silent && !confirm(`Unknown placeholder(s): ${bad.join(', ')} — they will appear as-is on the page. Save anyway?`)) return;
+  try {
+    const r = await api(`/api/admin/tpsipedia/${id}/edit`, { method: 'POST', body: JSON.stringify(payload) });
+    tpsiPages[id] = r.page;
+    tpsiDirty.delete(id);
+    localStorage.removeItem('tps_tpsi_draft_' + id);
+    tpsiStatus(id, (silent ? '✓ Autosaved ' : '✓ Saved ') + new Date().toLocaleTimeString() + (r.changed ? '' : ' (no changes)'));
+    if (!silent) showToast(r.changed ? 'Saved' + (r.page.status === 'published' ? ' — live page updated' : '') : 'No changes to save');
+  } catch (e) {
+    tpsiStatus(id, '⚠ Save failed — still backed up locally');
+    if (!silent) showToast('Error: ' + e.message);
+    throw e;
+  }
+}
+
+// ── Actions ──
+async function tpsiNew() {
+  try { await api('/api/admin/tpsipedia/new', { method: 'POST' }); showToast('New draft created'); await tpsiLoad(); }
+  catch (e) { showToast('Error: ' + e.message); }
+}
+async function tpsiPreview(id, lang) {
+  try {
+    if (tpsiDirty.has(id)) { showToast('Saving before preview…'); await tpsiSave(id, true); }
+    const d = await api(`/api/admin/tpsipedia/${id}/preview-link`);
+    window.open(lang === 'es' ? d.url_es : d.url_en, '_blank');
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+async function tpsiPublish(id) {
+  if (!confirm('Publish this page? It goes live in English and Spanish, and is sent to Bing via IndexNow.')) return;
+  try {
+    if (tpsiDirty.has(id)) await tpsiSave(id, true);
+    await api(`/api/admin/tpsipedia/${id}/publish`, { method: 'POST' });
+    showToast('Published'); await tpsiLoad();
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+async function tpsiUnpublish(id) {
+  if (!confirm('Take this page offline (back to draft)? Its address will show "not found" until published again.')) return;
+  try { await api(`/api/admin/tpsipedia/${id}/unpublish`, { method: 'POST' }); showToast('Unpublished'); await tpsiLoad(); }
+  catch (e) { showToast('Error: ' + e.message); }
+}
+async function tpsiDelete(id) {
+  if (!confirm('Permanently delete this page in both languages? This cannot be undone.')) return;
+  try {
+    await api(`/api/admin/tpsipedia/${id}/delete`, { method: 'POST' });
+    tpsiDirty.delete(id); localStorage.removeItem('tps_tpsi_draft_' + id);
+    showToast('Deleted'); await tpsiLoad();
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+async function tpsiTranslate(id, direction) {
+  const toEs = direction === 'en-to-es';
+  if (!confirm(`Translate ${toEs ? 'English → Spanish' : 'Spanish → English'}? This overwrites the ${toEs ? 'Spanish' : 'English'} question, category, meta description, short answer, body, FAQ and related titles.`)) return;
+  const btn = document.getElementById(toEs ? `tpsi-tr-es-${id}` : `tpsi-tr-en-${id}`);
+  const label = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = toEs ? '🌐 Traduciendo…' : '🌐 Translating…';
+  try {
+    if (tpsiDirty.has(id)) await tpsiSave(id, true);
+    const r = await api(`/api/admin/tpsipedia/${id}/translate?direction=${direction}`, { method: 'POST' });
+    tpsiPages[id] = r.page;
+    tpsiFill(id, r.page);
+    tpsiDirty.delete(id); localStorage.removeItem('tps_tpsi_draft_' + id);
+    tpsiStatus(id, '✓ Translated and saved ' + new Date().toLocaleTimeString());
+    showToast('Translated — please read it over');
+  } catch (e) { showToast('Error: ' + e.message); }
+  finally { btn.disabled = false; btn.innerHTML = label; }
+}
+
+window.addEventListener('beforeunload', (e) => {
+  if (tpsiDirty.size > 0) { e.preventDefault(); e.returnValue = ''; }
 });
 </script>
 </body>

@@ -110,7 +110,23 @@ $L = $is_en ? [
 
 $page = null;
 $pages = [];
-if ($slug !== '') {
+
+// ── Preview of a draft: ?preview=<token> minted by /api/admin/tpsipedia/:id/preview-link ──
+// Checked with the server-side secret key (tokens are not readable with the public key).
+$previewToken = isset($_GET['preview']) ? preg_replace('/[^a-f0-9]/', '', $_GET['preview']) : '';
+$isPreview = false;
+if ($previewToken !== '' && SUPABASE_SERVICE_KEY) {
+    [$c, $tok] = supabase_request('GET', '/rest/v1/tpsipedia_preview_tokens?select=page_id&token=eq.' . $previewToken
+        . '&expires_at=gt.' . urlencode(date('c')) . '&limit=1', SUPABASE_SERVICE_KEY);
+    if ($c === 200 && !empty($tok[0]['page_id'])) {
+        [$c, $rows] = supabase_request('GET', '/rest/v1/tpsipedia_pages?select=*&id=eq.' . (int)$tok[0]['page_id'] . '&limit=1', SUPABASE_SERVICE_KEY);
+        if ($c === 200 && !empty($rows[0])) { $page = $rows[0]; $isPreview = true; }
+    }
+}
+
+if ($isPreview) {
+    // page already loaded above
+} elseif ($slug !== '') {
     $col  = $is_en ? 'slug_en' : 'slug_es';
     $rows = tpsi_get('/rest/v1/tpsipedia_pages?select=*&status=eq.published&' . $col . '=eq.' . urlencode($slug) . '&limit=1');
     if (!$rows) {
@@ -143,7 +159,7 @@ if ($page) {
     $canonical = tpsi_url($page["slug_$lang"], $lang);
     $altEn     = tpsi_url($page['slug_en'], 'en');
     $altEs     = tpsi_url($page['slug_es'], 'es');
-    $toggle    = $is_en ? $altEs : $altEn;
+    $toggle    = ($is_en ? $altEs : $altEn) . ($isPreview ? '&preview=' . $previewToken : '');
 } elseif ($slug === '') {
     // Bing limits: title ≤ 70 characters, meta description 25–160 characters.
     $title     = $is_en ? 'TPSipedia: Panama tourist rental law, answered'
@@ -242,7 +258,9 @@ $e = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     <title><?= $e($title) ?></title>
     <meta name="description" content="<?= $e($metaDesc) ?>">
     <link rel="canonical" href="<?= $e($canonical) ?>">
-    <?php if ($page || $slug === ''): ?>
+    <?php if ($isPreview): ?>
+    <meta name="robots" content="noindex">
+    <?php elseif ($page || $slug === ''): ?>
     <link rel="alternate" hreflang="en" href="<?= $e($altEn) ?>">
     <link rel="alternate" hreflang="es" href="<?= $e($altEs) ?>">
     <link rel="alternate" hreflang="x-default" href="<?= $e($altEn) ?>">
@@ -319,6 +337,14 @@ $e = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     ?>
 
 <?php if ($page): ?>
+    <?php if ($isPreview): ?>
+    <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:0.8rem 1rem;margin-bottom:1rem;font-size:0.9rem;color:#856404;">
+        👁️ <strong><?= $is_en ? 'PREVIEW' : 'VISTA PREVIA' ?></strong> — <?= $is_en ? 'status' : 'estado' ?>: <?= $e($page['status']) ?>.
+        <?= $page['status'] === 'published'
+            ? ($is_en ? 'This page is live; this view shows the saved version.' : 'Esta página está publicada; aquí se ve la versión guardada.')
+            : ($is_en ? 'Not visible to the public yet.' : 'Aún no es visible al público.') ?>
+    </div>
+    <?php endif; ?>
     <nav class="crumbs" aria-label="Breadcrumb">
         <a href="<?= $is_en ? '/' : '/index.php?lang=es' ?>">Trusted Panama Stays</a> ›
         <a href="<?= $e(tpsi_url('', $lang)) ?>">TPSipedia</a> ›
