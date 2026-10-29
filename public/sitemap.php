@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/includes/supabase-config.php';
+require_once __DIR__ . '/includes/tpsipedia-about.php';
 define('SITE_URL',     'https://trustedpanamastays.com');
 
 header('Content-Type: application/xml; charset=utf-8');
@@ -78,6 +79,8 @@ if (!empty($tpsiPages)) {
     $tpsiIdxMod = date('Y-m-d', $tpsiLatest);
     echo "  <url><loc>" . SITE_URL . "/tpsipedia.php</loc><lastmod>{$tpsiIdxMod}</lastmod><priority>0.85</priority></url>\n";
     echo "  <url><loc>" . SITE_URL . "/tpsipedia.php?lang=es</loc><lastmod>{$tpsiIdxMod}</lastmod><priority>0.85</priority></url>\n";
+    echo "  <url><loc>" . SITE_URL . "/tpsipedia.php?page=about</loc><lastmod>" . TPSI_ABOUT_UPDATED . "</lastmod><priority>0.60</priority></url>\n";
+    echo "  <url><loc>" . SITE_URL . "/tpsipedia.php?page=about&amp;lang=es</loc><lastmod>" . TPSI_ABOUT_UPDATED . "</lastmod><priority>0.60</priority></url>\n";
     foreach ($tpsiPages as $p) {
         $lastmod = date('Y-m-d', strtotime($p['updated_at']));
         echo "  <url><loc>" . SITE_URL . '/tpsipedia.php?slug=' . urlencode($p['slug_en']) . "</loc><lastmod>{$lastmod}</lastmod><priority>0.90</priority></url>\n";

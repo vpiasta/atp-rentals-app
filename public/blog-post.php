@@ -5,6 +5,7 @@ $lang  = isset($_GET['lang']) && $_GET['lang'] === 'es' ? 'es' : 'en';
 $is_en = $lang === 'en';
 $slug  = isset($_GET['slug']) ? trim($_GET['slug']) : '';
 require_once __DIR__ . '/includes/supabase-config.php';
+require_once __DIR__ . '/includes/tpsipedia-about.php'; // author name constants (TPSI_AUTHOR_NAME / TPSI_AUTHOR_SHOWN)
 
 // Dates in the reader's language (same approach as format_blog_date() in blog.php: done by hand,
 // because setlocale() can silently do nothing on shared hosting). $short = "26 Oct 2026" / "26 oct 2026".
@@ -104,6 +105,8 @@ $image     = $post['featured_image_url']  ?? null;
 // Self-canonical, synchronous — computed purely from URL params, before the
 // curl call above even resolves, so crawlers never race a JS-timed tag.
 $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($slug) . ($is_en ? '' : '&lang=es');
+// Author: same person and About page as TPSipedia
+$aboutUrl  = 'https://trustedpanamastays.com/tpsipedia.php?page=about' . ($is_en ? '' : '&lang=es');
 ?>
 <!DOCTYPE html>
 <html lang="<?= $lang ?>">
@@ -168,10 +171,17 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
         "description" => $metaDesc,
         "datePublished" => $published,
         "image" => $image ?: null,
-        "author" => ["@type" => "Organization", "name" => "Trusted Panama Stays"],
+        "author" => [
+            "@type" => "Person",
+            "name" => TPSI_AUTHOR_NAME,
+            "honorificPrefix" => "Ing.",
+            "alumniOf" => ["@type" => "CollegeOrUniversity", "name" => "Technische Universität Berlin"],
+            "jobTitle" => $is_en ? "General manager, Aparthotel Boquete" : "Gerente general, Aparthotel Boquete",
+            "url" => $aboutUrl
+        ],
         "publisher" => ["@type" => "Organization", "name" => "Trusted Panama Stays"],
         "mainEntityOfPage" => $canonical
-    ], JSON_UNESCAPED_SLASHES) ?>
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>
     </script>
     <?php endif; ?>
 </head>
@@ -206,7 +216,10 @@ $canonical = 'https://trustedpanamastays.com/blog-post.php?slug=' . urlencode($s
         <div class="post-header">
             <?php if ($category): ?><span class="cat"><?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
             <h1><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></h1>
-            <?php if ($published): ?><div class="meta"><?= post_date($published, $lang) ?></div><?php endif; ?>
+            <div class="meta">
+                <?php if ($published): ?><?= post_date($published, $lang) ?> · <?php endif; ?>
+                <?= $is_en ? 'By' : 'Por' ?> <a href="<?= htmlspecialchars($aboutUrl, ENT_QUOTES, 'UTF-8') ?>" style="color:#005ca9;text-decoration:none;"><?= htmlspecialchars(TPSI_AUTHOR_SHOWN, ENT_QUOTES, 'UTF-8') ?></a>
+            </div>
         </div>
         <?php if ($image): ?><img class="post-image" src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>"><?php endif; ?>
         <div class="post-body"><?= $bodyHtml ?></div>

@@ -12,10 +12,13 @@
  * that TPS imports daily (RPC tpsipedia_registry_stats), so the numbers never go stale.
  */
 require_once __DIR__ . '/includes/supabase-config.php';
+require_once __DIR__ . '/includes/tpsipedia-about.php';
 
 $lang  = isset($_GET['lang']) && $_GET['lang'] === 'es' ? 'es' : 'en';
 $is_en = $lang === 'en';
 $slug  = isset($_GET['slug']) ? trim($_GET['slug']) : '';
+$isAbout = isset($_GET['page']) && $_GET['page'] === 'about';   // /tpsipedia.php?page=about
+if ($isAbout) $slug = '';
 $SITE  = 'https://trustedpanamastays.com';
 
 // ── Dates: day first, month written out ("26 October 2026" / "26 de octubre de 2026") ──
@@ -91,6 +94,10 @@ function tpsi_url($slug, $lang) {
     return 'https://trustedpanamastays.com/tpsipedia.php' . ($slug !== '' ? '?slug=' . urlencode($slug) . ($lang === 'es' ? '&lang=es' : '') : ($lang === 'es' ? '?lang=es' : ''));
 }
 
+function tpsi_about_url($lang) {
+    return 'https://trustedpanamastays.com/tpsipedia.php?page=about' . ($lang === 'es' ? '&lang=es' : '');
+}
+
 function tpsi_plain($html) {
     return trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES, 'UTF-8')));
 }
@@ -115,6 +122,13 @@ $L = $is_en ? [
     'not_found'   => 'This question could not be found.',
     'all'         => 'All questions',
     'back'        => '← All TPSipedia questions',
+    'by'          => 'Written by',
+    'how_check'   => 'How we check',
+    'report_err'  => 'Report an error',
+    'about'       => 'About TPSipedia',
+    'about_link'  => 'Who writes these pages and how they are checked →',
+    'pub_label'   => 'About the publisher',
+    'pub_text'    => 'TPSipedia is published by Trusted Panama Stays, a directory that lists only officially registered lodgings. The directory has no influence on the answers above.',
 ] : [
     'section'     => 'TPSipedia',
     'tagline'     => 'Respuestas breves y con fuentes sobre la ley de alquileres turísticos en Panamá',
@@ -135,6 +149,13 @@ $L = $is_en ? [
     'not_found'   => 'No se encontró esta pregunta.',
     'all'         => 'Todas las preguntas',
     'back'        => '← Todas las preguntas de TPSipedia',
+    'by'          => 'Escrito por',
+    'how_check'   => 'Cómo verificamos',
+    'report_err'  => 'Reportar un error',
+    'about'       => 'Acerca de TPSipedia',
+    'about_link'  => 'Quién escribe estas páginas y cómo se verifican →',
+    'pub_label'   => 'Sobre quien publica',
+    'pub_text'    => 'TPSipedia es publicada por Trusted Panama Stays, un directorio que solo incluye hospedajes registrados oficialmente. El directorio no influye en las respuestas anteriores.',
 ];
 
 $page = null;
@@ -155,6 +176,9 @@ if ($previewToken !== '' && SUPABASE_SERVICE_KEY) {
 
 if ($isPreview) {
     // page already loaded above
+    $isAbout = false;
+} elseif ($isAbout) {
+    $about = tpsi_about_content($lang);
 } elseif ($slug !== '') {
     $col  = $is_en ? 'slug_en' : 'slug_es';
     $rows = tpsi_get('/rest/v1/tpsipedia_pages?select=*&status=eq.published&' . $col . '=eq.' . urlencode($slug) . '&limit=1');
@@ -199,6 +223,13 @@ if ($page) {
     $altEn     = tpsi_url($page['slug_en'], 'en');
     $altEs     = tpsi_url($page['slug_es'], 'es');
     $toggle    = ($is_en ? $altEs : $altEn) . ($isPreview ? '&preview=' . $previewToken : '');
+} elseif ($isAbout) {
+    $title     = $about['title'];
+    $metaDesc  = $about['meta'];
+    $canonical = tpsi_about_url($lang);
+    $altEn     = tpsi_about_url('en');
+    $altEs     = tpsi_about_url('es');
+    $toggle    = $is_en ? $altEs : $altEn;
 } elseif ($slug === '') {
     // Bing limits: title ≤ 70 characters, meta description 25–160 characters.
     $title     = $is_en ? 'TPSipedia: Panama tourist rental law, answered'
@@ -223,6 +254,17 @@ $publisher = [
     'url'   => $SITE . '/',
     'logo'  => $SITE . '/images/android-chrome-512x512.png',
 ];
+$author = [
+    '@type'    => 'Person',
+    'name'            => TPSI_AUTHOR_NAME,
+    'honorificPrefix' => 'Ing.',
+    'hasCredential'   => ['@type' => 'EducationalOccupationalCredential', 'credentialCategory' => 'degree',
+                          'name' => 'Diplom-Ingenieur (Dipl.-Ing.)',
+                          'recognizedBy' => ['@type' => 'CollegeOrUniversity', 'name' => 'Technische Universität Berlin']],
+    'alumniOf'        => ['@type' => 'CollegeOrUniversity', 'name' => 'Technische Universität Berlin'],
+    'jobTitle' => $is_en ? 'General manager, Aparthotel Boquete' : 'Gerente general, Aparthotel Boquete',
+    'url'      => tpsi_about_url($lang),
+];
 $jsonld = null;
 if ($page) {
     $faqEntities = [[
@@ -245,7 +287,7 @@ if ($page) {
                 'inLanguage'       => $is_en ? 'en' : 'es',
                 'datePublished'    => $page['published_at'] ?: $page['created_at'],
                 'dateModified'     => $page['updated_at'],
-                'author'           => $publisher,
+                'author'           => $author,
                 'publisher'        => $publisher,
                 'mainEntityOfPage' => $canonical,
                 'isPartOf'         => ['@type' => 'CollectionPage', 'name' => 'TPSipedia', 'url' => tpsi_url('', $lang)],
@@ -269,6 +311,19 @@ if ($page) {
                 ],
             ],
         ],
+    ];
+} elseif ($isAbout) {
+    $jsonld = [
+        '@context'     => 'https://schema.org',
+        '@type'        => 'AboutPage',
+        'name'         => $about['h1'],
+        'description'  => $metaDesc,
+        'url'          => $canonical,
+        'inLanguage'   => $is_en ? 'en' : 'es',
+        'dateModified' => TPSI_ABOUT_UPDATED,
+        'author'       => $author,
+        'publisher'    => $publisher,
+        'isPartOf'     => ['@type' => 'CollectionPage', 'name' => 'TPSipedia', 'url' => tpsi_url('', $lang)],
     ];
 } elseif ($slug === '' && $pages) {
     $jsonld = [
@@ -304,7 +359,7 @@ $e = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     <link rel="alternate" hreflang="es" href="<?= $e($altEs) ?>">
     <link rel="alternate" hreflang="x-default" href="<?= $e($altEn) ?>">
     <meta property="og:type" content="<?= $page ? 'article' : 'website' ?>">
-    <meta property="og:title" content="<?= $e($page ? $q : 'TPSipedia') ?>">
+    <meta property="og:title" content="<?= $e($page ? $q : ($isAbout ? $about['h1'] : 'TPSipedia')) ?>">
     <meta property="og:description" content="<?= $e($metaDesc) ?>">
     <meta property="og:url" content="<?= $e($canonical) ?>">
     <meta property="og:site_name" content="Trusted Panama Stays">
@@ -361,6 +416,12 @@ $e = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
         .q-card p { font-size: 0.92rem; color: #444; margin-bottom: 0.3rem; }
         .q-card .more { font-size: 0.85rem; font-weight: 600; color: #005ca9; text-decoration: none; }
         .no-match { display: none; color: #666; padding: 0.5rem 0; }
+        .meta a { color: #005ca9; }
+        .publisher-box { margin-top: 2rem; background: #f3f4f6; border: 1px dashed #c9ced6; box-shadow: none; }
+        .publisher-box .label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #666; margin-bottom: 0.35rem; }
+        .publisher-box p { font-size: 0.9rem; color: #444; }
+        .about-link { font-size: 0.88rem; font-weight: 600; color: #005ca9; text-decoration: none; }
+        .about-link:hover { text-decoration: underline; }
         @media (max-width: 600px) { h1.q { font-size: 1.35rem; } .card { padding: 1.1rem; } }
     </style>
 </head>
@@ -400,7 +461,8 @@ $e = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
             </div>
             <p class="meta">
                 <?= $L['updated'] ?>: <time datetime="<?= $e(substr($page['updated_at'], 0, 10)) ?>"><?= tpsi_date($page['updated_at'], $lang) ?></time>
-                · <?= $L['checked'] ?>
+                · <?= $L['by'] ?> <a href="<?= $e(tpsi_about_url($lang)) ?>"><?= $e(TPSI_AUTHOR_SHOWN) ?></a>
+                · <?= $L['checked'] ?> <a href="<?= $e(tpsi_about_url($lang)) ?>"><?= $L['how_check'] ?></a>
             </p>
         </div>
 
@@ -419,11 +481,6 @@ $e = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
             <?php endforeach; ?>
         </section>
         <?php endif; ?>
-
-        <div class="card">
-            <p class="disclaimer"><?= $L['disclaimer'] ?></p>
-            <p style="margin-top:0.9rem;"><a class="cta" href="<?= $is_en ? '/' : '/index.php?lang=es' ?>"><?= $L['cta'] ?></a></p>
-        </div>
 
         <?php if ($sources): ?>
         <section class="card content sources" id="sources">
@@ -451,8 +508,35 @@ $e = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
             </ul>
         </section>
         <?php endif; ?>
+
+        <div class="card">
+            <p class="disclaimer"><?= $L['disclaimer'] ?></p>
+            <p style="margin-top:0.6rem;font-size:0.88rem;"><a href="mailto:info@trustedpanamastays.com?subject=<?= rawurlencode('TPSipedia: ' . $q) ?>" style="color:#005ca9;"><?= $L['report_err'] ?></a> · <a class="about-link" style="font-weight:400;" href="<?= $e(tpsi_about_url($lang)) ?>"><?= $L['about_link'] ?></a></p>
+        </div>
     </article>
 
+    <aside class="card publisher-box" aria-label="<?= $e($L['pub_label']) ?>">
+        <span class="label"><?= $L['pub_label'] ?></span>
+        <p><?= $L['pub_text'] ?></p>
+        <p style="margin-top:0.8rem;"><a class="cta" href="<?= $is_en ? '/' : '/index.php?lang=es' ?>"><?= $L['cta'] ?></a></p>
+    </aside>
+
+    <p><a class="crumbs" style="font-weight:600;color:#005ca9;text-decoration:none;" href="<?= $e(tpsi_url('', $lang)) ?>"><?= $L['back'] ?></a></p>
+
+<?php elseif ($isAbout): ?>
+    <nav class="crumbs" aria-label="Breadcrumb">
+        <a href="<?= $is_en ? '/' : '/index.php?lang=es' ?>">Trusted Panama Stays</a> ›
+        <a href="<?= $e(tpsi_url('', $lang)) ?>">TPSipedia</a> ›
+        <span><?= $e($about['h1']) ?></span>
+    </nav>
+    <article>
+        <div class="card">
+            <h1 class="q" style="margin-bottom:0.3rem;"><?= $e($about['h1']) ?></h1>
+            <p style="color:#005ca9;font-weight:600;"><?= $e($about['lead']) ?></p>
+            <p class="meta"><?= $L['updated'] ?>: <time datetime="<?= TPSI_ABOUT_UPDATED ?>"><?= tpsi_date(TPSI_ABOUT_UPDATED, $lang) ?></time></p>
+        </div>
+        <div class="card content"><?= $about['body'] ?></div>
+    </article>
     <p><a class="crumbs" style="font-weight:600;color:#005ca9;text-decoration:none;" href="<?= $e(tpsi_url('', $lang)) ?>"><?= $L['back'] ?></a></p>
 
 <?php elseif ($slug === ''): ?>
@@ -460,6 +544,7 @@ $e = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
         <h1 class="q" style="margin-bottom:0.3rem;">TPSipedia</h1>
         <p style="color:#005ca9;font-weight:600;margin-bottom:0.6rem;"><?= $L['tagline'] ?></p>
         <p><?= $L['index_intro'] ?></p>
+        <p style="margin-top:0.5rem;"><a class="about-link" href="<?= $e(tpsi_about_url($lang)) ?>"><?= $L['about_link'] ?></a></p>
         <input type="search" class="search" id="tpsi-search" placeholder="<?= $L['search_ph'] ?>" aria-label="<?= $L['search_ph'] ?>">
     </div>
 

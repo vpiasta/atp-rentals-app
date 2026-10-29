@@ -13,6 +13,7 @@
  * Key file: /5151ae9aecae8400a7a0de59ba83c63b.txt (must stay in the web root).
  */
 require_once __DIR__ . '/includes/supabase-config.php';
+require_once __DIR__ . '/includes/tpsipedia-about.php';
 header('Content-Type: application/json; charset=utf-8');
 header('X-Robots-Tag: noindex');
 
@@ -40,6 +41,9 @@ if ($tpLatest) {
     $urls[SITE . '/tpsipedia.php']         = $tpLatest;
     $urls[SITE . '/tpsipedia.php?lang=es'] = $tpLatest;
 }
+// "About TPSipedia" (content in includes/tpsipedia-about.php; date bumped by hand when the text changes)
+$urls[SITE . '/tpsipedia.php?page=about']         = TPSI_ABOUT_UPDATED . 'T00:00:00Z';
+$urls[SITE . '/tpsipedia.php?page=about&lang=es'] = TPSI_ABOUT_UPDATED . 'T00:00:00Z';
 
 [$c, $bp] = supabase_request('GET', '/rest/v1/blog_posts?select=slug,published_at,updated_at&status=eq.published', SUPABASE_KEY);
 foreach (is_array($bp) ? $bp : [] as $b) {
