@@ -48,7 +48,7 @@ function supabase_get($path) {
     return is_array($data) && isset($data[0]) ? $data[0] : null;
 }
 
-$select = 'id,name,phone,email,province,rental_type,address,description_en,description_es,photos,website_url,booking_url,is_member,membership_paid_until,phone_member,email_member,custom_links,slug,registry_source,apatel_member,listing_keywords';
+$select = 'id,name,phone,email,province,rental_type,address,description_en,description_es,photos,website_url,booking_url,is_member,membership_paid_until,phone_member,email_member,custom_links,slug,registry_source,apatel_member,listing_keywords,atp_active';
 
 if ($slug) {
     $listing = supabase_get('listings?select=' . $select . '&slug=eq.' . urlencode($slug) . '&limit=1');
@@ -155,6 +155,44 @@ $page_title  = $lang === 'es' ? $title_es : $title_en;
 $page_desc   = $lang === 'es' ? $desc_es  : $desc_en;
 
 $mici_label  = $listing['registry_source'] === 'mici' ? '✅ MiCI' : '✅ ATP';
+
+// ── Registration shown on the page ────────────────────────────────────────────
+// ATP listings: the ATP report this listing appears in (link to the PDF).
+// Aviso de operación number: only if the member chose to show it (it contains
+// the owner's cédula for individuals) — read through an RPC, never directly.
+function supabase_rpc($fn, $args) {
+    $ch = curl_init(SUPABASE_URL . '/rest/v1/rpc/' . $fn);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode($args),
+        CURLOPT_HTTPHEADER     => [
+            'apikey: '        . SUPABASE_KEY,
+            'Authorization: Bearer ' . SUPABASE_KEY,
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ],
+        CURLOPT_TIMEOUT => 5,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    $body = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return ($code >= 200 && $code < 300) ? json_decode($body, true) : null;
+}
+function report_date_text($dmy, $lang) {
+    if (!preg_match('/^(\d{1,2})-(\d{1,2})-(\d{4})$/', (string)$dmy, $m)) return '';
+    $en = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    $es = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    $d = (int)$m[1]; $mo = (int)$m[2] - 1; $y = $m[3];
+    if ($mo < 0 || $mo > 11) return '';
+    return $lang === 'es' ? "$d de {$es[$mo]} de $y" : "$d {$en[$mo]} $y";
+}
+$is_mici     = ($listing['registry_source'] ?? '') === 'mici';
+$atp_report  = (!$is_mici && !empty($listing['atp_active'])) ? supabase_rpc('atp_report_info', new stdClass()) : null;
+if (!is_array($atp_report) || empty($atp_report['url'])) $atp_report = null;
+$aviso_shown = $active ? supabase_rpc('listing_public_aviso', ['p_id' => (int)$listing['id']]) : null;
+if (!is_string($aviso_shown) || trim($aviso_shown) === '') $aviso_shown = null;
 $apatel      = !empty($listing['apatel_member']);
 
 // ── Phone helpers ─────────────────────────────────────────────────────────────
@@ -371,6 +409,25 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
             <?php endif; ?>
         </div>
     </div>
+
+    <?php if ($atp_report || $is_mici || $aviso_shown): ?>
+    <div class="section">
+        <div class="section-title"><?= $lang === 'es' ? 'Registro' : 'Registration' ?></div>
+        <?php if ($atp_report): $rd = report_date_text($atp_report['date'] ?? '', $lang); ?>
+        <p style="font-size:0.92rem;">✅ <?= $lang === 'es'
+            ? 'Incluido en el reporte de hospedajes vigentes de la Autoridad de Turismo de Panamá (ATP)' . ($rd ? ", edición del $rd" : '') . '.'
+            : 'Listed in the Autoridad de Turismo de Panamá (ATP) report of licensed lodgings' . ($rd ? ", edition of $rd" : '') . '.' ?>
+            <a href="<?= h($atp_report['url']) ?>" target="_blank" rel="noopener" style="color:#005ca9;"><?= $lang === 'es' ? 'Ver el reporte (PDF)' : 'Open the report (PDF)' ?></a></p>
+        <?php elseif ($is_mici): ?>
+        <p style="font-size:0.92rem;">✅ <?= $lang === 'es'
+            ? 'Registrado ante el Ministerio de Comercio e Industrias (MICI) con aviso de operación.'
+            : 'Registered with the Ministry of Commerce and Industry (MICI) with an aviso de operación (business license).' ?></p>
+        <?php endif; ?>
+        <?php if ($aviso_shown): ?>
+        <p style="font-size:0.92rem;margin-top:0.3rem;"><?= $lang === 'es' ? 'Aviso de operación (MICI) N°' : 'Aviso de operación (MICI business license) No.' ?> <strong><?= h($aviso_shown) ?></strong> <span style="color:#888;font-size:0.82rem;">— <?= $lang === 'es' ? 'indicado por el propietario' : 'provided by the owner' ?></span></p>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
 
     <?php if (!empty($photos)): ?>
     <div class="gallery-wrap">

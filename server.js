@@ -1519,9 +1519,7 @@ app.post('/api/reload-pdf', async (req, res) => {
     const bearer = req.headers['authorization']?.replace('Bearer ', '');
     let isAdminToken = false;
     if (bearer) {
-        try {
-            isAdminToken = Buffer.from(bearer, 'base64').toString().split(':')[0] === 'admin';
-        } catch {}
+        isAdminToken = isValidAdminToken(bearer);
     }
     const bodySecret = req.body?.secret;
     const isCronSecret = bodySecret && bodySecret === process.env.ADMIN_SECRET;
@@ -1583,6 +1581,104 @@ function isActiveMember(l) {
     return new Date(l.membership_paid_until) >= new Date();
 }
 
+// ── Signed session tokens (29 Oct 2026) ──────────────────────────────────────
+// Before this, member/admin tokens were base64("id:time:ADMIN_SECRET"): anyone
+// who logged in as a member could decode the secret from their own token and
+// forge an admin token, and several member endpoints only compared the id in
+// the token (base64("123:x") passed). Tokens are now "payload.signature", with
+// an HMAC-SHA256 of the payload keyed by ADMIN_SECRET; the secret itself is
+// never in a token. Old-format tokens are rejected, so everyone logs in again
+// once after this deploy.
+const nodeCrypto = require('crypto');
+const MEMBER_TOKEN_MAX_AGE_MS = 12 * 60 * 60 * 1000;      // member editing session: 12 hours
+const EXTEND_TOKEN_MAX_AGE_MS = 10 * 24 * 60 * 60 * 1000; // emailed trial-extension link: 10 days
+
+function signToken(payload) {
+    const body = Buffer.from(String(payload), 'utf8').toString('base64url');
+    const sig  = nodeCrypto.createHmac('sha256', process.env.ADMIN_SECRET || '').update(body).digest('base64url');
+    return body + '.' + sig;
+}
+
+// Returns the payload string if the signature is valid, otherwise null.
+function readSignedToken(token) {
+    if (typeof token !== 'string' || !process.env.ADMIN_SECRET) return null;
+    const dot = token.indexOf('.');
+    if (dot < 1) return null;
+    const body = token.slice(0, dot);
+    const sig  = token.slice(dot + 1);
+    const expected = nodeCrypto.createHmac('sha256', process.env.ADMIN_SECRET).update(body).digest('base64url');
+    const a = Buffer.from(sig), b = Buffer.from(expected);
+    if (a.length !== b.length || !nodeCrypto.timingSafeEqual(a, b)) return null;
+    try { return Buffer.from(body, 'base64url').toString('utf8'); } catch { return null; }
+}
+
+// For routes that accept an admin session OR the cron secret (they used to
+// accept any token that merely started with "admin").
+function isValidAdminToken(token) {
+    const payload = readSignedToken(token);
+    if (!payload) return false;
+    const [role, ts] = payload.split(':');
+    const age = Date.now() - parseInt(ts, 10);
+    return role === 'admin' && age >= 0 && age <= 4 * 60 * 60 * 1000;
+}
+
+function makeMemberToken(id) { return signToken(`member:${id}:${Date.now()}`); }
+
+// 'ok' | 'expired' | 'invalid'
+function memberTokenStatus(token, id) {
+    const payload = readSignedToken(token);
+    if (!payload) return 'invalid';
+    const [role, tokenId, ts] = payload.split(':');
+    if (role !== 'member' || tokenId !== String(id)) return 'invalid';
+    const age = Date.now() - parseInt(ts, 10);
+    if (!(age >= 0 && age <= MEMBER_TOKEN_MAX_AGE_MS)) return 'expired';
+    return 'ok';
+}
+
+// Sends the 401/403 and returns true when the member token is not valid for this listing.
+function rejectMemberToken(res, token, id) {
+    const status = memberTokenStatus(token, id);
+    if (status === 'ok') return false;
+    if (status === 'expired') res.status(401).json({ error: 'Session expired' });
+    else res.status(403).json({ error: 'Invalid token' });
+    return true;
+}
+
+// ── ATP report shown on listing pages ("Listed in the ATP report of …") ──────
+let _atpReportCache = { at: 0, value: null };
+async function getAtpReportInfo() {
+    if (Date.now() - _atpReportCache.at < 10 * 60 * 1000) return _atpReportCache.value;
+    let value = null;
+    try {
+        const { data } = await supabaseAdmin
+            .from('pdf_meta').select('pdf_url, last_updated')
+            .order('last_updated', { ascending: false }).limit(1);
+        const url = data && data[0] && data[0].pdf_url;
+        if (url && /^https?:\/\//.test(url)) {
+            // Edition date is in the file name, e.g. "...VIGENTE-2-10-2026.pdf" (day-month-year)
+            const m = url.match(/(\d{1,2})-(\d{1,2})-(\d{4})\.pdf$/i);
+            const date = m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : null;
+            value = { url, date };
+        }
+    } catch (err) { console.error('getAtpReportInfo:', err.message); }
+    _atpReportCache = { at: Date.now(), value };
+    return value;
+}
+
+// Public listing + registry info. The aviso de operación number is only
+// included when the member chose to show it AND the membership is active
+// (for individuals the number contains their cédula, so it is never shown
+// by default).
+function listingWithRegistryInfo(l, report) {
+    const out = { ...publicListing(l) };
+    const showAviso = !!(l.aviso_public && l.license_number && isActiveMember(l));
+    out.aviso_public_number = showAviso ? l.license_number : null;
+    delete out.license_number;
+    delete out.aviso_public;
+    out.atp_report = (l.registry_source !== 'mici' && l.atp_active) ? report : null;
+    return out;
+}
+
 function publicListing(l) {
     if (!l || isActiveMember(l)) return l;
     const out = { ...l };
@@ -1597,22 +1693,22 @@ app.get('/api/listing/slug/:slug', async (req, res) => {
     const { slug } = req.params;
     const { data, error } = await supabaseAdmin
         .from('listings')
-        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links, is_trial, trial_started_at, registry_source, apatel_member, listing_keywords')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links, is_trial, trial_started_at, registry_source, apatel_member, listing_keywords, license_number, aviso_public')
         .eq('slug', slug)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
-    res.json(publicListing(data));
+    res.json(listingWithRegistryInfo(data, await getAtpReportInfo()));
 });
 
 app.get('/api/listing/:id', async (req, res) => {
     const { id } = req.params;
     const { data, error } = await supabaseAdmin
         .from('listings')
-        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug, is_trial, trial_started_at, registry_source, apatel_member, listing_keywords')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug, is_trial, trial_started_at, registry_source, apatel_member, listing_keywords, license_number, aviso_public')
         .eq('id', id)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
-    res.json(publicListing(data));
+    res.json(listingWithRegistryInfo(data, await getAtpReportInfo()));
 });
 
 // ── Admin-only: mint a valid listing session token without the member's ──
@@ -1624,8 +1720,7 @@ app.get('/api/admin/listing-access-token/:id', requireAdmin, async (req, res) =>
     const { data, error } = await supabaseAdmin
         .from('listings').select('id, is_member').eq('id', id).single();
     if (error || !data) return res.status(404).json({ error: 'Listing not found' });
-    const token = Buffer.from(`${id}:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
-    res.json({ token });
+    res.json({ token: makeMemberToken(id) });
 });
 
 
@@ -1654,29 +1749,38 @@ app.post('/api/listing-login', async (req, res) => {
     const match = await bcrypt.compare(password, data.member_password);
     if (!match) return res.status(401).json({ error: 'Invalid password' });
 
-    // Return a simple session token (id + timestamp, signed)
-    const token = Buffer.from(`${id}:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
-    res.json({ token, message: 'Login successful' });
+    // Signed session token (see signToken)
+    res.json({ token: makeMemberToken(id), message: 'Login successful' });
 });
 
 app.post('/api/listing-update', async (req, res) => {
     const bcrypt = require('bcrypt');
     const { id, token, address, phone_member, email_member, description_en,
-        description_es, website_url, booking_url, photos, custom_links, listing_keywords } = req.body;
+        description_es, website_url, booking_url, photos, custom_links, listing_keywords,
+        license_number, aviso_public } = req.body;
 
-    // Verify token
-    try {
-        const decoded = Buffer.from(token, 'base64').toString();
-        const [tokenId] = decoded.split(':');
-        if (tokenId !== String(id)) return res.status(403).json({ error: 'Invalid token' });
-    } catch {
-        return res.status(403).json({ error: 'Invalid token' });
-    }
+    if (rejectMemberToken(res, token, id)) return;
 
     // Only allow member-owned fields — never ATP fields
+    const update = { address, phone_member, email_member, description_en, description_es, website_url, booking_url, photos, custom_links, listing_keywords };
+
+    // Aviso de operación number + "show on my listing" (opt-in). Only touched
+    // when the page sends them, so an older cached page can't wipe them.
+    if (license_number !== undefined) {
+        const num = String(license_number || '').trim();
+        if (num && !/^[0-9A-Za-z][0-9A-Za-z\-\/ .]{2,59}$/.test(num)) {
+            return res.status(400).json({ error: 'Invalid aviso de operación number' });
+        }
+        update.license_number = num || null;
+        if (!num) update.aviso_public = false;
+    }
+    if (aviso_public !== undefined && update.aviso_public === undefined) {
+        update.aviso_public = aviso_public === true;
+    }
+
     const { error } = await supabaseAdmin
         .from('listings')
-        .update({ address, phone_member, email_member, description_en, description_es, website_url, booking_url, photos, custom_links, listing_keywords })
+        .update(update)
         .eq('id', id);
 
     if (error) return res.status(500).json({ error: error.message });
@@ -1689,18 +1793,23 @@ app.post('/api/listing-update', async (req, res) => {
     res.json({ success: true });
 });
 
+// Member-only fields the public listing API does not return (aviso number,
+// whether it is shown). Used by listing.html's edit mode.
+app.post('/api/listing-private', async (req, res) => {
+    const { id, token } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'Missing id' });
+    if (rejectMemberToken(res, token, id)) return;
+    const { data, error } = await supabaseAdmin
+        .from('listings').select('license_number, aviso_public').eq('id', id).single();
+    if (error || !data) return res.status(404).json({ error: 'Not found' });
+    res.json({ license_number: data.license_number || '', aviso_public: !!data.aviso_public });
+});
+
 app.post('/api/listing-photo-upload', upload.single('photo'), async (req, res) => {
     const { listingId, token } = req.body;
     if (!listingId || !token) return res.status(400).json({ error: 'Missing params' });
 
-    // Verify token
-    try {
-        const decoded = Buffer.from(token, 'base64').toString();
-        const [tokenId] = decoded.split(':');
-        if (tokenId !== String(listingId)) return res.status(403).json({ error: 'Invalid token' });
-    } catch {
-        return res.status(403).json({ error: 'Invalid token' });
-    }
+    if (rejectMemberToken(res, token, listingId)) return;
 
     if (!req.file) return res.status(400).json({ error: 'No file received' });
 
@@ -1794,7 +1903,7 @@ app.post('/api/admin-login', async (req, res) => {
         return res.status(401).json({ error: 'Wrong password' });
     }
 
-    const token = Buffer.from(`admin:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
+    const token = signToken(`admin:${Date.now()}`);
     console.log(`✅ Admin login from ${visitorIP}`);
     res.json({ token });
 });
@@ -1815,10 +1924,10 @@ async function requireAdmin(req, res, next) {
     if (!token) return res.status(401).json({ error: 'No token' });
 
     try {
-        const decoded = Buffer.from(token, 'base64').toString();
-        const [role, timestamp, secret] = decoded.split(':');
+        const payload = readSignedToken(token);
+        if (!payload) return res.status(403).json({ error: 'Invalid token' });
+        const [role, timestamp] = payload.split(':');
         if (role !== 'admin') return res.status(403).json({ error: 'Not admin' });
-        if (secret !== process.env.ADMIN_SECRET) return res.status(403).json({ error: 'Invalid token' });
 
         const age = Date.now() - parseInt(timestamp);
         if (age > ADMIN_TOKEN_MAX_AGE_MS) {
@@ -1826,7 +1935,7 @@ async function requireAdmin(req, res, next) {
         }
 
         if (age > ADMIN_TOKEN_REFRESH_AFTER_MS) {
-            const freshToken = Buffer.from(`admin:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
+            const freshToken = signToken(`admin:${Date.now()}`);
             res.setHeader('X-Refreshed-Token', freshToken);
         }
 
@@ -2380,11 +2489,7 @@ app.get('/api/admin/ip-info', requireAdmin, async (req, res) => {
 
 app.get('/api/test-anthropic', async (req, res) => {
     const { secret } = req.query;
-    if (secret !== process.env.ADMIN_SECRET) return res.status(403).json({
-        error: 'No',
-        received_length: secret?.length,
-        expected_length: process.env.ADMIN_SECRET?.length
-    });
+    if (secret !== process.env.ADMIN_SECRET) return res.status(403).json({ error: 'No' });
     res.json({
         key_exists: !!process.env.ANTHROPIC_API_KEY,
         key_prefix: process.env.ANTHROPIC_API_KEY?.substring(0, 10) + '...'
@@ -2412,18 +2517,7 @@ app.get('/api/debug-ip', (req, res) => {
     });
 });
 
-app.get('/api/secret-debug', (req, res) => {
-    const { secret } = req.query;
-    const stored = process.env.ADMIN_SECRET;
-    res.json({
-        received:          secret,
-        stored_first_char: stored?.charCodeAt(0),
-        stored_last_char:  stored?.charCodeAt(stored.length-1),
-        received_first:    secret?.charCodeAt(0),
-        received_last:     secret?.charCodeAt(secret.length-1),
-        match:             secret === stored
-    });
-});
+// /api/secret-debug removed 29 Oct 2026 — it revealed details of ADMIN_SECRET to anyone.
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  MEMBERSHIP APPLICATION ENDPOINT
@@ -3198,13 +3292,8 @@ app.post('/api/submit-payment',
     const { listing_id, duration_months, payment_method, contact_email,
             contact_ruc, contact_dv, contact_name: contact_bname, token } = req.body;
     if (!listing_id) return res.status(400).json({ error: 'Missing listing_id' });
-    if (token) {
-        try {
-            const decoded = Buffer.from(token, 'base64').toString();
-            const [tokenId] = decoded.split(':');
-            if (tokenId !== String(listing_id)) return res.status(403).json({ error: 'Invalid token' });
-        } catch { return res.status(403).json({ error: 'Invalid token' }); }
-    }
+    // An optional member token used to be checked here (id only). Submitting a
+    // payment proof needs no login, so a missing or old-format token is ignored.
     try {
         const { data: listing } = await supabaseAdmin
             .from('listings')
@@ -3509,12 +3598,7 @@ app.post('/api/listing-change-password', async (req, res) => {
     if (new_password.length < 6)
         return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
 
-    // Verify token
-    try {
-        const decoded = Buffer.from(token, 'base64').toString();
-        const [tokenId] = decoded.split(':');
-        if (tokenId !== String(id)) return res.status(403).json({ error: 'Invalid token' });
-    } catch { return res.status(403).json({ error: 'Invalid token' }); }
+    if (rejectMemberToken(res, token, id)) return;
 
     // Get current password hash
     const { data, error } = await supabaseAdmin
@@ -5458,6 +5542,15 @@ Return ONLY the JSON, no other text.`;
             })
             .eq('id', application_id);
 
+        // Pre-fill the listing's aviso de operación number (never shown publicly
+        // unless the member ticks "show on my listing"); never overwrite one on file.
+        const avisoNum = String(av.license_number || '').trim();
+        if (avisoNum && app.listing_id) {
+            await supabaseAdmin.from('listings')
+                .update({ license_number: avisoNum })
+                .eq('id', app.listing_id).is('license_number', null);
+        }
+
         res.json({ success: true, verification: result });
 
     } catch (err) {
@@ -5598,7 +5691,7 @@ app.get('/api/send-trial-reminders', async (req, res) => {
             const toEmail = listing.email_member || listing.email;
             if (!toEmail || !toEmail.includes('@')) continue;
             try {
-                const token = Buffer.from(`${listing.id}:${Date.now()}:${process.env.ADMIN_SECRET}`).toString('base64');
+                const token = signToken(`extend:${listing.id}:${Date.now()}`);
                 const extendUrl = `https://trustedpanamastays.com/api/extend-trial?id=${listing.id}&token=${encodeURIComponent(token)}`;
                 const name = listing.contact_name || 'propietario/a';
                 const body = fillTemplate(loadTemplateFile('trial_extension_offer.html'), {
@@ -5662,12 +5755,23 @@ app.get('/api/send-trial-reminders', async (req, res) => {
 // ── Shared validation for the extend-trial token, used by both the GET
 // confirmation page and the POST that actually performs the extension. ──
 async function validateExtendTrialToken(id, token) {
-    const decoded = Buffer.from(token || '', 'base64').toString();
-    const [tokenId, tokenTime, tokenSecret] = decoded.split(':');
-    if (tokenId !== String(id) || tokenSecret !== process.env.ADMIN_SECRET) {
+    // Signed token "extend:<id>:<time>". Links e-mailed before 29 Oct 2026 used
+    // the old format "<id>:<time>:<ADMIN_SECRET>"; still accepted while the
+    // secret is unchanged (they stop working once ADMIN_SECRET is rotated).
+    let tokenId, tokenTime;
+    const payload = readSignedToken(token);
+    if (payload) {
+        const [role, pid, pts] = payload.split(':');
+        if (role === 'extend') { tokenId = pid; tokenTime = pts; }
+    } else {
+        const decoded = Buffer.from(token || '', 'base64').toString();
+        const [lid, lts, lsecret] = decoded.split(':');
+        if (process.env.ADMIN_SECRET && lsecret === process.env.ADMIN_SECRET) { tokenId = lid; tokenTime = lts; }
+    }
+    if (tokenId !== String(id)) {
         return { ok: false, title: 'Enlace inválido', message: 'Este enlace no es válido.' };
     }
-    if (Date.now() - parseInt(tokenTime, 10) > 10 * 24 * 60 * 60 * 1000) {
+    if (Date.now() - parseInt(tokenTime, 10) > EXTEND_TOKEN_MAX_AGE_MS) {
         return { ok: false, title: 'Enlace vencido', message: 'Este enlace ya no es válido.' };
     }
 
@@ -7503,7 +7607,7 @@ app.post('/api/admin/blog/generate-draft', async (req, res) => {
     const bearer = req.headers['authorization']?.replace('Bearer ', '');
     let isAdminToken = false;
     if (bearer) {
-        try { isAdminToken = Buffer.from(bearer, 'base64').toString().split(':')[0] === 'admin'; } catch {}
+        isAdminToken = isValidAdminToken(bearer);
     }
     const isCronSecret = req.body?.secret && req.body.secret === process.env.ADMIN_SECRET;
     if (!isAdminToken && !isCronSecret) return res.status(403).json({ error: 'Denied' });

@@ -665,6 +665,101 @@ function rentalIdForPromo() {
     return currentRental && currentRental.id ? currentRental.id : (listingId || '');
 }
 
+function escHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Report date comes as "2-10-2026" (day-month-year) → "2 October 2026" / "2 de octubre de 2026"
+function reportDateText(dmy) {
+    const m = String(dmy || '').match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+    if (!m) return '';
+    const en = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const es = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const d = parseInt(m[1], 10), mo = parseInt(m[2], 10) - 1;
+    if (mo < 0 || mo > 11) return '';
+    return isEs ? `${d} de ${es[mo]} de ${m[3]}` : `${d} ${en[mo]} ${m[3]}`;
+}
+
+// "Registration" box: the ATP report the listing appears in (all ATP listings),
+// MICI registration, and the aviso number only if the member chose to show it.
+function renderRegistration(rental) {
+    const rep  = rental.atp_report;
+    const mici = rental.registry_source === 'mici';
+    const aviso = rental.aviso_public_number;
+    if (!rep && !mici && !aviso) return '';
+    let html = `<div class="section"><div class="section-title">${isEs ? 'Registro' : 'Registration'}</div>`;
+    if (rep && rep.url) {
+        const d = reportDateText(rep.date);
+        html += `<p style="font-size:0.92rem;">✅ ${isEs
+            ? 'Incluido en el reporte de hospedajes vigentes de la Autoridad de Turismo de Panamá (ATP)' + (d ? `, edición del ${d}` : '') + '.'
+            : 'Listed in the Autoridad de Turismo de Panamá (ATP) report of licensed lodgings' + (d ? `, edition of ${d}` : '') + '.'}
+            <a href="${escHtml(rep.url)}" target="_blank" rel="noopener" style="color:#005ca9;">${isEs ? 'Ver el reporte (PDF)' : 'Open the report (PDF)'}</a></p>`;
+    } else if (mici) {
+        html += `<p style="font-size:0.92rem;">✅ ${isEs
+            ? 'Registrado ante el Ministerio de Comercio e Industrias (MICI) con aviso de operación.'
+            : 'Registered with the Ministry of Commerce and Industry (MICI) with an aviso de operación (business license).'}</p>`;
+    }
+    if (aviso) {
+        html += `<p style="font-size:0.92rem;margin-top:0.3rem;">${isEs ? 'Aviso de operación (MICI) N°' : 'Aviso de operación (MICI business license) No.'} <strong>${escHtml(aviso)}</strong>
+            <span style="color:#888;font-size:0.82rem;">— ${isEs ? 'indicado por el propietario' : 'provided by the owner'}</span></p>`;
+    }
+    return html + '</div>';
+}
+
+// Edit mode: aviso number + opt-in checkbox (off by default). Values are
+// loaded separately from /api/listing-private, never from the public API.
+function renderAvisoEdit() {
+    return `
+        <div class="section">
+            <div class="section-title">📄 ${isEs ? 'Aviso de operación (opcional)' : 'Aviso de operación (optional)'}</div>
+            <div class="edit-group">
+                <label class="edit-label">${isEs ? 'Número de aviso de operación (MICI)' : 'Aviso de operación number (MICI)'}</label>
+                <input type="text" class="edit-input" id="edit-aviso-number" maxlength="60" placeholder="${isEs ? 'Ej. 1234567-1-123456-2020-123456' : 'E.g. 1234567-1-123456-2020-123456'}" oninput="markUnsaved(); avisoNumberChanged()">
+            </div>
+            <label style="display:flex;gap:8px;align-items:flex-start;font-size:0.9rem;cursor:pointer;">
+                <input type="checkbox" id="edit-aviso-public" style="margin-top:4px;" onchange="markUnsaved()">
+                <span>${isEs ? 'Mostrar este número en mi página pública' : 'Show this number on my public listing'}</span>
+            </label>
+            <p style="font-size:0.82rem;color:#888;margin-top:0.5rem;">${isEs
+                ? 'Si el aviso está a nombre de una persona natural, el número comienza con su cédula. Solo se muestra si marca la casilla; puede quitarla en cualquier momento.'
+                : 'If the aviso is in the name of an individual, the number starts with their cédula (ID number). It is only shown if you tick the box, and you can untick it at any time.'}</p>
+        </div>`;
+}
+
+function avisoNumberChanged() {
+    const num = document.getElementById('edit-aviso-number');
+    const box = document.getElementById('edit-aviso-public');
+    if (num && box && !num.value.trim()) box.checked = false;
+}
+
+async function loadAvisoForEdit() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/listing-private`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: listingId, token: sessionToken }) });
+        if (res.status === 401 || res.status === 403) { sessionExpired(); return; }
+        if (!res.ok) return;
+        const data = await res.json();
+        const num = document.getElementById('edit-aviso-number');
+        const box = document.getElementById('edit-aviso-public');
+        if (num) num.value = data.license_number || '';
+        if (box) box.checked = !!data.aviso_public;
+    } catch (e) { console.error(e); }
+}
+
+// Old or expired session (e.g. after the 29 Oct 2026 token change): ask to log in
+// again. When it happens while saving, the edits stay on screen and the save is
+// retried automatically after the new login.
+let pendingSaveAfterLogin = false;
+function sessionExpired(duringSave) {
+    if (duringSave) pendingSaveAfterLogin = true;
+    else performLogout();
+    openLogin();
+    const errorEl = document.getElementById('modal-error');
+    if (errorEl) {
+        errorEl.textContent = isEs ? 'Su sesión expiró. Por favor ingrese de nuevo.' : 'Your session has expired. Please log in again.';
+        errorEl.style.display = 'block';
+    }
+}
+
 function renderView(rental) {
     viewPhotos = Array.isArray(rental.photos) ? rental.photos : []; currentPhoto = 0;
     const description = isEs
@@ -694,6 +789,7 @@ function renderView(rental) {
                 ${rental.address ? `<div class="info-item"><span class="info-icon">🗺️</span><div><div class="info-label">${T.address}</div><div class="info-value">${rental.address}</div></div></div>` : ''}
             </div>
         </div>
+        ${renderRegistration(rental)}
         ${!rental.is_member ? renderMembershipPromo() : ''}
         ${galleryHTML()}
         ${(rental.listing_keywords && rental.listing_keywords.length) ? '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:0.5rem 0.5rem 0.2rem;">' + rental.listing_keywords.map(function(slug) { var k = (window._allKeywords||[]).find(function(x){return x.slug===slug;}); var label = k ? (isEs?k.label_es:k.label_en) : slug; return '<span style="padding:3px 10px;background:#e8f0fe;color:#1a3a6b;border:1px solid #c0cce0;border-radius:20px;font-size:0.78rem;">' + label + '</span>'; }).join('') + '</div>' : ''}
@@ -766,6 +862,7 @@ function renderEdit(rental) {
                 <input type="text" class="edit-input" id="edit-address" value="${rental.address || ''}" oninput="markUnsaved()">
             </div>
         </div>
+        ${renderAvisoEdit()}
         <div class="section">
             <div class="section-title">${T.photos}</div>
             <div class="photo-manager">
@@ -979,12 +1076,23 @@ async function saveChanges() {
         custom_links:   savedLinks.length ? savedLinks : null,
         listing_keywords: getSelectedKeywords(),
     };
+    const avisoNumEl = document.getElementById('edit-aviso-number');
+    const avisoBoxEl = document.getElementById('edit-aviso-public');
+    if (avisoNumEl && avisoBoxEl) {
+        payload.license_number = avisoNumEl.value.trim();
+        payload.aviso_public   = !!(avisoBoxEl.checked && payload.license_number);
+    }
     try {
         const res  = await fetch(`${API_BASE_URL}/api/listing-update`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        if (res.status === 401 || res.status === 403) { btn.disabled = false; sessionExpired(true); return false; }
         const data = await res.json();
         if (res.ok && data.success) {
             msg.textContent = T.saved; msg.className = 'save-message success'; msg.style.display = 'inline-block';
             Object.assign(currentRental, payload); delete currentRental.token;
+            if ('license_number' in payload) {
+                currentRental.aviso_public_number = payload.aviso_public ? payload.license_number : null;
+                delete currentRental.license_number; delete currentRental.aviso_public;
+            }
             hasUnsavedChanges = false;
         } else throw new Error(data.error || 'Save failed');
     } catch (err) {
@@ -1018,7 +1126,13 @@ async function attemptLogin() {
         if (res.ok && data.token) {
             sessionToken = data.token;
             sessionStorage.setItem(`tps_token_${listingId}`, sessionToken);
-            isLoggedIn = true; hasUnsavedChanges = false;
+            isLoggedIn = true;
+            if (pendingSaveAfterLogin) {           // keep the unsaved edits on screen and save them now
+                pendingSaveAfterLogin = false;
+                closeLogin(); saveChanges();
+                return;
+            }
+            hasUnsavedChanges = false;
             closeLogin(); renderPage(currentRental);
         } else {
             errorEl.textContent = data.error === 'Invalid password' ? T.wrongPassword : T.loginError;
@@ -1071,7 +1185,7 @@ function renderPage(rental) {
     if (isLoggedIn && rental.is_member) {
         document.getElementById('listing-content').innerHTML = renderEdit(rental);
         saveBar.style.display = 'block';
-        wireUploadZone(); renderCustomLinks(); loadKeywordsForEdit(rental.listing_keywords || []);
+        wireUploadZone(); renderCustomLinks(); loadKeywordsForEdit(rental.listing_keywords || []); loadAvisoForEdit();
         setTimeout(() => initQuill(rental), 100);
     } else {
         document.getElementById('listing-content').innerHTML = renderView(rental);
