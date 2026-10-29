@@ -2004,8 +2004,21 @@ app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
 // an invoice. The invoice form reads the application fresh each time it's
 // opened, so a correction saved here is picked up automatically next time.
 app.post('/api/admin/update-application-ruc', requireAdmin, async (req, res) => {
-    const { application_id, ruc, ruc_dv, business_name, personal_id } = req.body;
+    const { application_id, ruc, ruc_dv, business_name, personal_id, license_number } = req.body;
     if (!application_id) return res.status(400).json({ error: 'Missing application_id' });
+
+    // Aviso de operación number is stored on the listing, not the application
+    if (license_number !== undefined) {
+        const num = String(license_number || '').trim();
+        if (num && !AVISO_NUMBER_RE.test(num)) return res.status(400).json({ error: 'Número de aviso no válido' });
+        const { data: appRow } = await supabaseAdmin
+            .from('membership_applications').select('listing_id').eq('id', application_id).single();
+        if (!appRow?.listing_id) return res.status(404).json({ error: 'Solicitud sin hospedaje' });
+        const lUpdate = { license_number: num || null };
+        if (!num) lUpdate.aviso_public = false;
+        const { error: lErr } = await supabaseAdmin.from('listings').update(lUpdate).eq('id', appRow.listing_id);
+        if (lErr) return res.status(500).json({ error: lErr.message });
+    }
     const updates = {
         ruc:    ruc !== undefined ? (ruc ? String(ruc).trim() : null) : undefined,
         ruc_dv: ruc_dv !== undefined ? (ruc_dv ? String(ruc_dv).trim() : null) : undefined,
@@ -2016,13 +2029,15 @@ app.post('/api/admin/update-application-ruc', requireAdmin, async (req, res) => 
         personal_id: personal_id !== undefined ? (personal_id ? String(personal_id).trim() : null) : undefined
     };
     Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
-    if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Nothing to update' });
-    const { error } = await supabaseAdmin
-        .from('membership_applications')
-        .update(updates)
-        .eq('id', application_id);
-    if (error) return res.status(500).json({ error: error.message });
-    await logEvent('admin_update_application_ruc', { application_id, ...updates });
+    if (Object.keys(updates).length === 0 && license_number === undefined) return res.status(400).json({ error: 'Nothing to update' });
+    if (Object.keys(updates).length) {
+        const { error } = await supabaseAdmin
+            .from('membership_applications')
+            .update(updates)
+            .eq('id', application_id);
+        if (error) return res.status(500).json({ error: error.message });
+    }
+    await logEvent('admin_update_application_ruc', { application_id, ...updates, ...(license_number !== undefined ? { license_number_changed: true } : {}) });
     res.json({ success: true });
 });
 
@@ -3278,6 +3293,14 @@ app.get('/api/admin/listing-application-info/:listingId', requireAdmin, async (r
             .order('created_at', { ascending: false })
             .limit(1)
             .single();
+
+        // Aviso de operación number lives on the listing (shown next to RUC/ID in the admin panel)
+        if (application) {
+            const { data: lst } = await supabaseAdmin
+                .from('listings').select('license_number, aviso_public').eq('id', listingId).single();
+            application.listing_license_number = lst?.license_number || '';
+            application.listing_aviso_public   = !!lst?.aviso_public;
+        }
 
         res.json({ application: application || null, payment: payment || null });
     } catch (err) {
