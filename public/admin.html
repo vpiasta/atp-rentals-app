@@ -537,6 +537,7 @@
             </div>
             <div class="toolbar">
                 <button class="tbtn primary" onclick="loadApplications()">🔄 Actualizar</button>
+                <button class="tbtn" onclick="backfillAvisoNumbers()" title="Lee con IA el número de aviso de operación de los documentos ya recibidos, para hospedajes que aún no lo tienen. No lo publica: el miembro decide si se muestra.">📋 Leer números de aviso</button>
                 <span id="app-count" style="font-size:0.82rem;color:#aaa;align-self:center;"></span>
             </div>
             <div id="applications-container">
@@ -1585,7 +1586,7 @@ function renderApplicationInfo(app, payment) {
     const mailLink = app.contact_email ? `mailto:${app.contact_email}` : null;
 
     const docButtons = (app.documents||[]).map(doc =>
-        `<button class="doc-btn" onclick="viewDocument('${doc.path}','${doc.type}','${app.verification_result||''}','${(app.property_name||'').replace(/'/g,"\\'")}','${app.listing_id||''}')" style="margin-right:6px;">
+        `<button class="doc-btn" onclick="${viewDocumentCall(doc, app)}" style="margin-right:6px;">
             ${doc.type==='aviso_operacion'?'📋':doc.type==='cedula'?'🪪':'💳'}
             ${doc.type.replace(/\b\w/g, l => l.toUpperCase())}
         </button>`).join('');
@@ -1829,7 +1830,7 @@ function renderApplications(apps) {
     if (!apps.length) { container.innerHTML='<div class="no-results">No se encontraron solicitudes</div>'; return; }
     container.innerHTML = apps.map(app => {
         const docButtons = (app.documents||[]).map(doc =>
-            `<a href="#" class="doc-btn" onclick="viewDocument('${doc.path}','${doc.type}','${app.verification_result||''}','${(app.property_name||'').replace(/'/g,"\\'")}','${app.listing_id||''}');return false;">
+            `<a href="#" class="doc-btn" onclick="${viewDocumentCall(doc, app)};return false;">
                 ${doc.type==='aviso_operacion'?'📋':doc.type==='cedula'?'🪪':'💳'}
                 ${doc.type.replace(/\b\w/g, l => l.toUpperCase())}
             </a>`).join('');
@@ -2171,6 +2172,29 @@ async function deleteComment(id) {
         if (!res.ok) throw new Error((await res.json()).error || 'Error');
         await loadComments();
     } catch(err) { resultEl.innerHTML = `<span style="color:#ff7070;">Error: ${err.message}</span>`; }
+}
+
+// Builds the onclick call for a document button. Values are JSON-encoded and
+// HTML-escaped, so an apostrophe or quote in e.g. the AI verification text
+// ("Business name 'Hostal …' matches") can no longer break the button
+// (that silently did nothing on click, 29 Oct 2026).
+function viewDocumentCall(doc, app) {
+    const a = v => JSON.stringify(String(v == null ? '' : v))
+        .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `viewDocument(${a(doc.path)},${a(doc.type)},${a(app.verification_result)},${a(app.property_name)},${a(app.listing_id)})`;
+}
+
+// One-time job: read aviso de operación numbers from documents already on file.
+async function backfillAvisoNumbers() {
+    if (!confirm('¿Leer con IA el número de aviso de operación de los documentos ya recibidos?\n\nSolo para hospedajes que aún no tienen número. El número no se publica; cada miembro decide si lo muestra.')) return;
+    try {
+        const res = await adminFetch('/api/admin/backfill-aviso-numbers', { method: 'POST', body: '{}' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error');
+        alert(data.started
+            ? `Iniciado: ${data.documents} documento(s). Tarda unos ${Math.max(1, Math.ceil(data.documents * 10 / 60))} minuto(s). Los resultados quedan en el registro de eventos (aviso_backfill).`
+            : (data.message || 'No iniciado'));
+    } catch (err) { alert('Error: ' + err.message); }
 }
 
 async function viewDocument(docPath, docType, verificationResult, propertyName, listingId) {

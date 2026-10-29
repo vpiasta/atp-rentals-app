@@ -4920,6 +4920,102 @@ app.delete('/api/admin/campaign-contacts/:id', requireAdmin, async (req, res) =>
     res.json({ success: true });
 });
 
+// ── What counts as an Aviso de Operación (added 29 Oct 2026) ─────────────────
+// A trial was auto-approved with a RUC screenshot uploaded in the aviso slot
+// (application 26). These rules go into both verification prompts, and
+// enforceAvisoRules() makes sure such a result can never be PASS.
+const AVISO_DOCUMENT_RULES = `WHAT COUNTS AS AN AVISO DE OPERACIÓN (check this before anything else):
+- A real Aviso de Operación is issued by the Ministerio de Comercio e Industrias (MICI) through Panamá Emprende. It is titled "Aviso de Operación" and shows an "Aviso de Operación No." (a long number, usually RUC-year-sequence, e.g. 1401220-1-627960-2019-632503), the "Expedido a favor de" box with the holder's name and RUC, and the commercial activity.
+- These are NOT an Aviso de Operación: a DGI RUC certificate or e-Tax page ("Registro Único de Contribuyente"), a cédula or passport, a Registro Público certificate, an ATP letter or resolution, a municipal licence or Paz y Salvo, an invoice, or a screenshot of any of these.
+- If the file uploaded as the AVISO DE OPERACIÓN is not an Aviso de Operación: set aviso_operacion.found = false and valid = false, state in aviso_operacion.notes which document it actually is, and overall_result must be REVIEW (never PASS).
+- If the "Aviso de Operación No." cannot be read, set license_number to "" and overall_result to at most REVIEW.
+- For a natural person the RUC is the cédula number (e.g. 4-123-456); that is normal, not an error.`;
+
+function enforceAvisoRules(result) {
+    if (!result || !result.verification) return result;
+    const av = result.aviso_operacion || {};
+    const isAviso = av.found === true && av.valid !== false;
+    if (!isAviso && result.verification.overall_result === 'PASS') {
+        result.verification.overall_result = 'REVIEW';
+        result.verification.overall_notes = 'Aviso de Operación missing or not recognised' + (av.notes ? ` (${av.notes})` : '') + '. ' + (result.verification.overall_notes || '');
+    }
+    return result;
+}
+
+// Saves the aviso number on the listing if it has none yet (it stays hidden
+// unless the member ticks "show on my listing").
+const AVISO_NUMBER_RE = /^[0-9A-Za-z][0-9A-Za-z\-\/ .]{2,59}$/;
+async function saveListingAvisoNumber(listingId, avisoOp) {
+    const num = String((avisoOp && avisoOp.license_number) || '').trim();
+    if (!listingId || !avisoOp || avisoOp.found !== true || avisoOp.valid === false || !AVISO_NUMBER_RE.test(num)) return null;
+    const { data } = await supabaseAdmin.from('listings')
+        .update({ license_number: num })
+        .eq('id', listingId).is('license_number', null)
+        .select('id');
+    return (data && data.length) ? num : null;
+}
+
+// ── One-time: read aviso numbers from documents already on file ──────────────
+// POST /api/admin/backfill-aviso-numbers — runs in the background (a dozen
+// documents take ~2 minutes, longer than the proxy allows a request to wait);
+// each result is written to event_log as 'aviso_backfill'.
+let avisoBackfillRunning = false;
+app.post('/api/admin/backfill-aviso-numbers', requireAdmin, async (req, res) => {
+    if (avisoBackfillRunning) return res.json({ started: false, message: 'Ya está en curso' });
+    const { data: apps, error } = await supabaseAdmin
+        .from('membership_applications')
+        .select('id, listing_id, documents, status, created_at')
+        .neq('status', 'archived')
+        .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    const { data: noNumber } = await supabaseAdmin.from('listings').select('id').is('license_number', null)
+        .in('id', [...new Set((apps || []).map(a => a.listing_id).filter(Boolean))]);
+    const todo = new Set((noNumber || []).map(l => l.id));
+    const jobs = [];
+    for (const a of apps || []) {
+        if (!todo.has(a.listing_id)) continue;
+        const doc = (a.documents || []).find(d => d.type === 'aviso_operacion');
+        if (!doc) continue;
+        jobs.push({ application_id: a.id, listing_id: a.listing_id, doc });
+        todo.delete(a.listing_id);   // newest application per listing only
+    }
+    res.json({ started: true, documents: jobs.length });
+
+    avisoBackfillRunning = true;
+    try {
+        for (const job of jobs) {
+            let outcome = { application_id: job.application_id, listing_id: job.listing_id };
+            try {
+                const { data: fileData, error: dlError } = await supabaseAdmin.storage.from('member-documents').download(job.doc.path);
+                if (dlError) throw new Error('download: ' + dlError.message);
+                const base64 = Buffer.from(await fileData.arrayBuffer()).toString('base64');
+                const media = job.doc.mime === 'application/pdf'
+                    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+                    : { type: 'image', source: { type: 'base64', media_type: job.doc.mime, data: base64 } };
+                const prompt = `${AVISO_DOCUMENT_RULES}
+
+The file above was uploaded as the AVISO DE OPERACIÓN. Return ONLY this JSON:
+{"found": true/false, "valid": true/false, "document_kind": "what the document actually is", "license_number": "the 'Aviso de Operación No.' or empty string", "notes": "..."}`;
+                const response = await axios.post('https://api.anthropic.com/v1/messages', {
+                    model: 'claude-opus-4-5', max_tokens: 400,
+                    messages: [{ role: 'user', content: [media, { type: 'text', text: prompt }] }]
+                }, {
+                    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+                    timeout: 60000
+                });
+                const r = JSON.parse(response.data.content[0].text.replace(/```json\n?|\n?```/g, '').trim());
+                const saved = await saveListingAvisoNumber(job.listing_id, r);
+                outcome = { ...outcome, found: r.found === true, document_kind: r.document_kind || null, saved: !!saved, notes: r.notes || null };
+            } catch (err) {
+                outcome.error = err.message;
+            }
+            await logEvent('aviso_backfill', outcome);
+        }
+    } finally {
+        avisoBackfillRunning = false;
+    }
+});
+
 // ── Reusable AI verification function ────────────────────────────────────────
 async function runAiVerification(application_id) {
     const { data: app } = await supabaseAdmin
@@ -4954,9 +5050,10 @@ If amount is $45.00 (without ITBMS), set amount_matches to false and note underp
 IMPORTANT - Panamanian Aviso de Operación document layout:
 - LEFT box labeled "Aviso de Operación No." contains the LICENSE NUMBER (not the RUC)
 - RIGHT box labeled "Expedido a favor de" contains the owner/company name and below it the RUC number
+${AVISO_DOCUMENT_RULES}
 Please verify and return ONLY a JSON object:
 {
-  "aviso_operacion": { "found": true/false, "business_name": "...", "ruc": "...", "ruc_dv": "...", "legal_rep": "...", "valid": true/false, "notes": "..." },
+  "aviso_operacion": { "found": true/false, "business_name": "...", "ruc": "...", "ruc_dv": "...", "legal_rep": "...", "license_number": "Aviso de Operación No. from the LEFT box, or empty", "valid": true/false, "notes": "..." },
   "cedula": { "found": true/false, "id_holder_name": "...", "id_number": "...", "notes": "..." },
   "payment": { "found": true/false, "amount": "...", "date": "...", "method": "...", "notes": "..." },
   "verification": { "names_match": true/false, "names_match_detail": "...", "payment_matches": true/false, "payment_match_detail": "...", "overall_result": "PASS/FAIL/REVIEW", "overall_notes": "..." }
@@ -4969,7 +5066,8 @@ Return ONLY the JSON, no other text.`;
         headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
         timeout: 60000
     });
-    const result = JSON.parse(response.data.content[0].text.replace(/```json\n?|\n?```/g, '').trim());
+    const result = enforceAvisoRules(JSON.parse(response.data.content[0].text.replace(/```json\n?|\n?```/g, '').trim()));
+    await saveListingAvisoNumber(app.listing_id, result.aviso_operacion);
     await supabaseAdmin.from('membership_applications').update({
         ruc: result.aviso_operacion?.ruc || null,
         ruc_dv: result.aviso_operacion?.ruc_dv || null,
@@ -5462,6 +5560,8 @@ IMPORTANT - Panamanian Aviso de Operación document layout:
 - RUC format examples: 8-822-1374 or 1401220-1-627960 (short number, NOT the full aviso number)
 - The DV (dígito verificador) appears after the RUC separated by a dash
 
+${AVISO_DOCUMENT_RULES}
+
 RESULT RULES:
 - PASS: documents present (this application's or ON FILE), names consistent under the rules above, payment amount correct (or trial), recipient correct.
 - REVIEW: minor doubts only (e.g. family-member payer, unreadable detail, missing transfer reference).
@@ -5523,7 +5623,7 @@ Return ONLY the JSON, no other text.`;
         const textBlock = (response.data.content || []).find(b => b.type === 'text');
         const content = textBlock ? textBlock.text : '';
         const clean   = content.replace(/```json\n?|\n?```/g, '').trim();
-        const result  = JSON.parse(clean);
+        const result  = enforceAvisoRules(JSON.parse(clean));
 
         await logEvent('ai_verification_completed', {
             application_id,
@@ -5544,12 +5644,7 @@ Return ONLY the JSON, no other text.`;
 
         // Pre-fill the listing's aviso de operación number (never shown publicly
         // unless the member ticks "show on my listing"); never overwrite one on file.
-        const avisoNum = String(av.license_number || '').trim();
-        if (avisoNum && app.listing_id) {
-            await supabaseAdmin.from('listings')
-                .update({ license_number: avisoNum })
-                .eq('id', app.listing_id).is('license_number', null);
-        }
+        await saveListingAvisoNumber(app.listing_id, av);
 
         res.json({ success: true, verification: result });
 
