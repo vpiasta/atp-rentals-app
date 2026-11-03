@@ -170,19 +170,34 @@ ${l3}
 </svg>`;
 }
 
+async function badgeStatusOk(rawSlug) {
+    const slug = String(rawSlug || '').trim().toLowerCase();
+    if (!/^[a-z0-9-]{1,120}$/.test(slug)) return false;
+    try {
+        const { data } = await supabaseAdmin.from('listings').select('atp_active').eq('slug', slug).limit(1);
+        return !!(data && data[0] && data[0].atp_active !== false);
+    } catch (e) { return false; }
+}
+
 app.get('/badge/:slug.svg', async (req, res) => {
-    const slug = String(req.params.slug || '').trim().toLowerCase();
     const lang = req.query.lang === 'es' ? 'es' : 'en';
-    let ok = false;
-    if (/^[a-z0-9-]{1,120}$/.test(slug)) {
-        try {
-            const { data } = await supabaseAdmin.from('listings').select('atp_active').eq('slug', slug).limit(1);
-            ok = !!(data && data[0] && data[0].atp_active !== false);
-        } catch (e) { ok = false; }
-    }
+    const ok = await badgeStatusOk(req.params.slug);
     res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(badgeSvg(ok, lang));
+});
+
+// PNG version for e-mail signatures (Gmail, Outlook etc. don't show SVG).
+// The verified badge carries no listing-specific text, so ready-made PNGs in
+// public/images/badge/ (rendered from badgeSvg at 2x, 440x128) are served by
+// status — the live ATP check stays, no image library needed on the server.
+// Note: Gmail caches images it has shown, so a status change can take a while
+// to appear in mails already received.
+app.get('/badge/:slug.png', async (req, res) => {
+    const lang = req.query.lang === 'es' ? 'es' : 'en';
+    const ok = await badgeStatusOk(req.params.slug);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.sendFile(path.join(__dirname, 'public', 'images', 'badge', `${ok ? 'verified' : 'not-verified'}-${lang}.png`));
 });
 
 // HTML pages must always be re-checked by the browser: without this, a

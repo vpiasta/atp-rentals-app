@@ -968,7 +968,77 @@ function renderBadgeSection(rental) {
                 ${block('es', 'Español')}
                 ${block('en', 'English')}
             </div>
+        </div>
+        ${renderSignatureSection(rental)}`;
+}
+
+// ── Badge for e-mail signatures ─────────────────────────────────────────────
+// E-mail programs don't show SVG, so the signature uses /badge/<slug>.png
+// (same live ATP status check). The owner copies the rendered badge (rich
+// text: image + link) and pastes it into the signature settings.
+function signatureHtml(slug, lang) {
+    const es = lang === 'es';
+    const page = 'https://trustedpanamastays.com/listing.php?slug=' + slug + (es ? '&lang=es' : '');
+    const img  = 'https://trustedpanamastays.com/badge/' + slug + '.png' + (es ? '?lang=es' : '');
+    const alt  = es ? 'Registrado en la ATP · Verificado en Trusted Panama Stays'
+                    : 'ATP-registered · Verified on Trusted Panama Stays';
+    return '<a href="' + page.replace(/&/g, '&amp;') + '" target="_blank" title="' + alt + '">' +
+           '<img src="' + img + '" alt="' + alt + '" width="176" height="51" style="border:0;display:block;"></a>';
+}
+
+function renderSignatureSection(rental) {
+    if (!rental.slug) return '';
+    const block = (lang, label) => `
+            <div style="flex:1 1 240px;min-width:0;">
+                <div style="font-size:0.8rem;font-weight:700;color:#555;margin-bottom:0.4rem;">${label}</div>
+                <div id="sig-preview-${lang}" style="display:inline-block;padding:6px;background:#fff;border:1px dashed #c0cce0;border-radius:6px;">${signatureHtml(rental.slug, lang)}</div>
+                <div><button type="button" class="qbtn" onclick="copySignatureBadge('${lang}', this)" style="margin-top:0.4rem;">
+                    📋 ${isEs ? 'Copiar para la firma' : 'Copy for signature'}
+                </button></div>
+            </div>`;
+    return `
+        <div class="edit-section" style="border:1px solid #c0cce0;border-radius:10px;padding:1rem 1.2rem;margin:0.5rem 0;background:#f4f7fb;">
+            <div class="section-title">✉️ ${isEs ? 'Sello para su firma de correo' : 'Badge for your e-mail signature'}</div>
+            <p style="font-size:0.85rem;color:#666;margin-bottom:0.6rem;">${isEs
+                ? 'Agregue el sello a la firma de sus correos — también si no tiene sitio web. Haga clic en «Copiar para la firma» y péguelo (Ctrl+V) en la configuración de firma de su programa de correo:'
+                : 'Add the badge to your e-mail signature — also if you have no website. Click "Copy for signature" and paste it (Ctrl+V) into your e-mail program\'s signature settings:'}</p>
+            <ul style="font-size:0.82rem;color:#666;margin:0 0 0.8rem 1.2rem;">
+                <li><strong>Gmail:</strong> ${isEs ? 'Configuración ⚙ → Ver todos los ajustes → General → Firma' : 'Settings ⚙ → See all settings → General → Signature'}</li>
+                <li><strong>Outlook (Windows):</strong> ${isEs ? 'Archivo → Opciones → Correo → Firmas' : 'File → Options → Mail → Signatures'}</li>
+                <li><strong>Outlook.com / Hotmail:</strong> ${isEs ? 'Configuración ⚙ → Correo → Redactar y responder → Firma de correo' : 'Settings ⚙ → Mail → Compose and reply → Email signature'}</li>
+            </ul>
+            <div style="display:flex;flex-wrap:wrap;gap:1.2rem;">
+                ${block('es', 'Español')}
+                ${block('en', 'English')}
+            </div>
+            <p style="font-size:0.78rem;color:#888;margin-top:0.6rem;">${isEs
+                ? 'Si el pegado no muestra la imagen, seleccione el sello con el ratón, cópielo (Ctrl+C) y péguelo de nuevo.'
+                : 'If pasting does not show the image, select the badge with the mouse, copy it (Ctrl+C) and paste again.'}</p>
         </div>`;
+}
+
+function copySignatureBadge(lang, btn) {
+    const el = document.getElementById('sig-preview-' + lang);
+    if (!el) return;
+    const done = () => { const t = btn.innerHTML; btn.innerHTML = '✅ ' + (isEs ? 'Copiado — ahora péguelo en su firma' : 'Copied — now paste it into your signature'); setTimeout(() => { btn.innerHTML = t; }, 2500); };
+    const html = el.innerHTML;
+    const plain = 'https://trustedpanamastays.com/listing.php?slug=' + rental_slug_for(el) ;
+    // Rich-text copy (image + link) where supported; otherwise select and copy
+    const legacy = () => {
+        const range = document.createRange(); range.selectNodeContents(el);
+        const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+        try { document.execCommand('copy'); } catch (e) {}
+        sel.removeAllRanges(); done();
+    };
+    if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+        navigator.clipboard.write([new ClipboardItem({
+            'text/html':  new Blob([html],  { type: 'text/html' }),
+            'text/plain': new Blob([plain], { type: 'text/plain' })
+        })]).then(done, legacy);
+    } else { legacy(); }
+}
+function rental_slug_for(el) {
+    const a = el.querySelector('a'); return a ? (a.getAttribute('href') || '').split('slug=')[1] || '' : '';
 }
 
 function copyBadgeCode(lang, btn) {
