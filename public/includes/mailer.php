@@ -6,6 +6,21 @@
  * config as aparthotel-boquete.com.
  *
  * Returns true on success, or an error message string on failure.
+ *
+ * Two hardening measures added 2026-11-04, after a review found every single
+ * admin-facing notification (ATP report changes, new applications, payment
+ * proofs, trial submissions, the daily pending-check...) went through this
+ * one function, over one provider (Brevo), to one inbox (info@), with no
+ * fallback at all — a Brevo hiccup or an unread inbox meant total silence:
+ *   1. Any email addressed to info@trustedpanamastays.com is automatically
+ *      CC'd to Volker's personal inbox too, so a second person always sees
+ *      it — fixed here, once, instead of touching every call site.
+ *   2. If the primary SMTP send (Brevo) throws, this retries once via PHP's
+ *      built-in mail() — a transport that doesn't depend on Brevo being up
+ *      at all. mail() has weaker deliverability (no DKIM alignment through
+ *      Brevo), so it's a last-resort fallback, not a replacement for
+ *      finishing the DMARC/branded-subdomain setup in email-deliverability
+ *      notes — just insurance against total silence in the meantime.
  */
 function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpanamastays.com', $fromName = 'Trusted Panama Stays', $cc = null) {
     require_once '/home/u945180857/secure_beds24_tokens/env_loader.php';
@@ -14,6 +29,12 @@ function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpana
     require_once '/home/u945180857/domains/aparthotel-boquete.com/public_html/PHPMailer-master/src/Exception.php';
     require_once '/home/u945180857/domains/aparthotel-boquete.com/public_html/PHPMailer-master/src/PHPMailer.php';
     require_once '/home/u945180857/domains/aparthotel-boquete.com/public_html/PHPMailer-master/src/SMTP.php';
+
+    $ccList = [];
+    if ($cc) { $ccList[] = $cc; }
+    if (strcasecmp($to, 'info@trustedpanamastays.com') === 0 && strcasecmp((string)$cc, 'v.piasta@gmail.com') !== 0) {
+        $ccList[] = 'v.piasta@gmail.com';
+    }
 
     $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
 
@@ -31,7 +52,7 @@ function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpana
 
         $mail->setFrom($fromEmail, $fromName);
         $mail->addAddress($to);
-        if ($cc) { $mail->addCC($cc); }
+        foreach ($ccList as $ccAddr) { $mail->addCC($ccAddr); }
         $mail->Subject = $subject;
         $mail->Body    = $htmlBody;
         $mail->isHTML(true);
@@ -39,7 +60,21 @@ function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpana
         $mail->send();
         return true;
     } catch (\PHPMailer\PHPMailer\Exception $e) {
-        error_log('[TPS send_tps_email] Email error: ' . $mail->ErrorInfo);
-        return $mail->ErrorInfo ?: $e->getMessage();
+        $primaryError = $mail->ErrorInfo ?: $e->getMessage();
+        error_log('[TPS send_tps_email] Primary (Brevo SMTP) failed: ' . $primaryError . ' — trying mail() fallback');
+
+        // Last-resort fallback: a transport completely separate from Brevo.
+        $headers  = "MIME-Version: 1.0\r\n";
+        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $headers .= "From: {$fromName} <{$fromEmail}>\r\n";
+        if ($ccList) { $headers .= "Cc: " . implode(', ', $ccList) . "\r\n"; }
+
+        $fallbackOk = @mail($to, $subject, $htmlBody, $headers);
+        if ($fallbackOk) {
+            error_log('[TPS send_tps_email] mail() fallback succeeded for: ' . $subject);
+            return true;
+        }
+        error_log('[TPS send_tps_email] mail() fallback ALSO failed for: ' . $subject);
+        return $primaryError;
     }
 }
