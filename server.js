@@ -2357,17 +2357,21 @@ const HELP_FILES = {
     // add one entry here each time a new button/section gets tagged with data-help
 };
 
+async function getHelpContentHtml(key) {
+    const { data } = await supabaseAdmin
+        .from('help_content').select('html').eq('key', key).maybeSingle();
+    if (data) return data.html;
+
+    // Not in the database yet — fall back to the seed file under public/help/
+    // (covers the one-time migration; once saved via the editor, the DB row wins from then on)
+    const filePath = path.join(__dirname, 'public', 'help', HELP_FILES[key]);
+    return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
+}
+
 app.get('/api/admin/help-content/:key', requireAdmin, async (req, res) => {
     if (!HELP_FILES[req.params.key]) return res.status(400).json({ error: 'Unknown help content key' });
     try {
-        const { data } = await supabaseAdmin
-            .from('help_content').select('html').eq('key', req.params.key).maybeSingle();
-        if (data) return res.json({ html: data.html });
-
-        // Not in the database yet — fall back to the seed file under public/help/
-        // (covers the one-time migration; once saved via the editor, the DB row wins from then on)
-        const filePath = path.join(__dirname, 'public', 'help', HELP_FILES[req.params.key]);
-        const html = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
+        const html = await getHelpContentHtml(req.params.key);
         res.json({ html });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -2387,6 +2391,44 @@ app.post('/api/admin/save-help-content', requireAdmin, async (req, res) => {
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+// Contextual AI help: the admin types a free-form question about the topic
+// they currently have the help panel open to; Claude answers grounded in that
+// topic's help text (plus the general guide), so answers stay specific to how
+// this admin panel actually works instead of a generic answer with no context.
+app.post('/api/admin/help-chat', requireAdmin, async (req, res) => {
+    const { key, question } = req.body;
+    if (!HELP_FILES[key]) return res.status(400).json({ error: 'Unknown help content key' });
+    if (typeof question !== 'string' || !question.trim()) return res.status(400).json({ error: 'Empty question' });
+    try {
+        const topicHtml = await getHelpContentHtml(key);
+        const generalHtml = key === 'general-es' ? '' : await getHelpContentHtml('general-es');
+        const prompt = `Eres el asistente de ayuda integrado en el panel de administración de TrustedPanamaStays.com (TPS), un directorio de alquileres de corto plazo registrados ante la ATP en Panamá.
+
+Un administrador tiene abierto el panel de ayuda del tema "${key}" y hace esta pregunta sobre cómo usar esta función del panel:
+
+"${question.trim()}"
+
+Texto de ayuda actual de este tema (puede estar incompleto):
+---
+${topicHtml || '(sin contenido de ayuda guardado para este tema todavía)'}
+---
+${generalHtml ? `Guía general del panel, para contexto adicional:\n---\n${generalHtml}\n---\n` : ''}
+Responde de forma breve, clara y práctica, en el mismo idioma en que está escrita la pregunta. Si la respuesta no se puede deducir con confianza del texto de ayuda ni del contexto dado, dilo honestamente en vez de adivinar, y sugiere qué revisar o a quién preguntar. No inventes nombres de botones, campos o pasos que no estén mencionados arriba.`;
+        const response = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-5', max_tokens: 700,
+            messages: [{ role: 'user', content: prompt }]
+        }, {
+            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+            timeout: 30000
+        });
+        const answer = response.data.content[0].text.trim();
+        await logEvent('help_chat_question', { key, question: question.trim().substring(0, 300) });
+        res.json({ answer });
+    } catch (err) {
+        res.status(500).json({ error: err.response?.data?.error?.message || err.message });
     }
 });
 

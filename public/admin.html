@@ -3674,6 +3674,13 @@ async function showInvoiceFormInPanel(appId) {
           <div id="help-quill-toolbar"></div>
           <div id="help-quill-editor" style="flex:1;overflow-y:auto;background:#1a2a3a;color:#eee;"></div>
       </div>
+      <div id="help-ai-wrap" style="flex-shrink:0;margin-top:0.8rem;padding-top:0.8rem;border-top:1px solid #2a3a4a;">
+          <div id="help-ai-answer" style="display:none;background:#1a2a3a;border-radius:6px;padding:0.7rem;margin-bottom:0.6rem;font-size:0.85rem;line-height:1.5;max-height:240px;overflow-y:auto;"></div>
+          <div style="display:flex;gap:6px;">
+              <input id="help-ai-question" type="text" placeholder="¿Otra duda? Pregúntale a la IA..." style="flex:1;background:#0d1b2a;border:1px solid #2a3a4a;border-radius:5px;padding:6px 10px;color:#eee;font-size:0.85rem;" onkeydown="if(event.key==='Enter')askHelpAI()">
+              <button id="help-ai-btn" onclick="askHelpAI()" style="background:#00a859;color:white;border:none;border-radius:5px;padding:6px 14px;cursor:pointer;font-size:0.85rem;white-space:nowrap;">💬 Preguntar</button>
+          </div>
+      </div>
 </div>
 
 <script>
@@ -3713,8 +3720,35 @@ async function toggleHelpPanel(topicKey) {
     document.getElementById('help-panel-content').innerHTML = '<p style="color:#888;">Cargando...</p>';
     document.getElementById('help-panel-content').innerHTML = await loadHelpTopic(currentHelpKey);
     document.getElementById('help-edit-btn').style.display = 'inline-block';
+    document.getElementById('help-ai-answer').style.display = 'none';
+    document.getElementById('help-ai-answer').innerHTML = '';
+    document.getElementById('help-ai-question').value = '';
     panel.style.display = 'flex';
     document.getElementById('admin-screen').style.width = '67%';
+}
+
+async function askHelpAI() {
+    const input = document.getElementById('help-ai-question');
+    const question = input.value.trim();
+    if (!question || !currentHelpKey) return;
+    const answerEl = document.getElementById('help-ai-answer');
+    const btn = document.getElementById('help-ai-btn');
+    answerEl.style.display = 'block';
+    answerEl.innerHTML = '<span style="color:#888;">Pensando...</span>';
+    btn.disabled = true;
+    try {
+        const res = await adminFetch('/api/admin/help-chat', {
+            method: 'POST', body: JSON.stringify({ key: currentHelpKey, question })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error desconocido');
+        answerEl.innerHTML = data.answer.replace(/\n/g, '<br>');
+        input.value = '';
+    } catch (err) {
+        answerEl.innerHTML = '<span style="color:#ff7070;">❌ ' + err.message + '</span>';
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 let quillHelp = null;
