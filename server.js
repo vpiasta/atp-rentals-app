@@ -2394,10 +2394,33 @@ app.post('/api/admin/save-help-content', requireAdmin, async (req, res) => {
     }
 });
 
+// Maintained-by-hand ground truth about what TPS actually automates, for the
+// help-chat below. The per-topic help files only describe the admin UI the
+// human sees — they say nothing about background behavior (what sends an
+// email, what's automatic vs. manual), so a question like "will I be
+// notified if X happens" had nothing correct to draw on and the model
+// guessed wrong (caught by Volker 2026-11-04). This is NOT a substitute for
+// real memory/codebase access (the help-chat calls the public Anthropic API
+// from the server with no access to this codebase or any Claude session's
+// memory — there's no mechanism to grant that short of pasting source code
+// into every prompt) — it's a short, hand-curated fact sheet that must be
+// updated whenever automated behavior actually changes, same as HELP_FILES
+// content is kept current.
+const HELP_CHAT_SYSTEM_FACTS = `Hechos verificados sobre el comportamiento automático de TPS (actualizar esta lista cada vez que cambie algo aquí descrito):
+- Actualización del reporte de la ATP: cuando hay cambios reales (altas, reactivaciones, bajas, miembros marcados), se envía automáticamente un correo a info@trustedpanamastays.com con el resumen — PERO nada se aplica a la base de datos automáticamente; siempre requiere que un admin entre al panel y presione "Aplicar".
+- Excepción: solicitudes con estado "pending_atp" y auto_activate=true SÍ se activan automáticamente (sin revisión humana) en cuanto aparece un hospedaje coincidente en un nuevo reporte de la ATP.
+- Solicitud de membresía formal (join.html/pay.html): envía correo automático a info@trustedpanamastays.com al recibirse.
+- Solicitud de prueba por correo (respuesta a campaña de invitación → pending_submissions): envía correo automático a info@trustedpanamastays.com al recibirse, tanto si se procesó bien como si falló el análisis automático (agregado 2026-11-04; antes de esa fecha este flujo NO notificaba a nadie).
+- Recordatorio diario: cada día se revisa si queda algo pendiente de revisar (reporte ATP, solicitudes de membresía, solicitudes de prueba) y, si algo sigue sin resolverse, se envía UN correo resumen; se repite todos los días hasta que cada punto se resuelva en el panel (agregado 2026-11-04).
+- Todos los correos dirigidos al admin (a info@trustedpanamastays.com) se envían también en copia (CC) automáticamente al correo personal de Volker, y si el proveedor de correo principal (Brevo) falla, hay un envío de respaldo por una vía distinta (agregado 2026-11-04).
+- Analítica: cada evento registrado (visita al sitio, vista de hospedaje, clic de contacto, "vistas de fotos", etc.) guarda SOLO tipo de evento, ID del hospedaje, IP y fecha/hora — no identifica al visitante individualmente ni registra qué foto específica vio, cuánto tiempo pasó en la página, ni ningún otro detalle. "Vistas de fotos" es un conteo agregado de que alguien interactuó con la galería, nada más granular que eso.
+- Fuera de lo anterior, nada se publica, aprueba o activa sin que un humano lo revise en el panel de admin.`;
+
 // Contextual AI help: the admin types a free-form question about the topic
 // they currently have the help panel open to; Claude answers grounded in that
-// topic's help text (plus the general guide), so answers stay specific to how
-// this admin panel actually works instead of a generic answer with no context.
+// topic's help text (plus the general guide and the system-facts sheet
+// above), so answers stay specific to how this admin panel actually works
+// instead of a generic answer with no context.
 app.post('/api/admin/help-chat', requireAdmin, async (req, res) => {
     const { key, question } = req.body;
     if (!HELP_FILES[key]) return res.status(400).json({ error: 'Unknown help content key' });
@@ -2405,7 +2428,7 @@ app.post('/api/admin/help-chat', requireAdmin, async (req, res) => {
     try {
         const topicHtml = await getHelpContentHtml(key);
         const generalHtml = key === 'general-es' ? '' : await getHelpContentHtml('general-es');
-        const prompt = `Eres el asistente de ayuda integrado en el panel de administración de TrustedPanamaStays.com (TPS), un directorio de alquileres de corto plazo registrados ante la ATP en Panamá.
+        const prompt = `Eres el asistente de ayuda integrado en el panel de administración de TrustedPanamaStays.com (TPS), un directorio de alquileres de corto plazo registrados ante la ATP en Panamá. Este panel está pensado para que lo pueda operar una persona sin conocimientos técnicos y SIN un desarrollador disponible de forma permanente — es la única ayuda a la que esa persona puede recurrir en el momento, así que nunca remitas a "el desarrollador del panel" ni a ninguna otra persona específica como si existiera ese soporte.
 
 Un administrador tiene abierto el panel de ayuda del tema "${key}" y hace esta pregunta sobre cómo usar esta función del panel:
 
@@ -2416,7 +2439,11 @@ Texto de ayuda actual de este tema (puede estar incompleto):
 ${topicHtml || '(sin contenido de ayuda guardado para este tema todavía)'}
 ---
 ${generalHtml ? `Guía general del panel, para contexto adicional:\n---\n${generalHtml}\n---\n` : ''}
-Responde de forma breve, clara y práctica, en el mismo idioma en que está escrita la pregunta. Si la respuesta no se puede deducir con confianza del texto de ayuda ni del contexto dado, dilo honestamente en vez de adivinar, y sugiere qué revisar o a quién preguntar. No inventes nombres de botones, campos o pasos que no estén mencionados arriba.`;
+${HELP_CHAT_SYSTEM_FACTS}
+---
+Responde de forma breve, clara y práctica, en el mismo idioma en que está escrita la pregunta. Usa la lista de hechos verificados arriba cuando la pregunta sea sobre qué pasa automáticamente (notificaciones, activaciones, etc.) — tiene prioridad sobre el texto de ayuda si hay conflicto, porque describe el comportamiento real del sistema. No inventes nombres de botones, campos o pasos que no estén mencionados arriba.
+
+Si la pregunta es sobre si el sistema hace o registra algo específico (p. ej. un dato de analítica, una notificación, una función) y ni el texto de ayuda ni los hechos verificados lo confirman: dilo con la misma seguridad que si estuviera confirmado — "No, el sistema no hace/registra [eso]" — en vez de solo decir que no se puede deducir. Si además parece algo que requeriría cambiar el código para añadirlo, dilo explícitamente así ("esto requeriría una modificación al sistema, no es algo que se pueda activar desde el panel") y sugiere anotarlo como una idea para una futura actualización — sin decir a quién pedírsela. Si de verdad no tienes información suficiente para estar seguro (y no es un caso de "esto no existe"), dilo honestamente y sugiere en qué parte del panel podría revisarse, nunca "pregúntele a X".`;
         const response = await axios.post('https://api.anthropic.com/v1/messages', {
             model: 'claude-sonnet-5', max_tokens: 700,
             messages: [{ role: 'user', content: prompt }]
@@ -4225,6 +4252,83 @@ app.get('/api/admin/send-weekly-report', async (req, res) => {
 
         res.json({ success: true, events: events?.length || 0, counts });
 
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── GET /api/admin/daily-pending-check ───────────────────────────────────────
+// Unlike every other notification in this file (which fires once, at the
+// moment something happens, and can be missed — unread email, Brevo hiccup,
+// a busy week), this checks EVERYTHING that currently needs an admin visit
+// and, if anything is still unresolved, sends ONE summary email. Meant to be
+// called daily by a GitHub Actions cron (same pattern as send-trial-reminders
+// and send-weekly-report) — it keeps sending the same reminder every day
+// until each item is actually resolved in the admin panel, so nothing can
+// silently sit forever just because one notification got missed.
+// Built 2026-11-04 — Volker found that nothing played this role before.
+app.get('/api/admin/daily-pending-check', async (req, res) => {
+    const { secret } = req.query;
+    if (secret !== process.env.ADMIN_SECRET) return res.status(403).send('Denied');
+
+    try {
+        const items = [];
+
+        if (PENDING_ATP_DIFF) {
+            const d = PENDING_ATP_DIFF.diff;
+            const total = d.toInsert.length + d.toReactivate.length + d.toDeactivateNonMembers.length + d.toFlagMembers.length;
+            if (total > 0) {
+                items.push({
+                    label: `🔄 Actualización de la ATP pendiente de revisión — ${total} cambios (${d.toInsert.length} nuevos, ${d.toReactivate.length} reactivados, ${d.toDeactivateNonMembers.length} dados de baja, ${d.toFlagMembers.length} miembros marcados)`,
+                    since: PENDING_ATP_DIFF.computedAt
+                });
+            }
+        }
+
+        const { data: pendingApps } = await supabaseAdmin
+            .from('membership_applications')
+            .select('id, property_name, status, created_at')
+            .in('status', ['pending', 'pending_atp']);
+        if (pendingApps?.length) {
+            const oldest = pendingApps.reduce((min, a) => a.created_at < min ? a.created_at : min, pendingApps[0].created_at);
+            items.push({
+                label: `📋 ${pendingApps.length} solicitud(es) de membresía pendiente(s): ${pendingApps.slice(0, 5).map(a => a.property_name).join(', ')}${pendingApps.length > 5 ? '…' : ''}`,
+                since: oldest
+            });
+        }
+
+        const { data: pendingSubs } = await supabaseAdmin
+            .from('pending_submissions')
+            .select('id, subject, status, created_at')
+            .in('status', ['pending', 'raw_unparsed']);
+        if (pendingSubs?.length) {
+            const oldest = pendingSubs.reduce((min, s) => s.created_at < min ? s.created_at : min, pendingSubs[0].created_at);
+            items.push({
+                label: `📩 ${pendingSubs.length} solicitud(es) de prueba por correo pendiente(s) de revisión`,
+                since: oldest
+            });
+        }
+
+        if (!items.length) {
+            return res.json({ success: true, sent: false, reason: 'nothing pending' });
+        }
+
+        const rows = items.map(i => `<li style="margin-bottom:0.7rem;">${i.label}<br><span style="font-size:0.78rem;color:#888;">Pendiente desde: ${new Date(i.since).toLocaleDateString('es-PA', { timeZone: 'America/Panama' })}</span></li>`).join('');
+        const message = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:600px;">
+<div style="background:linear-gradient(135deg,#005ca9,#00a859);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;">
+    <h1 style="color:white;margin:0;">🔔 Pendientes por revisar</h1>
+    <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;">Trusted Panama Stays</p>
+</div>
+<p>Este recordatorio se repite todos los días hasta que cada punto se resuelva en el panel de admin:</p>
+<ul style="padding-left:1.2rem;">${rows}</ul>
+<p style="margin-top:1.5rem;"><a href="https://trustedpanamastays.com/admin.html" style="background:#005ca9;color:white;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">Ir al Panel de Admin →</a></p>
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA</p>
+</body></html>`;
+
+        await notifyAdmin(`🔔 ${items.length} pendiente(s) en TPS — revisión necesaria`, message);
+        res.json({ success: true, sent: true, items: items.length });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
