@@ -7062,6 +7062,30 @@ app.post('/api/inbound-application', express.json({ limit: '10mb' }), async (req
             photosStored: storedPhotos.length, photosTotal: attachments.length
         });
         console.log(`📩 Inbound application #${submissionId} parsed — listing ${listingId || 'UNMATCHED'}, ${extractionMethod || 'NO DESCRIPTION'}, ${storedPhotos.length}/${attachments.length} photos`);
+
+        // Notify admin — until 2026-11-04 this flow only wrote to the database
+        // with no alert of any kind, so a new trial submission sat completely
+        // invisible until someone happened to open the admin panel.
+        let listingName = null;
+        if (listingId) {
+            const { data: l } = await supabaseAdmin.from('listings').select('name').eq('id', listingId).maybeSingle();
+            listingName = l?.name || null;
+        }
+        const notifySubject = listingName
+            ? `Nueva solicitud de prueba — ${listingName}`
+            : `Nueva solicitud de prueba — sin identificar (revisar manualmente)`;
+        const notifyMsg = `
+<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;">
+<p>Llegó una nueva solicitud de prueba por correo (respuesta a la campaña de invitación).</p>
+<table cellpadding="6" style="border-collapse:collapse;">
+<tr><td style="font-weight:bold;color:#555;">Hospedaje:</td><td>${listingName || `No identificado automáticamente (${matchMethod}) — revisar manualmente`}</td></tr>
+<tr><td style="font-weight:bold;color:#555;">Remitente:</td><td>${senderEmail || 'desconocido'}</td></tr>
+<tr><td style="font-weight:bold;color:#555;">Descripción:</td><td>${extractionMethod ? 'extraída (' + extractionMethod + ')' : 'no se pudo extraer'}</td></tr>
+<tr><td style="font-weight:bold;color:#555;">Fotos:</td><td>${storedPhotos.length} de ${attachments.length}</td></tr>
+</table>
+<p><a href="https://trustedpanamastays.com/admin.html" style="background:#005ca9;color:white;padding:8px 16px;text-decoration:none;border-radius:5px;">Ver en Panel de Admin</a></p>
+</body></html>`;
+        await notifyAdmin(notifySubject, notifyMsg);
     } catch (err) {
         console.error('Inbound application processing error:', err.message);
         // Fall back to raw capture so the submission isn't lost entirely — grab
@@ -7085,6 +7109,21 @@ app.post('/api/inbound-application', express.json({ limit: '10mb' }), async (req
         } catch (fallbackErr) {
             console.error('Inbound application fallback capture also failed:', fallbackErr.message);
         }
+        // Processing failed — notify too, so this doesn't sit silent either;
+        // arguably more important than the success case, since it needs a
+        // human to dig into raw_payload manually.
+        await notifyAdmin(
+            `⚠️ Solicitud de prueba — error al procesar correo entrante`,
+            `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;">
+<p>Llegó un correo de solicitud de prueba pero el procesamiento automático falló. Se guardó en bruto para revisión manual.</p>
+<table cellpadding="6" style="border-collapse:collapse;">
+<tr><td style="font-weight:bold;color:#555;">Asunto:</td><td>${fallbackSubject || '(sin asunto)'}</td></tr>
+<tr><td style="font-weight:bold;color:#555;">Remitente:</td><td>${fallbackSender || 'desconocido'}</td></tr>
+<tr><td style="font-weight:bold;color:#555;">Error:</td><td>${err.message}</td></tr>
+</table>
+<p><a href="https://trustedpanamastays.com/admin.html" style="background:#005ca9;color:white;padding:8px 16px;text-decoration:none;border-radius:5px;">Ver en Panel de Admin</a></p>
+</body></html>`
+        );
     }
 });
 
