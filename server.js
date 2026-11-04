@@ -3627,7 +3627,7 @@ app.get('/api/admin/qb-pending-payments', requireServiceAuth, async (req, res) =
             ? await supabaseAdmin.from('listings').select('id, name, contact_name, slug').in('id', listingIds)
             : { data: [] };
         const { data: apps } = appIds.length
-            ? await supabaseAdmin.from('membership_applications').select('id, contact_name, documents').in('id', appIds)
+            ? await supabaseAdmin.from('membership_applications').select('id, contact_name, business_name, documents').in('id', appIds)
             : { data: [] };
 
         const listingMap = {}; (listings||[]).forEach(l => listingMap[l.id] = l);
@@ -3643,6 +3643,9 @@ app.get('/api/admin/qb-pending-payments', requireServiceAuth, async (req, res) =
                 property_name:  listing.name || null,
                 slug:           listing.slug || null,
                 contact_name:   listing.contact_name || app.contact_name || null,
+                // Name the DGI invoice was issued to (the receptor) — the QB
+                // customer should carry this same name so the two match.
+                invoice_customer_name: app.business_name || null,
                 amount_net:     p.amount_net,
                 itbms:          p.itbms,
                 amount_total:   p.amount_total,
