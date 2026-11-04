@@ -1,0 +1,15 @@
+name: Daily Pending Items Check
+
+on:
+  schedule:
+    - cron: '0 14 * * *'   # 9am Panama time (UTC-5) = 2pm UTC
+  workflow_dispatch:
+
+jobs:
+  check-pending:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for pending admin items
+        run: |
+          curl -s --connect-timeout 15 --max-time 60 --retry 2 --retry-delay 10 \
+            "https://trustedpanamastays.com/api/admin/daily-pending-check?secret=${{ secrets.ADMIN_SECRET }}"
