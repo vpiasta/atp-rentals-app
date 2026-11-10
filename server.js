@@ -226,6 +226,44 @@ let PDF_STATUS = "Not loaded";
 let PDF_RENTALS = [];
 let PDF_REPORT_TOTAL = null;  // the report's own "Total de Hospedajes vigentes" line
 const ATP_TYPES = ['Albergue','Aparta-Hotel','Bungalow','Cabaña','Hostal Familiar','Hotel','Motel','Pensión','Residencial','Sitio de acampar'];
+let PDF_EMAIL_NOTES = [];    // e-mails repaired or still invalid in the last parsed report (listed in the review e-mail)
+
+// ── E-mail clean-up for addresses copied from the ATP report ──
+// The report is typed by hand and contains typos (spaces, commas, trailing dots,
+// accents, two addresses glued together, "gmail-com"). cleanEmail() repairs only
+// unambiguous mistakes; anything it cannot repair stays as it is and fails
+// isValidEmail(), so campaigns skip it.
+const EMAIL_RE = /^[A-Za-z0-9._%+'-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+function isValidEmail(e) {
+    const s = (e || '').trim();
+    return EMAIL_RE.test(s) && !/(^\.|\.\.|\.@|@[-.])/.test(s);
+}
+const EMAIL_DOMAIN_TYPOS = {
+    'gmaill.com': 'gmail.com', 'gmaiil.com': 'gmail.com', 'gmial.com': 'gmail.com', 'gamil.com': 'gmail.com',
+    'gmail.co': 'gmail.com', 'gmail.con': 'gmail.com', 'gmail.cm': 'gmail.com', 'gmail.om': 'gmail.com',
+    'hotmial.com': 'hotmail.com', 'hotmai.com': 'hotmail.com', 'hotmail.co': 'hotmail.com', 'hotmail.con': 'hotmail.com',
+    'yahooo.com': 'yahoo.com', 'yahoo.con': 'yahoo.com', 'outlok.com': 'outlook.com', 'outlook.con': 'outlook.com'
+};
+function cleanEmail(raw) {
+    let s = (raw || '').trim();
+    if (!s.includes('@')) return s;                                       // "no aporto", "n/t" — left alone, invalid
+    s = s.normalize('NFD').replace(/[̀-ͯ]/g, '');            // cabañas → cabanas, jardín → jardin
+    if ((s.match(/@/g) || []).length > 1) {
+        const tokens = s.split(/[\s\/;,]+/).filter(t => t.includes('@'));
+        if (tokens.length > 1) s = tokens[0];                            // "a@x.com / b@y.com" → first one
+        else { const p = s.split('@'); s = p[0] + '@' + p[1]; }          // "a@gmail.com@icloud.com" → a@gmail.com
+    }
+    s = s.replace(/\s+/g, '').replace(/,/g, '.');                         // "tropical - suites.com", "amfcap,com"
+    const at = s.indexOf('@');
+    let local  = s.slice(0, at).replace(/^\.+|\.+$/g, '').replace(/\.{2,}/g, '.');
+    let domain = s.slice(at + 1).toLowerCase()
+        .replace(/^[.\-]+|[.\-;:]+$/g, '').replace(/\.{2,}/g, '.')
+        .replace(/-(com|net|org)$/, '.$1');                               // "gmail-com" → gmail.com
+    if (!domain.includes('.') && /^[a-z0-9-]{2,}(com|net|org)$/.test(domain))
+        domain = domain.replace(/(com|net|org)$/, '.$1');                 // "hotmailcom" → hotmail.com
+    domain = EMAIL_DOMAIN_TYPOS[domain] || domain;
+    return local + '@' + domain;
+}
 let DATA_SOURCE = "";
 let PENDING_ATP_DIFF = null; // set when a new PDF is parsed but not yet reviewed/applied
 
@@ -358,6 +396,13 @@ async function notifyAtpDiffPending(diff) {
         <strong style="color:#555;">➖ Ya no en el reporte — no miembros (${diff.toDeactivateNonMembers.length})</strong>
         ${listOrNone(diff.toDeactivateNonMembers)}
     </div>
+    ${PDF_EMAIL_NOTES.length ? `
+    <div style="background:#fffbea;border:1px solid #f0d98c;border-radius:8px;padding:1rem;margin:1rem 0;">
+        <strong style="color:#8a6d00;">📧 Correos del reporte revisados (${PDF_EMAIL_NOTES.length})</strong>
+        <p style="font-size:0.82rem;color:#666;margin:0.3rem 0 0;">Corregidos automáticamente, o todavía no válidos (las campañas no se envían a estos).</p>
+        <ul style="margin:0.3rem 0 0 1.2rem;font-size:0.85rem;">${PDF_EMAIL_NOTES.map(n =>
+            `<li>${n.name}: <code>${n.raw}</code> ${n.valid ? `→ <code>${n.cleaned}</code>` : '<strong style="color:#cc0000;">— no válido</strong>'}</li>`).join('')}</ul>
+    </div>` : ''}
     ${diff.toFlagMembers.length ? `
     <div style="background:#fde8e8;border:1px solid #ffcccc;border-radius:8px;padding:1rem;margin:1rem 0;">
         <strong style="color:#cc0000;">⚠️ Miembros pagos ya no en el reporte (${diff.toFlagMembers.length})</strong>
@@ -403,7 +448,7 @@ async function mergeListingsWithDB(parsedRentals) {
         while (true) {
             const { data, error } = await supabaseAdmin
                 .from('listings')
-                .select('id, name, province, rental_type, atp_active, is_member')
+                .select('id, name, province, rental_type, email, atp_active, is_member')
                 .or('registry_source.is.null,registry_source.neq.mici') // include NULL (native ATP listings) and anything not explicitly MiCI
                 .range(from, from + BATCH - 1);
             if (error) throw new Error(error.message);
@@ -428,6 +473,11 @@ async function mergeListingsWithDB(parsedRentals) {
             if (ATP_TYPES.includes(rental.rental_type) && rental.rental_type !== match.rental_type) {
                 updates.rental_type = rental.rental_type;
                 match.rental_type = rental.rental_type;
+            }
+            // A stored e-mail that is not a valid address is replaced by the report's (pre-checked) one
+            if (rental.email && isValidEmail(rental.email) && !isValidEmail(match.email) && rental.email !== match.email) {
+                updates.email = rental.email;
+                match.email = rental.email;
             }
             if (!match.atp_active) updates.atp_active = true; // reappeared — clear any stale flag
             if (!match.atp_active) updates.atp_review_flagged_at = null;
@@ -1190,6 +1240,18 @@ async function parsePDFWithCoordinates() {
         }
 
         if (currentRental) allRentals.push(currentRental);
+
+        // Pre-check e-mails: repair obvious typos, remember what was changed or is still invalid
+        PDF_EMAIL_NOTES = [];
+        allRentals.forEach(r => {
+            const raw = (r.email || '').trim();
+            if (!raw) return;
+            const cleaned = cleanEmail(raw);
+            const valid = isValidEmail(cleaned);
+            if (cleaned !== raw || !valid) PDF_EMAIL_NOTES.push({ name: r.name, province: r.province, raw, cleaned, valid });
+            r.email = valid ? cleaned : raw;   // unrepairable: keep the original, campaigns skip it
+        });
+        if (PDF_EMAIL_NOTES.length) console.log(`📧 E-mail pre-check: ${PDF_EMAIL_NOTES.filter(n => n.valid).length} repaired, ${PDF_EMAIL_NOTES.filter(n => !n.valid).length} still invalid`);
 
         PDF_RENTALS = allRentals;
         PDF_STATUS = `PDF parsed: ${allRentals.length} rentals found from ${numPages} pages`;
@@ -3906,7 +3968,6 @@ app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => 
             // Final validation pass: a proper email regex catches anything that slipped
             // through the SQL-level filter — malformed addresses (missing @), stray phone
             // numbers typed into the email field, etc. Never count/send to these.
-            const isValidEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e||'').trim());
             if (filter !== 'no-email') {
                 listings = (listings||[]).filter(l => isValidEmail(l.email));
             }
@@ -4766,8 +4827,12 @@ app.post('/api/admin/send-followup-specific', requireAdmin, async (req, res) => 
     } else {
         return res.status(400).json({ error: 'Missing fields' });
     }
+    // Skip addresses that cannot be delivered (same pre-check as the ATP import)
+    const skippedInvalid = targets.filter(t => !isValidEmail(t.email)).map(t => t.email);
+    targets = targets.filter(t => isValidEmail(t.email));
+    if (skippedInvalid.length) console.log(`📧 Campaign: skipped ${skippedInvalid.length} invalid address(es):`, skippedInvalid.join(', '));
     if (!subject || !body || !targets.length) return res.status(400).json({ error: 'Missing fields' });
-    res.json({ success: true, message: `Sending to ${targets.length} recipients`, total: targets.length });
+    res.json({ success: true, message: `Sending to ${targets.length} recipients` + (skippedInvalid.length ? ` (${skippedInvalid.length} invalid address(es) skipped)` : ''), total: targets.length, skipped_invalid: skippedInvalid });
     // target_description lets the caller stamp a clearer audience label into
     // campaign history (e.g. "Autoridades y Legisladores") — used by the
     // officials-contacts send (2026-08-26) so it's visually distinguishable
@@ -6882,7 +6947,6 @@ async function sendGeneralCampaignBatch() {
         // Same email-validity filter as the manual campaign button — excludes
         // blank strings and placeholder text ("no aporto", "n/t", etc.) that
         // pass the DB's not-null check but aren't real addresses.
-        const isValidEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e||'').trim());
         const listings = (rawListings || []).filter(l => isValidEmail(l.email));
 
         if (!listings || listings.length === 0) {
