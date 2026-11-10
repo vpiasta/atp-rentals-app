@@ -3987,10 +3987,12 @@ async function loadCampaignHistory() {
         list.innerHTML = '<p style="color:#ff7070;">Error cargando historial: ' + err.message + '</p>';
     }
 }
+let CAMPAIGN_HISTORY_ROWS = [];
 function renderCampaignHistory(rows) {
+    CAMPAIGN_HISTORY_ROWS = rows || [];
     const list = document.getElementById('campaign-history-list');
     if (!rows.length) { list.innerHTML = '<p style="color:#aaa;">Aún no hay campañas registradas.</p>'; return; }
-    const statusLabels = { sending: '⏳ Enviando', completed: '✅ Completada', queued: '📋 En cola (envío manual)', stopped: '⛔ Detenida (errores de envío)', paused: '⏸ En pausa — continúa en 24 h (límite diario)' };
+    const statusLabels = { sending: '⏳ Enviando', completed: '✅ Completada', queued: '📋 En cola (envío manual)', stopped: '⛔ Detenida (errores de envío)', paused: '⏸ En pausa — continúa en 24 h (límite diario)', cancelled: '⛔ Detenida por usted' };
     list.innerHTML = rows.map((c, i) => {
         const date = fmtDateTime(c.created_at);
         const channelBadge = c.channel === 'whatsapp'
@@ -4008,10 +4010,73 @@ function renderCampaignHistory(rows) {
             <div style="margin-top:4px;color:#d4adf5;font-weight:600;">${title}</div>
             ${c.target_description && c.subject ? `<div style="font-size:0.78rem;color:#aaa;">${c.target_description}</div>` : ''}
             <div style="font-size:0.82rem;color:#7ec8e3;margin-top:2px;">${counts}</div>
+            ${c.channel === 'email' && (c.status === 'sending' || c.status === 'paused') ? `
+            <div style="margin-top:6px;background:#2a1414;border:1px solid #7a2b2b;border-radius:6px;padding:0.5rem 0.7rem;">
+                <button onclick="stopCampaign(${c.id})" style="background:#b02a2a;border:1px solid #e05555;color:#fff;border-radius:4px;padding:4px 12px;font-size:0.8rem;font-weight:700;cursor:pointer;">⛔ Detener envío</button>
+                <div style="font-size:0.74rem;color:#e0b4b4;margin-top:4px;line-height:1.45;">
+                    <strong>Detiene:</strong> todos los correos de esta campaña que aún no salieron, también los programados para los próximos días por el límite diario.<br>
+                    <strong>No detiene:</strong> los correos ya enviados (no se pueden recuperar), el correo que se está enviando en ese mismo segundo, otras campañas ni los correos automáticos del sistema (recordatorios, aprobaciones, contraseñas).<br>
+                    No se puede reanudar. Recibirá por correo la lista de direcciones que no la recibieron, para enviarla de nuevo si quiere.
+                </div>
+            </div>` : ''}
             ${c.body_html ? `<button onclick="document.getElementById('camp-hist-body-${i}').style.display=document.getElementById('camp-hist-body-${i}').style.display==='none'?'block':'none'" style="margin-top:4px;background:none;border:1px solid #555;color:#aaa;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer;">Ver contenido</button>
+            ${c.channel !== 'whatsapp' ? `<button onclick="reuseCampaign(${i})" style="margin-top:4px;margin-left:4px;background:#6a3fc8;border:1px solid #9b7af0;color:#fff;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer;">↩️ Usar en el editor</button>` : ''}
             <div id="camp-hist-body-${i}" style="display:none;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:0.7rem;margin-top:6px;font-size:0.82rem;color:#ccc;max-height:260px;overflow-y:auto;">${c.body_html}</div>` : ''}
         </div>`;
     }).join('');
+}
+
+// Load a past campaign's subject and text into the editor exactly as it was sent
+// (no copy-paste, so no colours from the dark history view come along)
+function reuseCampaign(i) {
+    const c = CAMPAIGN_HISTORY_ROWS[i];
+    if (!c) return;
+    const ed = document.getElementById('followup-editor');
+    if (ed.innerText.trim() && !confirm('El editor ya tiene texto. ¿Reemplazarlo con esta campaña?')) return;
+    document.getElementById('followup-subject').value = c.subject || '';
+    ed.innerHTML = c.body_html || '';
+    updatePreview();
+    ed.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Pasting into the editor: keep text, links, bold, lists and headings, but drop
+// colours, backgrounds and fonts copied from other pages (e.g. the dark history view)
+function cleanPastedHtml(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('script,style,meta,link,title').forEach(n => n.remove());
+    doc.body.querySelectorAll('*').forEach(el => {
+        el.removeAttribute('class');
+        if (el.tagName === 'FONT') { el.removeAttribute('color'); el.removeAttribute('face'); el.removeAttribute('size'); }
+        el.removeAttribute('bgcolor');
+        if (el.hasAttribute('style')) {
+            ['color', 'background', 'background-color', 'font-family', 'font-size', 'line-height', 'caret-color', 'text-decoration-color']
+                .forEach(prop => el.style.removeProperty(prop));
+            if (!el.getAttribute('style').trim()) el.removeAttribute('style');
+        }
+    });
+    return doc.body.innerHTML;
+}
+(function attachEditorPasteCleaner() {
+    const ed = document.getElementById('followup-editor');
+    if (!ed) { document.addEventListener('DOMContentLoaded', attachEditorPasteCleaner); return; }
+    ed.addEventListener('paste', e => {
+        const html = e.clipboardData && e.clipboardData.getData('text/html');
+        if (!html) return;                       // plain text pastes are already clean
+        e.preventDefault();
+        document.execCommand('insertHTML', false, cleanPastedHtml(html));
+        updatePreview();
+    });
+})();
+
+async function stopCampaign(id) {
+    if (!confirm('¿Detener esta campaña?\n\nLos correos que aún no salieron ya no se enviarán. Los ya enviados no se pueden recuperar. No se puede reanudar.')) return;
+    try {
+        const res = await adminFetch('/api/admin/campaigns/' + id + '/stop', { method: 'POST' });
+        const d = await res.json();
+        if (!d.success) { alert('No se pudo detener: ' + (d.error || 'error desconocido')); return; }
+        alert(`Campaña detenida.\n\nYa enviados: ${d.sent}\nNo se enviarán: ${d.cancelled}\n\nLe enviamos por correo la lista de direcciones que no la recibieron.`);
+        loadCampaignHistory();
+    } catch (e) { alert('Error: ' + e.message); }
 }
 
 async function loadWaQueue() {

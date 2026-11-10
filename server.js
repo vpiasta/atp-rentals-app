@@ -2395,6 +2395,41 @@ app.get('/api/admin/campaigns', requireAdmin, async (req, res) => {
     res.json(data);
 });
 
+// ── "Detener envío": stop an e-mail campaign that is still sending or paused ──
+// Stops every e-mail not yet sent (also the batches waiting for the daily cap)
+// and can't be resumed. An e-mail already being handed to the mail server at
+// that moment may still go out. Other campaigns and system e-mails are not affected.
+app.post('/api/admin/campaigns/:id/stop', requireAdmin, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    try {
+        const { data: c, error } = await supabaseAdmin.from('campaigns')
+            .select('id, subject, status, channel, recipient_count, target_description').eq('id', id).single();
+        if (error || !c) return res.status(404).json({ error: 'Campaña no encontrada' });
+        if (c.channel !== 'email') return res.status(400).json({ error: 'Solo se pueden detener campañas de correo' });
+        if (!['sending', 'paused'].includes(c.status)) return res.status(400).json({ error: 'Esta campaña ya no está enviando' });
+
+        CAMPAIGN_CANCELLED.add(id);
+        await supabaseAdmin.from('campaigns').update({ status: 'cancelled', finished_at: new Date().toISOString() }).eq('id', id);
+        // Give a send that is in progress a moment to finish, then cancel everything still pending
+        await new Promise(r => setTimeout(r, 1500));
+        const { data: cancelled } = await supabaseAdmin.from('campaign_recipients')
+            .update({ status: 'cancelled' }).eq('campaign_id', id).in('status', ['pending', 'sending'])
+            .select('email');
+        const sent   = await countRecipients(id, 'sent');
+        const errors = await countRecipients(id, 'error');
+        await supabaseAdmin.from('campaigns').update({ sent_count: sent, error_count: errors }).eq('id', id);
+        const notSent = (cancelled || []).map(r => r.email);
+        await logEvent('campaign_cancelled_by_admin', { campaign_id: id, sent, errors, cancelled: notSent.length });
+        await notifyAdmin(`⛔ Campaña detenida por usted: ${sent}/${c.recipient_count} enviados — ${String(c.subject || '').substring(0, 60)}`,
+            `<p>Usted detuvo la campaña "<strong>${c.subject || ''}</strong>".</p>` +
+            `<p><strong>${sent}</strong> correos ya habían salido (no se pueden recuperar), ${errors} con error. <strong>${notSent.length}</strong> no se enviarán.</p>` +
+            (notSent.length ? `<p>Correos que no recibieron la campaña (para enviarla de nuevo, cópielos en "Correos específicos"):</p><p style="font-family:monospace;font-size:0.8rem;">${notSent.join(', ')}</p>` : ''));
+        res.json({ success: true, sent, errors, cancelled: notSent.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── Editable help-panel content, one file per topic ──────────────────────────
 // Every topic (general guide + each per-button snippet) is its own HTML file
 // under public/help/, fetched on demand and editable via the same Quill panel.
@@ -4883,6 +4918,7 @@ async function resolveListingUrl(member) {
 // restart after 752 of 1155 emails — no resume, no report, status stuck on
 // "sending".)
 const CAMPAIGN_RUNNING = new Set();
+const CAMPAIGN_CANCELLED = new Set();   // set by the admin "Detener envío" button; checked before every e-mail
 
 // ── Daily cap (2026-10-25) ──────────────────────────────────────────────────
 // Brevo's free plan delivers 300 e-mails a day and QUEUES the rest. With a big
@@ -5023,6 +5059,7 @@ async function processCampaign(campaignId) {
             sentLast24h = await campaignEmailsSentLast24h();
 
             for (const r of batch) {
+                if (CAMPAIGN_CANCELLED.has(campaignId)) { stopNow = true; break; }
                 if (sentLast24h >= CAMPAIGN_DAILY_CAP) { capReached = true; break; }
                 const member = { ...(r.member || {}), email: r.email };
                 await supabaseAdmin.from('campaign_recipients')
@@ -5059,6 +5096,11 @@ async function processCampaign(campaignId) {
 
         const sent   = await countRecipients(campaignId, 'sent');
         const errors = await countRecipients(campaignId, 'error');
+        if (CAMPAIGN_CANCELLED.has(campaignId)) {
+            // Stopped with the admin button — the stop route already set the status and sent the report
+            await supabaseAdmin.from('campaigns').update({ sent_count: sent, error_count: errors }).eq('id', campaignId);
+            return;
+        }
         if (capReached && !stopNow) {
             const pending = await countRecipients(campaignId, 'pending');
             await supabaseAdmin.from('campaigns').update({
