@@ -489,6 +489,14 @@
                 </label>
             </div>
 
+            <div class="checkbox-group">
+                <input type="checkbox" id="optin-check">
+                <label for="optin-check">
+                    (Opcional) Acepto recibir por correo información gratuita de Trusted Panama Stays sobre requisitos legales y cambios en las leyes para hospedajes.
+                    Le enviaremos un correo para confirmar. Puede darse de baja en cualquier momento.
+                </label>
+            </div>
+
             <div class="checkbox-group" id="trial-reminder-check" style="display:none;">
                 <input type="checkbox" id="trial-check" checked>
                 <label for="trial-check">
@@ -890,6 +898,7 @@ async function submitForm() {
     formData.append('membership_type', selectedPlan === 'trial' ? 'trial' : 'paid');
     formData.append('duration_months', selectedPlan === '2year' ? 24 : (selectedPlan === '1year' ? 12 : 0));
     formData.append('payment_method',  selectedPayment || 'none');
+    formData.append('email_opt_in',    document.getElementById('optin-check').checked ? 'true' : 'false');
 
     // Files
     const avisoFile  = document.getElementById('file-aviso').files[0];

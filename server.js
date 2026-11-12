@@ -2149,6 +2149,11 @@ app.post('/api/admin/mark-invited', requireAdmin, async (req, res) => {
 // panel's status badge, so clicking "INVITE" actually invites instead of
 // just relabeling the status without contacting anyone).
 app.post('/api/admin/invite-single', requireAdmin, async (req, res) => {
+    // Disabled 2026-11-12: a first-contact e-mail through Brevo to an address
+    // that never opted in breaks Brevo's anti-spam policy. Write personally
+    // from your own mailbox instead.
+    return res.status(410).json({ error: 'Invitación por correo desactivada (Brevo exige consentimiento previo). Escriba personalmente desde su buzón.' });
+    // eslint-disable-next-line no-unreachable
     const { id } = req.body;
     if (!id) return res.status(400).json({ error: 'Missing id' });
 
@@ -2891,6 +2896,18 @@ app.post('/api/membership-apply',
             listing_id: listingId,
             registration_type: isMici ? 'mici' : 'atp'
         });
+
+        // Separate, unticked opt-in checkbox on join.html (2026-11-12) → double opt-in e-mail
+        if (String(req.body.email_opt_in) === 'true') {
+            try {
+                await startEmailSubscription({
+                    email: contact_email, name: contact_name, listing_id: listingId, lang: 'es',
+                    source: 'membership_application', consent_text: SUBSCRIBE_CONSENT_TEXT.es, ip
+                });
+            } catch (subErr) {
+                console.error('Opt-in from application failed:', subErr.message);
+            }
+        }
 
         // ── Send notification email to admin ──────────────────────────────
         const planText = membership_type === 'trial'
@@ -3978,6 +3995,11 @@ app.get('/api/featured-listing', async (req, res) => {
 
 
 app.post('/api/admin/send-invitation-emails', requireAdmin, async (req, res) => {
+    // Disabled 2026-11-12: invitations went to ATP-report addresses that never
+    // opted in. The 'no-email' filter only builds a WhatsApp list, so it stays.
+    if (req.body.filter !== 'no-email') {
+        return res.status(410).json({ error: 'Invitaciones por correo desactivadas: solo se envían correos masivos a suscriptores confirmados. Invite a los hospedajes a suscribirse en trustedpanamastays.com/subscribe.php' });
+    }
     const { filter, dry_run } = req.body;
     // filter: 'all' | 'apatel' | 'no-email' (for WA list)
     // dry_run: true = just count, don't send
@@ -4461,7 +4483,7 @@ app.post('/api/admin/preview-followup-html', requireAdmin, async (req, res) => {
     const sampleBody = body.includes('{url}')
         ? body.split('{url}').join('https://trustedpanamastays.com/listing.php?id=00000&lang=es')
         : body;
-    const html = buildFollowupHtml('HOTEL EJEMPLO', 'Juan García', sampleBody);
+    const html = buildFollowupHtml('HOTEL EJEMPLO', 'Juan García', sampleBody, null, 'https://trustedpanamastays.com/subscribe.php?lang=es&action=unsubscribe&token=EJEMPLO');
     res.json({ html });
 });
 
@@ -4479,7 +4501,7 @@ app.post('/api/admin/send-followup-test', requireAdmin, async (req, res) => {
     const testBody = body.includes('{url}')
         ? body.split('{url}').join('https://trustedpanamastays.com/listing.php?slug=aparthotel-boquete&lang=es')
         : body;
-    const fullHtml = buildFollowupHtml('HOTEL EJEMPLO', 'Juan García', testBody);
+    const fullHtml = buildFollowupHtml('HOTEL EJEMPLO', 'Juan García', testBody, null, 'https://trustedpanamastays.com/subscribe.php?lang=es&action=unsubscribe&token=EJEMPLO');
     const notifyPath = path.join(__dirname, 'public', 'notify.php');
     // Unique stamp per test (2026-10-02): identical "[TEST] subject" lines made
     // mail clients group every test into one conversation and show an older
@@ -4553,7 +4575,7 @@ const EMAIL_SIGNATURE_HTML = `
   </tr>
 </table>`;
 
-function buildFollowupHtml(hotel, manager, bodyContent, salutationOverride) {
+function buildFollowupHtml(hotel, manager, bodyContent, salutationOverride, unsubUrl) {
     let salutationLine;
     if (salutationOverride) {
         salutationLine = salutationOverride;
@@ -4580,7 +4602,7 @@ ${EMAIL_SIGNATURE_HTML}
 <p style="color:#888;font-size:0.78rem;">
     Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
     <a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a><br>
-    Para cancelar estas comunicaciones responda con "No gracias".
+    Para cancelar estas comunicaciones responda con "No gracias"${unsubUrl ? ` o <a href="${unsubUrl}" style="color:#7ec8e3;">haga clic aquí para darse de baja</a>` : ''}.
 </p>
     </td></tr>
 </table>
@@ -4953,19 +4975,229 @@ async function notifyAdmin(subject, html) {
     }
 }
 
+
+// ═══ E-mail consent (opt-in) — added 2026-11-12 ══════════════════════════════
+// Brevo requires proof of opt-in for every bulk recipient. Table
+// email_subscribers holds that proof:
+//   pending      — asked to subscribe, has not clicked the confirmation link yet
+//   confirmed    — double opt-in done → may receive campaigns
+//   unsubscribed — never send campaigns again
+//   contact      — row exists only to hold an unsubscribe token (members)
+// Active members/trials may also receive campaigns (existing customer
+// relationship). Transactional mail (approvals, reminders, passwords) is not
+// affected by any of this.
+const SITE_URL = 'https://trustedpanamastays.com';
+
+function normEmail(e) { return String(e || '').trim().toLowerCase(); }
+
+function splitEmails(field) {
+    return String(field || '').toLowerCase().split(/[\s,;\/]+/).map(x => x.trim()).filter(x => x.includes('@'));
+}
+
+async function getUnsubscribeUrl(email) {
+    const key = normEmail(email);
+    if (!key) return null;
+    try {
+        let { data } = await supabaseAdmin.from('email_subscribers').select('token, lang').eq('email', key).maybeSingle();
+        if (!data) {
+            await supabaseAdmin.from('email_subscribers')
+                .upsert({ email: key, status: 'contact', source: 'campaign' }, { onConflict: 'email', ignoreDuplicates: true });
+            ({ data } = await supabaseAdmin.from('email_subscribers').select('token, lang').eq('email', key).maybeSingle());
+        }
+        if (!data) return null;
+        return `${SITE_URL}/subscribe.php?lang=${data.lang === 'en' ? 'en' : 'es'}&action=unsubscribe&token=${data.token}`;
+    } catch (err) {
+        console.error('getUnsubscribeUrl failed:', err.message);
+        return null;
+    }
+}
+
+// Returns { allowed: [...targets], omitted: n }.
+async function filterByEmailConsent(targets) {
+    const list = targets || [];
+    const keys = [...new Set(list.map(t => normEmail(t.email)).filter(Boolean))];
+    const statusByEmail = {};
+    for (let i = 0; i < keys.length; i += 200) {
+        const { data, error } = await supabaseAdmin.from('email_subscribers')
+            .select('email, status').in('email', keys.slice(i, i + 200));
+        if (error) throw new Error('email_subscribers: ' + error.message);
+        (data || []).forEach(r => { statusByEmail[r.email] = r.status; });
+    }
+    const today = new Date().toISOString().split('T')[0];
+    const { data: members } = await supabaseAdmin.from('listings')
+        .select('email, email_member, membership_paid_until').eq('is_member', true);
+    const memberEmails = new Set();
+    (members || []).forEach(l => {
+        if (l.membership_paid_until && l.membership_paid_until < today) return;
+        splitEmails(l.email).forEach(e => memberEmails.add(e));
+        splitEmails(l.email_member).forEach(e => memberEmails.add(e));
+    });
+    const { data: refusedRows } = await supabaseAdmin.from('listings')
+        .select('email, email_member').eq('invitation_status', 'refused');
+    const refused = new Set();
+    (refusedRows || []).forEach(l => { splitEmails(l.email).forEach(e => refused.add(e)); splitEmails(l.email_member).forEach(e => refused.add(e)); });
+
+    const allowed = list.filter(t => {
+        const key = normEmail(t.email);
+        const st = statusByEmail[key];
+        if (st === 'unsubscribed' || refused.has(key)) return false;
+        return st === 'confirmed' || memberEmails.has(key);
+    });
+    return { allowed, omitted: list.length - allowed.length };
+}
+
+function subscriptionConfirmEmailHtml(lang, name, confirmUrl) {
+    const en = lang === 'en';
+    return `<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;margin:0;padding:0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="margin:0 auto;">
+<tr><td style="padding:20px;">
+<p>${en ? 'Hello' : 'Hola'}${name ? ' ' + escapeHtmlBasic(name) : ''},</p>
+<p>${en
+    ? 'We received a request to send this address free information about legal requirements and law changes for short-term rentals in Panama.'
+    : 'Recibimos una solicitud para enviar a esta dirección información gratuita sobre requisitos legales y cambios en las leyes para hospedajes de corta estancia en Panamá.'}</p>
+<p>${en ? 'Please confirm by clicking the button:' : 'Por favor confírmelo haciendo clic en el botón:'}</p>
+<p style="text-align:center;margin:1.5rem 0;">
+  <a href="${confirmUrl}" style="background:#005ca9;color:#ffffff;padding:12px 28px;text-decoration:none;border-radius:8px;font-weight:700;display:inline-block;">
+    ${en ? 'Confirm subscription' : 'Confirmar suscripción'}
+  </a>
+</p>
+<p style="color:#555;font-size:0.85rem;">${en
+    ? 'If you did not request this, simply ignore this email — you will not receive anything else from us.'
+    : 'Si usted no lo solicitó, simplemente ignore este correo: no recibirá nada más de nosotros.'}</p>
+<hr style="border:none;border-top:1px solid #e1e5e9;margin:1.5rem 0;">
+<p style="color:#888;font-size:0.78rem;">Trusted Panama Stays · Tuscany Real Estates SA · RUC 1401220-1-627960 DV21<br>
+<a href="mailto:info@trustedpanamastays.com" style="color:#7ec8e3;">info@trustedpanamastays.com</a></p>
+</td></tr></table></body></html>`;
+}
+
+function escapeHtmlBasic(str) {
+    return String(str || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Creates or refreshes a 'pending' subscription and sends the double opt-in
+// e-mail. Returns 'already' | 'sent' | 'recently_sent'.
+async function startEmailSubscription({ email, name, listing_id, lang, source, consent_text, ip }) {
+    const key = normEmail(email);
+    if (!isValidEmail(key)) throw new Error('invalid_email');
+    const lng = lang === 'en' ? 'en' : 'es';
+    const { data: existing } = await supabaseAdmin.from('email_subscribers').select('*').eq('email', key).maybeSingle();
+    if (existing && existing.status === 'confirmed') return 'already';
+    if (existing && existing.confirmation_sent_at &&
+        Date.now() - new Date(existing.confirmation_sent_at).getTime() < 10 * 60 * 1000) return 'recently_sent';
+
+    const fields = {
+        status: 'pending', source, lang: lng,
+        name: name ? String(name).substring(0, 200) : (existing?.name || null),
+        listing_id: listing_id || existing?.listing_id || null,
+        consent_text, consent_ip: ip || null,
+        confirmation_sent_at: new Date().toISOString(),
+        unsubscribed_at: null
+    };
+    let row;
+    if (existing) {
+        const { data, error } = await supabaseAdmin.from('email_subscribers').update(fields).eq('id', existing.id).select().single();
+        if (error) throw new Error(error.message);
+        row = data;
+    } else {
+        const { data, error } = await supabaseAdmin.from('email_subscribers').insert({ email: key, ...fields }).select().single();
+        if (error) throw new Error(error.message);
+        row = data;
+    }
+    const confirmUrl = `${SITE_URL}/api/subscribe/confirm?token=${row.token}`;
+    const notifyPath = path.join(__dirname, 'public', 'notify.php');
+    const subj = lng === 'en' ? 'Please confirm your subscription — Trusted Panama Stays' : 'Confirme su suscripción — Trusted Panama Stays';
+    await execFileAsync('php', [notifyPath, subj, subscriptionConfirmEmailHtml(lng, row.name, confirmUrl), key], { timeout: 15000 });
+    await logEvent('subscription_requested', { email: key, source, listing_id: row.listing_id });
+    return 'sent';
+}
+
+const SUBSCRIBE_CONSENT_TEXT = {
+    es: 'Acepto recibir por correo información de Trusted Panama Stays sobre requisitos legales y cambios en las leyes para hospedajes. Puedo darme de baja en cualquier momento.',
+    en: 'I agree to receive emails from Trusted Panama Stays with information about legal requirements and law changes for accommodations. I can unsubscribe at any time.'
+};
+
+// ── POST /api/subscribe — public double opt-in signup ───────────────────────
+app.post('/api/subscribe', async (req, res) => {
+    const { email, name, listing_id, lang, consent, website } = req.body || {};
+    if (website) return res.json({ success: true, result: 'sent' }); // honeypot: bots fill hidden fields
+    if (consent !== true && consent !== 'true') return res.status(400).json({ error: 'consent_required' });
+    if (!isValidEmail(normEmail(email))) return res.status(400).json({ error: 'invalid_email' });
+    const lng = lang === 'en' ? 'en' : 'es';
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
+    try {
+        const result = await startEmailSubscription({
+            email, name, listing_id: parseInt(listing_id) || null, lang: lng,
+            source: 'form', consent_text: SUBSCRIBE_CONSENT_TEXT[lng], ip
+        });
+        res.json({ success: true, result });
+    } catch (err) {
+        console.error('subscribe failed:', err.message);
+        res.status(500).json({ error: 'server_error' });
+    }
+});
+
+// ── GET /api/subscribe/confirm?token= — double opt-in link ──────────────────
+app.get('/api/subscribe/confirm', async (req, res) => {
+    const token = String(req.query.token || '');
+    if (!/^[0-9a-f-]{36}$/i.test(token)) return res.redirect(`${SITE_URL}/subscribe.php?lang=es&status=invalid`);
+    const { data: row } = await supabaseAdmin.from('email_subscribers').select('id, email, status, lang').eq('token', token).maybeSingle();
+    const lng = row?.lang === 'en' ? 'en' : 'es';
+    if (!row || (row.status !== 'pending' && row.status !== 'confirmed')) {
+        return res.redirect(`${SITE_URL}/subscribe.php?lang=${lng}&status=invalid`);
+    }
+    if (row.status === 'pending') {
+        await supabaseAdmin.from('email_subscribers').update({ status: 'confirmed', confirmed_at: new Date().toISOString() }).eq('id', row.id);
+        await logEvent('subscription_confirmed', { email: row.email });
+    }
+    res.redirect(`${SITE_URL}/subscribe.php?lang=${lng}&status=confirmed`);
+});
+
+// ── POST /api/unsubscribe {token} — from the link in every campaign e-mail ──
+app.post('/api/unsubscribe', async (req, res) => {
+    const token = String(req.body?.token || '');
+    if (!/^[0-9a-f-]{36}$/i.test(token)) return res.status(400).json({ error: 'invalid_token' });
+    const { data: row } = await supabaseAdmin.from('email_subscribers').select('id, email').eq('token', token).maybeSingle();
+    if (!row) return res.status(404).json({ error: 'invalid_token' });
+    await supabaseAdmin.from('email_subscribers').update({ status: 'unsubscribed', unsubscribed_at: new Date().toISOString() }).eq('id', row.id);
+    await logEvent('subscription_cancelled', { email: row.email });
+    res.json({ success: true });
+});
+
+// ── GET /api/admin/subscribers-summary — counts per status ──────────────────
+app.get('/api/admin/subscribers-summary', requireAdmin, async (req, res) => {
+    const out = {};
+    for (const st of ['pending', 'confirmed', 'unsubscribed', 'contact']) {
+        const { count } = await supabaseAdmin.from('email_subscribers').select('id', { count: 'exact', head: true }).eq('status', st);
+        out[st] = count || 0;
+    }
+    res.json(out);
+});
+
 async function sendToRosterList(targets, subject, body, from, targetDescription) {
     const sender = resolveSender(from);
     // One email per ADDRESS: an owner with several listings under the same
     // email gets the campaign once, not once per listing (28 shared
     // addresses among the 1155 listings, 2026-10-20). First listing wins.
     const seenEmails = new Set();
-    const valid = (targets || []).filter(m => {
+    const deduped = (targets || []).filter(m => {
         if (!m.email || !m.email.includes('@')) return false;
         const key = m.email.trim().toLowerCase();
         if (seenEmails.has(key)) return false;
         seenEmails.add(key);
         return true;
     });
+
+    // Consent gate (2026-11-12): only confirmed subscribers and active members.
+    const { allowed: valid, omitted } = await filterByEmailConsent(deduped);
+    if (omitted > 0) {
+        targetDescription = `${targetDescription || 'Campaña'} — ${omitted} sin consentimiento omitido(s)`;
+        await logEvent('campaign_recipients_omitted_no_consent', { subject, omitted, kept: valid.length });
+    }
+    if (!valid.length) {
+        await notifyAdmin('⚠️ Campaña NO enviada — Trusted Panama Stays',
+            `<p>La campaña "<strong>${subject}</strong>" no tiene ningún destinatario con consentimiento (suscriptor confirmado o miembro activo).</p><p>${omitted} destinatario(s) omitido(s). No se envió ningún correo.</p>`);
+        return;
+    }
 
     const { data: campaignRow, error: campErr } = await supabaseAdmin.from('campaigns').insert({
         subject, body_html: body, from_email: sender.email, channel: 'email',
@@ -5008,7 +5240,8 @@ async function buildCampaignEmail(campaign, member) {
     const personalizedSubject = (subject.includes('{id}') && member.id)
         ? subject.split('{id}').join(member.id)
         : subject;
-    const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', personalizedBody, member.salutation);
+    const unsubUrl = await getUnsubscribeUrl(member.email);
+    const html = buildFollowupHtml(member.hotel || member.email, member.manager || '', personalizedBody, member.salutation, unsubUrl);
     return { subject: personalizedSubject, html };
 }
 
@@ -7065,17 +7298,18 @@ const msUntil10am = (() => {
     if (next <= new Date()) next.setDate(next.getDate() + 1);
     return next - new Date();
 })();
-// General campaign scheduler
-  setTimeout(() => {
-     sendGeneralCampaignBatch();
-     setInterval(sendGeneralCampaignBatch, 24 * 60 * 60 * 1000);
- }, msUntil10am);
+// General campaign scheduler — DISABLED 2026-11-12.
+// It e-mailed listings taken from the ATP report that never opted in, which
+// Brevo's anti-spam policy forbids (account paused for review that same day,
+// two minutes after the 10am batch). Bulk e-mail now goes only to confirmed
+// subscribers (see email_subscribers / filterByEmailConsent). Do not re-enable.
+void msUntil10am;
 
 
 // ── POST /api/admin/send-general-campaign-now ────────────────────────────────
 app.post('/api/admin/send-general-campaign-now', requireAdmin, async (req, res) => {
-    res.json({ success: true, message: 'Batch started' });
-    sendGeneralCampaignBatch(); // Run in background
+    // Disabled 2026-11-12 — see the scheduler note above.
+    res.status(410).json({ error: 'Campaña general desactivada: solo se envían correos masivos a suscriptores confirmados.' });
 });
 
 // ── Message history for one or more members — no 200-entry cap, matches by
