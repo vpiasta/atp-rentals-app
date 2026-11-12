@@ -512,7 +512,7 @@ async function showDefaultView() {
                         <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
                         ${active
                           ? (thumb ? '' : `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 ${LANG === 'en' ? 'See More' : 'Ver Más'}</a>`)
-                          : `<a href="listing.html?id=${rental.id}&lang=${LANG}&owner=1" onclick="saveSearchState()" class="owner-link" title="${LANG === 'en' ? 'Information for the owner of this property' : 'Información para el propietario de este hospedaje'}">${LANG === 'en' ? 'Owner of this property?' : '¿Es el propietario?'}</a>`}
+                          : `<a href="listing.html?id=${rental.id}&lang=${LANG}&owner=1" onclick="saveSearchState()" class="owner-link" title="${LANG === 'en' ? 'Information for the owner of this property' : 'Información para el propietario de este hospedaje'}">${LANG === 'en' ? 'Owner of this property?' : '¿Eres propietario?'}</a>`}
                         </div>
                     </div>
                 </div>`;
@@ -743,7 +743,7 @@ function displayResults(rentals) {
                     <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
                     ${active
                             ? (thumb ? '' : `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 ${LANG === 'en' ? 'See More' : 'Ver Más'}</a>`)
-                            : `<a href="listing.html?id=${rental.id}&lang=${LANG}&owner=1" onclick="saveSearchState()" class="owner-link" title="${LANG === 'en' ? 'Information for the owner of this property' : 'Información para el propietario de este hospedaje'}">${LANG === 'en' ? 'Owner of this property?' : '¿Es el propietario?'}</a>`}
+                            : `<a href="listing.html?id=${rental.id}&lang=${LANG}&owner=1" onclick="saveSearchState()" class="owner-link" title="${LANG === 'en' ? 'Information for the owner of this property' : 'Información para el propietario de este hospedaje'}">${LANG === 'en' ? 'Owner of this property?' : '¿Eres propietario?'}</a>`}
                     </div>
                 </div>
             </div>`;
