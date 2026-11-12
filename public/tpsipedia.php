@@ -509,6 +509,8 @@ $e = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
         </section>
         <?php endif; ?>
 
+        <?php include __DIR__ . '/includes/subscribe-box.php'; ?>
+
         <div class="card">
             <p class="disclaimer"><?= $L['disclaimer'] ?></p>
             <p style="margin-top:0.6rem;font-size:0.88rem;"><a href="mailto:info@trustedpanamastays.com?subject=<?= rawurlencode('TPSipedia: ' . $q) ?>" style="color:#005ca9;"><?= $L['report_err'] ?></a> · <a class="about-link" style="font-weight:400;" href="<?= $e(tpsi_about_url($lang)) ?>"><?= $L['about_link'] ?></a></p>

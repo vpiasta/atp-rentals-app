@@ -231,6 +231,8 @@ $aboutUrl  = 'https://trustedpanamastays.com/tpsipedia.php?page=about' . ($is_en
             ?>
         </div>
 
+        <?php include __DIR__ . '/includes/subscribe-box.php'; ?>
+
         <div class="comments-section" id="comments-section">
             <h2><?= $is_en ? 'Comments' : 'Comentarios' ?></h2>
             <?php if (!count($topLevelComments)): ?>

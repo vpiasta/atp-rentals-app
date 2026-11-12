@@ -190,6 +190,10 @@ $ssr_stats = ssr_stats($is_en);
         .become-member-btn:hover::after {
             opacity: 1;
         }
+        /* Non-member cards: discreet owner link instead of a button (2026-11-12) —
+           the cards are for travellers; this must not look like an offer to them. */
+        .owner-link { margin-left: auto; align-self: flex-end; font-size: 0.72rem; color: #8a96a3; text-decoration: none; padding: 2px 0; }
+        .owner-link:hover { color: #005ca9; text-decoration: underline; }
         .seemore-button        { border-color: #b8860b; color: #7a5c00; background: #fffbe6; }
         .seemore-button:hover  { background: #b8860b; color: white; border-color: #b8860b; }
         /* ── Member thumbnail ── */
@@ -508,7 +512,7 @@ async function showDefaultView() {
                         <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
                         ${active
                           ? (thumb ? '' : `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 ${LANG === 'en' ? 'See More' : 'Ver Más'}</a>`)
-                          : `<a href="listing.html?id=${rental.id}&lang=${LANG}" onclick="saveSearchState()" class="contact-button become-member-btn" data-hover-text="${LANG === 'en' ? 'Become a Member' : 'Hazte Miembro'}">${LANG === 'en' ? 'Show more' : 'Ver más'}</a>`}
+                          : `<a href="listing.html?id=${rental.id}&lang=${LANG}&owner=1" onclick="saveSearchState()" class="owner-link" title="${LANG === 'en' ? 'Information for the owner of this property' : 'Información para el propietario de este hospedaje'}">${LANG === 'en' ? 'Owner of this property?' : '¿Es el propietario?'}</a>`}
                         </div>
                     </div>
                 </div>`;
@@ -739,7 +743,7 @@ function displayResults(rentals) {
                     <a href="${mapsUrl}" target="_blank" class="contact-button"><span class="btn-icon">📍</span><span class="btn-text"> Maps</span></a>
                     ${active
                             ? (thumb ? '' : `<a href="${listUrl}" onclick="saveSearchState()" class="contact-button" style="background:#b8860b;color:white;border:none;">🏨 ${LANG === 'en' ? 'See More' : 'Ver Más'}</a>`)
-                            : `<a href="listing.html?id=${rental.id}&lang=${LANG}" onclick="saveSearchState()" class="contact-button become-member-btn" data-hover-text="${LANG === 'en' ? 'Become a Member' : 'Hazte Miembro'}">${LANG === 'en' ? 'Show more' : 'Ver más'}</a>`}
+                            : `<a href="listing.html?id=${rental.id}&lang=${LANG}&owner=1" onclick="saveSearchState()" class="owner-link" title="${LANG === 'en' ? 'Information for the owner of this property' : 'Información para el propietario de este hospedaje'}">${LANG === 'en' ? 'Owner of this property?' : '¿Es el propietario?'}</a>`}
                     </div>
                 </div>
             </div>`;

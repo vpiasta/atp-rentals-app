@@ -6,6 +6,8 @@ $is_en = $lang === 'en';
 $action = $_GET['action'] ?? '';
 $status = $_GET['status'] ?? '';
 $token  = preg_match('/^[0-9a-f-]{36}$/i', $_GET['token'] ?? '') ? $_GET['token'] : '';
+$pre_listing = ctype_digit((string)($_GET['listing_id'] ?? '')) ? (int)$_GET['listing_id'] : 0;
+$pre_name    = mb_substr(trim((string)($_GET['name'] ?? '')), 0, 200);
 
 $heading          = 'Trusted Panama Stays';
 $subheading       = $is_en ? 'Directory of legally registered accommodations in Panama' : 'Directorio de hospedajes legalmente registrados en Panamá';
@@ -123,7 +125,7 @@ $t = $is_en ? [
             <label class="field" for="sub-email"><?= $t['email'] ?> *</label>
             <input type="email" id="sub-email" autocomplete="email" required>
             <label class="field" for="sub-name"><?= $t['name'] ?></label>
-            <input type="text" id="sub-name" maxlength="200">
+            <input type="text" id="sub-name" maxlength="200" value="<?= htmlspecialchars($pre_name, ENT_QUOTES, 'UTF-8') ?>">
             <input type="text" id="sub-website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
             <div class="consent">
                 <input type="checkbox" id="sub-consent">
@@ -149,6 +151,7 @@ $t = $is_en ? [
                     body: JSON.stringify({
                         email, name: document.getElementById('sub-name').value.trim(),
                         lang: <?= json_encode($lang) ?>, consent: true,
+                        listing_id: <?= $pre_listing ?: 'null' ?>,
                         website: document.getElementById('sub-website').value
                     })
                 });

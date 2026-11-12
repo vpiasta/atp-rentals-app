@@ -636,13 +636,28 @@ function initQuill(rental) {
 
 function renderMembershipPromo() {
     const rentalName = currentRental && currentRental.name ? currentRental.name : '';
+    const rid = rentalIdForPromo();
+    const subUrl = `subscribe.php?lang=${isEs ? 'es' : 'en'}&listing_id=${encodeURIComponent(rid)}&name=${encodeURIComponent(rentalName)}`;
     return `
-    <div class="section" style="background:linear-gradient(135deg,#f0f7ff,#e8f4ea);border:2px solid #005ca9;border-radius:10px;padding:1.2rem;">
+    <div class="section" id="propietario" style="background:linear-gradient(135deg,#f0f7ff,#e8f4ea);border:2px solid #005ca9;border-radius:10px;padding:1.2rem;">
+        <p style="margin:0 0 0.6rem;color:#005ca9;font-weight:700;font-size:0.95rem;">
+            👤 ${isEs ? 'Para el propietario de este hospedaje' : 'For the owner of this property'}
+        </p>
         <p style="margin:0 0 0.8rem;color:#333;line-height:1.6;">
             ${isEs
-                ? `Estimado/a propietario/a de <strong>${rentalName}</strong>,`
-                : `Dear owner of <strong>${rentalName}</strong>,`}
+                ? `Estimado/a propietario/a de <strong>${escHtml(rentalName)}</strong>,`
+                : `Dear owner of <strong>${escHtml(rentalName)}</strong>,`}
         </p>
+        <div style="background:white;border:1px solid #c0d8f0;border-radius:8px;padding:0.9rem 1rem;margin:0 0 1rem;">
+            <p style="margin:0 0 0.6rem;color:#333;line-height:1.6;">
+                <strong>📬 ${isEs ? 'Avisos legales gratuitos' : 'Free legal updates'}</strong> —
+                ${isEs
+                    ? 'Le avisamos por correo sobre requisitos legales y cambios en las leyes que afectan a su hospedaje. Gratis, sin publicidad y sin necesidad de ser miembro.'
+                    : 'We email you about legal requirements and law changes that affect your property. Free, no advertising, no membership needed.'}
+            </p>
+            <p style="margin:0;"><a href="${subUrl}" style="display:inline-block;background:#00a859;color:white;padding:9px 20px;border-radius:8px;text-decoration:none;font-weight:700;">
+                ${isEs ? 'Recibir avisos →' : 'Get updates →'}</a></p>
+        </div>
         <p style="margin:0 0 0.8rem;color:#333;line-height:1.6;">
             ${isEs
                 ? 'Esta página muestra únicamente los datos publicados por la ATP. Con una membresía de prueba gratuita (30 días) o de apoyo, esta podría ser <strong>su página personal</strong> — con fotos, una descripción completa en español e inglés, su dirección exacta, enlaces a su sitio web y sistema de reservas, y mucho más. Las fotos le dan mejor visibilidad, y una dirección precisa permite que Google Maps encuentre su propiedad. Esto mejora significativamente cómo los turistas la encuentran a usted y a su hospedaje.'
@@ -654,7 +669,7 @@ function renderMembershipPromo() {
                 : "And it's not only what can be seen here: as a member, this page will also be registered automatically with Google Search."}
         </p>
         <p style="text-align:center;margin:0;">
-            <a href="join.html?id=${rentalIdForPromo()}&lang=${lang}" style="display:inline-block;background:#005ca9;color:white;padding:11px 26px;border-radius:8px;text-decoration:none;font-weight:700;">
+            <a href="join.html?id=${rid}&lang=${lang}" style="display:inline-block;background:#005ca9;color:white;padding:11px 26px;border-radius:8px;text-decoration:none;font-weight:700;">
                 ${isEs ? 'Hazte miembro →' : 'Become a member →'}
             </a>
         </p>
@@ -1260,6 +1275,11 @@ function renderPage(rental) {
     } else {
         document.getElementById('listing-content').innerHTML = renderView(rental);
         saveBar.style.display = 'none';
+        // Came from the "¿Es el propietario?" link on a directory card → jump to the owner box
+        if (new URLSearchParams(location.search).get('owner') === '1') {
+            const box = document.getElementById('propietario');
+            if (box) setTimeout(() => box.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+        }
     }
 }
 
