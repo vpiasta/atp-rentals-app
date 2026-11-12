@@ -720,9 +720,12 @@
                         <input id="cc-email" placeholder="Correo" style="padding:6px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;">
                         <input id="cc-role" placeholder="Cargo (opcional)" style="padding:6px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;">
                         <input id="cc-org" placeholder="Institución (opcional)" style="padding:6px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;">
+                        <input id="cc-notes" placeholder="Notas internas (no aparecen en el correo)" style="padding:6px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:#ccc;font-size:0.82rem;grid-column:1/-1;">
                     </div>
+                    <p style="font-size:0.72rem;color:#888;margin:-0.3rem 0 0.6rem;">El saludo se arma así: "Estimado/a <em>Nombre</em>, <em>Cargo</em> de <em>Institución</em>," — escriba en Cargo e Institución solo lo que debe leerse en el saludo; todo lo demás va en Notas.</p>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <button onclick="addCampaignContact()" class="action-btn" style="background:#1a5c1a;color:white;">➕ Agregar</button>
+                        <button id="cc-save-btn" onclick="addCampaignContact()" class="action-btn" style="background:#1a5c1a;color:white;">➕ Agregar</button>
+                        <button id="cc-cancel-btn" onclick="cancelEditCampaignContact()" class="action-btn" style="background:#555;color:white;display:none;">✖ Cancelar edición</button>
                         <button onclick="sendToCampaignContacts()" class="action-btn" style="background:#7a3a9a;color:white;">📨 Enviar a Autoridades (<span id="cc-count">0</span>)</button>
                         <button onclick="copyAuthoritiesForOutlook()" class="action-btn" style="background:#0a6aa1;color:white;" title="Copia un correo individual por contacto al portapapeles, para enviarlos desde Outlook con la macro TPS_EnviarDesdePortapapeles">📋 Copiar para Outlook</button>
                     </div>
@@ -4259,8 +4262,42 @@ function renderCampaignContacts() {
         <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #333;">
             <button onclick="deleteCampaignContact(${c.id})" title="Eliminar contacto permanentemente" style="background:none;border:none;color:#ff7070;cursor:pointer;font-size:0.9rem;padding:0;flex-shrink:0;">🗑️</button>
             <input type="checkbox" title="Recibe este envío (desmarcar no elimina el contacto)" ${_ccExcluded.has(c.id) ? '' : 'checked'} onchange="toggleCampaignContact(${c.id}, this.checked)" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;margin:0;">
-            <span>${_escHtml(c.name)} — ${_escHtml(c.email)}${c.role ? ' · ' + _escHtml(c.role) : ''}${c.organization ? ' (' + _escHtml(c.organization) + ')' : ''}</span>
+            <button onclick="editCampaignContact(${c.id})" title="Editar contacto" style="background:none;border:none;color:#7ec8e3;cursor:pointer;font-size:0.9rem;padding:0;flex-shrink:0;">✏️</button>
+            <span>${_escHtml(c.name)} — ${_escHtml(c.email)}${c.role ? ' · ' + _escHtml(c.role) : ''}${c.organization ? ' (' + _escHtml(c.organization) + ')' : ''}${c.notes ? '<br><span style="color:#888;font-size:0.75rem;">📝 ' + _escHtml(c.notes) + '</span>' : ''}
+            <br><span style="color:#6a9;font-size:0.72rem;">Saludo: ${_escHtml(_ccSalutation(c))}</span></span>
         </div>`).join('');
+}
+
+// Salutation used in both the Brevo send and the Outlook copy. Skips the
+// role when it just repeats the name ("Secretaría General, Secretaría General").
+function _ccSalutation(c) {
+    let sal = `Estimado/a ${c.name}`;
+    if (c.role && c.role.trim().toLowerCase() !== (c.name || '').trim().toLowerCase()) sal += `, ${c.role}`;
+    if (c.organization) sal += ` de ${c.organization}`;
+    return sal + ',';
+}
+
+let _ccEditingId = null;
+
+function editCampaignContact(id) {
+    const c = _campaignContacts.find(x => x.id === id);
+    if (!c) return;
+    _ccEditingId = id;
+    document.getElementById('cc-name').value  = c.name || '';
+    document.getElementById('cc-email').value = c.email || '';
+    document.getElementById('cc-role').value  = c.role || '';
+    document.getElementById('cc-org').value   = c.organization || '';
+    document.getElementById('cc-notes').value = c.notes || '';
+    document.getElementById('cc-save-btn').textContent = '💾 Guardar cambios';
+    document.getElementById('cc-cancel-btn').style.display = '';
+    document.getElementById('cc-name').focus();
+}
+
+function cancelEditCampaignContact() {
+    _ccEditingId = null;
+    ['cc-name','cc-email','cc-role','cc-org','cc-notes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('cc-save-btn').textContent = '➕ Agregar';
+    document.getElementById('cc-cancel-btn').style.display = 'none';
 }
 
 async function addCampaignContact() {
@@ -4268,12 +4305,14 @@ async function addCampaignContact() {
     const email = document.getElementById('cc-email').value.trim();
     const role = document.getElementById('cc-role').value.trim();
     const organization = document.getElementById('cc-org').value.trim();
+    const notes = document.getElementById('cc-notes').value.trim();
     if (!name || !email.includes('@')) { alert('Ingrese al menos nombre y correo válido.'); return; }
     try {
-        const res = await adminFetch('/api/admin/campaign-contacts', { method: 'POST', body: JSON.stringify({ name, email, role, organization }) });
+        const url = _ccEditingId ? '/api/admin/campaign-contacts/' + _ccEditingId : '/api/admin/campaign-contacts';
+        const res = await adminFetch(url, { method: _ccEditingId ? 'PUT' : 'POST', body: JSON.stringify({ name, email, role, organization, notes }) });
         const d = await res.json();
         if (!d.success) { alert('Error: ' + (d.error || 'unknown')); return; }
-        ['cc-name','cc-email','cc-role','cc-org'].forEach(id => document.getElementById(id).value = '');
+        cancelEditCampaignContact();
         await loadCampaignContacts();
     } catch (e) { alert(e.message); }
 }
@@ -4296,13 +4335,7 @@ async function sendToCampaignContacts() {
     const skipped = _campaignContacts.length - selected.length;
     if (!confirm(`¿Enviar a ${selected.length} contacto(s) con introducción formal?` + (skipped ? `\n(${skipped} desmarcado(s) no lo recibirán.)` : ''))) return;
 
-    const targets = selected.map(c => {
-        let sal = `Estimado/a ${c.name}`;
-        if (c.role) sal += `, ${c.role}`;
-        if (c.organization) sal += ` de ${c.organization}`;
-        sal += ',';
-        return { name: c.organization || c.name, email: c.email, contact_name: c.name, salutation: sal };
-    });
+    const targets = selected.map(c => ({ name: c.organization || c.name, email: c.email, contact_name: c.name, salutation: _ccSalutation(c) }));
 
     const resultEl = document.getElementById('followup-result');
     resultEl.innerHTML = '<span style="color:#FFD700;">Enviando... no cierre esta página.</span>';
@@ -4347,13 +4380,7 @@ async function copyForOutlook(payload, resultEl) {
 function copyAuthoritiesForOutlook() {
     const selected = _selectedCampaignContacts();
     if (!selected.length) { alert('No hay contactos marcados.'); return; }
-    const targets = selected.map(c => {
-        let sal = `Estimado/a ${c.name}`;
-        if (c.role) sal += `, ${c.role}`;
-        if (c.organization) sal += ` de ${c.organization}`;
-        sal += ',';
-        return { name: c.organization || c.name, email: c.email, contact_name: c.name, salutation: sal };
-    });
+    const targets = selected.map(c => ({ name: c.organization || c.name, email: c.email, contact_name: c.name, salutation: _ccSalutation(c) }));
     copyForOutlook({ targets }, document.getElementById('cc-outlook-result'));
 }
 
