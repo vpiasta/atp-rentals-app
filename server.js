@@ -4901,6 +4901,44 @@ app.post('/api/admin/send-followup-specific', requireAdmin, async (req, res) => 
     await sendToRosterList(targets, subject, body, from, specificDescription);
 });
 
+// ── POST /api/admin/outlook-export ───────────────────────────────────────────
+// Builds one finished e-mail per recipient (salutation, {url}, {id} filled in)
+// as a text block for the clipboard. The Outlook macro TPS_EnviarDesdePortapapeles
+// reads it and sends each e-mail individually from Volker's own mailbox — for
+// personal correspondence (authorities, single addresses) that must not go
+// through Brevo. Added 2026-11-12. Same target rules as send-followup-specific.
+app.post('/api/admin/outlook-export', requireAdmin, async (req, res) => {
+    const { subject, body, emails, targets: directTargets } = req.body || {};
+    if (!subject || !body) return res.status(400).json({ error: 'Falta asunto o texto' });
+    let targets;
+    if (Array.isArray(directTargets) && directTargets.length) {
+        targets = directTargets.map(t => ({ hotel: t.name, email: t.email, manager: t.contact_name || '', id: t.id, slug: t.slug, salutation: t.salutation || null }));
+    } else if (Array.isArray(emails) && emails.length) {
+        const roster = require('./apatel_emails.json');
+        const rosterMap = {};
+        roster.forEach(m => { if (m.email) rosterMap[m.email.toLowerCase()] = m; });
+        targets = emails.map(email => rosterMap[email.toLowerCase()] || { hotel: email, email, manager: '' });
+    } else {
+        return res.status(400).json({ error: 'Sin destinatarios' });
+    }
+    targets = targets.filter(t => isValidEmail(t.email));
+    if (!targets.length) return res.status(400).json({ error: 'Ningún correo válido' });
+    if (targets.length > 50) return res.status(400).json({ error: 'Máximo 50 destinatarios por copia (correo personal, no campaña).' });
+
+    const NO_GRACIAS = '<br>\n    Para cancelar estas comunicaciones responda con "No gracias".';
+    const blocks = [];
+    for (const t of targets) {
+        const listingUrl = body.includes('{url}') ? await resolveListingUrl(t) : null;
+        const personalBody = listingUrl ? body.split('{url}').join(listingUrl) : body;
+        const personalSubject = (subject.includes('{id}') && t.id) ? subject.split('{id}').join(t.id) : subject;
+        // Personal mail: no "No gracias" / unsubscribe line in the footer
+        const html = buildFollowupHtml(t.hotel || t.email, t.manager || '', personalBody, t.salutation, null).replace(NO_GRACIAS, '');
+        blocks.push(`###MAIL###\nTO: ${t.email.trim()}\nSUBJECT: ${personalSubject.replace(/[\r\n]+/g, ' ')}\n###HTML###\n${html}\n`);
+    }
+    await logEvent('outlook_export', { subject, recipients: targets.length });
+    res.json({ success: true, count: targets.length, text: '###TPS-OUTLOOK-V1###\n' + blocks.join('') + '###END###\n' });
+});
+
 // ── Helper: send to a list of roster-format members ───────────────────────────
 // Finds a member's listing URL: uses an exact id/slug if the caller already
 // knows it (e.g. selections made in the Hospedajes tab), otherwise falls back
