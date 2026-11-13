@@ -21,6 +21,16 @@
  *      Brevo), so it's a last-resort fallback, not a replacement for
  *      finishing the DMARC/branded-subdomain setup in email-deliverability
  *      notes — just insurance against total silence in the meantime.
+ *
+ * 2026-11-13: Brevo closed sending on the TPS account for good (contacts from
+ * the ATP report had no opt-in). The primary transport is now the Hostinger
+ * mailbox's own SMTP server — set in the .env, not here:
+ *   SMTP_TPS_HOST=smtp.hostinger.com   SMTP_TPS_PORT=465
+ *   SMTP_TPS_USERNAME=info@trustedpanamastays.com   SMTP_TPS_PASSWORD=<mailbox password>
+ * Port 465 uses implicit SSL, any other port STARTTLS. A mailbox SMTP server
+ * only lets you send as the mailbox you log in with, so if the caller asks
+ * for another From (e.g. members@), the e-mail goes out From the login
+ * mailbox and the requested address becomes the Reply-To.
  */
 function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpanamastays.com', $fromName = 'Trusted Panama Stays', $cc = null) {
     require_once '/home/u945180857/secure_beds24_tokens/env_loader.php';
@@ -46,11 +56,17 @@ function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpana
         $mail->SMTPAuth   = true;
         $mail->Username   = env('SMTP_TPS_USERNAME');
         $mail->Password   = env('SMTP_TPS_PASSWORD');
-        $mail->SMTPSecure = 'tls';
-        $mail->Port       = env('SMTP_TPS_PORT');
+        $mail->Port       = (int) env('SMTP_TPS_PORT');
+        $mail->SMTPSecure = ($mail->Port === 465) ? 'ssl' : 'tls';
         $mail->SMTPDebug  = 0;
 
-        $mail->setFrom($fromEmail, $fromName);
+        $smtpUser = (string) env('SMTP_TPS_USERNAME');
+        if (strpos($smtpUser, '@') !== false && strcasecmp($fromEmail, $smtpUser) !== 0) {
+            $mail->setFrom($smtpUser, $fromName);
+            $mail->addReplyTo($fromEmail, $fromName);
+        } else {
+            $mail->setFrom($fromEmail, $fromName);
+        }
         $mail->addAddress($to);
         foreach ($ccList as $ccAddr) { $mail->addCC($ccAddr); }
         $mail->Subject = $subject;
@@ -61,9 +77,9 @@ function send_tps_email($subject, $htmlBody, $to, $fromEmail = 'info@trustedpana
         return true;
     } catch (\PHPMailer\PHPMailer\Exception $e) {
         $primaryError = $mail->ErrorInfo ?: $e->getMessage();
-        error_log('[TPS send_tps_email] Primary (Brevo SMTP) failed: ' . $primaryError . ' — trying mail() fallback');
+        error_log('[TPS send_tps_email] Primary SMTP failed: ' . $primaryError . ' — trying mail() fallback');
 
-        // Last-resort fallback: a transport completely separate from Brevo.
+        // Last-resort fallback: PHP mail(), independent of the SMTP login.
         $headers  = "MIME-Version: 1.0\r\n";
         $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
         $headers .= "From: {$fromName} <{$fromEmail}>\r\n";
