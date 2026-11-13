@@ -658,19 +658,29 @@ function renderMembershipPromo() {
             <p style="margin:0;"><a href="${subUrl}" style="display:inline-block;background:#00a859;color:white;padding:9px 20px;border-radius:8px;text-decoration:none;font-weight:700;">
                 ${isEs ? 'Recibir avisos →' : 'Get updates →'}</a></p>
         </div>
+        <p style="margin:0 0 0.4rem;color:#005ca9;font-weight:700;">⭐ ${isEs ? 'Membresía: su página completa' : 'Membership: your full page'}</p>
         <p style="margin:0 0 0.8rem;color:#333;line-height:1.6;">
             ${isEs
-                ? 'Esta página muestra únicamente los datos publicados por la ATP. Con una membresía de prueba gratuita (30 días) o de apoyo, esta podría ser <strong>su página personal</strong> — con fotos, una descripción completa en español e inglés, su dirección exacta, enlaces a su sitio web y sistema de reservas, y mucho más. Las fotos le dan mejor visibilidad, y una dirección precisa permite que Google Maps encuentre su propiedad. Esto mejora significativamente cómo los turistas la encuentran a usted y a su hospedaje.'
-                : 'This page currently shows only the data published by the ATP. With a free trial membership (30 days) or a supporting membership, this could be <strong>your own personal page</strong> — with photos, a full description in English and Spanish, your exact address, links to your website and booking system, and much more. Photos give you better visibility, and a precise address lets Google Maps find your property. This significantly improves how travelers find you and your property.'}
+                ? 'Esta página muestra únicamente los datos publicados por la ATP. Como miembro, esta sería <strong>su página personal</strong> — con fotos, una descripción completa en español e inglés, su dirección exacta (para que Google Maps encuentre su propiedad) y enlaces a su sitio web y sistema de reservas. Además, su página se registra automáticamente en Google Search.'
+                : 'This page shows only the data published by the ATP. As a member, this would be <strong>your own page</strong> — with photos, a full description in English and Spanish, your exact address (so Google Maps finds your property) and links to your website and booking system. Your page is also registered automatically with Google Search.'}
         </p>
-        <p style="margin:0 0 0.8rem;color:#333;line-height:1.6;">
-            ${isEs
-                ? 'Y no es solo lo que se ve aquí: como miembro, esta página también será registrada automáticamente en Google Search.'
-                : "And it's not only what can be seen here: as a member, this page will also be registered automatically with Google Search."}
-        </p>
+        <div style="display:flex;gap:0.8rem;flex-wrap:wrap;margin:0 0 1rem;">
+            <div style="flex:1;min-width:220px;background:white;border:1px solid #c0d8f0;border-radius:8px;padding:0.8rem 1rem;">
+                <p style="margin:0 0 0.3rem;font-weight:700;color:#00a859;">${isEs ? 'Prueba gratuita — 30 días' : 'Free trial — 30 days'}</p>
+                <p style="margin:0;font-size:0.9rem;color:#333;line-height:1.5;">${isEs
+                    ? 'Todas las funciones, sin pago y sin compromiso. Al terminar, su página vuelve a mostrar solo los datos de la ATP; sus fotos y textos se guardan por si decide continuar.'
+                    : 'All features, no payment, no commitment. When it ends, your page goes back to showing only the ATP data; your photos and texts are kept in case you decide to continue.'}</p>
+            </div>
+            <div style="flex:1;min-width:220px;background:white;border:1px solid #c0d8f0;border-radius:8px;padding:0.8rem 1rem;">
+                <p style="margin:0 0 0.3rem;font-weight:700;color:#005ca9;">${isEs ? 'Miembro de apoyo' : 'Supporting member'}</p>
+                <p style="margin:0;font-size:0.9rem;color:#333;line-height:1.5;">${isEs
+                    ? 'US$24 por un año (US$25.68 con ITBMS) o US$45 por dos años (US$48.15 con ITBMS). Las mismas funciones; su aporte ayuda a mantener un directorio que solo muestra hospedajes legalmente registrados.'
+                    : 'US$24 for one year (US$25.68 incl. ITBMS) or US$45 for two years (US$48.15 incl. ITBMS). The same features; your contribution helps keep a directory that shows only legally registered accommodations.'}</p>
+            </div>
+        </div>
         <p style="text-align:center;margin:0;">
             <a href="join.html?id=${rid}&lang=${lang}" style="display:inline-block;background:#005ca9;color:white;padding:11px 26px;border-radius:8px;text-decoration:none;font-weight:700;">
-                ${isEs ? 'Hazte miembro →' : 'Become a member →'}
+                ${isEs ? 'Elegir prueba o membresía →' : 'Choose trial or membership →'}
             </a>
         </p>
     </div>`;

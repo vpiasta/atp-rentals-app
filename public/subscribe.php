@@ -35,6 +35,11 @@ $t = $is_en ? [
     'unsub_btn'  => 'Yes, unsubscribe me',
     'unsub_ok'   => 'You have been unsubscribed. You will not receive any more information emails from us.',
     'privacy'    => 'We use your address only for these emails and never share it.',
+    'optin_q'    => 'Would you like to receive our free legal updates for accommodations?',
+    'optin_yes'  => 'Yes, I want to receive the updates',
+    'optin_no'   => 'No, thank you',
+    'optin_ok'   => '✅ Thank you — you will receive our updates. You can unsubscribe at any time with the link in each email.',
+    'optin_noted'=> 'Understood. We will not write to you again.',
 ] : [
     'title'      => 'Avisos legales para hospedajes — Trusted Panama Stays',
     'h2'         => 'Avisos legales gratuitos para hospedajes',
@@ -55,6 +60,11 @@ $t = $is_en ? [
     'unsub_btn'  => 'Sí, darme de baja',
     'unsub_ok'   => 'Se ha dado de baja. No recibirá más correos informativos de nuestra parte.',
     'privacy'    => 'Usamos su dirección solo para estos correos y nunca la compartimos.',
+    'optin_q'    => '¿Desea recibir nuestros avisos legales gratuitos para hospedajes?',
+    'optin_yes'  => 'Sí, quiero recibir los avisos',
+    'optin_no'   => 'No, gracias',
+    'optin_ok'   => '✅ Gracias — recibirá nuestros avisos. Puede darse de baja en cualquier momento con el enlace de cada correo.',
+    'optin_noted'=> 'Entendido. No le volveremos a escribir.',
 ];
 ?>
 <!DOCTYPE html>
@@ -95,7 +105,33 @@ $t = $is_en ? [
 <?php include __DIR__ . '/includes/header.php'; ?>
 
     <div class="content">
-    <?php if ($action === 'unsubscribe' && $token): ?>
+    <?php if ($action === 'optin' && $token): ?>
+        <h2><?= $t['optin_q'] ?></h2>
+        <p><?= $t['intro'] ?></p>
+        <div id="msg" class="msg"></div>
+        <div id="optin-btns" style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button id="optin-yes" type="button"><?= $t['optin_yes'] ?></button>
+            <button id="optin-no" type="button" style="background:#888;"><?= $t['optin_no'] ?></button>
+        </div>
+        <script>
+        (function () {
+            const token = <?= json_encode($token) ?>, msg = document.getElementById('msg'), btns = document.getElementById('optin-btns');
+            async function go(url, okText) {
+                btns.querySelectorAll('button').forEach(b => b.disabled = true);
+                try {
+                    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
+                    if (!r.ok) throw new Error();
+                    msg.className = 'msg ok'; msg.textContent = okText; btns.style.display = 'none';
+                } catch (e) {
+                    msg.className = 'msg err'; msg.textContent = <?= json_encode($t['err']) ?>;
+                    btns.querySelectorAll('button').forEach(b => b.disabled = false);
+                }
+            }
+            document.getElementById('optin-yes').addEventListener('click', () => go('/api/subscribe/optin', <?= json_encode($t['optin_ok']) ?>));
+            document.getElementById('optin-no').addEventListener('click', () => go('/api/unsubscribe', <?= json_encode($t['optin_noted']) ?>));
+        })();
+        </script>
+    <?php elseif ($action === 'unsubscribe' && $token): ?>
         <h2><?= $t['unsub_q'] ?></h2>
         <div id="msg" class="msg"></div>
         <button id="unsub-btn" type="button"><?= $t['unsub_btn'] ?></button>

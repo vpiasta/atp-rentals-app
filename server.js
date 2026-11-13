@@ -5101,6 +5101,146 @@ async function filterByEmailConsent(targets) {
     return { allowed, omitted: list.length - allowed.length };
 }
 
+// ═══ One-time consent invitation (2026-11-13) ══════════════════════════════
+// Brevo is gone and must not be used for this. Each owner address gets ONE
+// personal e-mail, sent from Volker's Outlook (info@) in small daily batches via
+// "Copiar para Outlook" + macro TPS_EnviarDesdePortapapeles. It asks for consent
+// with a personal one-click link (the link only works from that mailbox, so a
+// click is a confirmed opt-in) and, for listings that never had a trial,
+// offers the 30-day free trial. An address is never invited twice
+// (email_subscribers.invited_at). Nobody who said "No gracias", unsubscribed,
+// already subscribed or is a member is included.
+const CONSENT_INVITE_SUBJECT = 'Avisos legales gratuitos para su hospedaje — Trusted Panama Stays';
+const CONSENT_INVITE_CONSENT_TEXT = 'Hizo clic en "Sí, quiero recibir los avisos" en la invitación personal de Trusted Panama Stays (avisos sobre requisitos legales y cambios en las leyes para hospedajes; puede darse de baja en cualquier momento).';
+
+function consentInviteBody(consentUrl, trialUrl) {
+    const btn = (url, label, color) => `<p style="text-align:center;margin:1.2rem 0;"><a href="${url}" style="background:${color};color:#ffffff;padding:12px 26px;text-decoration:none;border-radius:8px;font-weight:700;display:inline-block;">${label}</a></p>`;
+    let html = `<p>Le escribo porque su hospedaje figura en el registro oficial de hospedajes de la Autoridad de Turismo de Panamá, y por eso aparece en nuestro directorio <a href="https://trustedpanamastays.com">trustedpanamastays.com</a>, que solo incluye hospedajes legalmente registrados.</p>
+<p>De vez en cuando preparo un resumen gratuito sobre requisitos legales y cambios en las leyes que afectan a los hospedajes — por ejemplo el Proyecto de Ley 301 o la Ley 562 sobre el descuento a jubilados. Sin publicidad.</p>
+<p>Como no quiero escribirle sin su permiso, se lo pregunto <strong>una sola vez</strong>:</p>
+${btn(consentUrl, 'Sí, quiero recibir los avisos', '#005ca9')}
+<p>Si no hace clic, no le volveré a escribir.</p>`;
+    if (trialUrl) {
+        html += `<p style="margin-top:1.6rem;"><strong>Además</strong>, por si le interesa: hoy su hospedaje aparece en el directorio solo con los datos del registro de la ATP. Con una membresía puede tener ahí una página completa — con fotos, descripción en español e inglés, dirección exacta y enlaces a su sitio web o sistema de reservas. Puede probarla <strong>gratis durante 30 días</strong>, sin compromiso; después, si le convence, puede continuar como miembro de apoyo por US$24 al año más ITBMS.</p>
+<p>En la página de su hospedaje puede ver cómo aparece hoy y todos los detalles:</p>
+${btn(trialUrl, 'Ver la página de mi hospedaje', '#00a859')}`;
+    }
+    return html;
+}
+
+// Eligible addresses, one entry per address (first listing wins), oldest id first.
+async function consentInviteCandidates() {
+    let rows = [], from = 0;
+    while (true) {
+        const { data, error } = await supabaseAdmin.from('listings')
+            .select('id, name, email, contact_name, slug, is_member, trial_started_at, invitation_status, atp_active')
+            .not('email', 'is', null).order('id', { ascending: true }).range(from, from + 999);
+        if (error) throw new Error(error.message);
+        rows = rows.concat(data || []);
+        if (!data || data.length < 1000) break;
+        from += 1000;
+    }
+    const { memberEmails, refused } = await getConsentState([]);
+    const { data: subs } = await supabaseAdmin.from('email_subscribers').select('email, status, invited_at');
+    const blocked = new Set();
+    (subs || []).forEach(r => { if (r.invited_at || ['confirmed', 'pending', 'unsubscribed'].includes(r.status)) blocked.add(r.email); });
+
+    const byEmail = new Map();
+    const neverTrialEmails = new Set();
+    rows.forEach(l => {
+        if (l.is_member || l.atp_active === false || l.invitation_status === 'refused') return;
+        const key = splitEmails(l.email)[0];
+        if (!key || !isValidEmail(key) || memberEmails.has(key) || refused.has(key) || blocked.has(key)) return;
+        if (!byEmail.has(key)) byEmail.set(key, { ...l, email: key, trialListingId: null });
+        if (!l.trial_started_at && !neverTrialEmails.has(key)) {
+            neverTrialEmails.add(key);
+            byEmail.get(key).trialListingId = l.id;
+        }
+    });
+    // An address that ever had a trial on ANY of its listings gets no trial offer
+    rows.forEach(l => {
+        const key = splitEmails(l.email)[0];
+        if (key && l.trial_started_at && byEmail.has(key)) byEmail.get(key).trialListingId = null;
+    });
+    return [...byEmail.values()];
+}
+
+// ── GET /api/admin/consent-invite-status ────────────────────────────────────
+app.get('/api/admin/consent-invite-status', requireAdmin, async (req, res) => {
+    try {
+        const remaining = (await consentInviteCandidates()).length;
+        const { count: invited } = await supabaseAdmin.from('email_subscribers').select('id', { count: 'exact', head: true }).not('invited_at', 'is', null);
+        const { count: accepted } = await supabaseAdmin.from('email_subscribers').select('id', { count: 'exact', head: true }).not('invited_at', 'is', null).eq('status', 'confirmed');
+        const { count: declined } = await supabaseAdmin.from('email_subscribers').select('id', { count: 'exact', head: true }).not('invited_at', 'is', null).eq('status', 'unsubscribed');
+        res.json({ remaining, invited: invited || 0, accepted: accepted || 0, declined: declined || 0 });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── POST /api/admin/consent-invite-export {limit, test} ─────────────────────
+// Returns the next batch as Outlook clipboard text (same format as
+// /api/admin/outlook-export) and marks those addresses invited. test:true
+// returns ONE sample addressed to info@ with dummy links and marks nothing.
+app.post('/api/admin/consent-invite-export', requireAdmin, async (req, res) => {
+    try {
+        const limit = Math.max(1, Math.min(50, parseInt(req.body?.limit) || 40));
+        const test = req.body?.test === true;
+        const candidates = await consentInviteCandidates();
+        if (!candidates.length) return res.json({ success: true, count: 0, text: '', remaining: 0 });
+        const batch = test ? [candidates.find(c => c.trialListingId) || candidates[0]] : candidates.slice(0, limit);
+        const NO_GRACIAS = '<br>\n    Para cancelar estas comunicaciones responda con "No gracias".';
+        const blocks = [];
+        for (const c of batch) {
+            let consentUrl;
+            if (test) {
+                consentUrl = `${SITE_URL}/subscribe.php?lang=es&action=optin&token=EJEMPLO`;
+            } else {
+                const { data: existing } = await supabaseAdmin.from('email_subscribers').select('id').eq('email', c.email).maybeSingle();
+                const fields = { invited_at: new Date().toISOString(), invite_listing_id: c.id, name: c.name };
+                let row;
+                if (existing) {
+                    ({ data: row } = await supabaseAdmin.from('email_subscribers').update(fields).eq('id', existing.id).select('token').single());
+                } else {
+                    ({ data: row } = await supabaseAdmin.from('email_subscribers').insert({ email: c.email, status: 'contact', source: 'invitation', listing_id: c.id, ...fields }).select('token').single());
+                }
+                if (!row) continue;
+                consentUrl = `${SITE_URL}/subscribe.php?lang=es&action=optin&token=${row.token}`;
+            }
+            const trialUrl = c.trialListingId ? `${SITE_URL}/listing.html?id=${c.trialListingId}&lang=es&owner=1` : null;
+            const html = buildFollowupHtml(c.name || c.email, c.contact_name || '', consentInviteBody(consentUrl, trialUrl), null, null).replace(NO_GRACIAS, '');
+            const to = test ? 'info@trustedpanamastays.com' : c.email;
+            blocks.push(`###MAIL###\nTO: ${to}\nSUBJECT: ${CONSENT_INVITE_SUBJECT}\n###HTML###\n${html}\n`);
+        }
+        if (!test) await logEvent('consent_invite_exported', { count: blocks.length });
+        res.json({
+            success: true, count: blocks.length, test,
+            remaining: test ? candidates.length : candidates.length - blocks.length,
+            text: '###TPS-OUTLOOK-V1###\n' + blocks.join('') + '###END###\n'
+        });
+    } catch (err) {
+        console.error('consent-invite-export:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── POST /api/subscribe/optin {token} — "Sí, quiero" from the invitation ────
+app.post('/api/subscribe/optin', async (req, res) => {
+    const token = String(req.body?.token || '');
+    if (!/^[0-9a-f-]{36}$/i.test(token)) return res.status(400).json({ error: 'invalid_token' });
+    const { data: row } = await supabaseAdmin.from('email_subscribers').select('id, email, status').eq('token', token).maybeSingle();
+    if (!row) return res.status(404).json({ error: 'invalid_token' });
+    if (row.status !== 'confirmed') {
+        const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
+        await supabaseAdmin.from('email_subscribers').update({
+            status: 'confirmed', confirmed_at: new Date().toISOString(), unsubscribed_at: null,
+            consent_text: CONSENT_INVITE_CONSENT_TEXT, consent_ip: ip || null
+        }).eq('id', row.id);
+        await logEvent('subscription_confirmed', { email: row.email, source: 'invitation' });
+    }
+    res.json({ success: true });
+});
+
 // ── GET /api/admin/consent-emails — addresses that will actually receive a campaign
 // (confirmed subscribers + active members, minus unsubscribed / "No gracias").
 // The Campaña tab uses it to show "N con consentimiento" before sending. 2026-11-13.

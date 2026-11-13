@@ -696,6 +696,23 @@
                     <div id="wa-queue-list" style="max-height:320px;overflow-y:auto;"></div>
                 </div>
 
+                <div style="background:#2a2410;border:1px solid #7a6a20;border-radius:8px;padding:1rem;margin-top:0.8rem;">
+                    <h4 style="color:#FFD700;margin-bottom:0.5rem;">✉️ Invitación única de consentimiento (desde Outlook)</h4>
+                    <p style="font-size:0.78rem;color:#ccc;margin-bottom:0.6rem;line-height:1.5;">
+                        Un solo correo personal por dirección, nunca dos veces: pide permiso para enviar avisos legales (un clic) y, a quien nunca tuvo prueba, ofrece la prueba gratuita de 30 días.
+                        Se envía desde su Outlook (info@), no desde el servidor. <strong>Envíe un lote por día</strong> para no dañar la reputación del dominio.
+                        Excluye miembros, suscritos, "No gracias", bajas y hospedajes que salieron del registro de la ATP.
+                    </p>
+                    <div id="ci-status" style="font-size:0.85rem;color:#adf5ad;margin-bottom:0.6rem;">Cargando...</div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                        <button onclick="consentInviteExport(true)" class="action-btn edit">📋 Copiar ejemplo (a info@)</button>
+                        <label style="font-size:0.8rem;color:#aaa;">Lote:</label>
+                        <input id="ci-limit" type="number" min="1" max="50" value="40" style="width:60px;padding:5px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;">
+                        <button onclick="consentInviteExport(false)" class="action-btn" style="background:#7a6a20;color:white;">📋 Copiar siguiente lote para Outlook</button>
+                    </div>
+                    <div id="ci-result" style="margin-top:0.5rem;font-size:0.82rem;"></div>
+                </div>
+
                 <div style="background:#2a1a3a;border:1px solid #5a3a7a;border-radius:8px;padding:1rem;margin-top:0.8rem;">
                     <h4 style="color:#d4adf5;margin-bottom:0.5rem;">📰 Enviar Publicación del Blog</h4>
                     <p style="font-size:0.78rem;color:#aaa;margin-bottom:0.6rem;">Elija una publicación ya publicada y cárguela abajo — esto llena el asunto y el editor con una introducción, el título con enlace, y el texto completo en español de la publicación. Luego revise/edite y envíe con los controles normales de abajo.</p>
@@ -3950,7 +3967,7 @@ function updateFilterBuilder() {
     const withEmail = matches.filter(m => m.email_member || m.email);
     const desc = document.getElementById('fb-description');
     if (desc) desc.innerHTML = `${matches.length} hospedaje(s) coinciden — ${withEmail.length} con correo válido — <strong style="color:#FFD700;">${consentCountText(withEmail)}</strong>.`;
-    if (!_consentEmails) loadConsentEmails();
+    if (!_consentEmails) { loadConsentEmails(); loadConsentInviteStatus(); }
 }
 
 function toggleFbSelectAll(checked) {
@@ -4407,6 +4424,36 @@ async function copyForOutlook(payload, resultEl) {
         await navigator.clipboard.writeText(d.text);
         resultEl.innerHTML = `<span style="color:#adf5ad;">✅ ${d.count} correo(s) copiado(s). En Outlook ejecute la macro <strong>TPS_EnviarDesdePortapapeles</strong>.</span>`;
     } catch(e) { resultEl.innerHTML = '<span style="color:#ff7070;">' + e.message + '</span>'; }
+}
+
+// ── One-time consent invitation (2026-11-13) ─────────────────────────────────
+async function loadConsentInviteStatus() {
+    const el = document.getElementById('ci-status');
+    if (!el) return;
+    try {
+        const res = await adminFetch('/api/admin/consent-invite-status');
+        const d = await res.json();
+        if (d.error) throw new Error(d.error);
+        el.innerHTML = `Pendientes: <strong>${d.remaining}</strong> · Invitados: <strong>${d.invited}</strong> · Aceptaron: <strong style="color:#7ec8e3;">${d.accepted}</strong> · No gracias: <strong>${d.declined}</strong>`;
+    } catch (e) { el.innerHTML = '<span style="color:#ff7070;">Error: ' + e.message + '</span>'; }
+}
+
+async function consentInviteExport(test) {
+    const out = document.getElementById('ci-result');
+    const limit = parseInt(document.getElementById('ci-limit').value) || 40;
+    if (!test && !confirm(`Se copiarán hasta ${limit} invitaciones y esas direcciones quedarán marcadas como invitadas (no se repetirán).\n\nDespués ejecute en Outlook la macro TPS_EnviarDesdePortapapeles y elija "Sí" para enviarlas hoy.\n\n¿Continuar?`)) return;
+    out.innerHTML = '<span style="color:#FFD700;">Preparando...</span>';
+    try {
+        const res = await adminFetch('/api/admin/consent-invite-export', { method: 'POST', body: JSON.stringify({ limit, test }) });
+        const d = await res.json();
+        if (!d.success) throw new Error(d.error || 'Error');
+        if (!d.count) { out.innerHTML = '<span style="color:#adf5ad;">No queda nadie por invitar.</span>'; return; }
+        await navigator.clipboard.writeText(d.text);
+        out.innerHTML = test
+            ? '<span style="color:#adf5ad;">✅ Ejemplo copiado (dirigido a info@, enlaces de muestra). En Outlook ejecute la macro y elija "No" para verlo en Borradores.</span>'
+            : `<span style="color:#adf5ad;">✅ ${d.count} invitación(es) copiada(s). En Outlook ejecute <strong>TPS_EnviarDesdePortapapeles</strong> y elija "Sí". Quedan ${d.remaining}.</span>`;
+        loadConsentInviteStatus();
+    } catch (e) { out.innerHTML = '<span style="color:#ff7070;">Error: ' + e.message + '</span>'; }
 }
 
 function copyAuthoritiesForOutlook() {
