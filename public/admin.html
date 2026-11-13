@@ -1260,7 +1260,7 @@ function renderFbConfirmedBanner() {
         el.style.background = '#0f2818';
         el.style.border = '1px solid #1a5c1a';
         el.style.color = '#adf5ad';
-        el.innerHTML = `✅ ${fbConfirmedTargets.length} destinatario(s) YA confirmados, listos para enviar tal cual. Los filtros de arriba son para armar una selección NUEVA — no haga clic en "Confirmar selección" a menos que quiera reemplazar esta lista de ${fbConfirmedTargets.length}.`;
+        el.innerHTML = `✅ ${fbConfirmedTargets.length} destinatario(s) YA confirmados (${_consentEmails ? fbConfirmedTargets.filter(t => hasEmailConsent(t.email)).length + ' con consentimiento recibirán el correo' : 'calculando consentimiento…'}), listos para enviar tal cual. Los filtros de arriba son para armar una selección NUEVA — no haga clic en "Confirmar selección" a menos que quiera reemplazar esta lista de ${fbConfirmedTargets.length}.`;
     } else {
         el.style.background = 'transparent';
         el.style.border = 'none';
@@ -3909,6 +3909,34 @@ function fbLabel(key) {
     return `${names[key]}: ${vals[fbToggleState[key]]}`;
 }
 
+// ── Consent (2026-11-13) ─────────────────────────────────────────────────────
+// Campaign e-mails only reach confirmed subscribers and active members; the
+// server drops everyone else at send time. This set mirrors that rule so the
+// selection shows the real number before sending.
+let _consentEmails = null;      // Set of lower-case addresses, null = not loaded yet
+let _consentLoading = false;
+async function loadConsentEmails(force) {
+    if (_consentLoading || (_consentEmails && !force)) return;
+    _consentLoading = true;
+    try {
+        const res = await adminFetch('/api/admin/consent-emails');
+        const d = await res.json();
+        _consentEmails = new Set((d.emails || []).map(e => String(e).trim().toLowerCase()));
+    } catch (e) { console.error('consent-emails:', e); }
+    _consentLoading = false;
+    updateFilterBuilder();
+    renderFbConfirmedBanner();
+}
+function hasEmailConsent(email) {
+    if (!_consentEmails || !email) return false;
+    return String(email).toLowerCase().split(/[\s,;\/]+/).some(e => _consentEmails.has(e.trim()));
+}
+function consentCountText(list) {
+    if (!_consentEmails) return 'calculando consentimiento…';
+    const n = list.filter(m => hasEmailConsent(m.email_member || m.email)).length;
+    return `${n} con consentimiento (recibirán el correo)`;
+}
+
 function updateFilterBuilder() {
     document.querySelectorAll('.fb-toggle').forEach(btn => {
         const key = btn.getAttribute('data-key');
@@ -3921,7 +3949,8 @@ function updateFilterBuilder() {
     const matches = computeFilterMatches();
     const withEmail = matches.filter(m => m.email_member || m.email);
     const desc = document.getElementById('fb-description');
-    if (desc) desc.textContent = `${matches.length} hospedaje(s) coinciden — ${withEmail.length} con correo válido.`;
+    if (desc) desc.innerHTML = `${matches.length} hospedaje(s) coinciden — ${withEmail.length} con correo válido — <strong style="color:#FFD700;">${consentCountText(withEmail)}</strong>.`;
+    if (!_consentEmails) loadConsentEmails();
 }
 
 function toggleFbSelectAll(checked) {
@@ -3938,9 +3967,12 @@ function openFbReview() {
     list.innerHTML = matches.map(m => {
         const email = m.email_member || m.email;
         const contact = email ? email : (m.whatsapp ? `WhatsApp: ${m.whatsapp}` : 'sin correo ni WhatsApp');
+        const consent = email
+            ? (hasEmailConsent(email) ? ' <span style="color:#adf5ad;font-size:0.75rem;">✅ recibirá el correo</span>' : ' <span style="color:#888;font-size:0.75rem;">— sin consentimiento, no recibirá el correo</span>')
+            : '';
         return `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:0.85rem;">
             <input type="checkbox" class="fb-review-cb" data-id="${m.id}" checked>
-            <span>${m.name} — ${contact}</span>
+            <span>${m.name} — ${contact}${consent}</span>
         </label>`;
     }).join('');
     panel.style.display = 'block';

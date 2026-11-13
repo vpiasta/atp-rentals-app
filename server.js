@@ -2514,7 +2514,8 @@ const HELP_CHAT_SYSTEM_FACTS = `Hechos verificados sobre el comportamiento autom
 - Solicitud de membresía formal (join.html/pay.html): envía correo automático a info@trustedpanamastays.com al recibirse.
 - Solicitud de prueba por correo (respuesta a campaña de invitación → pending_submissions): envía correo automático a info@trustedpanamastays.com al recibirse, tanto si se procesó bien como si falló el análisis automático (agregado 2026-11-04; antes de esa fecha este flujo NO notificaba a nadie).
 - Recordatorio diario: cada día se revisa si queda algo pendiente de revisar (reporte ATP, solicitudes de membresía, solicitudes de prueba) y, si algo sigue sin resolverse, se envía UN correo resumen; se repite todos los días hasta que cada punto se resuelva en el panel (agregado 2026-11-04).
-- Todos los correos dirigidos al admin (a info@trustedpanamastays.com) se envían también en copia (CC) automáticamente al correo personal de Volker, y si el proveedor de correo principal (Brevo) falla, hay un envío de respaldo por una vía distinta (agregado 2026-11-04).
+- Todos los correos dirigidos al admin (a info@trustedpanamastays.com) se envían también en copia (CC) automáticamente al correo personal de Volker, y si el servidor de correo principal (el buzón de Hostinger info@trustedpanamastays.com, desde el 13 nov 2026; antes Brevo) falla, hay un envío de respaldo por una vía distinta (agregado 2026-11-04).
+- Los correos de campaña solo llegan a suscriptores confirmados (doble opt-in en trustedpanamastays.com/subscribe.php) y a miembros activos; los demás se omiten automáticamente. Las invitaciones por correo a hospedajes que no se suscribieron están desactivadas desde el 12 nov 2026. Cada correo de campaña tiene un enlace para darse de baja.
 - Analítica: cada evento registrado (visita al sitio, vista de hospedaje, clic de contacto, "vistas de fotos", etc.) guarda SOLO tipo de evento, ID del hospedaje, IP y fecha/hora — no identifica al visitante individualmente ni registra qué foto específica vio, cuánto tiempo pasó en la página, ni ningún otro detalle. "Vistas de fotos" es un conteo agregado de que alguien interactuó con la galería, nada más granular que eso.
 - Fuera de lo anterior, nada se publica, aprueba o activa sin que un humano lo revise en el panel de admin.`;
 
@@ -4981,8 +4982,9 @@ const CAMPAIGN_RUNNING = new Set();
 const CAMPAIGN_CANCELLED = new Set();   // set by the admin "Detener envío" button; checked before every e-mail
 
 // ── Daily cap (2026-10-25) ──────────────────────────────────────────────────
-// Brevo's free plan delivers 300 e-mails a day and QUEUES the rest. With a big
-// campaign in that queue, every other e-mail (trial reminders, approvals,
+// (Written for Brevo's free plan, 300/day. Since 2026-11-13 mail goes through
+// the Hostinger mailbox SMTP, which also has a daily sending limit, so the cap
+// stays.) With a big campaign queued, every other e-mail (trial reminders, approvals,
 // passwords, tests) also waited days. So campaigns send at most
 // CAMPAIGN_DAILY_CAP e-mails per 24 hours (rolling window — independent of
 // when Brevo's own day resets), leaving room for system e-mails. A campaign
@@ -5050,14 +5052,20 @@ async function getUnsubscribeUrl(email) {
     }
 }
 
-// Returns { allowed: [...targets], omitted: n }.
-async function filterByEmailConsent(targets) {
-    const list = targets || [];
-    const keys = [...new Set(list.map(t => normEmail(t.email)).filter(Boolean))];
+// Consent state used by the send gate AND by the admin's consent count, so
+// both always apply the same rules. Returns Sets of lower-case addresses.
+async function getConsentState(keys) {
     const statusByEmail = {};
-    for (let i = 0; i < keys.length; i += 200) {
+    if (keys) {
+        for (let i = 0; i < keys.length; i += 200) {
+            const { data, error } = await supabaseAdmin.from('email_subscribers')
+                .select('email, status').in('email', keys.slice(i, i + 200));
+            if (error) throw new Error('email_subscribers: ' + error.message);
+            (data || []).forEach(r => { statusByEmail[r.email] = r.status; });
+        }
+    } else {
         const { data, error } = await supabaseAdmin.from('email_subscribers')
-            .select('email, status').in('email', keys.slice(i, i + 200));
+            .select('email, status').in('status', ['confirmed', 'unsubscribed']);
         if (error) throw new Error('email_subscribers: ' + error.message);
         (data || []).forEach(r => { statusByEmail[r.email] = r.status; });
     }
@@ -5075,14 +5083,40 @@ async function filterByEmailConsent(targets) {
     const refused = new Set();
     (refusedRows || []).forEach(l => { splitEmails(l.email).forEach(e => refused.add(e)); splitEmails(l.email_member).forEach(e => refused.add(e)); });
 
-    const allowed = list.filter(t => {
-        const key = normEmail(t.email);
+    const hasConsent = (email) => {
+        const key = normEmail(email);
         const st = statusByEmail[key];
-        if (st === 'unsubscribed' || refused.has(key)) return false;
+        if (!key || st === 'unsubscribed' || refused.has(key)) return false;
         return st === 'confirmed' || memberEmails.has(key);
-    });
+    };
+    return { statusByEmail, memberEmails, refused, hasConsent };
+}
+
+// Returns { allowed: [...targets], omitted: n }.
+async function filterByEmailConsent(targets) {
+    const list = targets || [];
+    const keys = [...new Set(list.map(t => normEmail(t.email)).filter(Boolean))];
+    const { hasConsent } = await getConsentState(keys);
+    const allowed = list.filter(t => hasConsent(t.email));
     return { allowed, omitted: list.length - allowed.length };
 }
+
+// ── GET /api/admin/consent-emails — addresses that will actually receive a campaign
+// (confirmed subscribers + active members, minus unsubscribed / "No gracias").
+// The Campaña tab uses it to show "N con consentimiento" before sending. 2026-11-13.
+app.get('/api/admin/consent-emails', requireAdmin, async (req, res) => {
+    try {
+        const { statusByEmail, memberEmails, refused } = await getConsentState(null);
+        const out = new Set();
+        Object.entries(statusByEmail).forEach(([e, st]) => { if (st === 'confirmed') out.add(e); });
+        memberEmails.forEach(e => out.add(e));
+        Object.entries(statusByEmail).forEach(([e, st]) => { if (st === 'unsubscribed') out.delete(e); });
+        refused.forEach(e => out.delete(e));
+        res.json({ emails: [...out] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 function subscriptionConfirmEmailHtml(lang, name, confirmUrl) {
     const en = lang === 'en';
@@ -5385,7 +5419,7 @@ async function processCampaign(campaignId) {
                     : '';
                 await notifyAdmin(`Lote enviado: ${sentThisRun} hoy, ${sent}/${campaign.recipient_count} en total — continúa mañana — ${audience || 'Trusted Panama Stays'}`,
                     `<p>Lote del día enviado: <strong>${sentThisRun}</strong> correos. En total <strong>${sent}</strong> de ${campaign.recipient_count} enviados, ${errors} errores, <strong>${pending}</strong> pendientes.</p>` +
-                    `<p>Límite: ${CAMPAIGN_DAILY_CAP} correos de campaña cada 24 horas (Brevo gratis: 300/día; el resto queda libre para correos del sistema). El envío continúa automáticamente.</p>` + sample);
+                    `<p>Límite: ${CAMPAIGN_DAILY_CAP} correos de campaña cada 24 horas (deja espacio para los correos del sistema dentro del límite diario del buzón). El envío continúa automáticamente.</p>` + sample);
             }
             return;
         }
