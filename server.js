@@ -5180,8 +5180,11 @@ app.get('/api/admin/consent-invite-status', requireAdmin, async (req, res) => {
 
 // ── POST /api/admin/consent-invite-export {limit, test} ─────────────────────
 // Returns the next batch as Outlook clipboard text (same format as
-// /api/admin/outlook-export) and marks those addresses invited. test:true
-// returns ONE sample addressed to info@ with dummy links and marks nothing.
+// /api/admin/outlook-export) plus the list of addresses in it. It does NOT
+// mark anyone invited: the admin page calls /api/admin/consent-invite-mark
+// only after the clipboard copy succeeded (2026-11-14 fix — two failed copies
+// had marked 80 addresses that were never sent). test:true returns ONE sample
+// addressed to info@ with dummy links.
 app.post('/api/admin/consent-invite-export', requireAdmin, async (req, res) => {
     try {
         const limit = Math.max(1, Math.min(50, parseInt(req.body?.limit) || 40));
@@ -5190,14 +5193,14 @@ app.post('/api/admin/consent-invite-export', requireAdmin, async (req, res) => {
         if (!candidates.length) return res.json({ success: true, count: 0, text: '', remaining: 0 });
         const batch = test ? [candidates.find(c => c.trialListingId) || candidates[0]] : candidates.slice(0, limit);
         const NO_GRACIAS = '<br>\n    Para cancelar estas comunicaciones responda con "No gracias".';
-        const blocks = [];
+        const blocks = [], items = [];
         for (const c of batch) {
             let consentUrl;
             if (test) {
                 consentUrl = `${SITE_URL}/subscribe.php?lang=es&action=optin&token=EJEMPLO`;
             } else {
                 const { data: existing } = await supabaseAdmin.from('email_subscribers').select('id').eq('email', c.email).maybeSingle();
-                const fields = { invited_at: new Date().toISOString(), invite_listing_id: c.id, name: c.name };
+                const fields = { name: c.name };
                 let row;
                 if (existing) {
                     ({ data: row } = await supabaseAdmin.from('email_subscribers').update(fields).eq('id', existing.id).select('token').single());
@@ -5211,17 +5214,36 @@ app.post('/api/admin/consent-invite-export', requireAdmin, async (req, res) => {
             const html = buildFollowupHtml(c.name || c.email, c.contact_name || '', consentInviteBody(consentUrl, trialUrl), null, null).replace(NO_GRACIAS, '');
             const to = test ? 'info@trustedpanamastays.com' : c.email;
             blocks.push(`###MAIL###\nTO: ${to}\nSUBJECT: ${CONSENT_INVITE_SUBJECT}\n###HTML###\n${html}\n`);
+            if (!test) items.push({ email: c.email, listing_id: c.id });
         }
-        if (!test) await logEvent('consent_invite_exported', { count: blocks.length });
         res.json({
-            success: true, count: blocks.length, test,
-            remaining: test ? candidates.length : candidates.length - blocks.length,
+            success: true, count: blocks.length, test, items,
+            remaining: candidates.length,
             text: '###TPS-OUTLOOK-V1###\n' + blocks.join('') + '###END###\n'
         });
     } catch (err) {
         console.error('consent-invite-export:', err.message);
         res.status(500).json({ error: err.message });
     }
+});
+
+// ── POST /api/admin/consent-invite-mark {items:[{email, listing_id}]} ───────
+// Called by the admin page right after the batch was copied to the clipboard.
+app.post('/api/admin/consent-invite-mark', requireAdmin, async (req, res) => {
+    const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 50) : [];
+    if (!items.length) return res.status(400).json({ error: 'Sin direcciones' });
+    const now = new Date().toISOString();
+    let marked = 0;
+    for (const it of items) {
+        const key = normEmail(it.email);
+        if (!key) continue;
+        const { data } = await supabaseAdmin.from('email_subscribers')
+            .update({ invited_at: now, invite_listing_id: parseInt(it.listing_id) || null })
+            .eq('email', key).is('invited_at', null).select('id');
+        marked += (data || []).length;
+    }
+    await logEvent('consent_invite_exported', { count: marked });
+    res.json({ success: true, marked });
 });
 
 // ── POST /api/subscribe/optin {token} — "Sí, quiero" from the invitation ────

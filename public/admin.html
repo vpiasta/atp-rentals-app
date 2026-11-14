@@ -4438,22 +4438,53 @@ async function loadConsentInviteStatus() {
     } catch (e) { el.innerHTML = '<span style="color:#ff7070;">Error: ' + e.message + '</span>'; }
 }
 
+// Two steps (2026-11-14): 1) prepare the batch on the server, 2) a separate
+// click copies it — a fresh click is what browsers require for clipboard
+// access. Addresses are marked invited ONLY after the copy succeeded, so a
+// failed copy never counts anyone.
+let _ciPending = null;   // { text, items, count, test, remaining }
+
 async function consentInviteExport(test) {
     const out = document.getElementById('ci-result');
     const limit = parseInt(document.getElementById('ci-limit').value) || 40;
-    if (!test && !confirm(`Se copiarán hasta ${limit} invitaciones y esas direcciones quedarán marcadas como invitadas (no se repetirán).\n\nDespués ejecute en Outlook la macro TPS_EnviarDesdePortapapeles y elija "Sí" para enviarlas hoy.\n\n¿Continuar?`)) return;
+    _ciPending = null;
     out.innerHTML = '<span style="color:#FFD700;">Preparando...</span>';
     try {
         const res = await adminFetch('/api/admin/consent-invite-export', { method: 'POST', body: JSON.stringify({ limit, test }) });
         const d = await res.json();
         if (!d.success) throw new Error(d.error || 'Error');
         if (!d.count) { out.innerHTML = '<span style="color:#adf5ad;">No queda nadie por invitar.</span>'; return; }
-        await navigator.clipboard.writeText(d.text);
-        out.innerHTML = test
-            ? '<span style="color:#adf5ad;">✅ Ejemplo copiado (dirigido a info@, enlaces de muestra). En Outlook ejecute la macro y elija "No" para verlo en Borradores.</span>'
-            : `<span style="color:#adf5ad;">✅ ${d.count} invitación(es) copiada(s). En Outlook ejecute <strong>TPS_EnviarDesdePortapapeles</strong> y elija "Sí". Quedan ${d.remaining}.</span>`;
-        loadConsentInviteStatus();
+        _ciPending = d;
+        out.innerHTML = `<span style="color:#FFD700;">${test ? 'Ejemplo listo' : d.count + ' invitación(es) lista(s)'} — ahora haga clic aquí:</span>
+            <button onclick="consentInviteCopy()" class="action-btn" style="background:#1a5c1a;color:white;margin-left:8px;">📋 Copiar al portapapeles</button>`;
     } catch (e) { out.innerHTML = '<span style="color:#ff7070;">Error: ' + e.message + '</span>'; }
+}
+
+async function consentInviteCopy() {
+    const out = document.getElementById('ci-result');
+    const d = _ciPending;
+    if (!d) return;
+    try {
+        await navigator.clipboard.writeText(d.text);
+    } catch (e) {
+        out.innerHTML = '<span style="color:#ff7070;">❌ No se pudo copiar (' + e.message + '). Nadie fue marcado como invitado. Haga clic en la página y vuelva a intentarlo.</span>';
+        return;
+    }
+    if (d.test) {
+        out.innerHTML = '<span style="color:#adf5ad;">✅ Ejemplo copiado (dirigido a info@, enlaces de muestra). En Outlook ejecute la macro y elija "No" para verlo en Borradores.</span>';
+        _ciPending = null;
+        return;
+    }
+    try {
+        const res = await adminFetch('/api/admin/consent-invite-mark', { method: 'POST', body: JSON.stringify({ items: d.items }) });
+        const m = await res.json();
+        if (!m.success) throw new Error(m.error || 'Error');
+        out.innerHTML = `<span style="color:#adf5ad;">✅ ${d.count} invitación(es) copiada(s) y marcada(s). En Outlook ejecute <strong>TPS_EnviarDesdePortapapeles</strong> y elija "Sí" — hoy mismo.</span>`;
+    } catch (e) {
+        out.innerHTML = '<span style="color:#ff7070;">⚠️ Copiado, pero no se pudo marcar como invitados (' + e.message + '). Envíelos igual y avíseme.</span>';
+    }
+    _ciPending = null;
+    loadConsentInviteStatus();
 }
 
 function copyAuthoritiesForOutlook() {
