@@ -5128,6 +5128,16 @@ ${btn(trialUrl, 'Ver la página de mi hospedaje', '#00a859')}`;
     return html;
 }
 
+// Mail domains that no longer accept mail at all — sending there only produces
+// bounces, which hurt the domain's sending reputation. cwpanama.net: the old
+// Cable & Wireless Panamá addresses; the server answers "domain not hosted
+// here" (550 MXIN500), seen in the consent invitations 2026-11-14.
+const DEAD_EMAIL_DOMAINS = ['cwpanama.net'];
+function isDeadEmailDomain(email) {
+    const d = String(email || '').split('@')[1] || '';
+    return DEAD_EMAIL_DOMAINS.includes(d.trim().toLowerCase());
+}
+
 // Eligible addresses, one entry per address (first listing wins), oldest id first.
 async function consentInviteCandidates() {
     let rows = [], from = 0;
@@ -5150,7 +5160,7 @@ async function consentInviteCandidates() {
     rows.forEach(l => {
         if (l.is_member || l.atp_active === false || l.invitation_status === 'refused') return;
         const key = splitEmails(l.email)[0];
-        if (!key || !isValidEmail(key) || memberEmails.has(key) || refused.has(key) || blocked.has(key)) return;
+        if (!key || !isValidEmail(key) || isDeadEmailDomain(key) || memberEmails.has(key) || refused.has(key) || blocked.has(key)) return;
         if (!byEmail.has(key)) byEmail.set(key, { ...l, email: key, trialListingId: null });
         if (!l.trial_started_at && !neverTrialEmails.has(key)) {
             neverTrialEmails.add(key);
