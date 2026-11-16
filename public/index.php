@@ -622,8 +622,18 @@ function getPhoneNumbers(phoneStr) {
       // A number prefixed with '-' has been confirmed NOT on WhatsApp (set from
       // the admin panel) — strip the marker for display and exclude it entirely
       // from call/WhatsApp candidate selection below.
-      const parts = phoneStr.split('/').map(p => p.trim()).filter(Boolean);
-      const display = phoneStr.split('/').map(p => p.trim().replace(/^-/, '')).join(' / ');
+      // 2026-11-16: ATP data often has empty parts ("68940874 / ", " / 7204495")
+      // and the same number twice in different formats ("6512-6462 / 65126462").
+      // Empty parts are dropped and duplicates (same digits) are kept only once —
+      // the '-' (not-on-WhatsApp) version wins if one copy carries the marker.
+      const seen = new Map(); // digits → part
+      phoneStr.split('/').map(p => p.trim()).filter(p => p.replace(/\D/g, '').length > 0).forEach(p => {
+          const digits = p.replace(/\D/g, '');
+          const prev = seen.get(digits);
+          if (!prev || (p.startsWith('-') && !prev.startsWith('-'))) seen.set(digits, p);
+      });
+      const parts = Array.from(seen.values());
+      const display = parts.map(p => p.replace(/^-/, '').trim()).join(' / ');
 
     // Build a full international number (no leading +) for tel:/wa.me links.
     // Length is the reliable signal here (not the leading digit — Panama's own

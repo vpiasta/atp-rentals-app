@@ -199,9 +199,20 @@ $apatel      = !empty($listing['apatel_member']);
 // A number prefixed with '-' has been confirmed NOT on WhatsApp (set from the
 // admin panel) — excluded entirely from call/WhatsApp candidate selection.
 // Matches the logic in index.php's getPhoneNumbers() / listing.html.
+// 2026-11-16: drops empty parts ("68940874 / ") AND duplicates of the same
+// number in different formats ("6512-6462 / 65126462") — keeps the first
+// occurrence, except that a '-'-marked (not-on-WhatsApp) copy wins.
 function phone_parts($phone) {
-    $raw = explode('/', $phone ?? '');
-    return array_values(array_filter(array_map('trim', $raw), function($p) { return $p !== ''; }));
+    $seen = [];
+    foreach (explode('/', $phone ?? '') as $p) {
+        $p = trim($p);
+        $digits = preg_replace('/\D/', '', $p);
+        if ($digits === '') continue;
+        if (!isset($seen[$digits]) || (strpos($p, '-') === 0 && strpos($seen[$digits], '-') !== 0)) {
+            $seen[$digits] = $p;
+        }
+    }
+    return array_values($seen);
 }
 
 function to_international($raw) {
@@ -281,7 +292,7 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
             <?php if ($address): ?>, "streetAddress": <?= json_encode($address) ?><?php endif; ?>
         },
         "url": <?= json_encode($canonical) ?>
-        <?php if ($phone): ?>, "telephone": <?= json_encode($phone) ?><?php endif; ?>
+        <?php if ($phone): ?>, "telephone": <?= json_encode(implode(' / ', array_map(function($p) { return ltrim($p, '-'); }, phone_parts($phone)))) ?><?php endif; ?>
         <?php if ($email): ?>, "email": <?= json_encode($email) ?><?php endif; ?>
         <?php if ($first_photo): ?>, "image": <?= json_encode($first_photo) ?><?php endif; ?>
     }
