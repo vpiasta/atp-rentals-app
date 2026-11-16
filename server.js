@@ -8391,24 +8391,22 @@ const BLOG_TOPIC_IDEAS = [
 // valid object back from the API. Also now flags a token-limit cutoff
 // explicitly and surfaces the real Anthropic API error body instead of
 // axios's generic status-code message.
+// 2026-11-16: DUPLICATE GUARD. The weekly cron produced drafts repeating
+// already-published posts (Material Bank items that had been turned into
+// posts by other routes were still marked unused, and random topics had no
+// memory of what exists). Now, for AI-chosen topics and Material Bank items
+// (NOT for notes the admin pastes explicitly — that's a deliberate request),
+// the model sees every published/pending post's title + excerpt and may call
+// report_duplicate instead of writing. On a duplicate: a Material Bank item is
+// marked used and linked to the existing post (so it's never picked again),
+// a random topic is skipped, and the next candidate is tried — up to
+// BLOG_DRAFT_MAX_ATTEMPTS. Returns { draft, skipped } — draft is null when
+// every candidate turned out to be a duplicate.
+const BLOG_DRAFT_MAX_ATTEMPTS = 3;
+
 async function generateBlogDraft(seedText) {
-    let mode = seedText ? 'seed' : 'topic';
-    let materialUsed = null;
-    if (!seedText) {
-        const { data: material } = await supabaseAdmin
-            .from('blog_source_material')
-            .select('*')
-            .eq('used', false)
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .maybeSingle();
-        if (material) {
-            seedText = material.content;
-            materialUsed = material;
-            mode = 'material';
-        }
-    }
-    const topic = seedText || BLOG_TOPIC_IDEAS[Math.floor(Math.random() * BLOG_TOPIC_IDEAS.length)];
+    const explicitSeed = !!(seedText && seedText.trim());
+
     const { data: knowledgeRows } = await supabaseAdmin
         .from('blog_knowledge_base')
         .select('title, content, category')
@@ -8416,10 +8414,57 @@ async function generateBlogDraft(seedText) {
     const knowledgeBlock = (knowledgeRows && knowledgeRows.length)
         ? knowledgeRows.map(k => `[${k.category || 'reference'}] ${k.title || '(untitled)'}\n${k.content}`).join('\n\n---\n\n')
         : null;
-    const prompt = `You are writing a blog post for Trusted Panama Stays, a directory of legally ATP/MiCI-registered short-term rentals in Panama (trustedpanamastays.com). The audience is international tourists researching where to stay in Panama, plus Panama property owners considering registering their rental legally.
-${knowledgeBlock ? `REFERENCE MATERIAL — verified, owner-provided knowledge about Panama's actual laws and regulations. Ground every legal or factual claim in this material. Do NOT state specific legal requirements, law numbers, deadlines, fees, or procedures unless explicitly supported below — if something legal isn't covered here, omit it or phrase it generally (e.g. "consult a lawyer for current requirements") rather than inventing specifics:\n\n"""${knowledgeBlock}"""\n\n` : ''}${seedText
-    ? `Turn the following rough notes/concept explanation into a polished, well-structured blog post. Preserve the author's intent and any factual specifics — do not invent facts they didn't provide:\n\n"""${seedText}"""`
-    : `Write an original blog post on this topic: "${topic}"`}
+
+    const { data: existingPosts } = await supabaseAdmin
+        .from('blog_posts')
+        .select('id, title_en, excerpt_en, status')
+        .in('status', ['published', 'pending_review'])
+        .order('created_at', { ascending: true });
+    const existingBlock = (existingPosts && existingPosts.length)
+        ? existingPosts.map(p => `#${p.id} [${p.status}] ${p.title_en || '(untitled)'}${p.excerpt_en ? ' — ' + p.excerpt_en : ''}`).join('\n')
+        : null;
+
+    const skipped = [];
+    const triedTopics = new Set();
+    const triedMaterialIds = [];
+
+    for (let attempt = 1; attempt <= (explicitSeed ? 1 : BLOG_DRAFT_MAX_ATTEMPTS); attempt++) {
+        // ── Pick this attempt's candidate ──
+        let mode, candidateText, materialUsed = null;
+        if (explicitSeed) {
+            mode = 'seed';
+            candidateText = seedText;
+        } else {
+            let q = supabaseAdmin
+                .from('blog_source_material')
+                .select('*')
+                .eq('used', false)
+                .order('created_at', { ascending: true })
+                .limit(1);
+            if (triedMaterialIds.length) q = q.not('id', 'in', `(${triedMaterialIds.join(',')})`);
+            const { data: material } = await q.maybeSingle();
+            if (material) {
+                mode = 'material';
+                candidateText = material.content;
+                materialUsed = material;
+                triedMaterialIds.push(material.id);
+            } else {
+                const remaining = BLOG_TOPIC_IDEAS.filter(t => !triedTopics.has(t));
+                if (!remaining.length) break;
+                mode = 'topic';
+                candidateText = remaining[Math.floor(Math.random() * remaining.length)];
+                triedTopics.add(candidateText);
+            }
+        }
+
+        const checkDuplicates = !explicitSeed && !!existingBlock;
+        const prompt = `You are writing a blog post for Trusted Panama Stays, a directory of legally ATP/MiCI-registered short-term rentals in Panama (trustedpanamastays.com). The audience is international tourists researching where to stay in Panama, plus Panama property owners considering registering their rental legally.
+${knowledgeBlock ? `REFERENCE MATERIAL — verified, owner-provided knowledge about Panama's actual laws and regulations. Ground every legal or factual claim in this material. Do NOT state specific legal requirements, law numbers, deadlines, fees, or procedures unless explicitly supported below — if something legal isn't covered here, omit it or phrase it generally (e.g. "consult a lawyer for current requirements") rather than inventing specifics:\n\n"""${knowledgeBlock}"""\n\n` : ''}${existingBlock ? `POSTS THAT ALREADY EXIST ON THE BLOG (published or awaiting review):\n${existingBlock}\n\n` : ''}${mode !== 'topic'
+    ? `Turn the following rough notes/concept explanation into a polished, well-structured blog post. Preserve the author's intent and any factual specifics — do not invent facts they didn't provide:\n\n"""${candidateText}"""`
+    : `Write an original blog post on this topic: "${candidateText}"`}
+${checkDuplicates ? `
+DUPLICATE CHECK — do this first: if the post you'd write would substantially repeat one of the existing posts listed above (same main subject AND same angle, so a reader of that post would learn little new — e.g. a re-telling of the same story, or a new "Part 1" of a series that already exists), do NOT write it: call the report_duplicate tool with that post's id and a one-sentence reason. A genuinely different angle, audience, practical how-to, or new facts is NOT a duplicate — write it, but don't re-explain at length what the existing posts already cover.
+` : ''}
 Requirements:
 - Write in ENGLISH ONLY for now — a Spanish version is translated separately later, after this English version has been reviewed/edited
 - Structure: use <h2>/<h3> for section headings (NEVER <h1>, that's reserved for the title), <p> paragraphs, <ul>/<ol> only where a list is genuinely clearer than prose
@@ -8428,86 +8473,129 @@ Requirements:
 - Tone: helpful, credible, not salesy
 - Be conservative with legal specifics not covered by the reference material above — general guidance and "consult a professional" framing is safer than a confident but unverified legal claim
 - Length: 500-900 words
-When finished, call the save_blog_post tool with the completed draft — do not include any other prose.`;
+When finished, call the save_blog_post tool with the completed draft${checkDuplicates ? ' (or report_duplicate, per the duplicate check)' : ''} — do not include any other prose.`;
 
-    const BLOG_POST_TOOL = {
-        name: 'save_blog_post',
-        description: 'Save the completed English blog post draft.',
-        input_schema: {
-            type: 'object',
-            properties: {
-                slug: { type: 'string', description: 'URL-friendly slug in English' },
-                title_en: { type: 'string' },
-                excerpt_en: { type: 'string', description: 'One sentence, under 25 words' },
-                meta_description_en: { type: 'string', description: 'Under 155 characters' },
-                body_en: { type: 'string', description: 'HTML: h2/h3/p/ul/ol only, never h1' },
-                category: { type: 'string', description: 'One or two words, e.g. Legal Compliance, Travel Guide, Area Guide' }
-            },
-            required: ['slug', 'title_en', 'excerpt_en', 'meta_description_en', 'body_en']
+        const BLOG_POST_TOOL = {
+            name: 'save_blog_post',
+            description: 'Save the completed English blog post draft.',
+            input_schema: {
+                type: 'object',
+                properties: {
+                    slug: { type: 'string', description: 'URL-friendly slug in English' },
+                    title_en: { type: 'string' },
+                    excerpt_en: { type: 'string', description: 'One sentence, under 25 words' },
+                    meta_description_en: { type: 'string', description: 'Under 155 characters' },
+                    body_en: { type: 'string', description: 'HTML: h2/h3/p/ul/ol only, never h1' },
+                    category: { type: 'string', description: 'One or two words, e.g. Legal Compliance, Travel Guide, Area Guide' }
+                },
+                required: ['slug', 'title_en', 'excerpt_en', 'meta_description_en', 'body_en']
+            }
+        };
+        const DUPLICATE_TOOL = {
+            name: 'report_duplicate',
+            description: 'Report that the requested post would substantially duplicate an existing blog post, instead of writing it.',
+            input_schema: {
+                type: 'object',
+                properties: {
+                    existing_post_id: { type: 'integer', description: 'The #id of the existing post it duplicates' },
+                    reason: { type: 'string', description: 'One sentence' }
+                },
+                required: ['existing_post_id', 'reason']
+            }
+        };
+
+        let response;
+        try {
+            response = await axios.post('https://api.anthropic.com/v1/messages', {
+                model: 'claude-sonnet-5',
+                max_tokens: 8000,
+                thinking: { type: 'disabled' },
+                tools: checkDuplicates ? [BLOG_POST_TOOL, DUPLICATE_TOOL] : [BLOG_POST_TOOL],
+                tool_choice: checkDuplicates ? { type: 'any' } : { type: 'tool', name: 'save_blog_post' },
+                messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+            }, {
+                headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+                timeout: 60000
+            });
+        } catch (axiosErr) {
+            const apiMsg = axiosErr.response?.data?.error?.message || axiosErr.message;
+            throw new Error('Anthropic API call failed: ' + apiMsg);
         }
-    };
 
-    let response;
-    try {
-        response = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-5',
-            max_tokens: 8000,
-            thinking: { type: 'disabled' },
-            tools: [BLOG_POST_TOOL],
-            tool_choice: { type: 'tool', name: 'save_blog_post' },
-            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
-        }, {
-            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-            timeout: 60000
+        if (response.data.stop_reason === 'max_tokens') {
+            throw new Error('The AI response was cut off before finishing (hit the token limit) — try shorter/more focused notes and generate again.');
+        }
+        const blocks = response.data.content || [];
+
+        // ── Duplicate reported → record it and move on to the next candidate ──
+        const dupBlock = blocks.find(b => b.type === 'tool_use' && b.name === 'report_duplicate');
+        if (dupBlock && dupBlock.input) {
+            const dupId = parseInt(dupBlock.input.existing_post_id, 10);
+            const dupExists = existingPosts?.some(p => p.id === dupId);
+            if (materialUsed) {
+                await supabaseAdmin.from('blog_source_material')
+                    .update({ used: true, used_in_post_id: dupExists ? dupId : null })
+                    .eq('id', materialUsed.id);
+            }
+            const skip = {
+                mode,
+                material_id: materialUsed?.id || null,
+                topic: mode === 'topic' ? candidateText : null,
+                duplicate_of: dupExists ? dupId : null,
+                reason: dupBlock.input.reason || ''
+            };
+            skipped.push(skip);
+            await logEvent('blog_draft_skipped_duplicate', skip);
+            continue;
+        }
+
+        const toolBlock = blocks.find(b => b.type === 'tool_use' && b.name === 'save_blog_post');
+        if (!toolBlock || !toolBlock.input) {
+            throw new Error('Claude did not return the expected draft. stop_reason=' + response.data.stop_reason + ' — ' + JSON.stringify(blocks).slice(0, 400));
+        }
+        const draft = toolBlock.input;
+
+        const baseSlug = (draft.slug || draft.title_en).toLowerCase()
+            .normalize('NFD').replace(/[̀-ͯ]/g, '')
+            .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        const { data: conflict } = await supabaseAdmin.from('blog_posts').select('id').eq('slug', baseSlug).maybeSingle();
+        const finalSlug = conflict ? `${baseSlug}-${Date.now()}` : baseSlug;
+        const { data: inserted, error } = await supabaseAdmin.from('blog_posts').insert({
+            slug: finalSlug,
+            title_en: draft.title_en,
+            excerpt_en: draft.excerpt_en,
+            meta_description_en: draft.meta_description_en,
+            body_en: draft.body_en,
+            category: draft.category || null,
+            status: 'pending_review',
+            ai_generated: true
+        }).select().single();
+        if (error) throw new Error(error.message);
+        if (materialUsed) {
+            await supabaseAdmin.from('blog_source_material')
+                .update({ used: true, used_in_post_id: inserted.id })
+                .eq('id', materialUsed.id);
+        }
+        await logEvent('blog_draft_generated', {
+            id: inserted.id, mode,
+            topic: mode === 'topic' ? candidateText : null,
+            material_id: materialUsed?.id || null,
+            knowledge_entries_used: knowledgeRows?.length || 0,
+            skipped_duplicates: skipped.length
         });
-    } catch (axiosErr) {
-        const apiMsg = axiosErr.response?.data?.error?.message || axiosErr.message;
-        throw new Error('Anthropic API call failed: ' + apiMsg);
+        return { draft: inserted, skipped };
     }
 
-    if (response.data.stop_reason === 'max_tokens') {
-        throw new Error('The AI response was cut off before finishing (hit the token limit) — try shorter/more focused notes and generate again.');
-    }
-    const toolBlock = (response.data.content || []).find(b => b.type === 'tool_use' && b.name === 'save_blog_post');
-    if (!toolBlock || !toolBlock.input) {
-        throw new Error('Claude did not return the expected draft. stop_reason=' + response.data.stop_reason + ' — ' + JSON.stringify(response.data.content).slice(0, 400));
-    }
-    const draft = toolBlock.input;
-
-    const baseSlug = (draft.slug || draft.title_en).toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const { data: conflict } = await supabaseAdmin.from('blog_posts').select('id').eq('slug', baseSlug).maybeSingle();
-    const finalSlug = conflict ? `${baseSlug}-${Date.now()}` : baseSlug;
-    const { data: inserted, error } = await supabaseAdmin.from('blog_posts').insert({
-        slug: finalSlug,
-        title_en: draft.title_en,
-        excerpt_en: draft.excerpt_en,
-        meta_description_en: draft.meta_description_en,
-        body_en: draft.body_en,
-        category: draft.category || null,
-        status: 'pending_review',
-        ai_generated: true
-    }).select().single();
-    if (error) throw new Error(error.message);
-    if (materialUsed) {
-        await supabaseAdmin.from('blog_source_material')
-            .update({ used: true, used_in_post_id: inserted.id })
-            .eq('id', materialUsed.id);
-    }
-    await logEvent('blog_draft_generated', {
-        id: inserted.id, mode,
-        topic: mode === 'topic' ? topic : null,
-        material_id: materialUsed?.id || null,
-        knowledge_entries_used: knowledgeRows?.length || 0
-    });
-    return inserted;
+    return { draft: null, skipped };
 }
 
 
 // ── POST /api/admin/blog/generate-draft ────────────────────────────────────────
 // Called from the admin panel ("Generate topic idea" or "Generate from my notes")
 // AND from the weekly GitHub Actions cron (shared secret, same pattern as /api/reload-pdf).
+// When every candidate turned out to duplicate an existing post, no draft is
+// created and a 409 with a readable explanation is returned (the admin panel
+// shows it as the error text; the cron ignores the response body).
 app.post('/api/admin/blog/generate-draft', async (req, res) => {
     const bearer = req.headers['authorization']?.replace('Bearer ', '');
     let isAdminToken = false;
@@ -8518,8 +8606,12 @@ app.post('/api/admin/blog/generate-draft', async (req, res) => {
     if (!isAdminToken && !isCronSecret) return res.status(403).json({ error: 'Denied' });
 
     try {
-        const draft = await generateBlogDraft(req.body?.seed_text || null);
-        res.json({ success: true, draft });
+        const { draft, skipped } = await generateBlogDraft(req.body?.seed_text || null);
+        if (!draft) {
+            const detail = skipped.map(s => `${s.material_id ? 'Material #' + s.material_id : 'Topic "' + s.topic + '"'} duplicates post #${s.duplicate_of ?? '?'}`).join('; ');
+            return res.status(409).json({ error: 'No draft created — every candidate topic duplicated an existing post. ' + detail, skipped });
+        }
+        res.json({ success: true, draft, skipped });
     } catch (err) {
         console.error('Blog draft generation error:', err.message);
         res.status(500).json({ error: err.message });
