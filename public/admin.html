@@ -712,6 +712,22 @@
                     </div>
                     <div id="ci-result" style="margin-top:0.5rem;font-size:0.82rem;"></div>
                 </div>
+                <div style="background:#2a1414;border:1px solid #7a3030;border-radius:8px;padding:1rem;margin-top:0.8rem;">
+                    <h4 style="color:#ff9b9b;margin-bottom:0.5rem;">📭 Correos rebotados (direcciones que no funcionan)</h4>
+                    <p style="font-size:0.78rem;color:#ccc;margin-bottom:0.6rem;line-height:1.5;">
+                        Cuando Outlook reciba un aviso de "no entregado", copie el aviso completo (o solo la dirección) y péguelo aquí.
+                        Esas direcciones ya no recibirán ninguna campaña ni invitación. Solo se registran direcciones que están en el directorio
+                        (la de info@, mailer-daemon, etc. se ignoran solas). La lista sirve también para informar a la ATP.
+                    </p>
+                    <textarea id="bounce-text" rows="4" placeholder="Pegue aquí el aviso de rebote o las direcciones" style="width:100%;padding:6px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;font-size:0.82rem;box-sizing:border-box;"></textarea>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:0.5rem;">
+                        <input id="bounce-note" type="text" placeholder="Motivo (opcional — se detecta solo)" style="flex:1;min-width:200px;padding:5px 8px;background:#2c3e50;border:1px solid #555;border-radius:5px;color:white;">
+                        <button onclick="registerBounces()" class="action-btn" style="background:#7a3030;color:white;">📭 Registrar rebote</button>
+                        <button onclick="copyBouncesForAtp()" class="action-btn edit">📋 Copiar lista para la ATP</button>
+                    </div>
+                    <div id="bounce-result" style="margin-top:0.5rem;font-size:0.82rem;"></div>
+                    <div id="bounce-list" style="max-height:260px;overflow-y:auto;margin-top:0.5rem;font-size:0.8rem;"></div>
+                </div>
 
                 <div style="background:#2a1a3a;border:1px solid #5a3a7a;border-radius:8px;padding:1rem;margin-top:0.8rem;">
                     <h4 style="color:#d4adf5;margin-bottom:0.5rem;">📰 Enviar Publicación del Blog</h4>
@@ -3967,7 +3983,7 @@ function updateFilterBuilder() {
     const withEmail = matches.filter(m => m.email_member || m.email);
     const desc = document.getElementById('fb-description');
     if (desc) desc.innerHTML = `${matches.length} hospedaje(s) coinciden — ${withEmail.length} con correo válido — <strong style="color:#FFD700;">${consentCountText(withEmail)}</strong>.`;
-    if (!_consentEmails) { loadConsentEmails(); loadConsentInviteStatus(); }
+    if (!_consentEmails) { loadConsentEmails(); loadConsentInviteStatus(); loadBounces(); }
 }
 
 function toggleFbSelectAll(checked) {
@@ -4485,6 +4501,87 @@ async function consentInviteCopy() {
     }
     _ciPending = null;
     loadConsentInviteStatus();
+}
+
+// ── Bounced addresses (2026-11-16) ───────────────────────────────────────────
+let _bounceData = null;   // { bounces, dead_domain_listings, dead_domains }
+
+function _bEsc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
+
+async function loadBounces() {
+    const el = document.getElementById('bounce-list');
+    if (!el) return;
+    try {
+        const res = await adminFetch('/api/admin/email-bounces');
+        const d = await res.json();
+        if (!d.success) throw new Error(d.error || 'Error');
+        _bounceData = d;
+        const rows = d.bounces.map(b => {
+            const l = b.listings[0];
+            const where = l ? `${_bEsc(l.name)} <span style="color:#888;">(${_bEsc(l.province || '')})</span>` : '<span style="color:#888;">—</span>';
+            const date = new Date(b.bounced_at).toLocaleDateString('es-PA', { day: 'numeric', month: 'short', year: 'numeric' });
+            return `<tr><td style="padding:3px 6px;">${_bEsc(b.email)}</td><td style="padding:3px 6px;">${where}</td>
+                <td style="padding:3px 6px;color:#ffb3b3;">${_bEsc(b.bounce_note || '')}</td><td style="padding:3px 6px;color:#888;white-space:nowrap;">${date}</td>
+                <td style="padding:3px 6px;"><button onclick="removeBounce('${_bEsc(b.email)}')" title="Quitar (registrado por error)" style="background:none;border:none;color:#ff7070;cursor:pointer;">✕</button></td></tr>`;
+        }).join('');
+        const dd = d.dead_domain_listings.length
+            ? `<div style="color:#aaa;margin-top:0.4rem;">Además, ${d.dead_domain_listings.length} hospedaje(s) con dominios que ya no existen (${d.dead_domains.map(_bEsc).join(', ')}) — se excluyen automáticamente y van incluidos en la lista para la ATP.</div>`
+            : '';
+        el.innerHTML = (d.bounces.length
+            ? `<div style="color:#ff9b9b;margin-bottom:0.3rem;"><strong>${d.bounces.length}</strong> dirección(es) registrada(s):</div><table style="width:100%;border-collapse:collapse;">${rows}</table>`
+            : '<div style="color:#aaa;">Ningún rebote registrado.</div>') + dd;
+    } catch (e) { el.innerHTML = '<span style="color:#ff7070;">Error: ' + e.message + '</span>'; }
+}
+
+async function registerBounces() {
+    const out = document.getElementById('bounce-result');
+    const text = document.getElementById('bounce-text').value;
+    const note = document.getElementById('bounce-note').value;
+    if (!text.trim()) { out.innerHTML = '<span style="color:#ff7070;">Pegue primero el aviso o la dirección.</span>'; return; }
+    out.innerHTML = '<span style="color:#FFD700;">Registrando...</span>';
+    try {
+        const res = await adminFetch('/api/admin/email-bounces', { method: 'POST', body: JSON.stringify({ text, note }) });
+        const d = await res.json();
+        if (!d.success) throw new Error(d.error || 'Error');
+        const parts = [];
+        if (d.marked.length)  parts.push(`<span style="color:#adf5ad;">✅ Registrada(s): ${d.marked.map(_bEsc).join(', ')} — motivo: ${_bEsc(d.note)}</span>`);
+        if (d.already.length) parts.push(`<span style="color:#aaa;">Ya estaba(n) registrada(s): ${d.already.map(_bEsc).join(', ')}</span>`);
+        if (!d.marked.length && !d.already.length) parts.push('<span style="color:#ff7070;">No se encontró ninguna dirección del directorio en el texto.</span>');
+        if (d.ignored.length) parts.push(`<span style="color:#888;">Ignoradas (no están en el directorio): ${d.ignored.map(_bEsc).join(', ')}</span>`);
+        out.innerHTML = parts.join('<br>');
+        if (d.marked.length) { document.getElementById('bounce-text').value = ''; document.getElementById('bounce-note').value = ''; }
+        loadBounces();
+        loadConsentInviteStatus();
+    } catch (e) { out.innerHTML = '<span style="color:#ff7070;">Error: ' + e.message + '</span>'; }
+}
+
+async function removeBounce(email) {
+    if (!confirm('¿Quitar ' + email + ' de la lista de rebotes? Volverá a poder recibir correos.')) return;
+    try {
+        const res = await adminFetch('/api/admin/email-bounces/remove', { method: 'POST', body: JSON.stringify({ email }) });
+        const d = await res.json();
+        if (!d.success) throw new Error(d.error || 'Error');
+        loadBounces();
+    } catch (e) { document.getElementById('bounce-result').innerHTML = '<span style="color:#ff7070;">Error: ' + e.message + '</span>'; }
+}
+
+async function copyBouncesForAtp() {
+    const out = document.getElementById('bounce-result');
+    const d = _bounceData;
+    if (!d) { out.innerHTML = '<span style="color:#ff7070;">La lista aún no se ha cargado.</span>'; return; }
+    const fecha = new Date().toLocaleDateString('es-PA', { day: 'numeric', month: 'long', year: 'numeric' });
+    const lines = [];
+    d.bounces.forEach(b => {
+        if (b.listings.length) b.listings.forEach(l => lines.push(`- ${l.name} (${l.province || 's/provincia'}): ${b.email} — ${b.bounce_note || 'rebote'}`));
+        else lines.push(`- ${b.email} — ${b.bounce_note || 'rebote'}`);
+    });
+    d.dead_domain_listings.forEach(l => lines.push(`- ${l.name} (${l.province || 's/provincia'}): ${l.email} — dominio ya no existe`));
+    if (!lines.length) { out.innerHTML = '<span style="color:#aaa;">No hay direcciones para informar.</span>'; return; }
+    const text = `Direcciones de correo del Reporte de Hospedajes de la ATP que no reciben correo (comprobado por Trusted Panama Stays, ${fecha}):\n\n` + lines.join('\n') + `\n\nTotal: ${lines.length}\n`;
+    try {
+        await navigator.clipboard.writeText(text);
+        out.innerHTML = `<span style="color:#adf5ad;">✅ Lista copiada (${lines.length} hospedaje(s)). Péguela en su correo a la ATP.</span>`;
+    } catch (e) { out.innerHTML = '<span style="color:#ff7070;">No se pudo copiar (' + e.message + '). Haga clic en la página y vuelva a intentarlo.</span>'; }
 }
 
 function copyAuthoritiesForOutlook() {
