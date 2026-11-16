@@ -215,6 +215,16 @@ function phone_parts($phone) {
     return array_values($seen);
 }
 
+// US/Canada numbers typed without '+' (10 digits, or 11 starting with 1) are
+// shown as "+1 610-570-1161" — same as index.php/listing.html getPhoneNumbers().
+function phone_pretty($p) {
+    $raw = trim(ltrim($p, '-'));
+    if (strpos($raw, '+') === 0) return $raw;
+    $d = preg_replace('/\D/', '', $raw);
+    $us = strlen($d) === 10 ? $d : ((strlen($d) === 11 && $d[0] === '1') ? substr($d, 1) : null);
+    return $us ? '+1 ' . substr($us, 0, 3) . '-' . substr($us, 3, 3) . '-' . substr($us, 6) : $raw;
+}
+
 function to_international($raw) {
     $has_plus = strpos(trim($raw), '+') === 0;
     $digits   = preg_replace('/\D/', '', $raw);
@@ -292,7 +302,7 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
             <?php if ($address): ?>, "streetAddress": <?= json_encode($address) ?><?php endif; ?>
         },
         "url": <?= json_encode($canonical) ?>
-        <?php if ($phone): ?>, "telephone": <?= json_encode(implode(' / ', array_map(function($p) { return ltrim($p, '-'); }, phone_parts($phone)))) ?><?php endif; ?>
+        <?php if ($phone): ?>, "telephone": <?= json_encode(implode(' / ', array_map('phone_pretty', phone_parts($phone)))) ?><?php endif; ?>
         <?php if ($email): ?>, "email": <?= json_encode($email) ?><?php endif; ?>
         <?php if ($first_photo): ?>, "image": <?= json_encode($first_photo) ?><?php endif; ?>
     }
@@ -397,7 +407,7 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
         <div class="section-title"><?= $lang === 'es' ? 'Contacto' : 'Contact' ?></div>
         <div class="info-grid">
           <?php if ($phone): ?>
-          <?php $phone_display = implode(' / ', array_map(function($p) { return ltrim($p, '-'); }, phone_parts($phone))); ?>
+          <?php $phone_display = implode(' / ', array_map('phone_pretty', phone_parts($phone))); ?>
           <div class="info-item">
               <span class="info-icon">📞</span>
               <div><div class="info-label"><?= $lang === 'es' ? 'Teléfono' : 'Phone' ?></div>

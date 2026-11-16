@@ -633,7 +633,17 @@ function getPhoneNumbers(phoneStr) {
           if (!prev || (p.startsWith('-') && !prev.startsWith('-'))) seen.set(digits, p);
       });
       const parts = Array.from(seen.values());
-      const display = parts.map(p => p.replace(/^-/, '').trim()).join(' / ');
+      // US/Canada numbers typed without '+' (10 digits, or 11 starting with 1)
+      // are shown as "+1 610-570-1161" so visitors see at once it isn't a
+      // Panama number — the call/WhatsApp links already dial them that way.
+      const prettify = p => {
+          const raw = p.replace(/^-/, '').trim();
+          if (raw.startsWith('+')) return raw;
+          const d = raw.replace(/\D/g, '');
+          const us = d.length === 10 ? d : (d.length === 11 && d.startsWith('1') ? d.slice(1) : null);
+          return us ? `+1 ${us.slice(0, 3)}-${us.slice(3, 6)}-${us.slice(6)}` : raw;
+      };
+      const display = parts.map(prettify).join(' / ');
 
     // Build a full international number (no leading +) for tel:/wa.me links.
     // Length is the reliable signal here (not the leading digit — Panama's own
