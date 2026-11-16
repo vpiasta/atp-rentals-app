@@ -910,6 +910,87 @@ fetch('/api/track', {
     body: JSON.stringify({event_type: 'site_visit'})
 }).catch(function(){});
 
+// ── WebMCP (2026-11-16) ──────────────────────────────────────────────────────
+// Exposes the directory search as a tool that AI agents (e.g. Gemini in
+// Chrome, ChatGPT desktop) can call directly when a user has this page open.
+// Experimental browser standard (Chrome 149+/Edge 150+ origin trial, behind a
+// flag otherwise). Browsers without WebMCP have no modelContext object, so
+// this whole block is skipped silently. Read-only: it runs the same search the
+// visitor would, shows the results on the page, and returns the same data the
+// page displays (non-members: ATP data only — same rule as displayResults).
+(function registerWebMcpTools() {
+    const mc = document.modelContext || navigator.modelContext;
+    if (!mc || typeof mc.registerTool !== 'function') return;
+
+    const norm = s => (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    const matchOption = (selectEl, wanted) => {
+        if (!wanted) return '';
+        const w = norm(wanted);
+        const opts = Array.from(selectEl.options).filter(o => o.value);
+        const hit = opts.find(o => norm(o.value) === w)
+                 || opts.find(o => norm(o.textContent).startsWith(w))
+                 || opts.find(o => window.TYPE_LABELS_EN && norm(window.TYPE_LABELS_EN[o.value]) === w);
+        return hit ? hit.value : null;
+    };
+
+    try {
+        mc.registerTool({
+            name: 'search_registered_rentals',
+            description: 'Search Trusted Panama Stays, the directory of short-term rentals, hotels, hostels, cabins and apartments in Panama that are legally registered with the Panama Tourism Authority (ATP). Use it to find legal places to stay by town or property name, province, or type, or to check whether a specific property is registered. Booking is done directly with the owner (no commission) using the returned phone, email or WhatsApp.',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    query:    { type: 'string', description: 'Free text: property name, town (e.g. "Boquete"), phone number or email. Optional if province or type is given.' },
+                    province: { type: 'string', description: 'Panama province, e.g. "Chiriquí", "Panamá", "Bocas del Toro", "Coclé", "Los Santos". Optional.' },
+                    type:     { type: 'string', description: 'Property type, Spanish or English: Hotel, Aparta-Hotel/Aparthotel, Apartamentos/Apartments, Hostal/Inn, Hostal Familiar/Family Guesthouse, Cabaña/Cabin, Alquiler vacacional/Vacation Rental, Albergue/Hostel, Sitio de acampar/Campsite. Optional.' }
+                }
+            },
+            annotations: { readOnlyHint: true },
+            async execute({ query, province, type } = {}) {
+                const q = (query || '').toString().trim().replace(/^=+/, '');
+                const prov = matchOption(provinceFilter, province);
+                const typ  = matchOption(typeFilter, type);
+                if (prov === null) return { content: [{ type: 'text', text: `Unknown province "${province}". Valid: ${Array.from(provinceFilter.options).filter(o => o.value).map(o => o.value).join(', ')}` }] };
+                if (typ === null)  return { content: [{ type: 'text', text: `Unknown type "${type}". Valid: ${Array.from(typeFilter.options).filter(o => o.value).map(o => o.value).join(', ')}` }] };
+                if (!q && !prov && !typ) return { content: [{ type: 'text', text: 'Give at least a query, province or type.' }] };
+
+                // Mirror the search in the visible UI so the user sees what the agent found
+                searchInput.value = q; provinceFilter.value = prov; typeFilter.value = typ;
+                const params = new URLSearchParams();
+                if (q)    params.append('search', q);
+                if (prov) params.append('province', prov);
+                if (typ)  params.append('type', typ);
+                selectedKeywords.forEach(kw => params.append('keyword', kw));
+                const rentals = await (await fetch(`${API_BASE_URL}/api/rentals?${params}`)).json();
+                updateSelectedCount(rentals.length); displayResults(rentals);
+
+                const base = location.origin + '/';
+                const items = rentals.slice(0, 25).map(r => {
+                    const active = isMemberActive(r);
+                    const ph = getPhoneNumbers(active ? (r.phone_member || r.phone) : r.phone);
+                    const url = active
+                        ? base + (r.slug ? `listing.php?slug=${encodeURIComponent(r.slug)}` : `listing.php?id=${r.id}`) + (LANG === 'es' ? '&lang=es' : '')
+                        : base + (r.slug ? `listing.html?slug=${r.slug}&lang=${LANG}` : `listing.html?id=${r.id}&lang=${LANG}`);
+                    return {
+                        name: r.name, type: r.rental_type || null, province: r.province || null,
+                        address: active ? (r.address || null) : null,
+                        phone: ph.display || null,
+                        whatsapp: ph.whatsapp ? `https://wa.me/${ph.whatsapp}` : null,
+                        email: (active ? (r.email_member || r.email) : r.email) || null,
+                        listing_url: url
+                    };
+                });
+                return { content: [{ type: 'text', text: JSON.stringify({
+                    total_found: rentals.length,
+                    shown: items.length,
+                    note: 'All results are registered with the Panama Tourism Authority (ATP). Contact owners directly to book.',
+                    results: items
+                }) }] };
+            }
+        });
+    } catch (e) { console.warn('WebMCP registration skipped:', e.message); }
+})();
+
 </script>
 </body>
 </html>

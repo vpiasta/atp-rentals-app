@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /admin.html
+Disallow: /admin-blog.html
 Disallow: /api/
 
 Sitemap: https://trustedpanamastays.com/sitemap.php
