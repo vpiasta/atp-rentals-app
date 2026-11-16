@@ -2361,7 +2361,7 @@ app.post('/api/admin/wa-queue/add', requireAdmin, async (req, res) => {
 app.get('/api/admin/wa-queue', requireAdmin, async (req, res) => {
     const { data, error } = await supabaseAdmin
         .from('wa_campaign_queue')
-        .select('id, listing_id, name, slug, whatsapp, status, created_at')
+        .select('id, listing_id, name, slug, whatsapp, status, created_at, message')
         .eq('status', 'pending')
         .order('created_at', { ascending: true });
     if (error) return res.status(500).json({ error: error.message });
@@ -5082,19 +5082,14 @@ async function getConsentState(keys) {
         .select('email, email_member').eq('invitation_status', 'refused');
     const refused = new Set();
     (refusedRows || []).forEach(l => { splitEmails(l.email).forEach(e => refused.add(e)); splitEmails(l.email_member).forEach(e => refused.add(e)); });
-    // 2026-11-16: addresses registered as bounced (admin "Correos rebotados")
-    // never receive a campaign or invitation again — not even members.
-    const { data: bouncedRows } = await supabaseAdmin.from('email_subscribers')
-        .select('email').not('bounced_at', 'is', null);
-    const bounced = new Set((bouncedRows || []).map(r => r.email));
 
     const hasConsent = (email) => {
         const key = normEmail(email);
         const st = statusByEmail[key];
-        if (!key || st === 'unsubscribed' || refused.has(key) || bounced.has(key)) return false;
+        if (!key || st === 'unsubscribed' || refused.has(key)) return false;
         return st === 'confirmed' || memberEmails.has(key);
     };
-    return { statusByEmail, memberEmails, refused, bounced, hasConsent };
+    return { statusByEmail, memberEmails, refused, hasConsent };
 }
 
 // Returns { allowed: [...targets], omitted: n }.
@@ -5156,9 +5151,9 @@ async function consentInviteCandidates() {
         from += 1000;
     }
     const { memberEmails, refused } = await getConsentState([]);
-    const { data: subs } = await supabaseAdmin.from('email_subscribers').select('email, status, invited_at, bounced_at');
+    const { data: subs } = await supabaseAdmin.from('email_subscribers').select('email, status, invited_at');
     const blocked = new Set();
-    (subs || []).forEach(r => { if (r.invited_at || r.bounced_at || ['confirmed', 'pending', 'unsubscribed'].includes(r.status)) blocked.add(r.email); });
+    (subs || []).forEach(r => { if (r.invited_at || ['confirmed', 'pending', 'unsubscribed'].includes(r.status)) blocked.add(r.email); });
 
     const byEmail = new Map();
     const neverTrialEmails = new Set();
@@ -5283,110 +5278,17 @@ app.post('/api/subscribe/optin', async (req, res) => {
 // The Campaña tab uses it to show "N con consentimiento" before sending. 2026-11-13.
 app.get('/api/admin/consent-emails', requireAdmin, async (req, res) => {
     try {
-        const { statusByEmail, memberEmails, refused, bounced } = await getConsentState(null);
+        const { statusByEmail, memberEmails, refused } = await getConsentState(null);
         const out = new Set();
         Object.entries(statusByEmail).forEach(([e, st]) => { if (st === 'confirmed') out.add(e); });
         memberEmails.forEach(e => out.add(e));
         Object.entries(statusByEmail).forEach(([e, st]) => { if (st === 'unsubscribed') out.delete(e); });
         refused.forEach(e => out.delete(e));
-        bounced.forEach(e => out.delete(e));
         res.json({ emails: [...out] });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
-
-// ═══ Bounced addresses (2026-11-16) ═════════════════════════════════════════
-// email_subscribers.bounced_at / bounce_note mark addresses that can't receive
-// mail (no mail server, mailbox doesn't exist…). getConsentState() and the
-// invitation candidates skip them. Admin "Correos rebotados" box: paste a
-// bounce notice (or just addresses) → only addresses that exist in the
-// directory are registered, so our own address, mailer-daemon etc. in the
-// pasted text are ignored. GET also returns the listings on
-// DEAD_EMAIL_DOMAINS, so the "copy for the ATP" list is complete.
-function guessBounceReason(text) {
-    const t = String(text || '').toLowerCase();
-    if (/domain not hosted|mxin500/.test(t)) return 'dominio ya no existe';
-    if (/no mx|host or domain name not found|name service error|nxdomain|domain not found|dominio no encontrado/.test(t)) return 'dominio no encontrado';
-    if (/refused to talk|connection refused|421 downstream/.test(t)) return 'dominio sin servidor de correo';
-    if (/user unknown|does not exist|no such user|mailbox unavailable|recipient address rejected|5\.1\.1|invalid recipient|no existe/.test(t)) return 'dirección no existe';
-    if (/mailbox full|quota|over quota|buzón lleno/.test(t)) return 'buzón lleno';
-    return 'rebote';
-}
-
-async function listingsForEmail(email) {
-    const { data } = await supabaseAdmin.from('listings')
-        .select('id, name, province, email, email_member')
-        .or(`email.ilike.%${email}%,email_member.ilike.%${email}%`);
-    return (data || []).filter(l => splitEmails(l.email).includes(email) || splitEmails(l.email_member).includes(email));
-}
-
-// ── GET /api/admin/email-bounces ─────────────────────────────────────────────
-app.get('/api/admin/email-bounces', requireAdmin, async (req, res) => {
-    try {
-        const { data: rows, error } = await supabaseAdmin.from('email_subscribers')
-            .select('email, bounced_at, bounce_note').not('bounced_at', 'is', null)
-            .order('bounced_at', { ascending: false });
-        if (error) throw new Error(error.message);
-        const bounces = [];
-        for (const r of rows || []) {
-            const ls = await listingsForEmail(r.email);
-            bounces.push({ ...r, listings: ls.map(l => ({ id: l.id, name: l.name, province: l.province })) });
-        }
-        let deadDomain = [];
-        for (const d of DEAD_EMAIL_DOMAINS) {
-            const { data } = await supabaseAdmin.from('listings').select('id, name, province, email').ilike('email', `%@${d}%`).order('name');
-            deadDomain = deadDomain.concat((data || []).map(l => ({ ...l, email: splitEmails(l.email).find(e => isDeadEmailDomain(e)) || l.email, domain: d })));
-        }
-        res.json({ success: true, bounces, dead_domain_listings: deadDomain, dead_domains: DEAD_EMAIL_DOMAINS });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ── POST /api/admin/email-bounces {text, note} ───────────────────────────────
-app.post('/api/admin/email-bounces', requireAdmin, async (req, res) => {
-    try {
-        const text = String(req.body?.text || '');
-        const note = String(req.body?.note || '').trim().slice(0, 200) || guessBounceReason(text);
-        const found = [...new Set((text.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi) || []).map(normEmail))];
-        const OWN = ['trustedpanamastays.com', 'aparthotel-boquete.com'];
-        const candidates = found.filter(e => {
-            const [local, dom] = e.split('@');
-            return !OWN.includes(dom) && !/^(mailer-daemon|postmaster|no-?reply|bounce)/.test(local);
-        });
-        const marked = [], already = [], ignored = found.filter(e => !candidates.includes(e));
-        const now = new Date().toISOString();
-        for (const email of candidates) {
-            const ls = await listingsForEmail(email);
-            const { data: sub } = await supabaseAdmin.from('email_subscribers').select('id, bounced_at').eq('email', email).maybeSingle();
-            if (!ls.length && !sub) { ignored.push(email); continue; }
-            if (sub?.bounced_at) { already.push(email); continue; }
-            if (sub) {
-                await supabaseAdmin.from('email_subscribers').update({ bounced_at: now, bounce_note: note }).eq('id', sub.id);
-            } else {
-                await supabaseAdmin.from('email_subscribers').insert({ email, status: 'contact', source: 'bounce', listing_id: ls[0]?.id || null, name: ls[0]?.name || null, bounced_at: now, bounce_note: note });
-            }
-            marked.push(email);
-        }
-        if (marked.length) await logEvent('email_bounces_registered', { marked, note });
-        res.json({ success: true, marked, already, ignored, note });
-    } catch (err) {
-        console.error('email-bounces:', err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ── POST /api/admin/email-bounces/remove {email} — undo a mistaken entry ────
-app.post('/api/admin/email-bounces/remove', requireAdmin, async (req, res) => {
-    const email = normEmail(req.body?.email);
-    if (!email) return res.status(400).json({ error: 'Falta la dirección' });
-    const { error } = await supabaseAdmin.from('email_subscribers').update({ bounced_at: null, bounce_note: null }).eq('email', email);
-    if (error) return res.status(500).json({ error: error.message });
-    await logEvent('email_bounce_removed', { email });
-    res.json({ success: true });
-});
-
 
 function subscriptionConfirmEmailHtml(lang, name, confirmUrl) {
     const en = lang === 'en';

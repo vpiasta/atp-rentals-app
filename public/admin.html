@@ -4164,7 +4164,9 @@ async function loadWaQueue() {
             const listingUrl = r.slug
                 ? `https://trustedpanamastays.com/listing.html?slug=${r.slug}&lang=es`
                 : `https://trustedpanamastays.com/listing.html?id=${r.listing_id}&lang=es`;
-            const msg = (template || '').replace(/\{name\}/g, r.name).replace(/\{url\}/g, listingUrl);
+            // r.message (2026-11-16): a row's own text, e.g. the follow-up to a bounced
+            // e-mail, replaces the shared template.
+            const msg = r.message || (template || '').replace(/\{name\}/g, r.name).replace(/\{url\}/g, listingUrl);
             const waUrl = `https://wa.me/${r.whatsapp}?text=${encodeURIComponent(msg)}`;
             return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px solid #1a3a2a;">
                 <span style="font-size:0.85rem;">${r.name}</span>
