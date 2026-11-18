@@ -762,6 +762,7 @@ function displayResults(rentals) {
                     ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>`
                     : (rental.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
                 ${rental.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
+                ${rental.closed_reported_at ? `<span class="result-badge" style="background:#8b1a1a;color:#ffd6d6;" title="${LANG === 'en' ? 'The owner reported that this property has closed. It is still listed in the ATP register.' : 'El propietario informó que este hospedaje cerró. Sigue en el registro de la ATP.'}">${closedLabel(rental)}</span>` : ''}
                 </div>
                 <div class="result-details">
                         ${ph.display ? `<div class="detail-item"><span>📞</span><span>${ph.display}</span></div>` : ''}
