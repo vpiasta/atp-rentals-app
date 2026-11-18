@@ -48,7 +48,7 @@ function supabase_get($path) {
     return is_array($data) && isset($data[0]) ? $data[0] : null;
 }
 
-$select = 'id,name,phone,email,province,rental_type,address,description_en,description_es,photos,website_url,booking_url,is_member,membership_paid_until,phone_member,email_member,custom_links,slug,registry_source,apatel_member,listing_keywords,atp_active';
+$select = 'id,name,phone,email,province,rental_type,address,description_en,description_es,photos,website_url,booking_url,is_member,membership_paid_until,phone_member,email_member,custom_links,slug,registry_source,apatel_member,listing_keywords,atp_active,closed_reported_at,closed_since';
 
 if ($slug) {
     $listing = supabase_get('listings?select=' . $select . '&slug=eq.' . urlencode($slug) . '&limit=1');
@@ -155,6 +155,23 @@ $page_title  = $lang === 'es' ? $title_es : $title_en;
 $page_desc   = $lang === 'es' ? $desc_es  : $desc_en;
 
 $mici_label  = $listing['registry_source'] === 'mici' ? '✅ MiCI' : '✅ ATP';
+
+// 2026-11-18: "closed per owner" label — set in the admin panel, the ATP sync
+// never touches it. closed_since is 'YYYY-MM-DD' (first of month) or null.
+$closed_label = '';
+$closed_text  = '';
+if (!empty($listing['closed_reported_at'])) {
+    $since = '';
+    if (!empty($listing['closed_since']) && preg_match('/^(\d{4})-(\d{2})/', $listing['closed_since'], $cm)) {
+        $mes = ['ene.','feb.','mar.','abr.','may.','jun.','jul.','ago.','sept.','oct.','nov.','dic.'];
+        $mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        $since = $lang === 'es' ? ' desde ' . $mes[(int)$cm[2] - 1] . ' ' . $cm[1] : ' since ' . $mon[(int)$cm[2] - 1] . ' ' . $cm[1];
+    }
+    $closed_label = $lang === 'es' ? '⛔ Cerrado según el propietario' . $since : '⛔ Closed per owner' . $since;
+    $closed_text  = $lang === 'es'
+        ? 'El propietario nos informó que este hospedaje cerró' . $since . '. Todavía figura en el registro de la ATP, por eso sigue en este directorio.'
+        : 'The owner told us this property has closed' . $since . '. It is still listed in the ATP register, which is why it still appears in this directory.';
+}
 
 // ── Registration shown on the page ────────────────────────────────────────────
 // ATP listings: the ATP report this listing appears in (link to the PDF).
@@ -392,8 +409,10 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
             <span class="badge badge-atp"><?= h($mici_label) ?></span>
             <?php if ($active): ?><span class="badge badge-member">⭐ <?= $lang === 'es' ? 'Miembro' : 'Member' ?></span><?php endif; ?>
             <?php if ($apatel): ?><span class="badge badge-apatel">🏨 APATEL</span><?php endif; ?>
+            <?php if ($closed_label): ?><span class="badge" style="background:#8b1a1a;color:#ffd6d6;"><?= h($closed_label) ?></span><?php endif; ?>
         </div>
     </div>
+    <?php if ($closed_text): ?><p style="background:#3a1414;border:1px solid #8b1a1a;color:#ffd6d6;border-radius:6px;padding:8px 12px;font-size:0.88rem;margin:0 0 1rem;"><?= h($closed_text) ?></p><?php endif; ?>
 
     <div class="buttons">
       <?php if ($phone_call): ?><a href="tel:+<?= h($phone_call) ?>" class="btn">📞 <?= $lang === 'es' ? 'Llamar' : 'Call' ?></a><?php endif; ?>

@@ -498,6 +498,7 @@ async function showDefaultView() {
                             ${rental.registry_source === 'mici'
                                 ? `<span class="result-badge" style="background:#4a1a6b;color:#d4adf5;">✅ MiCI</span>`
                                 : (rental.atp_active !== false ? `<span class="result-badge" style="background:#1a5c1a;color:#adf5ad;">✅ ATP</span>` : '')}
+                            ${rental.closed_reported_at ? `<span class="result-badge" style="background:#8b1a1a;color:#ffd6d6;" title="${LANG === 'en' ? 'The owner reported that this property has closed. It is still listed in the ATP register.' : 'El propietario informó que este hospedaje cerró. Sigue en el registro de la ATP.'}">${closedLabel(rental)}</span>` : ''}
                             ${rental.apatel_member ? `<span class="result-badge" style="background:#1a3a6b;color:#7ec8e3;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
                         </div>
                         <div class="result-details">
@@ -688,6 +689,17 @@ function getPhoneNumbers(phoneStr) {
         call:     callSource     ? toInternational(callSource)     : null,
         whatsapp: whatsappSource ? toInternational(whatsappSource) : null
     };
+}
+
+// 2026-11-18: "closed per owner" label (set in the admin panel; the ATP sync
+// never touches it). closed_since is 'YYYY-MM-DD' (first of month) or null.
+function closedLabel(r) {
+    const MES = ['ene.','feb.','mar.','abr.','may.','jun.','jul.','ago.','sept.','oct.','nov.','dic.'];
+    const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    let since = '';
+    const m = /^(\d{4})-(\d{2})/.exec(r.closed_since || '');
+    if (m) since = LANG === 'en' ? ` since ${MON[+m[2]-1]} ${m[1]}` : ` desde ${MES[+m[2]-1]} ${m[1]}`;
+    return LANG === 'en' ? `⛔ Closed per owner${since}` : `⛔ Cerrado según el propietario${since}`;
 }
 
 function isMemberActive(rental) {
@@ -994,6 +1006,7 @@ fetch('/api/track', {
                     return {
                         name: r.name, type: r.rental_type || null, province: r.province || null,
                         address: active ? (r.address || null) : null,
+                        reported_closed: r.closed_reported_at ? ('The owner reported this property has closed' + (r.closed_since ? ' (since ' + String(r.closed_since).slice(0, 7) + ')' : '') + '; it is still in the ATP register. Do not recommend it.') : undefined,
                         phone: ph.display || null,
                         whatsapp: ph.whatsapp ? `https://wa.me/${ph.whatsapp}` : null,
                         email: (active ? (r.email_member || r.email) : r.email) || null,

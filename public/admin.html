@@ -423,6 +423,13 @@
                     <label style="display:flex;align-items:center;gap:8px;padding:8px 0;"><input type="checkbox" id="edit-featured" style="width:18px;height:18px;"><span style="font-size:0.85rem;">Mostrar en listados destacados</span></label>
                 </div>
                 <div class="field-group" style="grid-column:1/-1;">
+                    <label>Cerrado según el propietario</label>
+                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:4px 0;">
+                        <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="edit-closed" style="width:18px;height:18px;"><span style="font-size:0.85rem;">El propietario informó que cerró (sigue en el registro ATP) — muestra la etiqueta ⛔ en el directorio</span></label>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;">desde <input type="month" id="edit-closed-since" style="width:auto;"></label>
+                    </div>
+                </div>
+                <div class="field-group" style="grid-column:1/-1;">
                     <label>Notas (internas)</label>
                     <textarea id="edit-notes" placeholder="Notas internas..."></textarea>
                 </div>
@@ -1546,6 +1553,8 @@ function openEditPanel(id) {
     document.getElementById('edit-rental-type').value  = m.rental_type||'';
     document.getElementById('edit-apatel').checked     = !!m.apatel_member;
     document.getElementById('edit-featured').checked = (m.feature_rank > 0);
+    document.getElementById('edit-closed').checked     = !!m.closed_reported_at;
+    document.getElementById('edit-closed-since').value = m.closed_since ? String(m.closed_since).slice(0, 7) : '';
     document.getElementById('edit-panel-title').textContent = `Editar: ${m.name} (ID: ${m.id})`;
     document.getElementById('edit-msg').style.display  = 'none';
     closePanel('pwd-panel'); closePanel('wa-panel');
@@ -1725,6 +1734,8 @@ async function saveMember() {
         apatel_member:         document.getElementById('edit-apatel').checked,
         rental_type:           document.getElementById('edit-rental-type').value||null,
         set_featured:          document.getElementById('edit-featured') ? document.getElementById('edit-featured').checked : undefined,
+        closed:                document.getElementById('edit-closed').checked,
+        closed_since:          document.getElementById('edit-closed-since').value || null,
     };
     try {
         const res  = await adminFetch('/api/admin/update-member', { method:'POST', body: JSON.stringify(payload) });
@@ -1738,6 +1749,8 @@ async function saveMember() {
         }
         msg.textContent='✅ Guardado'; msg.className='panel-msg ok'; msg.style.display='inline-block';
         Object.assign(m||{}, payload);
+        if (m) { m.closed_reported_at = payload.closed ? (m.closed_reported_at || new Date().toISOString()) : null;
+                 m.closed_since = payload.closed && payload.closed_since ? payload.closed_since + '-01' : null; }
         updateStats(allMembers); filterMembers();
         setTimeout(()=>closePanel('edit-panel'),1500);
     } catch(err) {

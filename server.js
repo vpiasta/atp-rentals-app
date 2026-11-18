@@ -1339,7 +1339,7 @@ app.get('/api/rentals', async (req, res) => {
             while (true) {
                 const { data, error } = await supabaseAdmin
                     .from('listings')
-                    .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type, apatel_member, feature_rank, listing_keywords')
+                    .select('id, phone_member, email_member, address, photos, is_member, membership_paid_until, slug, rental_type, apatel_member, feature_rank, listing_keywords, closed_reported_at, closed_since')
                     .in('id', ids)
                     .range(from, from + BATCH - 1);
                 if (error) throw error;
@@ -1364,7 +1364,10 @@ app.get('/api/rentals', async (req, res) => {
                 rental_type:           m.rental_type || r.rental_type,
                 feature_rank:          m.feature_rank || 0,
                 listing_keywords:      m.listing_keywords || [],
-                apatel_member:         m.apatel_member || false
+                apatel_member:         m.apatel_member || false,
+                // 2026-11-18: "closed per owner" label — set by admin, ATP sync never touches it
+                closed_reported_at:    m.closed_reported_at || null,
+                closed_since:          m.closed_since || null
             });
         });
       }
@@ -1770,7 +1773,7 @@ app.get('/api/listing/slug/:slug', async (req, res) => {
     const { slug } = req.params;
     const { data, error } = await supabaseAdmin
         .from('listings')
-        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links, is_trial, trial_started_at, registry_source, apatel_member, listing_keywords, license_number, aviso_public')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, slug, phone_member, email_member, custom_links, is_trial, trial_started_at, registry_source, apatel_member, listing_keywords, license_number, aviso_public, closed_reported_at, closed_since')
         .eq('slug', slug)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
@@ -1781,7 +1784,7 @@ app.get('/api/listing/:id', async (req, res) => {
     const { id } = req.params;
     const { data, error } = await supabaseAdmin
         .from('listings')
-        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug, is_trial, trial_started_at, registry_source, apatel_member, listing_keywords, license_number, aviso_public')
+        .select('id, name, phone, email, province, rental_type, atp_active, atp_first_seen, atp_last_seen, address, description_en, description_es, photos, website_url, booking_url, is_member, membership_paid_until, contact_name, phone_member, email_member, custom_links, slug, is_trial, trial_started_at, registry_source, apatel_member, listing_keywords, license_number, aviso_public, closed_reported_at, closed_since')
         .eq('id', id)
         .single();
     if (error || !data) return res.status(404).json({ error: 'Not found' });
@@ -2030,7 +2033,7 @@ app.get('/api/admin/members', requireAdmin, async (req, res) => {
     while (true) {
       const { data, error } = await supabaseAdmin
           .from('listings')
-          .select('id, name, email, phone, province, rental_type, is_member, is_trial, membership_paid_until, invitation_sent_at, invitation_status, atp_active, slug, contact_name, notes, password_changed, apatel_member, feature_rank, whatsapp, photos, registry_source')
+          .select('id, name, email, phone, province, rental_type, is_member, is_trial, membership_paid_until, invitation_sent_at, invitation_status, atp_active, slug, contact_name, notes, password_changed, apatel_member, feature_rank, whatsapp, photos, registry_source, closed_reported_at, closed_since')
           .order('name')
           .range(from, from + BATCH - 1);
         if (error) return res.status(500).json({ error: error.message });
@@ -2044,9 +2047,21 @@ app.get('/api/admin/members', requireAdmin, async (req, res) => {
 // ── Admin API: update member ──────────────────────────────────────────────────
 app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
     const { id, is_member, membership_paid_until, contact_name,
-            slug, notes, phone, email, rental_type, apatel_member, set_featured } = req.body;
+            slug, notes, phone, email, rental_type, apatel_member, set_featured,
+            closed, closed_since } = req.body;
     if (!id) return res.status(400).json({ error: 'Missing id' });
     const updates = { is_member, membership_paid_until, contact_name, slug, notes };
+    // 2026-11-18: "closed per owner" label. closed_since arrives as 'YYYY-MM'.
+    if (closed !== undefined) {
+        if (closed) {
+            const { data: cur } = await supabaseAdmin.from('listings').select('closed_reported_at').eq('id', id).single();
+            updates.closed_reported_at = cur?.closed_reported_at || new Date().toISOString();
+            updates.closed_since = /^\d{4}-\d{2}$/.test(closed_since || '') ? closed_since + '-01' : null;
+        } else {
+            updates.closed_reported_at = null;
+            updates.closed_since = null;
+        }
+    }
     if (phone         !== undefined) updates.phone         = phone || null;
     if (email         !== undefined) updates.email         = email || null;
     if (rental_type   !== undefined) updates.rental_type   = rental_type || null;
@@ -2069,7 +2084,7 @@ app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
         .eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
     if (set_featured !== undefined) await recalculateFeatureRanks();
-    await logEvent('admin_update_member', { id, is_member, contact_name, apatel_member, set_featured });
+    await logEvent('admin_update_member', { id, is_member, contact_name, apatel_member, set_featured, closed, closed_since });
     res.json({ success: true });
 });
 

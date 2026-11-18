@@ -398,6 +398,19 @@ function restoreSession(id) {
     if (token) { sessionToken = token; isLoggedIn = true; }
 }
 
+// 2026-11-18: "closed per owner" label — set in the admin panel, the ATP sync
+// never touches it. closed_since is 'YYYY-MM-DD' (first of month) or null.
+function closedInfo(r) {
+    const MES = ['ene.','feb.','mar.','abr.','may.','jun.','jul.','ago.','sept.','oct.','nov.','dic.'];
+    const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    let since = '';
+    const m = /^(\d{4})-(\d{2})/.exec(r.closed_since || '');
+    if (m) since = isEs ? ` desde ${MES[+m[2]-1]} ${m[1]}` : ` since ${MON[+m[2]-1]} ${m[1]}`;
+    return isEs
+        ? { label: `⛔ Cerrado según el propietario${since}`, text: `El propietario nos informó que este hospedaje cerró${since}. Todavía figura en el registro de la ATP, por eso sigue en este directorio.` }
+        : { label: `⛔ Closed per owner${since}`, text: `The owner told us this property has closed${since}. It is still listed in the ATP register, which is why it still appears in this directory.` };
+}
+
 function getPhoneNumbers(phoneStr) {
     if (!phoneStr) return { display: '', call: null, whatsapp: null };
       // A number prefixed with '-' has been confirmed NOT on WhatsApp (set from
@@ -834,8 +847,10 @@ function renderView(rental) {
                 ${rental.registry_source === 'mici' ? '<span class="badge" style="background:#4a1a6b;color:#d4adf5;padding:3px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;">✅ MiCI</span>' : '<span class="badge badge-atp">✅ ATP</span>'}
                 ${rental.is_member   ? `<span class="badge badge-member">⭐ ${isEs?'Miembro':'Member'}</span>` : ''}
                 ${rental.apatel_member ? `<span class="badge" style="background:#1a3a6b;color:#7ec8e3;padding:3px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;border:1px solid #3a5a8b;">🏨 APATEL</span>` : ''}
+                ${rental.closed_reported_at ? `<span class="badge" style="background:#8b1a1a;color:#ffd6d6;">${closedInfo(rental).label}</span>` : ''}
             </div>
         </div>
+        ${rental.closed_reported_at ? `<p style="background:#3a1414;border:1px solid #8b1a1a;color:#ffd6d6;border-radius:6px;padding:8px 12px;font-size:0.88rem;margin:0 0 1rem;">${closedInfo(rental).text}</p>` : ''}
         <div class="quick-buttons">${buildQuickButtons(rental, false)}</div>
         <div class="section">
             <div class="section-title">${T.contact}</div>
