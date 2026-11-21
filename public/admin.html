@@ -675,6 +675,7 @@
                         <button type="button" class="fb-toggle" data-key="apatel" onclick="cycleFbToggle('apatel')">APATEL: cualquiera</button>
                         <button type="button" class="fb-toggle" data-key="whatsapp" onclick="cycleFbToggle('whatsapp')">WhatsApp: cualquiera</button>
                         <button type="button" class="fb-toggle" data-key="email" onclick="cycleFbToggle('email')">Correo: cualquiera</button>
+                        <button type="button" class="fb-toggle" data-key="consent" onclick="cycleFbToggle('consent')" title="Con consentimiento = suscriptor confirmado o miembro activo (los únicos que reciben correos de campaña)">Consentimiento: cualquiera</button>
                     </div>
 
                     <div id="fb-description" style="font-size:0.85rem;color:#adf5ad;margin-bottom:0.6rem;">Cargando...</div>
@@ -3904,7 +3905,7 @@ function initHelpSystem() {
 }
 
 // ── Filter builder: badge/toggle-based recipient targeting ───────────────────
-const fbToggleState = { foto: 'any', apatel: 'any', whatsapp: 'any', email: 'any' };
+const fbToggleState = { foto: 'any', apatel: 'any', whatsapp: 'any', email: 'any', consent: 'any' };
 let fbConfirmedTargets = [];
 
 function cycleFbToggle(key) {
@@ -3945,12 +3946,20 @@ function computeFilterMatches() {
         if (fbToggleState.email === 'yes' && !hasEmail) return false;
         if (fbToggleState.email === 'no'  && hasEmail) return false;
 
+        // 2026-11-21: consent filter (confirmed subscriber or active member).
+        // Until the consent list has loaded, 'sí' matches nothing rather than everything.
+        if (fbToggleState.consent !== 'any') {
+            const ok = hasEmailConsent(m.email_member || m.email);
+            if (fbToggleState.consent === 'yes' && !ok) return false;
+            if (fbToggleState.consent === 'no'  && ok) return false;
+        }
+
         return true;
     });
 }
 
 function fbLabel(key) {
-    const names = { foto:'Foto', apatel:'APATEL', whatsapp:'WhatsApp', email:'Correo' };
+    const names = { foto:'Foto', apatel:'APATEL', whatsapp:'WhatsApp', email:'Correo', consent:'Consentimiento' };
     const vals  = { any:'cualquiera', yes:'sí', no:'no' };
     return `${names[key]}: ${vals[fbToggleState[key]]}`;
 }
