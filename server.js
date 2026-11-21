@@ -5329,8 +5329,9 @@ function guessBounceReason(text, email) {
     const t = String(text || '').toLowerCase();
     let r = 'rebote';
     if (/domain not hosted|mxin500/.test(t)) r = 'dominio ya no existe';
-    else if (/does not exist|doesn't exist|user unknown|unknown user|no such user|no such recipient|invalid recipient|recipient address rejected|5\.1\.1|5\.1\.10|address couldn't be found|address could not be found|couldn't be found|doesn't have a .* account|mailbox (is )?(not available|unavailable|not found)|no mailbox|account (is )?(disabled|inactive|deactivated)|no existe/.test(t)) r = 'dirección no existe';
-    else if (/mailbox full|quota|over quota|insufficient storage|buzón lleno/.test(t)) r = 'buzón lleno';
+    else if (/nullmx|null mx|does not accept mail/.test(t)) r = 'dominio no acepta correos';
+    else if (/mailbox (is )?full|over quota|quota exceeded|insufficient storage|blocks limit exceeded|buzón lleno/.test(t)) r = 'buzón lleno (la dirección existe)';
+    else if (/does not exist|doesn't exist|user unknown|unknown user|no such user|no such recipient|invalid recipient|recipient address rejected|5\.1\.1|5\.1\.10|address couldn't be found|address could not be found|couldn't be found|doesn't have a .* account|mailbox (is )?(not available|unavailable|not found|disabled)|no mailbox|account (is )?(disabled|inactive|deactivated)|no existe/.test(t)) r = 'dirección no existe';
     else if (/host or domain name not found|name service error|nxdomain|domain not found|domain (name )?does not exist|no mx|dominio no encontrado/.test(t)) r = 'dominio no encontrado';
     else if (/refused to talk|connection refused|421 downstream/.test(t)) r = 'dominio sin servidor de correo';
     else if (/blocked|spam|blacklist|block list|policy|5\.7\.\d/.test(t)) r = 'rechazado por el servidor (bloqueo)';
@@ -5417,11 +5418,8 @@ app.post('/api/admin/email-bounces', requireAdmin, async (req, res) => {
             // One address pasted alone: the whole text is its notice
             const seg = candidates.length === 1 ? text : (bounceSegment(text, email, candidates) || text);
             if (!manualNote && isDelayWarning(seg)) { delayed.push(email); continue; }
-            let note = manualNote || guessBounceReason(seg, email);
-            if (!manualNote && note === 'rebote' && candidates.length > 1) {
-                const whole = guessBounceReason(text, email);   // fall back to the whole text
-                if (whole !== 'rebote') note = whole;
-            }
+            // No fallback to the whole text: that picks up other addresses' reasons
+            const note = manualNote || guessBounceReason(seg, email);
             reasons[email] = note;
             const detail = seg.replace(/\s+\n/g, '\n').trim().slice(0, 1500);
             if (sub?.bounced_at) {
