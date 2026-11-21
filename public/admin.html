@@ -4536,7 +4536,7 @@ async function loadBounces() {
             const where = l ? `${_bEsc(l.name)} <span style="color:#888;">(${_bEsc(l.province || '')})</span>` : '<span style="color:#888;">—</span>';
             const date = new Date(b.bounced_at).toLocaleDateString('es-PA', { day: 'numeric', month: 'short', year: 'numeric' });
             return `<tr><td style="padding:3px 6px;">${_bEsc(b.email)}</td><td style="padding:3px 6px;">${where}</td>
-                <td style="padding:3px 6px;color:#ffb3b3;">${_bEsc(b.bounce_note || '')}</td><td style="padding:3px 6px;color:#888;white-space:nowrap;">${date}</td>
+                <td style="padding:3px 6px;color:#ffb3b3;${b.bounce_detail ? 'cursor:help;text-decoration:underline dotted;' : ''}" title="${_bEsc(b.bounce_detail || 'Sin texto del aviso guardado')}">${_bEsc(b.bounce_note || '')}</td><td style="padding:3px 6px;color:#888;white-space:nowrap;">${date}</td>
                 <td style="padding:3px 6px;"><button onclick="removeBounce('${_bEsc(b.email)}')" title="Quitar (registrado por error)" style="background:none;border:none;color:#ff7070;cursor:pointer;">✕</button></td></tr>`;
         }).join('');
         const dd = d.dead_domain_listings.length
@@ -4559,12 +4559,15 @@ async function registerBounces() {
         const d = await res.json();
         if (!d.success) throw new Error(d.error || 'Error');
         const parts = [];
-        if (d.marked.length)  parts.push(`<span style="color:#adf5ad;">✅ Registrada(s): ${d.marked.map(_bEsc).join(', ')} — motivo: ${_bEsc(d.note)}</span>`);
+        const withReason = list => list.map(e => `${_bEsc(e)} <span style="color:#ffb3b3;">(${_bEsc((d.reasons || {})[e] || '')})</span>`).join(', ');
+        if (d.marked.length)  parts.push(`<span style="color:#adf5ad;">✅ Registrada(s): ${withReason(d.marked)}</span>`);
+        if ((d.updated || []).length) parts.push(`<span style="color:#adf5ad;">🔄 Ya registrada(s), motivo actualizado: ${withReason(d.updated)}</span>`);
         if (d.already.length) parts.push(`<span style="color:#aaa;">Ya estaba(n) registrada(s): ${d.already.map(_bEsc).join(', ')}</span>`);
-        if (!d.marked.length && !d.already.length) parts.push('<span style="color:#ff7070;">No se encontró ninguna dirección del directorio en el texto.</span>');
+        if ((d.delayed || []).length) parts.push(`<span style="color:#FFD700;">⏳ Solo aviso de retraso, NO registrada(s) (el servidor sigue intentando): ${d.delayed.map(_bEsc).join(', ')}</span>`);
+        if (!d.marked.length && !d.already.length && !(d.updated || []).length && !(d.delayed || []).length) parts.push('<span style="color:#ff7070;">No se encontró ninguna dirección del directorio en el texto.</span>');
         if (d.ignored.length) parts.push(`<span style="color:#888;">Ignoradas (no están en el directorio): ${d.ignored.map(_bEsc).join(', ')}</span>`);
         out.innerHTML = parts.join('<br>');
-        if (d.marked.length) { document.getElementById('bounce-text').value = ''; document.getElementById('bounce-note').value = ''; }
+        if (d.marked.length || (d.updated || []).length) { document.getElementById('bounce-text').value = ''; document.getElementById('bounce-note').value = ''; }
         loadBounces();
         loadConsentInviteStatus();
     } catch (e) { out.innerHTML = '<span style="color:#ff7070;">Error: ' + e.message + '</span>'; }

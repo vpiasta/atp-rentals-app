@@ -5319,14 +5319,51 @@ app.get('/api/admin/consent-emails', requireAdmin, async (req, res) => {
 // directory are registered, so our own address, mailer-daemon etc. in the
 // pasted text are ignored. GET also returns the listings on
 // DEAD_EMAIL_DOMAINS, so the "copy for the ATP" list is complete.
-function guessBounceReason(text) {
+// 2026-11-21: reason is now worked out per address from that address's own part
+// of the pasted text (see bounceSegment), so pasting many notices at once no
+// longer gives every address the same reason. Order matters: mailbox-level
+// answers are checked before domain-level ones.
+const BIG_MAIL_PROVIDERS = ['gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.es', 'outlook.com', 'live.com', 'msn.com',
+                            'yahoo.com', 'yahoo.es', 'ymail.com', 'icloud.com', 'me.com', 'aol.com'];
+function guessBounceReason(text, email) {
     const t = String(text || '').toLowerCase();
-    if (/domain not hosted|mxin500/.test(t)) return 'dominio ya no existe';
-    if (/no mx|host or domain name not found|name service error|nxdomain|domain not found|dominio no encontrado/.test(t)) return 'dominio no encontrado';
-    if (/refused to talk|connection refused|421 downstream/.test(t)) return 'dominio sin servidor de correo';
-    if (/user unknown|does not exist|no such user|mailbox unavailable|recipient address rejected|5\.1\.1|invalid recipient|no existe/.test(t)) return 'dirección no existe';
-    if (/mailbox full|quota|over quota|buzón lleno/.test(t)) return 'buzón lleno';
-    return 'rebote';
+    let r = 'rebote';
+    if (/domain not hosted|mxin500/.test(t)) r = 'dominio ya no existe';
+    else if (/does not exist|doesn't exist|user unknown|unknown user|no such user|no such recipient|invalid recipient|recipient address rejected|5\.1\.1|5\.1\.10|address couldn't be found|address could not be found|couldn't be found|doesn't have a .* account|mailbox (is )?(not available|unavailable|not found)|no mailbox|account (is )?(disabled|inactive|deactivated)|no existe/.test(t)) r = 'dirección no existe';
+    else if (/mailbox full|quota|over quota|insufficient storage|buzón lleno/.test(t)) r = 'buzón lleno';
+    else if (/host or domain name not found|name service error|nxdomain|domain not found|domain (name )?does not exist|no mx|dominio no encontrado/.test(t)) r = 'dominio no encontrado';
+    else if (/refused to talk|connection refused|421 downstream/.test(t)) r = 'dominio sin servidor de correo';
+    else if (/blocked|spam|blacklist|block list|policy|5\.7\.\d/.test(t)) r = 'rechazado por el servidor (bloqueo)';
+    // gmail.com, hotmail.com… certainly exist: a domain-level reason there is a misread
+    const dom = String(email || '').split('@')[1] || '';
+    if (BIG_MAIL_PROVIDERS.includes(dom) && /^dominio/.test(r)) r = 'dirección no existe';
+    return r;
+}
+
+// A delay warning ("will retry", "delayed") is not a bounce — unless the same
+// part of the text also carries a permanent failure.
+function isDelayWarning(text) {
+    const t = String(text || '').toLowerCase();
+    const delayed = /delayed|has not (yet )?been delivered|not been delivered yet|will (be )?retr|will continue to try|still trying|deferred|temporar(il)?y (unable|failure|rejected)|retrasad|aún no se ha entregado|todavía no se ha entregado/.test(t);
+    const permanent = /failed permanently|permanent(ly)? (error|failure)|5\.\d\.\d+|\b55\d\b|does not exist|user unknown|couldn't be found|could not be found|host or domain name not found|undeliverable|could not be delivered|wasn't delivered|no se pudo entregar/.test(t);
+    return delayed && !permanent;
+}
+
+// The part of the pasted text that belongs to one address: from each place the
+// address appears up to the next place another address from the list appears
+// (max 1500 characters).
+function bounceSegment(text, email, allEmails) {
+    const low = text.toLowerCase();
+    const starts = [];
+    allEmails.forEach(e => { let i = -1; while ((i = low.indexOf(e, i + 1)) !== -1) starts.push({ e, i }); });
+    starts.sort((a, b) => a.i - b.i);
+    let seg = '';
+    starts.forEach((s, k) => {
+        if (s.e !== email) return;
+        const next = starts.slice(k + 1).find(o => o.e !== email);
+        seg += text.slice(s.i, Math.min(next ? next.i : text.length, s.i + 1500)) + '\n';
+    });
+    return seg.slice(0, 3000);
 }
 
 async function listingsForEmail(email) {
@@ -5340,7 +5377,7 @@ async function listingsForEmail(email) {
 app.get('/api/admin/email-bounces', requireAdmin, async (req, res) => {
     try {
         const { data: rows, error } = await supabaseAdmin.from('email_subscribers')
-            .select('email, bounced_at, bounce_note').not('bounced_at', 'is', null)
+            .select('email, bounced_at, bounce_note, bounce_detail').not('bounced_at', 'is', null)
             .order('bounced_at', { ascending: false });
         if (error) throw new Error(error.message);
         const bounces = [];
@@ -5363,29 +5400,47 @@ app.get('/api/admin/email-bounces', requireAdmin, async (req, res) => {
 app.post('/api/admin/email-bounces', requireAdmin, async (req, res) => {
     try {
         const text = String(req.body?.text || '');
-        const note = String(req.body?.note || '').trim().slice(0, 200) || guessBounceReason(text);
+        const manualNote = String(req.body?.note || '').trim().slice(0, 200);
         const found = [...new Set((text.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi) || []).map(normEmail))];
         const OWN = ['trustedpanamastays.com', 'aparthotel-boquete.com'];
         const candidates = found.filter(e => {
             const [local, dom] = e.split('@');
             return !OWN.includes(dom) && !/^(mailer-daemon|postmaster|no-?reply|bounce)/.test(local);
         });
-        const marked = [], already = [], ignored = found.filter(e => !candidates.includes(e));
+        const marked = [], updated = [], already = [], delayed = [], reasons = {};
+        const ignored = found.filter(e => !candidates.includes(e));
         const now = new Date().toISOString();
         for (const email of candidates) {
             const ls = await listingsForEmail(email);
-            const { data: sub } = await supabaseAdmin.from('email_subscribers').select('id, bounced_at').eq('email', email).maybeSingle();
+            const { data: sub } = await supabaseAdmin.from('email_subscribers').select('id, bounced_at, bounce_note').eq('email', email).maybeSingle();
             if (!ls.length && !sub) { ignored.push(email); continue; }
-            if (sub?.bounced_at) { already.push(email); continue; }
+            // One address pasted alone: the whole text is its notice
+            const seg = candidates.length === 1 ? text : (bounceSegment(text, email, candidates) || text);
+            if (!manualNote && isDelayWarning(seg)) { delayed.push(email); continue; }
+            let note = manualNote || guessBounceReason(seg, email);
+            if (!manualNote && note === 'rebote' && candidates.length > 1) {
+                const whole = guessBounceReason(text, email);   // fall back to the whole text
+                if (whole !== 'rebote') note = whole;
+            }
+            reasons[email] = note;
+            const detail = seg.replace(/\s+\n/g, '\n').trim().slice(0, 1500);
+            if (sub?.bounced_at) {
+                // Re-pasted: correct the reason/excerpt if this paste is more specific
+                if (manualNote || note !== 'rebote' || !sub.bounce_note) {
+                    await supabaseAdmin.from('email_subscribers').update({ bounce_note: note, bounce_detail: detail }).eq('id', sub.id);
+                    updated.push(email);
+                } else already.push(email);
+                continue;
+            }
             if (sub) {
-                await supabaseAdmin.from('email_subscribers').update({ bounced_at: now, bounce_note: note }).eq('id', sub.id);
+                await supabaseAdmin.from('email_subscribers').update({ bounced_at: now, bounce_note: note, bounce_detail: detail }).eq('id', sub.id);
             } else {
-                await supabaseAdmin.from('email_subscribers').insert({ email, status: 'contact', source: 'bounce', listing_id: ls[0]?.id || null, name: ls[0]?.name || null, bounced_at: now, bounce_note: note });
+                await supabaseAdmin.from('email_subscribers').insert({ email, status: 'contact', source: 'bounce', listing_id: ls[0]?.id || null, name: ls[0]?.name || null, bounced_at: now, bounce_note: note, bounce_detail: detail });
             }
             marked.push(email);
         }
-        if (marked.length) await logEvent('email_bounces_registered', { marked, note });
-        res.json({ success: true, marked, already, ignored, note });
+        if (marked.length || updated.length) await logEvent('email_bounces_registered', { marked, updated, reasons });
+        res.json({ success: true, marked, updated, already, delayed, ignored, reasons });
     } catch (err) {
         console.error('email-bounces:', err.message);
         res.status(500).json({ error: err.message });
