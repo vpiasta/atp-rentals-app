@@ -399,13 +399,14 @@ function restoreSession(id) {
 }
 
 // 2026-11-18: "closed per owner" label — set in the admin panel, the ATP sync
-// never touches it. closed_since is 'YYYY-MM-DD' (first of month) or null.
+// never touches it. closed_since is 'YYYY-MM', 'YYYY' (year only) or null.
 function closedInfo(r) {
     const MES = ['ene.','feb.','mar.','abr.','may.','jun.','jul.','ago.','sept.','oct.','nov.','dic.'];
     const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     let since = '';
-    const m = /^(\d{4})-(\d{2})/.exec(r.closed_since || '');
-    if (m) since = isEs ? ` desde ${MES[+m[2]-1]} ${m[1]}` : ` since ${MON[+m[2]-1]} ${m[1]}`;
+    const m = /^(\d{4})(?:-(\d{2}))?/.exec(r.closed_since || '');
+    if (m) since = m[2] ? (isEs ? ` desde ${MES[+m[2]-1]} ${m[1]}` : ` since ${MON[+m[2]-1]} ${m[1]}`)
+                        : (isEs ? ` desde ${m[1]}` : ` since ${m[1]}`);
     return isEs
         ? { label: `⛔ Cerrado según el propietario${since}`, text: `El propietario nos informó que este hospedaje cerró${since}. Todavía figura en el registro de la ATP, por eso sigue en este directorio.` }
         : { label: `⛔ Closed per owner${since}`, text: `The owner told us this property has closed${since}. It is still listed in the ATP register, which is why it still appears in this directory.` };

@@ -149,23 +149,31 @@ $alt_es = $alt_base . '&lang=es';
 
 $title_en    = $name . ' — Trusted Panama Stays';
 $title_es    = $name . ' — Trusted Panama Stays';
-$desc_en     = 'Verified tourist accommodation in ' . $province . ', Panama. ' . strip_tags(mb_substr($description, 0, 150));
-$desc_es     = 'Hospedaje turístico verificado en ' . $province . ', Panamá. ' . strip_tags(mb_substr($description, 0, 150));
+// 2026-11-27: richer description for search results and link previews
+$snippet     = trim(mb_substr(preg_replace('/\s+/u', ' ', strip_tags((string)$description)), 0, 160));
+if ($snippet !== '' && mb_strlen(strip_tags((string)$description)) > 160) $snippet .= '…';
+$type_label  = trim((string)($listing['rental_type'] ?? ''));
+$desc_en     = ($type_label ? $type_label . ' in ' : 'Lodging in ') . $province . ', Panama — registered with the Panama Tourism Authority (ATP) and verified on Trusted Panama Stays.' . ($snippet !== '' ? ' ' . $snippet : '');
+$desc_es     = ($type_label ? $type_label . ' en ' : 'Hospedaje en ') . $province . ', Panamá — registrado en la Autoridad de Turismo de Panamá (ATP) y verificado en Trusted Panama Stays.' . ($snippet !== '' ? ' ' . $snippet : '');
 $page_title  = $lang === 'es' ? $title_es : $title_en;
 $page_desc   = $lang === 'es' ? $desc_es  : $desc_en;
 
 $mici_label  = $listing['registry_source'] === 'mici' ? '✅ MiCI' : '✅ ATP';
 
 // 2026-11-18: "closed per owner" label — set in the admin panel, the ATP sync
-// never touches it. closed_since is 'YYYY-MM-DD' (first of month) or null.
+// never touches it. closed_since is 'YYYY-MM', 'YYYY' (year only) or null.
 $closed_label = '';
 $closed_text  = '';
 if (!empty($listing['closed_reported_at'])) {
     $since = '';
-    if (!empty($listing['closed_since']) && preg_match('/^(\d{4})-(\d{2})/', $listing['closed_since'], $cm)) {
+    if (!empty($listing['closed_since']) && preg_match('/^(\d{4})(?:-(\d{2}))?/', $listing['closed_since'], $cm)) {
         $mes = ['ene.','feb.','mar.','abr.','may.','jun.','jul.','ago.','sept.','oct.','nov.','dic.'];
         $mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        $since = $lang === 'es' ? ' desde ' . $mes[(int)$cm[2] - 1] . ' ' . $cm[1] : ' since ' . $mon[(int)$cm[2] - 1] . ' ' . $cm[1];
+        if (!empty($cm[2])) {
+            $since = $lang === 'es' ? ' desde ' . $mes[(int)$cm[2] - 1] . ' ' . $cm[1] : ' since ' . $mon[(int)$cm[2] - 1] . ' ' . $cm[1];
+        } else {
+            $since = $lang === 'es' ? ' desde ' . $cm[1] : ' since ' . $cm[1];
+        }
     }
     $closed_label = $lang === 'es' ? '⛔ Cerrado según el propietario' . $since : '⛔ Closed per owner' . $since;
     $closed_text  = $lang === 'es'
@@ -297,14 +305,17 @@ $maps_url   = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($na
     <link rel="alternate" hreflang="es" href="<?= h($alt_es) ?>">
     <link rel="alternate" hreflang="x-default" href="<?= h($alt_en) ?>">
     <?php endif; ?>    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <!-- Open Graph -->
-    <meta property="og:title"       content="<?= h($page_title) ?>">
-    <meta property="og:description" content="<?= h($page_desc) ?>">
-    <meta property="og:url"         content="<?= h($canonical) ?>">
-    <meta property="og:type"        content="business.business">
-    <?php if ($first_photo): ?>
-    <meta property="og:image"       content="<?= h($first_photo) ?>">
-    <?php endif; ?>
+    <!-- Open Graph / link previews (member photo, otherwise the site image) -->
+    <?php require_once __DIR__ . '/includes/og-meta.php';
+    tps_og_meta([
+        'lang'        => $lang,
+        'type'        => 'business.business',
+        'title'       => $page_title,
+        'description' => $page_desc,
+        'url'         => $canonical,
+        'image'       => $first_photo ?: null,
+        'image_alt'   => $first_photo ? $name : null,
+    ]); ?>
     <!-- JSON-LD structured data -->
     <script type="application/ld+json">
     {

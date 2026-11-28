@@ -120,6 +120,9 @@ $aboutUrl  = 'https://trustedpanamastays.com/tpsipedia.php?page=about' . ($is_en
     <link rel="alternate" hreflang="en" href="https://trustedpanamastays.com/blog-post.php?slug=<?= urlencode($slug) ?>">
     <link rel="alternate" hreflang="es" href="https://trustedpanamastays.com/blog-post.php?slug=<?= urlencode($slug) ?>&lang=es">
     <link rel="alternate" hreflang="x-default" href="https://trustedpanamastays.com/blog-post.php?slug=<?= urlencode($slug) ?>">
+    <?php require_once __DIR__ . '/includes/og-meta.php';
+    tps_og_meta(['lang' => $lang, 'type' => 'article', 'title' => $title, 'description' => $metaDesc, 'url' => $canonical,
+                 'image' => $image ?: null, 'image_alt' => $image ? $title : null]); ?>
     <?php else: ?>
     <meta name="robots" content="noindex">
     <?php endif; ?>

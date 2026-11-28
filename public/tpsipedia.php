@@ -358,11 +358,10 @@ $e = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     <link rel="alternate" hreflang="en" href="<?= $e($altEn) ?>">
     <link rel="alternate" hreflang="es" href="<?= $e($altEs) ?>">
     <link rel="alternate" hreflang="x-default" href="<?= $e($altEn) ?>">
-    <meta property="og:type" content="<?= $page ? 'article' : 'website' ?>">
-    <meta property="og:title" content="<?= $e($page ? $q : ($isAbout ? $about['h1'] : 'TPSipedia')) ?>">
-    <meta property="og:description" content="<?= $e($metaDesc) ?>">
-    <meta property="og:url" content="<?= $e($canonical) ?>">
-    <meta property="og:site_name" content="Trusted Panama Stays">
+    <?php require_once __DIR__ . '/includes/og-meta.php';
+    tps_og_meta(['lang' => $lang, 'type' => $page ? 'article' : 'website',
+                 'title' => $page ? $q : ($isAbout ? $about['h1'] : 'TPSipedia'),
+                 'description' => $metaDesc, 'url' => $canonical]); ?>
     <?php if ($page): ?><meta property="article:modified_time" content="<?= $e($page['updated_at']) ?>"><?php endif; ?>
     <?php else: ?>
     <meta name="robots" content="noindex">

@@ -157,6 +157,8 @@ $faqSchema = [
     <link rel="alternate" hreflang="es" href="https://trustedpanamastays.com/faq.php?lang=es">
     <link rel="alternate" hreflang="en" href="https://trustedpanamastays.com/faq.php?lang=en">
     <link rel="alternate" hreflang="x-default" href="https://trustedpanamastays.com/faq.php?lang=es">
+    <?php require_once __DIR__ . '/includes/og-meta.php';
+    tps_og_meta(['lang' => $lang, 'type' => 'website', 'title' => $t['title'], 'description' => $t['description'], 'url' => $t['canonical']]); ?>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <script type="application/ld+json">
 <?= json_encode($faqSchema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?>

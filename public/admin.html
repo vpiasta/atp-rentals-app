@@ -426,7 +426,16 @@
                     <label>Cerrado según el propietario</label>
                     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:4px 0;">
                         <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="edit-closed" style="width:18px;height:18px;"><span style="font-size:0.85rem;">El propietario informó que cerró (sigue en el registro ATP) — muestra la etiqueta ⛔ en el directorio</span></label>
-                        <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;">desde <input type="month" id="edit-closed-since" style="width:auto;"></label>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;">desde
+                            <select id="edit-closed-month" style="width:auto;">
+                                <option value="">mes desconocido</option>
+                                <option value="01">ene.</option><option value="02">feb.</option><option value="03">mar.</option>
+                                <option value="04">abr.</option><option value="05">may.</option><option value="06">jun.</option>
+                                <option value="07">jul.</option><option value="08">ago.</option><option value="09">sept.</option>
+                                <option value="10">oct.</option><option value="11">nov.</option><option value="12">dic.</option>
+                            </select>
+                            <input type="number" id="edit-closed-year" min="1990" max="2100" step="1" placeholder="año" style="width:80px;">
+                        </label>
                     </div>
                 </div>
                 <div class="field-group" style="grid-column:1/-1;">
@@ -1555,7 +1564,10 @@ function openEditPanel(id) {
     document.getElementById('edit-apatel').checked     = !!m.apatel_member;
     document.getElementById('edit-featured').checked = (m.feature_rank > 0);
     document.getElementById('edit-closed').checked     = !!m.closed_reported_at;
-    document.getElementById('edit-closed-since').value = m.closed_since ? String(m.closed_since).slice(0, 7) : '';
+    // closed_since: 'YYYY-MM' or 'YYYY' (year only, 2026-11-27); old rows 'YYYY-MM-01'
+    { const cs = /^(\d{4})(?:-(\d{2}))?/.exec(m.closed_since || '');
+      document.getElementById('edit-closed-year').value  = cs ? cs[1] : '';
+      document.getElementById('edit-closed-month').value = cs && cs[2] ? cs[2] : ''; }
     document.getElementById('edit-panel-title').textContent = `Editar: ${m.name} (ID: ${m.id})`;
     document.getElementById('edit-msg').style.display  = 'none';
     closePanel('pwd-panel'); closePanel('wa-panel');
@@ -1736,7 +1748,9 @@ async function saveMember() {
         rental_type:           document.getElementById('edit-rental-type').value||null,
         set_featured:          document.getElementById('edit-featured') ? document.getElementById('edit-featured').checked : undefined,
         closed:                document.getElementById('edit-closed').checked,
-        closed_since:          document.getElementById('edit-closed-since').value || null,
+        closed_since:          (() => { const y = (document.getElementById('edit-closed-year').value || '').trim();
+                                         const mo = document.getElementById('edit-closed-month').value;
+                                         return /^\d{4}$/.test(y) ? (mo ? y + '-' + mo : y) : null; })(),
     };
     try {
         const res  = await adminFetch('/api/admin/update-member', { method:'POST', body: JSON.stringify(payload) });
@@ -1751,7 +1765,7 @@ async function saveMember() {
         msg.textContent='✅ Guardado'; msg.className='panel-msg ok'; msg.style.display='inline-block';
         Object.assign(m||{}, payload);
         if (m) { m.closed_reported_at = payload.closed ? (m.closed_reported_at || new Date().toISOString()) : null;
-                 m.closed_since = payload.closed && payload.closed_since ? payload.closed_since + '-01' : null; }
+                 m.closed_since = payload.closed && payload.closed_since ? payload.closed_since : null; }
         updateStats(allMembers); filterMembers();
         setTimeout(()=>closePanel('edit-panel'),1500);
     } catch(err) {

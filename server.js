@@ -2051,12 +2051,14 @@ app.post('/api/admin/update-member', requireAdmin, async (req, res) => {
             closed, closed_since } = req.body;
     if (!id) return res.status(400).json({ error: 'Missing id' });
     const updates = { is_member, membership_paid_until, contact_name, slug, notes };
-    // 2026-11-18: "closed per owner" label. closed_since arrives as 'YYYY-MM'.
+    // 2026-11-18: "closed per owner" label. closed_since arrives as 'YYYY-MM',
+    // or as 'YYYY' when the owner only knows the year (2026-11-27). Stored as
+    // text exactly like that (column changed from date to text the same day).
     if (closed !== undefined) {
         if (closed) {
             const { data: cur } = await supabaseAdmin.from('listings').select('closed_reported_at').eq('id', id).single();
             updates.closed_reported_at = cur?.closed_reported_at || new Date().toISOString();
-            updates.closed_since = /^\d{4}-\d{2}$/.test(closed_since || '') ? closed_since + '-01' : null;
+            updates.closed_since = /^\d{4}(-(0[1-9]|1[0-2]))?$/.test(closed_since || '') ? closed_since : null;
         } else {
             updates.closed_reported_at = null;
             updates.closed_since = null;

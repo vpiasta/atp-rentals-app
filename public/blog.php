@@ -69,6 +69,8 @@ $posts = ssr_blog_posts($lang);
     <link rel="alternate" hreflang="en" href="https://trustedpanamastays.com/blog.php">
     <link rel="alternate" hreflang="es" href="https://trustedpanamastays.com/blog.php?lang=es">
     <link rel="alternate" hreflang="x-default" href="https://trustedpanamastays.com/blog.php">
+    <?php require_once __DIR__ . '/includes/og-meta.php';
+    tps_og_meta(['lang' => $lang, 'type' => 'website', 'title' => $t['title'], 'description' => $t['description'], 'url' => $t['canonical']]); ?>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="/css/site-header-footer.css">

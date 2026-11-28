@@ -4,7 +4,10 @@ $is_en = $lang === 'en';
 
 $t = [
     'title'        => $is_en ? 'Trusted Panama Stays - Verified Tourist Rentals' : 'Trusted Panama Stays - Hospedajes Verificados',
-    'description'  => $is_en ? 'Find trusted, publicly registered hotels, apartments and vacation rentals in Panama' : 'Encuentra aquí únicamente hoteles, apartamentos y alquileres vacacionales de confianza, registrados legalmente en Panamá',
+    // 2026-11-27: richer description (search results, link previews, AI crawlers)
+    'description'  => $is_en
+        ? 'Directory of legally registered lodging in Panama: hotels, hostels, apart-hotels, cabins and vacation rentals listed with the Panama Tourism Authority (ATP), updated from the official ATP report. Search by name, province or type and book with confidence.'
+        : 'Directorio de hospedajes registrados legalmente en Panamá: hoteles, hostales, apartahoteles, cabañas y alquileres vacacionales inscritos en la Autoridad de Turismo de Panamá (ATP), actualizado con el reporte oficial de la ATP. Busque por nombre, provincia o tipo y reserve con confianza.',
     'canonical'    => $is_en ? 'https://trustedpanamastays.com/index.php' : 'https://trustedpanamastays.com/index.php?lang=es',
     'html_lang'    => $lang,
     'heading'      => 'Trusted Panama Stays',
@@ -112,6 +115,42 @@ $ssr_stats = ssr_stats($is_en);
     <title><?= $t['title'] ?></title>
     <meta name="description" content="<?= $t['description'] ?>">
     <link rel="canonical" href="<?= $t['canonical'] ?>">
+    <?php require_once __DIR__ . '/includes/og-meta.php';
+    tps_og_meta([
+        'lang'        => $lang,
+        'type'        => 'website',
+        'title'       => $is_en ? 'Trusted Panama Stays — only legally registered lodging in Panama' : 'Trusted Panama Stays — solo hospedajes registrados legalmente en Panamá',
+        'description' => $t['description'],
+        'url'         => $t['canonical'],
+    ]); ?>
+    <script type="application/ld+json">
+    <?= json_encode([
+        '@context' => 'https://schema.org',
+        '@graph'   => [
+            [
+                '@type'       => 'WebSite',
+                '@id'         => 'https://trustedpanamastays.com/#website',
+                'name'        => 'Trusted Panama Stays',
+                'url'         => 'https://trustedpanamastays.com/',
+                'inLanguage'  => ['en', 'es'],
+                'description' => $t['description'],
+                'publisher'   => ['@id' => 'https://trustedpanamastays.com/#organization'],
+            ],
+            [
+                '@type'       => 'Organization',
+                '@id'         => 'https://trustedpanamastays.com/#organization',
+                'name'        => 'Trusted Panama Stays',
+                'url'         => 'https://trustedpanamastays.com/',
+                'logo'        => 'https://trustedpanamastays.com/logo%20512x512.png',
+                'description' => $is_en
+                    ? 'Independent directory that lists only lodging registered with the Panama Tourism Authority (ATP), to promote legally compliant short-term rentals in Panama.'
+                    : 'Directorio independiente que solo incluye hospedajes registrados ante la Autoridad de Turismo de Panamá (ATP), para promover el alquiler de corta estancia legal en Panamá.',
+                'areaServed'  => 'PA',
+                'email'       => 'info@trustedpanamastays.com',
+            ],
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?>
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="/css/site-header-footer.css">
@@ -692,13 +731,14 @@ function getPhoneNumbers(phoneStr) {
 }
 
 // 2026-11-18: "closed per owner" label (set in the admin panel; the ATP sync
-// never touches it). closed_since is 'YYYY-MM-DD' (first of month) or null.
+// never touches it). closed_since is 'YYYY-MM', 'YYYY' (year only) or null.
 function closedLabel(r) {
     const MES = ['ene.','feb.','mar.','abr.','may.','jun.','jul.','ago.','sept.','oct.','nov.','dic.'];
     const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     let since = '';
-    const m = /^(\d{4})-(\d{2})/.exec(r.closed_since || '');
-    if (m) since = LANG === 'en' ? ` since ${MON[+m[2]-1]} ${m[1]}` : ` desde ${MES[+m[2]-1]} ${m[1]}`;
+    const m = /^(\d{4})(?:-(\d{2}))?/.exec(r.closed_since || '');
+    if (m) since = m[2] ? (LANG === 'en' ? ` since ${MON[+m[2]-1]} ${m[1]}` : ` desde ${MES[+m[2]-1]} ${m[1]}`)
+                        : (LANG === 'en' ? ` since ${m[1]}` : ` desde ${m[1]}`);
     return LANG === 'en' ? `⛔ Closed per owner${since}` : `⛔ Cerrado según el propietario${since}`;
 }
 
