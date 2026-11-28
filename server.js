@@ -2467,6 +2467,7 @@ const HELP_FILES = {
     'atpsync':           'atpsync-es.html',
     'keywords':          'keywords-es.html',
     'stat-total':        'stat-total-es.html',
+    'stat-not-registered': 'stat-not-registered-es.html',
     'stat-members':      'stat-members-es.html',
     'stat-expired':      'stat-expired-es.html',
     'stat-not-invited':  'stat-not-invited-es.html',

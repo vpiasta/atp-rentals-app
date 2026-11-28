@@ -311,9 +311,13 @@
 
         <!-- Stats -->
         <div class="stats-grid">
-            <div class="stat-card" data-filter="all" onclick="applyFilter('all')" data-help="stat-total">
+            <div class="stat-card" data-filter="registered" onclick="applyFilter('registered')" data-help="stat-total">
                 <div class="stat-number" id="stat-total">—</div>
-                <div class="stat-label">Total de Hospedajes</div>
+                <div class="stat-label">Hospedajes Registrados</div>
+            </div>
+            <div class="stat-card" data-filter="no-atp" onclick="applyFilter('no-atp')" data-help="stat-not-registered">
+                <div class="stat-number" id="stat-not-registered">—</div>
+                <div class="stat-label">Ya no en lista ATP</div>
             </div>
             <div class="stat-card" data-filter="members" onclick="applyFilter('members')" data-help="stat-members">
                 <div class="stat-number" id="stat-members">—</div>
@@ -497,7 +501,8 @@
             <div class="toolbar">
                 <input type="text" id="member-search" placeholder="Buscar nombre, provincia, correo, contacto..." oninput="filterMembers()">
                 <select id="member-filter" onchange="filterMembers(true)">
-                    <option value="all">Todos los listados</option>
+                    <option value="registered">Registrados (ATP/MiCI)</option>
+                    <option value="all">Todos (incl. ya no en lista ATP)</option>
                     <option value="apatel">Miembros APATEL</option>
                     <option value="members">Miembros activos</option>
                     <option value="expired">Membresía vencida</option>
@@ -506,7 +511,7 @@
                     <option value="no-response">Sin respuesta (30+ días)</option>
                     <option value="refused">Rechazado</option>
                     <option value="no-email">Sin correo</option>
-                    <option value="no-atp">No en lista ATP</option>
+                    <option value="no-atp">Ya no en lista ATP</option>
                 </select>
                 <button class="tbtn primary" onclick="loadMembers()">🔄 Actualizar</button>
                 <button class="tbtn success" onclick="recalcRanks()">🏆 Recalcular Rangos</button>
@@ -1089,7 +1094,7 @@ function getInvitationStatus(m) {
             : { key:'member', subkey:'support', label:'MIEMBRO', cls:`s-member s-member-support ${photoCls}` };
     }
     if (m.is_member && m.membership_paid_until <  today) return { key:'expired',     label:'VENCIDO',      cls:'s-unpaid' };
-    if (!m.atp_active)                                   return { key:'unregistered',label:'NO REGISTRADO',cls:'s-unregistered' };
+    if (!isRegistered(m))                                return { key:'unregistered',label:'NO REGISTRADO',cls:'s-unregistered' };
     if (m.invitation_status === 'refused')               return { key:'refused',     label:'RECHAZADO',    cls:'s-refused' };
     if (m.invitation_status === 'invited' || m.invitation_sent_at) {
         const sentAt = new Date(m.invitation_sent_at);
@@ -1159,11 +1164,16 @@ async function recalcRanks() {
     } catch(err) { alert('Error: ' + err.message); }
 }
 
+// Registered = in the latest ATP report, or registered with MiCI — the same
+// rule as the homepage count (2026-11-27: the admin total used to count every
+// row, including listings that dropped out of the ATP report).
+function isRegistered(m) { return !!m.atp_active || m.registry_source === 'mici'; }
+
 function updateStats(members) {
     const today = new Date().toISOString().split('T')[0];
-    let counts = { total:0, members:0, expired:0, notInvited:0, invited:0, noResponse:0, refused:0 };
+    let counts = { total:0, notRegistered:0, members:0, expired:0, notInvited:0, invited:0, noResponse:0, refused:0 };
     members.forEach(m => {
-        counts.total++;
+        if (isRegistered(m)) counts.total++; else counts.notRegistered++;
         const s = getInvitationStatus(m);
         if (s.key==='member')      counts.members++;
         if (s.key==='expired')     counts.expired++;
@@ -1173,6 +1183,7 @@ function updateStats(members) {
         if (s.key==='refused')     counts.refused++;
     });
     document.getElementById('stat-total').textContent       = counts.total;
+    document.getElementById('stat-not-registered').textContent = counts.notRegistered;
     document.getElementById('stat-members').textContent     = counts.members;
     document.getElementById('stat-expired').textContent     = counts.expired;
     document.getElementById('stat-not-invited').textContent = counts.notInvited;
@@ -1222,7 +1233,8 @@ function filterMembers(clearSelection) {
             case 'apatel':      return !!m.apatel_member;
             case 'refused':     return s.key==='refused';
             case 'no-email':    return !m.email;
-            case 'no-atp':      return !m.atp_active;
+            case 'registered':  return isRegistered(m);
+            case 'no-atp':      return !isRegistered(m);
             default:            return true;
         }
     });
